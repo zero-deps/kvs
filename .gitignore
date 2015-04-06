@@ -1,0 +1,10 @@
+.idea
+.git
+*.orig
+target
+data*
+project/target
+project/project
+src/main/java
+/.history
+store_usage_data
