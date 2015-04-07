@@ -14,6 +14,22 @@ import sbt.Keys._
 import sbt._
 import sbtprotobuf.{ProtobufPlugin => PB}
 
+object Publish {
+  val repo = Some(Resolver.url("MWS Nexus Repo Snapshot",
+    new URL("http://nexus-mobile.ee.playtech.corp/nexus/content/repositories/mws-snapshots/")))
+
+  lazy val nexusCredentials = Credentials("Sonatype Nexus Repository Manager",
+    "nexus-mobile.ee.playtech.corp", "mws", "aG1reeshie")
+
+  lazy val settings = Seq(publishTo := repo,
+    publishArtifact in Test := false,
+    publishArtifact in(Compile, packageBin) := true,
+    publishArtifact in(Compile, packageDoc) := false,
+    publishArtifact in(Compile, packageSrc) := false,
+    isSnapshot in(Compile) := version.value.contains("-SNAPSHOT"),
+    credentials += nexusCredentials)
+}
+
 object Dependencies {
 
   object Versions {
@@ -75,18 +91,19 @@ object Build extends sbt.Build {
 
   lazy val buildSettings = Seq(
     organization := "playtech",
-    version      := "1.0",
+    version      := "1.0-SNAPSHOT",
     scalaVersion := Dependencies.Versions.scalaVersion
   )
 
   lazy val root = Project(
     id = "rng",
     base = file("."),
-    settings = SbtMultiJvm.multiJvmSettings ++ PB.protobufSettings ++ Seq(
+    settings = SbtMultiJvm.multiJvmSettings ++ PB.protobufSettings ++ Publish.settings ++Seq(
       javaSource in PB.protobufConfig <<= (sourceDirectory in Compile)(_ / "java"),
       libraryDependencies ++= Dependencies.akka,
       mainClass in Compile := Some("mws.rng.RingApp"),
       Keys.fork in run := true,
+      isSnapshot := true,
       compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
       compileOrder := CompileOrder.JavaThenScala,
       parallelExecution in Test := false,
@@ -101,7 +118,7 @@ object Build extends sbt.Build {
             testResults.events ++ multiNodeResults.events,
             testResults.summaries ++ multiNodeResults.summaries)
       },
-      publishArtifact in (Compile, packageDoc) := false,
+
       mappings in Docker <+= (defaultLinuxInstallLocation in Docker, sourceDirectory) map { (path,src) =>
         val conf = src / "main" / "resources" / "reference.conf"
         conf -> s"$path/conf/application.conf"
