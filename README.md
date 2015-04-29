@@ -44,10 +44,11 @@ ring {
 To join Ring node should have role that specified in rng configuration as`ring-node-name`
 
 
-### Known issue
+### Known issues
 
-  > Synchronisation among buckets ( portions of virtual nodes in count or N from quorum). ATM is disabled.
-  > read/write strategy if quorum not satisfied.
+  - Synchronisation among buckets ( portions of virtual nodes in count or N from quorum). ATM is disabled.
+  
+  - read/write strategy if quorum not satisfied.
 
 ## Docker
 
