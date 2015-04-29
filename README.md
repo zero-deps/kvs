@@ -61,8 +61,8 @@ Run sbt task to create basic docker container
 
 ### Run docker nodes
 
-  > docker run -P -t -i --rm --name seed playtech/rng:1.0
-  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0
+  > docker run -P -t -i --rm --name seed playtech/rng:1.0-SNAPSHOT
+  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-SNAPSHOT
   
 | name    | description
 | :-----: | :---------------------------------
