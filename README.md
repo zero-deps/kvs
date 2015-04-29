@@ -18,6 +18,7 @@ Ring is available as akka extension.
 
 
 ### Configuration
+TO configure rng application on your cluster add the following configuration
 
 ```
 ring {
@@ -36,7 +37,10 @@ ring {
 }
 ```
 
-Also node that is part of Ring should have role `akka.cluster.roles` . So add `ring-node-name` value to `akka.cluster.roles`
+### Configuration
+
+To join Ring node should have role that specified in rng configuration as`ring-node-name`
+
 
 ## Docker
 
