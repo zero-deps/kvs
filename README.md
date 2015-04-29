@@ -18,7 +18,9 @@ Ring is available as akka extension.
 
 
 ### Configuration
-TO configure rng application on your cluster add the following configuration
+TO configure rng application on your cluster add the following configuration.
+Quorum template [N,R,W]: N - number of nodes in bucket. R - number of nodes that must  be participated in successful read operation.
+W - number of nodes for successful write.
 
 ```
 ring {
@@ -41,6 +43,11 @@ ring {
 
 To join Ring node should have role that specified in rng configuration as`ring-node-name`
 
+
+### Known issue
+
+  > Synchronisation among buckets ( portions of virtual nodes in count or N from quorum). ATM is disabled.
+  > read/write strategy if quorum not satisfied.
 
 ## Docker
 
