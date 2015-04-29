@@ -76,7 +76,7 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
     val bucket = hashing findBucket Left(key)
     val lookup: Option[List[Data]] = Option(leveldb.get(bytes(bucket))) map fromBytesList
 
-    println(s"[store][get] $key -> $lookup")
+    log.debug(s"[store][get] $key -> $lookup")
     lookup match {
       case Some(l) => l filter(data => data._1 == key)
       case None => Nil
@@ -84,7 +84,7 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   }
 
   private def doPut(data:Data):String = {
-    println(s"${data._1} putting in store")
+    log.debug(s"${data._1} putting in store")
     val bucket = hashing findBucket Left(data._1)
     
     val lookup = fromBytesList(leveldb.get(bytes(bucket)))
@@ -94,10 +94,10 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
 
   private def doDelete(key: Key): String = doGet(key) match {
     case Nil =>
-      println(s"[store][del] k=$key not present")
+      log.debug(s"[store][del] k=$key not present")
       "error"
     case l: List[Data] =>
-      println(s"[store][del] k=$key")
+      log.info(s"[store][del] k=$key")
       val bucket = hashing findBucket Left(key)
       l filterNot (data => data._1 == key) match {
         case Nil => leveldb.delete(bytes(bucket))
@@ -109,8 +109,7 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   private def insert_and_remove(dataPut:Data, stored:List[Data]):Unit = {
     val bucket = hashing findBucket Left(dataPut._1)
     val updated: List[Data] = dataPut :: stored.filter(d => outdated(dataPut, d))
-    println(s"[store][put] $dataPut , stored = $stored, filtered = $updated")
-    
+
     withBatch(batch => {
       batch.put(bytes(bucket), bytes(updated))
     })
@@ -119,7 +118,6 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   private def outdated(dataPut: Data, persisted: Data): Boolean = {
     def old: Boolean = ((persisted._4 <> dataPut._4) || (persisted._4 > dataPut._4))
     def sameKey: Boolean = dataPut._1 == persisted._1
-    
     sameKey && old
   }
 
