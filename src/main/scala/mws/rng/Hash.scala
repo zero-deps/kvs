@@ -79,12 +79,12 @@ class Hash extends Actor with ActorLogging{
   }
   
   private[mws] def doPut(k: Key, v: Value) : String =  {
-    log.debug(s"[hash: ${local.port}] put ($k->$v) on node ${cluster.selfAddress}")
+    log.info(s"[hash: ${local.port}] put ($k->$v) on node ${cluster.selfAddress}")
     val bucket = hashing.findBucket(Left(k))
     val nodes = findNodes(Left(k))
 
     if (nodes.contains(local)) {
-      log.debug("Process put on local node")
+      log.info("Process put on local node")
       val storeRef = system.actorSelection("/user/ring_store")
       val f = storeRef ? StoreGet(k)
       val data: List[Data] = Await.result(f, timeout.duration).asInstanceOf[List[Data]]
@@ -104,7 +104,7 @@ class Hash extends Actor with ActorLogging{
 
       mapInPut(nodes, updatedData)
     } else {
-      log.debug(s"Route to cluster nodes: $nodes")
+      log.info(s"Route to cluster nodes: $nodes")
       routeToPutCluster(nodes, k, v)
     }   
   }
@@ -135,7 +135,7 @@ class Hash extends Actor with ActorLogging{
   @tailrec
   private def routeGetToCluster(k: Key, nodes: List[Node]): List[Data] = nodes match {
     case head :: tail => {
-      log.debug(s"routeGetToCluster: try to get from $head.")
+      log.info(s"routeGetToCluster: try to get from $head.")
       val path = RootActorPath(head) / "user" / "ring_hash"
       val hs = system.actorSelection(path)
       val futureGet = (hs ? Get(k)).mapTo[List[Data]]
@@ -145,15 +145,15 @@ class Hash extends Actor with ActorLogging{
       }
     }
     case _ =>
-      log.debug(s"RouteGetToCluster: no nodes to route")
+      log.info(s"RouteGetToCluster: no nodes to route")
       Nil
   }
   
   private[mws] def doGet(key: Key): List[Data] = {    
     val nodes = findNodes(Left(key))
-    log.debug(s"Nodes for get by k= $key => $nodes")
+    log.info(s"Nodes for get by k= $key => $nodes")
     if(nodes.contains(local)){
-      log.debug(s"Get locally")
+      log.info(s"Get locally")
       import context.dispatcher
       val storeGetF = Future.traverse (availableNodesFrom (nodes)) (n =>
         (system.actorSelection (RootActorPath (n) / "user" / "ring_store") ? StoreGet (key) ).mapTo[List[Data]] )
@@ -162,7 +162,7 @@ class Hash extends Actor with ActorLogging{
       
       val R = quorum.get(1)
       if(result.size < R){ // TODO check successful rez
-        log.debug(s"GET:Required R = $R, actual get nodes = ${result.size}")
+        log.info(s"GET:Required R = $R, actual get nodes = ${result.size}")
         Nil // quorum not satisfied
       }else{
         val union = gatherNodesGet(result, Nil)
@@ -172,7 +172,7 @@ class Hash extends Actor with ActorLogging{
         r
       }
     }else{
-      log.debug(s"Get is routing to cluster")
+      log.info(s"Get is routing to cluster")
       routeGetToCluster(key, nodes)
     }
   }
@@ -194,7 +194,7 @@ class Hash extends Actor with ActorLogging{
       }
 
     } else {
-      log.debug(s" Delete k = $k route to cluster")
+      log.info(s" Delete k = $k route to cluster")
       routeDeleteToCluster(nodes, k)
     }
   }
@@ -216,26 +216,26 @@ class Hash extends Actor with ActorLogging{
       e match {
       case e:ClusterMetricsChanged => //ignore
       case MemberUp(member) if member.hasRole(rngRoleName) =>
-        log.debug(s"=>[ring_hash] Node ${member.address} is joining ring")
+        log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
         (1 to vNodesNum).foreach(vnode => {
           val hashedKey = hashing.hash(Left(member.address, vnode))
           vNodes += hashedKey -> member.address})
         
-        log.debug(s"[ring_hash]Adding $vNodesNum virtual nodes hashed by ${member.address}")
+        log.info(s"[ring_hash]Adding $vNodesNum virtual nodes hashed by ${member.address}")
         val count = state.members.count(m => m.status == MemberStatus.Up && m.hasRole(rngRoleName))
         val replacedBuckets = updateBuckets(count+1)
-        log.debug(s"[ring_hash] N buckets which where replaces: ${replacedBuckets.size}")
+        log.info(s"[ring_hash] N buckets which where replaces: ${replacedBuckets.size}")
         syncBuckets(replacedBuckets)
       case me:MemberEvent if me.member.hasRole(rngRoleName)=>
         me match {
           case m:MemberRemoved =>
-            log.debug(s"[ring_hash]Removing $m from ring")
+            log.info(s"[ring_hash]Removing $m from ring")
             val node = m.member.address
             val hashes =  (1 to vNodesNum).map(v => hashing.hash(Left((node, v))))
             vNodes = vNodes.filterKeys(hashes.contains(_))
             syncBuckets(updateBuckets)
           case m:MemberExited =>
-            log.debug(s"[ring_hash] $m exited")
+            log.info(s"[ring_hash] $m exited")
           case _=>
             updateBuckets
         }
@@ -249,7 +249,7 @@ class Hash extends Actor with ActorLogging{
   @tailrec
   private def routeToPutCluster(nodes: List[Node], k: Key, v: Value): String = nodes match {
     case head :: tail => {
-      log.debug(s"[hash:${local.port} ]RoutPutToCluster: try to put in $head.")
+      log.info(s"[hash:${local.port} ]RoutPutToCluster: try to put in $head.")
       val path = RootActorPath(head) / "user" / "ring_hash"
       val hs = system.actorSelection(path)
       val hashPutF = (hs ? Put(k, v)).mapTo[String]
@@ -259,7 +259,7 @@ class Hash extends Actor with ActorLogging{
       }
     }
     case _ =>
-      log.debug(s"[hash:${local.port} ]RoutPutToCluster: no nodes to route")
+      log.info(s"[hash:${local.port} ]RoutPutToCluster: no nodes to route")
       "error"
   }
 
@@ -275,7 +275,7 @@ class Hash extends Actor with ActorLogging{
 
     val result: List[String] = Await.result (putFutures, timeout.duration)
     val W = quorum.get(2)
-    log.debug(s"PutInMap: result = ${result} with configured W=$W")
+    log.info(s"PutInMap: result = ${result} with configured W=$W")
     if ((result map (status => status.equals("ok")) size )>= W) "ok" else "error"
   }
 
@@ -422,7 +422,7 @@ class Hash extends Actor with ActorLogging{
               case "undefined" =>
                 retrieveData(node, rest)
               case ("error", reason) => // TODO process unsuccessful cases.
-                log.debug(s"retrieve data error $reason")
+                log.info(s"retrieve data error $reason")
                 ("error", reason.toString)
             }
 

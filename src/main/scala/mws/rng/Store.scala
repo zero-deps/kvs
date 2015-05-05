@@ -76,7 +76,7 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
     val bucket = hashing findBucket Left(key)
     val lookup: Option[List[Data]] = Option(leveldb.get(bytes(bucket))) map fromBytesList
 
-    log.debug(s"[store][get] $key -> $lookup")
+    log.info(s"[store][get] $key -> $lookup")
     lookup match {
       case Some(l) => l filter(data => data._1 == key)
       case None => Nil
@@ -84,7 +84,7 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   }
 
   private def doPut(data:Data):String = {
-    log.debug(s"[store][put] k = ${data._1} ")
+    log.info(s"[store][put] k = ${data._1} ")
     val bucket = hashing findBucket Left(data._1)
     
     val lookup = fromBytesList(leveldb.get(bytes(bucket)))
@@ -94,7 +94,7 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
 
   private def doDelete(key: Key): String = doGet(key) match {
     case Nil =>
-      log.debug(s"[store][del] k=$key not present")
+      log.info(s"[store][del] k=$key not present")
       "error"
     case l: List[Data] =>
       log.info(s"[store][del] k=$key")
