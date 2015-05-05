@@ -41,8 +41,16 @@ ring {
 
 ### Configuration
 
-To join Ring node should have role that specified in rng configuration as`ring-node-name`
+To join Ring node should have role that specified in rng configuration as `ring-node-name`
 
+
+### Logging
+
+ - To check whether node join ring try to grep '[ring_hash] Node ... is is joining ring'
+   
+ - Read-write operations to database is logged by '[store][get]' ,  '[store][put]' , '[store][del]'
+ 
+ - Other useful logs about routing operations between node can be found by ' hash_ring '
 
 ### Known issues
 
