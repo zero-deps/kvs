@@ -84,7 +84,7 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   }
 
   private def doPut(data:Data):String = {
-    log.debug(s"${data._1} putting in store")
+    log.debug(s"[store][put] k = ${data._1} ")
     val bucket = hashing findBucket Left(data._1)
     
     val lookup = fromBytesList(leveldb.get(bytes(bucket)))

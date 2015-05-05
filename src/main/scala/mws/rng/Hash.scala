@@ -2,7 +2,7 @@ package mws.rng
 
 import akka.actor._
 import akka.cluster.ClusterEvent._
-import akka.cluster.{Cluster, MemberStatus, VectorClock}
+import akka.cluster.{ClusterEvent, Cluster, MemberStatus, VectorClock}
 import akka.pattern.ask
 import akka.util.Timeout
 
@@ -53,7 +53,7 @@ class Hash extends Actor with ActorLogging{
   private var buckets:SortedMap[Int, KaiBucket] = SortedMap.empty // {bucket-to-nodes }  
   
   override def preStart() = {
-    cluster.subscribe(self, classOf[ClusterDomainEvent], classOf[CurrentClusterState])
+    cluster.subscribe(self, ClusterEvent.initialStateAsEvents, classOf[ClusterDomainEvent], classOf[CurrentClusterState])
     cluster.sendCurrentClusterState(self)
    }
   
