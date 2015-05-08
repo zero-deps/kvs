@@ -11,12 +11,12 @@ import com.typesafe.config.Config
  */
 class HashingImpl(config: Config) extends  Extension{
   val hashLen = config.getInt("hashLength")
-  val bucketsNum = config.getInt("buckets")  
-  
+  val bucketsNum = config.getInt("buckets")
+  val bucketRange = (math.pow(2, hashLen) / bucketsNum).ceil.toInt
   implicit val digester = MessageDigest.getInstance("MD5")
 
   def digest(a: Array[Byte]) = digester digest(a)
-  
+
   /**
     * digest.take(4).zipWithIndex.foldLeft[Int](0)((out,x) => out | ((x._1 & 0xff) << 8*(3-x._2)))
    */
@@ -36,9 +36,6 @@ class HashingImpl(config: Config) extends  Extension{
     case Left(key:Key) => (hash(Right(key)) / bucketRange ).abs
     case Right(bucket) => bucket % bucketsNum
   }
-  
-  def bucketRange :Int = (math.pow(2, hashLen) / bucketsNum).ceil.toInt
-  
 }
 
 object HashingExtension extends ExtensionId[HashingImpl] with ExtensionIdProvider {

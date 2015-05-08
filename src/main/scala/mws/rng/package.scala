@@ -3,8 +3,6 @@ package mws
 import akka.actor.Address
 import akka.cluster.VectorClock
 
-/**
- */
 package object rng {
   type Bucket = Int
   type VNode = Int
@@ -12,10 +10,10 @@ package object rng {
   type Key = String
   type Value = String // todo:ByteString
 
-  type KaiBucket = (Bucket, List[Node])
-  type Replica = Option[Int]
+  type RingBucket = (Bucket, List[Node])
+  type ReplicaKey = Option[Int]
 
-  type HashBucket = (Int, Replica, Replica)
+  type HashBucket = (Int, ReplicaKey, ReplicaKey)
 
   type Data = (
     Key, 
@@ -25,7 +23,4 @@ package object rng {
     String,   // checksum
     String,   // flags
     Value)
-
-  case object ChooseNodeRandomly
-  case object ChooseBuckerRandomly
 }
