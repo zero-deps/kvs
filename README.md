@@ -46,7 +46,7 @@ To join Ring node should have role that specified in rng configuration as `ring-
 
 ### Logging
 
- - When node is  joining ring it logs `[ring_hash] Node _node_address_ is joining ring`
+ - To check whether node join ring try to grep '[ring_hash] Node ... is is joining ring'
    
  - Read-write operations to database is logged by `[store][get]` ,  `[store][put]` , `[store][del]`
  
