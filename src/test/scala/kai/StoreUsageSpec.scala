@@ -6,7 +6,7 @@ import akka.actor.{Props, ActorSystem}
 import akka.cluster.VectorClock
 import akka.testkit.{DefaultTimeout, ImplicitSender, TestKit}
 import com.typesafe.config.ConfigFactory
-import mws._
+import mws.rng._
 import mws.rng.{StoreDelete, StorePut, StoreGet, Store}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 

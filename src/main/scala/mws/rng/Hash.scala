@@ -36,7 +36,9 @@ class Hash extends Actor with ActorLogging {
 
   val quorum = config.getIntList("quorum")  //N,R,W
   log.info(s"q = $quorum")
-  val N : Int = quorum.get(0)
+  val N: Int = quorum.get(0)
+  val R: Int = quorum.get(1)
+  val W: Int = quorum.get(2)
   val vNodesNum = config.getInt("virtual-nodes")
   log.info(s"vNodesNum = $vNodesNum")
   val bucketsNum = config.getInt("buckets")
@@ -152,8 +154,6 @@ class Hash extends Actor with ActorLogging {
         (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreGet(key)).mapTo[List[Data]])
 
       val result: List[List[Data]] = Await.result(storeGetF, timeout.duration)
-
-      val R = quorum.get(1)
       if(result.size < R){ // TODO check successful rez
         log.info(s"[hash_ring]GET:Required R = $R, actual get nodes = ${result.size}")
         Nil // quorum not satisfied
@@ -179,7 +179,6 @@ class Hash extends Actor with ActorLogging {
         (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreDelete(k)).mapTo[String])
 
       val result = Await.result(deleteF, timeout.duration)
-      val W = quorum.get(2)
       if ((result contains "ok") && (result.size >= W)) {
         "ok"
       } else {
@@ -266,21 +265,10 @@ class Hash extends Actor with ActorLogging {
       (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StorePut(updatedData)).mapTo[String])
 
     val result: List[String] = Await.result(putFutures, timeout.duration)
-    val W = quorum.get(2)
     log.debug(s"[hash:${local.port}] PutInMap: result = ${result} with configured W=$W")
     if ((result map (status => status.equals("ok")) size) >= W) "ok" else "error"
   }
-  
-  private def listIndex(nodes: List[Node]): Option[Int] = {
-    @tailrec
-    def listIndexFunction(node: Node, nodes: List[Node], i: Int): Option[Int] = nodes match {
-      case Nil => None
-      case head :: tail if head == node => Some(i)
-      case _ => listIndexFunction(node, nodes.tail, i + 1)
-    }
-    listIndexFunction(cluster.selfAddress, nodes, 1)
-  }
-  
+
   def updateBuckets(): List[HashBucket] = {
     val maxSearch = if (nodesInRing == 1) 1 else vNodes.size // don't search other nodes to fill the bucket when 1 node
     updateBuckets(bucketsNum - 1, maxSearch, List.empty)
@@ -294,11 +282,11 @@ class Hash extends Actor with ActorLogging {
       buckets.get(bucket) match {
         case Some((`bucket`, `newNodes`)) =>
           updateBuckets(bucket - 1, max, replaced)
-        case oldBucket =>
+        case outdateBucket =>
           buckets += bucket ->(bucket, newNodes)
-          val newReplica = listIndex(newNodes)
-          val oldReplica: Option[Int] = oldBucket match {
-            case Some((_, oldNodes: List[Address])) => listIndex(oldNodes)
+          val newReplica = Option(newNodes.indexOf(cluster.selfAddress))
+          val oldReplica: Option[Int] = outdateBucket match {
+            case Some((_, oldNodes: List[Address])) => Option(oldNodes.indexOf(cluster.selfAddress))
             case _ => None
           }
 
@@ -352,7 +340,7 @@ class Hash extends Actor with ActorLogging {
         case (`newReplica`, None) =>
           doUpdateBuckets(bucket, findNodes(Right(bucket)).filterNot(_ == cluster.selfAddress))
         case (None, `oldReplica`) =>
-          deleteBucket(Left(bucket))
+          deleteBucket(Left(bucket)) // TODO review
         case _ => //nop
       }
       syncBuckets(tail)
