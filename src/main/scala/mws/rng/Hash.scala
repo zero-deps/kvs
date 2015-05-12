@@ -28,7 +28,6 @@ case class Get(k: Key)
 case class Delete(k: Key)
 
 class Hash extends Actor with ActorLogging {
-
   import context.system
 
   val config = system.settings.config.getConfig("ring")
@@ -43,8 +42,6 @@ class Hash extends Actor with ActorLogging {
   log.info(s"vNodesNum = $vNodesNum")
   val bucketsNum = config.getInt("buckets")
   log.info(s"bucketsNum = $bucketsNum")
-  val hashLen = config.getInt("hashLength")
-  log.info(s"hashLen = $hashLen")
   val rngRoleName = config.getString("ring-node-name")
   log.info(s"nodeRoleName = $rngRoleName")
   val cluster = Cluster(system)
@@ -203,39 +200,24 @@ class Hash extends Actor with ActorLogging {
   }
 
   def receiveCl: Receive = {
-    case e:ClusterDomainEvent =>
-    cluster.sendCurrentClusterState(self) // TODO bind to another event to avoid unnecessary spam.
+    case e:ClusterDomainEvent => cluster.sendCurrentClusterState(self) // TODO bind to another event to avoid unnecessary spam.
       e match {
-      case e:ClusterMetricsChanged => //ignore
       case MemberUp(member) if member.hasRole(rngRoleName) =>
         log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
         (1 to vNodesNum).foreach(vnode => {
           val hashedKey = hashing.hash(Left(member.address, vnode))
           vNodes += hashedKey -> member.address})
-
-          log.info(s"[ring_hash]Adding $vNodesNum virtual nodes hashed by ${member.address}")          
-          val replacedBuckets = updateBuckets()
-          log.info(s"[ring_hash] N buckets which where replaces: ${replacedBuckets.size}")
-          syncBuckets(replacedBuckets)
-        case me: MemberEvent if me.member.hasRole(rngRoleName) =>
-          me match {
-            case m: MemberRemoved =>
-              log.info(s"[ring_hash]Removing $m from ring")
-              val node = m.member.address
-              val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((node, v))))
-              vNodes = vNodes.filterKeys(hashes.contains(_))
-              syncBuckets(updateBuckets)
-            case m: MemberExited =>
-              log.info(s"[ring_hash] $m exited")
-            case _ =>
-              updateBuckets
-          }
-        case _ =>
+        syncBuckets(updateBuckets)
+      case MemberRemoved(member, prevState) if member.hasRole(rngRoleName) =>
+        log.info(s"[ring_hash]Removing $member from ring")
+        val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((member.address, v))))
+        vNodes = vNodes.filterNot(virtualNode => hashes.contains(virtualNode._1))
+        syncBuckets(updateBuckets)
+      case _ =>
       }
     case s: CurrentClusterState =>
       state = s
   }
-
 
   @tailrec
   private def routeToPutCluster(nodes: List[Node], k: Key, v: Value): String = nodes match {
@@ -284,9 +266,16 @@ class Hash extends Actor with ActorLogging {
           updateBuckets(bucket - 1, max, replaced)
         case outdateBucket =>
           buckets += bucket ->(bucket, newNodes)
-          val newReplica = Option(newNodes.indexOf(cluster.selfAddress))
+          val newReplica = newNodes.indexOf(cluster.selfAddress) match {
+            case -1 => None
+            case i: Int => Some(i)
+          }
           val oldReplica: Option[Int] = outdateBucket match {
-            case Some((_, oldNodes: List[Address])) => Option(oldNodes.indexOf(cluster.selfAddress))
+            case Some((_, oldNodes: List[Address])) =>
+              oldNodes.indexOf(cluster.selfAddress) match {
+                case -1 => None
+                case i: Int => Some(i)
+              }
             case _ => None
           }
 
