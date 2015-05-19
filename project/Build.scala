@@ -49,7 +49,6 @@ object Dependencies {
     //val cmetrics    = "com.typesafe.akka" %% "akka-cluster-metrics" % "2.4-SNAPSHOT"
     val remote      = "com.typesafe.akka" %% "akka-remote" % akkaVersion
     val kernel      = "com.typesafe.akka" %% "akka-kernel" % akkaVersion
-    val persistence = "com.typesafe.akka" %% "akka-persistence-experimental" % akkaVersion
 
     val config  = "com.typesafe"      % "config"      % "1.2.1"
 
@@ -82,7 +81,7 @@ object Dependencies {
   import mws.rng.Dependencies.Compile._
 
   val akka = Seq(config, actor, kernel, remote, cluster,
-    levelDB, levelDBNative, persistence,
+    levelDB, levelDBNative,
     protobuf,
     Test.scalatest, Test.scalautils, Test.testkit, Test.specs2, Test.multinodekit) ++ Test.metricsAll
 }
