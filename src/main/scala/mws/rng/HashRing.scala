@@ -20,7 +20,7 @@ object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
 }
 
 class HashRing(val system:ExtendedActorSystem) extends Extension {
-  //import RingEvent._
+
   implicit val timeout = Timeout(1 second)
   implicit val digester = MessageDigest.getInstance("MD5")
   lazy val config = system.settings.config.getConfig("ring")
@@ -45,14 +45,6 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     jmx foreach {_.unregisterMBean}
     log.info("Hash ring down")
   }
-  
-  // internal
-  
-  
-  
-  
-  
-  // Public API
 
   def get(key:String):Option[List[Data]] = {
     log.info(s"get $key")
@@ -69,34 +61,3 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     Await.result(hash ? Delete(k), timeout.duration).asInstanceOf[String]
   }
 }
-
-
-/*
-  /* ===== Consistence hash routing example ===== */
-  import akka.routing.ConsistentHashingRouter
-  import akka.routing.ConsistentHashingRouter.ConsistentHashMapping
-
-  case class Entry(key: String, value: String)
-
-  class Cache extends Actor {
-    var cache = Map.empty[String, String]
-
-    def receive = {
-      case Entry(key, value) => cache += (key -> value)
-      case key: String       => sender ! cache.get(key)
-    }
-  }
-
-  def hashMapping: ConsistentHashMapping = {
-    case Entry(key, _) => key
-    case s: String     => s
-  }
-  val cache = system.actorOf(Props[Cache].withRouter(
-    ConsistentHashingRouter(10, hashMapping = hashMapping)),
-    name = "cache")
-
-  //cache ! Entry("hello", "HELLO")
-  //cache ? "hello" onSuccess { case x => println(x) }
-
-  /* ============================ */
-*/
