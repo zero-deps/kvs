@@ -6,11 +6,12 @@ import javax.management.{InstanceAlreadyExistsException, InstanceNotFoundExcepti
 import akka.event.LoggingAdapter
 import akka.util.Timeout
 
+import scala.concurrent.Await
 import scala.concurrent.duration._
 
 /** JMX cient */
 trait HashRingMBean {
-  def get(key:String):String
+  def get(key:String): Value
   def put(key:String, data:String):String
   def delete(key:String):Unit
 }
@@ -18,15 +19,16 @@ trait HashRingMBean {
 private[mws] class HashRingJmx(ring:HashRing, log: LoggingAdapter) {
   private val server = ManagementFactory.getPlatformMBeanServer
   private val name = new ObjectName("akka:type=Store")
-  implicit val timeout = Timeout(2 seconds)
+  implicit val timeout = Timeout(3 seconds)
 
   def createMBean() = {
     val mbean = new StandardMBean(classOf[HashRingMBean]) with HashRingMBean {
 
       def get(key: String) = {
-        val value = ring.get(key).map(_(0)._7).mkString
+        val rez = ring.get(key)
+        val value = Await.result(rez, timeout.duration)
         log.info(s"val for $key -> $value")
-        value
+        value getOrElse "NOT_PRESENT"
       }
       def put(key:String, value:String):String = ring.put(key, value)
       def delete(key:String) = ring.delete(key)

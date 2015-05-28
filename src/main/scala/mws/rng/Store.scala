@@ -118,7 +118,8 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   private def outdated(dataPut: Data, persisted: Data): Boolean = {
     def old: Boolean = ((persisted._4 <> dataPut._4) || (persisted._4 > dataPut._4))
     def sameKey: Boolean = dataPut._1 == persisted._1
-    sameKey && old
+    def lastWriteWin: Boolean = persisted._3 > dataPut._3
+    sameKey && old && lastWriteWin
   }
 
   private def doList(bucket:Bucket):List[Data] = {

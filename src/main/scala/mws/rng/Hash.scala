@@ -2,7 +2,7 @@ package mws.rng
 
 import akka.actor._
 import akka.cluster.ClusterEvent._
-import akka.cluster.{ClusterEvent, Cluster, MemberStatus, VectorClock}
+import akka.cluster.{Cluster, ClusterEvent, MemberStatus, VectorClock}
 import akka.pattern.ask
 import akka.util.Timeout
 
@@ -66,7 +66,7 @@ class Hash extends Actor with ActorLogging {
 
   def receiveApi: Receive = {
     case Put(k, v) => sender() ! doPut(k, v)
-    case Get(k) => sender() ! doGet(k)
+    case Get(k) => doGet(k, sender())
     case Delete(k) => sender() ! doDelete(k)
   }
 
@@ -101,70 +101,13 @@ class Hash extends Actor with ActorLogging {
     }
   }
 
-  @tailrec
-  private def gatherNodesGet(toMerge: List[List[Data]], merged: List[Data]): List[Data] = toMerge match {
-    case Nil => merged
-    case (head :: tail) => gatherNodesGet(tail, head ++ merged)
-  }
 
-  @tailrec
-  private def mergeGetResult(data: List[Data], uniqueData: List[Data]): List[Data] = data match {
-    case (head :: tail) => {
-      val vc: VectorClock = head._4
-      tail filter (d => d._4 > vc) size match {
-        case 0 => {
-          uniqueData filter (d => d._4 > vc || d._4 == vc) size match {
-            case 0 => mergeGetResult(tail, head :: uniqueData)
-            case _ => mergeGetResult(tail, uniqueData)
-          }
-        }
-        case _ => mergeGetResult(tail, uniqueData)
-      }
-    }
-    case _ => uniqueData
-  }
-
-  @tailrec
-  private def routeGetToCluster(k: Key, nodes: List[Node]): List[Data] = nodes match {
-    case head :: tail => {
-      log.info(s"[hash_ring] routeGetToCluster: try to get from $head.")
-      val path = RootActorPath(head) / "user" / "ring_hash"
-      val hs = system.actorSelection(path)
-      val futureGet = (hs ? Get(k)).mapTo[List[Data]]
-      Await.result(futureGet, timeout.duration) match {
-        case Nil => routeGetToCluster(k, tail)
-        case l: List[Data] => l
-      }
-    }
-    case _ =>
-      log.info("[hash_ring]RouteGetToCluster: no nodes to route")
-      Nil
-  }
-
-  private[mws] def doGet(key: Key): List[Data] = {
+  private[mws] def doGet(key: Key, client: ActorRef) = {
     val nodes = findNodes(Left(key))
-    log.info(s"[hash_ring]Nodes for get by k= $key => $nodes")
-    if (nodes.contains(local)) {
-      log.info(s"[hash_ring]Get locally")
-      import context.dispatcher
-      val storeGetF = Future.traverse(availableNodesFrom(nodes))(n =>
-        (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreGet(key)).mapTo[List[Data]])
-
-      val result: List[List[Data]] = Await.result(storeGetF, timeout.duration)
-      if(result.size < R){ // TODO check successful rez
-        log.info(s"[hash_ring]GET:Required R = $R, actual get nodes = ${result.size}")
-        Nil // quorum not satisfied
-      }else{
-        val union = gatherNodesGet(result, Nil)
-        log.debug(s"[hash_ring]GET: Union result list = $union")
-        val r = mergeGetResult(union, Nil)
-        log.debug(s"[hash_ring]GET: result $key -> $r")
-        r
-      }
-    }else{
-      log.info(s"[hash_ring]Get is routing to cluster")
-      routeGetToCluster(key, nodes)
-    }
+    import context.dispatcher
+      val resultsF = Future.traverse(availableNodesFrom(nodes))(n =>
+        (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreGet(key)).mapTo[List[Data]].map(f => (f, n)))
+        resultsF.map(l => system.actorSelection("/user/ring_gatherer") ! GatherGet(l, client))
   }
 
   private[mws] def doDelete(k: Key): String = {
@@ -304,7 +247,7 @@ class Hash extends Actor with ActorLogging {
         }
     }
   }
-  
+
   def nodesInRing: Int = {
     state.members.count(m => m.status == MemberStatus.Up && m.hasRole(rngRoleName)) + 1 // state doesn't calculates current node.
   }

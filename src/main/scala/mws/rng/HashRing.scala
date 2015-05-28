@@ -7,8 +7,8 @@ import akka.event.Logging
 import akka.pattern.ask
 import akka.util.Timeout
 
-import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 
 /**
  * Created by doxtop on 12.02.15.
@@ -32,6 +32,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   // todo: create system/hashring superviser
   private val hash = system.actorOf(Props[Hash].withDeploy(Deploy.local), name="ring_hash")
   private val store= system.actorOf(Props[Store].withDeploy(Deploy.local), name="ring_store")
+  private val gather = system.actorOf(Props[Gatherer].withDeploy(Deploy.local), name="ring_gatherer")
 
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {
     val jmx = new HashRingJmx(this, log)
@@ -46,12 +47,12 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     log.info("Hash ring down")
   }
 
-  def get(key:String):Option[List[Data]] = {
+  def get(key:String): Future[Option[Value]] = {
     log.info(s"get $key")
-    Option(Await.result(hash ? Get(key), timeout.duration).asInstanceOf[List[Data]])
+    (hash ? Get(key)).mapTo[Option[Value]]
   }
 
-  def put(k: String, v: String): String = {
+  def put(k: String, v: String): String = { // TODO tell
     log.info(s"put $k -> $v")
     Await.result(hash ? Put(k, v), timeout.duration).asInstanceOf[String]
   }
