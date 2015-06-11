@@ -10,7 +10,13 @@ class Gatherer extends Actor with ActorLogging {
   val timeout = Timeout(3 seconds)
 
   override def receive: Receive = {
-    case GatherGet(data, client) => client ! doGather(data)
+    case GatherGet(data, client) =>
+      val value = doGather(data) match {
+        case Some(returnData) => Some(returnData._7)
+        case None => None
+      }
+      client ! value
+      
   }
 
   def doGather(listData: List[(Option[Data], Node)]): Option[Data] = {
