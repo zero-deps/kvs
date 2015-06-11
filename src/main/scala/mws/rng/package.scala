@@ -18,7 +18,7 @@ package object rng {
   type Data = (
     Key, 
     Bucket,
-    Long,     // last_modified
+    Long,     // last_modified // TODO try time from VectorClock.versions: TreeMap[VectorClock.Node, Long]
     VectorClock,
     String,   // checksum
     String,   // flags

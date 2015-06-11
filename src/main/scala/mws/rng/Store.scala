@@ -72,28 +72,31 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
 
   }
 
-  private def doGet(key:Key):List[Data] = {
+  private def doGet(key:Key): Option[Data] = {
     val bucket = hashing findBucket Left(key)
     val lookup: Option[List[Data]] = Option(leveldb.get(bytes(bucket))) map fromBytesList
 
     log.info(s"[store][get] $key -> $lookup")
     lookup match {
-      case Some(l) => l filter(data => data._1 == key)
-      case None => Nil
+      case Some(l) => l.find(d => d._1 == key)
+      case None => None
     }
   }
 
   private def doPut(data:Data):String = {
     log.info(s"[store][put] k = ${data._1} ")
     val bucket = hashing findBucket Left(data._1)
-    
     val lookup = fromBytesList(leveldb.get(bytes(bucket)))
-    insert_and_remove(data, lookup)
+    val updated = data  :: lookup.filter(d => d._1 == data._1 && d._4 < data._4)
+    
+    withBatch(batch => {
+      batch.put(bytes(bucket), bytes(updated))
+    })
     "ok"
   }
 
   private def doDelete(key: Key): String = doGet(key) match {
-    case Nil =>
+    case None =>
       log.info(s"[store][del] k=$key not present")
       "error"
     case l: List[Data] =>
@@ -104,22 +107,6 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
         case list: List[Data] => withBatch(b => b.put(bytes(bucket), bytes(list)))
       }
       "ok"
-  }
-  
-  private def insert_and_remove(dataPut:Data, stored:List[Data]):Unit = {
-    val bucket = hashing findBucket Left(dataPut._1)
-    val updated: List[Data] = dataPut :: stored.filter(d => outdated(dataPut, d))
-
-    withBatch(batch => {
-      batch.put(bytes(bucket), bytes(updated))
-    })
-  }
-
-  private def outdated(dataPut: Data, persisted: Data): Boolean = {
-    def old: Boolean = ((persisted._4 <> dataPut._4) || (persisted._4 > dataPut._4))
-    def sameKey: Boolean = dataPut._1 == persisted._1
-    def lastWriteWin: Boolean = persisted._3 > dataPut._3
-    sameKey && old && lastWriteWin
   }
 
   private def doList(bucket:Bucket):List[Data] = {

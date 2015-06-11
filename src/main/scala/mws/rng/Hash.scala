@@ -79,19 +79,14 @@ class Hash extends Actor with ActorLogging {
       log.info("[hash_ring]Process put on local node")
       val storeRef = system.actorSelection("/user/ring_store")
       val f = storeRef ? StoreGet(k)
-      val data: List[Data] = Await.result(f, timeout.duration).asInstanceOf[List[Data]]
+      val data = Await.result(f, timeout.duration).asInstanceOf[Option[Data]]
 
-      val vclocks: List[VectorClock] = data match {
-        case Nil =>
-          log.debug("[hash_ring]new element added. new VC created")
-          List(new VectorClock)
-        case listData: List[Data] =>
-          log.debug("[hash_ring]data is present, update version")
-          listData map (d => d._4)
+      val vc: VectorClock = data match {
+        case None => new VectorClock
+        case Some(d) => d._4
       }
-      val mergedVc = vclocks.foldLeft(new VectorClock())((a, b) => a.merge(b))
-      val updatedData = (k, bucket, System.currentTimeMillis(),
-        mergedVc.:+(local.toString),
+      val updatedData = (k, bucket, System.currentTimeMillis(), //TODO hack for lm time
+        vc.:+(local.toString),
         hashing.digest(v.getBytes).mkString, "0", v)
 
       mapInPut(nodes, updatedData)
@@ -105,8 +100,8 @@ class Hash extends Actor with ActorLogging {
   private[mws] def doGet(key: Key, client: ActorRef) = {
     val nodes = findNodes(Left(key))
     import context.dispatcher
-      val resultsF = Future.traverse(availableNodesFrom(nodes))(n =>
-        (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreGet(key)).mapTo[List[Data]].map(f => (f, n)))
+      val resultsF = Future.traverse(availableNodesFrom(nodes))(node =>
+        (system.actorSelection(RootActorPath(node) / "user" / "ring_store") ? StoreGet(key)).mapTo[Option[Data]].map(data => (data, node)))
         resultsF.map(l => system.actorSelection("/user/ring_gatherer") ! GatherGet(l, client))
   }
 
