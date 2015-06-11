@@ -14,13 +14,7 @@ package object rng {
   type ReplicaKey = Option[Int]
 
   type HashBucket = (Int, ReplicaKey, ReplicaKey)
-
-  type Data = (
-    Key, 
-    Bucket,
-    Long,     // last_modified // TODO try time from VectorClock.versions: TreeMap[VectorClock.Node, Long]
-    VectorClock,
-    String,   // checksum
-    String,   // flags
-    Value)
+  
+  //TODO try time from VectorClock.versions: TreeMap[VectorClock.Node, Long]
+  case class Data(key: Key, bucket: Bucket, lastModified: Long, vc: VectorClock, value: Value)
 }

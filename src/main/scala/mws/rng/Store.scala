@@ -78,16 +78,16 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
 
     log.info(s"[store][get] $key -> $lookup")
     lookup match {
-      case Some(l) => l.find(d => d._1 == key)
+      case Some(l) => l.find(d => d.key.equals(key))
       case None => None
     }
   }
 
   private def doPut(data:Data):String = {
-    log.info(s"[store][put] k = ${data._1} ")
-    val bucket = hashing findBucket Left(data._1)
+    log.info(s"[store][put] k = ${data.key} ")
+    val bucket = hashing findBucket Left(data.key)
     val lookup = fromBytesList(leveldb.get(bytes(bucket)))
-    val updated = data  :: lookup.filter(d => d._1 == data._1 && d._4 < data._4)
+    val updated = data  :: lookup.filter(d => d.key == data.key && d.vc < data.vc)
     
     withBatch(batch => {
       batch.put(bytes(bucket), bytes(updated))
@@ -95,18 +95,14 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
     "ok"
   }
 
-  private def doDelete(key: Key): String = doGet(key) match {
-    case None =>
-      log.info(s"[store][del] k=$key not present")
-      "error"
-    case l: List[Data] =>
-      log.info(s"[store][del] k=$key")
-      val bucket = hashing findBucket Left(key)
-      l filterNot (data => data._1 == key) match {
-        case Nil => leveldb.delete(bytes(bucket))
-        case list: List[Data] => withBatch(b => b.put(bytes(bucket), bytes(list)))
-      }
-      "ok"
+  private def doDelete(key: Key): String = {
+    val b = hashing.findBucket(Left(key))
+    val lookup = fromBytesList(leveldb.get(bytes(b)))
+
+    withBatch(batch => {
+      batch.put(bytes(b), bytes(lookup.filterNot(d => d.key.equals(key))))
+    })
+    "ok"
   }
 
   private def doList(bucket:Bucket):List[Data] = {

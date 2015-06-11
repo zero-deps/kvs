@@ -83,12 +83,9 @@ class Hash extends Actor with ActorLogging {
 
       val vc: VectorClock = data match {
         case None => new VectorClock
-        case Some(d) => d._4
+        case Some(d) => d.vc
       }
-      val updatedData = (k, bucket, System.currentTimeMillis(), //TODO hack for lm time
-        vc.:+(local.toString),
-        hashing.digest(v.getBytes).mkString, "0", v)
-
+      val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
       mapInPut(nodes, updatedData)
     } else {
       log.info(s"[hash_ring]Route to cluster nodes: $nodes")
@@ -304,7 +301,7 @@ class Hash extends Actor with ActorLogging {
       case Nil => ("ok", "ok")
       case metadata :: rest =>
         val store = system.actorSelection("/user/ring_store")
-        val dataf = store ? StoreGet(metadata._1)
+        val dataf = store ? StoreGet(metadata.key)
         val data = Await.result(dataf, timeout.duration)
 
         data match {
@@ -312,7 +309,7 @@ class Hash extends Actor with ActorLogging {
             val store = system.actorSelection(RootActorPath(node) / "user" / "ring_store")
             val localStore = system.actorSelection("/user/ring_store")
 
-            val getf = store ? StoreGet(metadata._1)
+            val getf = store ? StoreGet(metadata.key)
             val get = Await.result(getf, timeout.duration)
 
             get match {

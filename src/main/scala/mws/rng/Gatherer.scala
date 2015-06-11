@@ -12,7 +12,7 @@ class Gatherer extends Actor with ActorLogging {
   override def receive: Receive = {
     case GatherGet(data, client) =>
       val value = doGather(data) match {
-        case Some(returnData) => Some(returnData._7)
+        case Some(returnData) => Some(returnData.value)
         case None => None
       }
       client ! value
@@ -29,8 +29,8 @@ class Gatherer extends Actor with ActorLogging {
 
   def findLast(data: List[(Option[Data], Node)]) = {
     def last(l: List[(Option[Data], Node)], newest: Option[Data]): Option[Data] = l match {
-      case (head :: tail) if head._1.get._4 > newest.get._4 => last(tail, head._1)
-      case (head :: tail) if head._1.get._4 <> newest.get._4 && head._1.get._3 > newest.get._3 => last(tail, head._1) // last write win
+      case (head :: tail) if head._1.get.vc > newest.get.vc => last(tail, head._1)
+      case (head :: tail) if head._1.get.vc <> newest.get.vc && head._1.get.lastModified > newest.get.lastModified => last(tail, head._1) // last write win
       case Nil => newest
     }
     last(data.tail, data.head._1)
