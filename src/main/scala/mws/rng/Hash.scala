@@ -293,18 +293,15 @@ class Hash extends Actor with ActorLogging {
             val store = system.actorSelection(RootActorPath(node) / "user" / "ring_store")
             val localStore = system.actorSelection("/user/ring_store")
 
-            val getf = store ? StoreGet(metadata.key)
+            val getf = (store ? StoreGet(metadata.key)).mapTo[Option[List[Data]]]
             val get = Await.result(getf, timeout.duration)
 
             get match {
-              case list: List[Data] =>
+              case Some(list) =>
                 list.map(localStore ! StorePut(_))
                 retrieveData(node, rest)
-              case "undefined" =>
+              case None =>
                 retrieveData(node, rest)
-              case ("error", reason) => // TODO process unsuccessful cases.
-                log.info(s"retrieve data error $reason")
-                ("error", reason.toString)
             }
           case d =>
             retrieveData(node, rest)
