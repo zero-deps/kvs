@@ -52,9 +52,10 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     (hash ? Get(key)).mapTo[Option[Value]]
   }
 
-  def put(k: String, v: String): String = { // TODO tell
+  def put(k: String, v: String): Future[Ack] = {
     log.info(s"put $k -> $v")
-    Await.result(hash ? Put(k, v), timeout.duration).asInstanceOf[String]
+    //TODO create timestamp here
+    (hash ? Put(k, v)).mapTo[Ack]
   }
 
   def delete(k: String): String = {

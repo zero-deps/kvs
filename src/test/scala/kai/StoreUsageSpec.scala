@@ -21,9 +21,9 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
   val store = system.actorOf(Props(classOf[Store]), "store")
   val digester = MessageDigest.getInstance("MD5")
 
-  val data: Data = new Data("key1", 10, 777, new VectorClock(), digester.digest("value".getBytes).mkString, "0", "value")
-  val data2: Data = new Data("key3", 5, 777, new VectorClock(), digester.digest("value".getBytes).mkString, "0", "value")
-  val dataForConflict: Data  = new Data("key7", 11, 717, new VectorClock(), digester.digest("value".getBytes).mkString, "0", "value")
+  val data: Data = new Data("key1", 10, 777, new VectorClock(), "value")
+  val data2: Data = new Data("key3", 5, 777, new VectorClock(),  "value")
+  val dataForConflict: Data  = new Data("key7", 11, 717, new VectorClock(), "value")
 
   "Store " must {
 
@@ -35,70 +35,70 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
           println(s"[PUT]$str")
       }
 
-      store ! StoreGet(data._1)
+      store ! StoreGet(data.key)
       expectMsgType[List[Data]] should (have size 1 and contain(data))
 
       store ! StoreGet("not_exists")
       expectMsgType[List[Data]] should (have size 0)
 
-      store ! StoreDelete(data._1)
+      store ! StoreDelete(data.key)
       expectMsgType[String]
 
-      store ! StoreGet(data._1)
+      store ! StoreGet(data.key)
       expectMsgType[List[Data]] should (have size 0)
     }
 
     "substitute old data with new" in {
 
-      val vecktorClock = data._4.:+("node")
+      val vecktorClock = data.vc.:+("node")
 
-      store ! StorePut(data.copy(_4 = vecktorClock))
+      store ! StorePut(data.copy(vc = vecktorClock))
       receiveN(1) contains "ok"
 
       val newVc = vecktorClock.:+("node")
-      store ! StorePut(data.copy(_4 = newVc))
+      store ! StorePut(data.copy(vc = newVc))
       receiveN(1) contains "ok"
 
-      store ! StoreGet(data._1)
+      store ! StoreGet(data.key)
       receiveN(1) head match {
-        case l: List[Data] => assert(l.head._4 == newVc)
+        case l: List[Data] => assert(l.head.vc == newVc)
         case e => fail(s"Old version is not substituted with new. res : $e")
       }
 
-      store ! StoreDelete(data._1)
+      store ! StoreDelete(data.key)
       receiveN(1) contains("ok")
     }
 
     "resolve conflict" in {
-      val vc = dataForConflict._4 .:+("node1")
+      val vc = dataForConflict.vc .:+("node1")
 
-      store ! StorePut(dataForConflict.copy(_4 = vc))
+      store ! StorePut(dataForConflict.copy(vc = vc))
       receiveN(1) match {
         case str =>
           println(s"[PUT]$str")
       }
 
-      val paralelVc = dataForConflict._4.:+("node2")
-      store ! StorePut(dataForConflict.copy(_4 = paralelVc))
+      val paralelVc = dataForConflict.vc.:+("node2")
+      store ! StorePut(dataForConflict.copy(vc = paralelVc))
       receiveN(1) match {
         case str =>
           println(s"[PUT]$str")
       }
 
-      store ! StoreGet(dataForConflict._1)
+      store ! StoreGet(dataForConflict.key)
       expectMsgType[List[Data]] should ( have size 2)
 
       val mergedVc = vc.merge(paralelVc)
-      store ! StorePut(dataForConflict.copy(_4 = mergedVc))
+      store ! StorePut(dataForConflict.copy(vc = mergedVc))
       receiveN(1) match {
         case str =>
           println(s"[PUT]$str")
       }
 
-      store ! StoreGet(dataForConflict._1)
+      store ! StoreGet(dataForConflict.key)
       expectMsgType[List[Data]] should ( have size 1)
 
-      store ! StoreDelete(dataForConflict._1)
+      store ! StoreDelete(dataForConflict.key)
       receiveN(1) match {
         case str =>
           println(s"[DELETE]$str")

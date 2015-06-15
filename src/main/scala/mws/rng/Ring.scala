@@ -5,6 +5,10 @@ import akka.kernel.Bootable
 import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 
+sealed trait Ack
+case object AckSuccess extends Ack
+case object AckQuorumFailed extends Ack
+
 /** Ring application API.*/
 trait RingAPI{
   def get(key:String):ByteString

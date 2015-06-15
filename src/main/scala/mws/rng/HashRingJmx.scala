@@ -25,12 +25,19 @@ private[mws] class HashRingJmx(ring:HashRing, log: LoggingAdapter) {
     val mbean = new StandardMBean(classOf[HashRingMBean]) with HashRingMBean {
 
       def get(key: String) = {
-        val rez = ring.get(key)
-        val value = Await.result(rez, timeout.duration)
+        val value = Await.result(ring.get(key), timeout.duration)
         log.info(s"val for $key -> $value")
         value getOrElse "NOT_PRESENT"
       }
-      def put(key:String, value:String):String = ring.put(key, value)
+      
+      def put(key:String, value:String): String = {
+        Await.result(ring.put(key, value),timeout.duration) match {
+          case AckSuccess => "ok"
+          case AckQuorumFailed => "quorum failed"
+        }
+        
+      }
+      
       def delete(key:String) = ring.delete(key)
     }
 

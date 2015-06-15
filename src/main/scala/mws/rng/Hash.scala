@@ -21,11 +21,14 @@ import scala.concurrent.{Await, Future}
  * # rehash when membership changes
  * # find node associated with key for get/put
  */
-case class Put(k: Key, v: Value)
 
-case class Get(k: Key)
+sealed class HashMessage
 
-case class Delete(k: Key)
+case class Put(k: Key, v: Value) extends HashMessage
+
+case class Get(k: Key) extends HashMessage
+
+case class Delete(k: Key) extends HashMessage
 
 class Hash extends Actor with ActorLogging {
   import context.system
@@ -36,8 +39,6 @@ class Hash extends Actor with ActorLogging {
   val quorum = config.getIntList("quorum")  //N,R,W
   log.info(s"q = $quorum")
   val N: Int = quorum.get(0)
-  val R: Int = quorum.get(1)
-  val W: Int = quorum.get(2)
   val vNodesNum = config.getInt("virtual-nodes")
   log.info(s"vNodesNum = $vNodesNum")
   val bucketsNum = config.getInt("buckets")
@@ -65,12 +66,12 @@ class Hash extends Actor with ActorLogging {
   override def receive: Receive = receiveCl orElse receiveApi
 
   def receiveApi: Receive = {
-    case Put(k, v) => sender() ! doPut(k, v)
+    case Put(k, v) =>doPut(k, v, sender())
     case Get(k) => doGet(k, sender())
-    case Delete(k) => sender() ! doDelete(k)
+    case Delete(k) => doDelete(k, sender())
   }
 
-  private[mws] def doPut(k: Key, v: Value): String = {
+  private[mws] def doPut(k: Key, v: Value, client: ActorRef) = {
     log.info(s"[hash_ring: ${local.port}] put ($k->$v) on node ${cluster.selfAddress}")
     val bucket = hashing.findBucket(Left(k))
     val nodes = findNodes(Left(k))
@@ -86,10 +87,10 @@ class Hash extends Actor with ActorLogging {
         case Some(d) => d.vc
       }
       val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
-      mapInPut(nodes, updatedData)
+      mapInPut(nodes, updatedData, client)
     } else {
       log.info(s"[hash_ring]Route to cluster nodes: $nodes")
-      routeToPutCluster(nodes, k, v)
+      routeToCluster(nodes, Put(k, v), client)
     }
   }
 
@@ -99,39 +100,21 @@ class Hash extends Actor with ActorLogging {
     import context.dispatcher
       val resultsF = Future.traverse(availableNodesFrom(nodes))(node =>
         (system.actorSelection(RootActorPath(node) / "user" / "ring_store") ? StoreGet(key)).mapTo[Option[Data]].map(data => (data, node)))
-        resultsF.map(l => system.actorSelection("/user/ring_gatherer") ! GatherGet(l, client))
+        resultsF.map(dataList => system.actorSelection("/user/ring_gatherer") ! GatherGet(dataList, client))
   }
 
-  private[mws] def doDelete(k: Key): String = {
+  private[mws] def doDelete(k: Key, client: ActorRef) = {
     import context.dispatcher
     val nodes = findNodes(Left(k))
     if (nodes contains local) {
       println(s"[hash_ring]Delete from local k = $k")
       val deleteF = Future.traverse(availableNodesFrom(nodes))(n =>
-        (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreDelete(k)).mapTo[String])
-
-      val result = Await.result(deleteF, timeout.duration)
-      if ((result contains "ok") && (result.size >= W)) {
-        "ok"
-      } else {
-        "error"
-      }
-
+        (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreDelete(k)).mapTo[String]).
+        map(statuses => GatherDel(statuses, client))
     } else {
       log.info(s"[hash_ring]Delete k = $k route to cluster")
-      routeDeleteToCluster(nodes, k)
+      routeToCluster(nodes, Delete(k), client)
     }
-  }
-
-  @tailrec
-  private def routeDeleteToCluster(nodes: List[Node], k: Key): String = nodes match {
-    case Nil => "error"
-    case head :: tail =>
-      val delF = (system.actorSelection(RootActorPath(head) / "user" / "ring_hash") ? Delete(k)).mapTo[String]
-      Await.result(delF, timeout.duration) match {
-        case "ok" => "ok"
-        case _ => routeDeleteToCluster(tail, k)
-      }
   }
 
   def receiveCl: Receive = {
@@ -154,21 +137,11 @@ class Hash extends Actor with ActorLogging {
       state = s
   }
 
-  @tailrec
-  private def routeToPutCluster(nodes: List[Node], k: Key, v: Value): String = nodes match {
-    case head :: tail => {
-      log.info(s"[hash_ring:${local.port} ]RoutPutToCluster: try to put in $head.")
-      val path = RootActorPath(head) / "user" / "ring_hash"
-      val hs = system.actorSelection(path)
-      val hashPutF = (hs ? Put(k, v)).mapTo[String]
-      Await.result(hashPutF, timeout.duration) match {
-        case "ok" => "ok"
-        case _ => routeToPutCluster(tail, k, v)
-      }
-    }
-    case _ =>
-      log.info(s"[hash:${local.port} ]RoutPutToCluster: no nodes to route")
-      "error"
+  private def routeToCluster(nodes: List[Node], msg: HashMessage, client: ActorRef): Unit = {
+    val n = availableNodesFrom(nodes).head
+    val path = RootActorPath(n) / "user" / "ring_hash"
+    val remoteHash = system.actorSelection(path)
+    remoteHash.tell(msg, client)
   }
 
   private def availableNodesFrom(l: List[Node]) = {
@@ -176,14 +149,11 @@ class Hash extends Actor with ActorLogging {
     l filterNot (node => unreachableMembers contains node)
   }
 
-  private[mws] def mapInPut(nodes: List[Node], updatedData: Data): String = {
+  private[mws] def mapInPut(nodes: List[Node], updatedData: Data, client: ActorRef) = {
     import context.dispatcher
     val putFutures = Future.traverse(availableNodesFrom(nodes))(n =>
       (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StorePut(updatedData)).mapTo[String])
-
-    val result: List[String] = Await.result(putFutures, timeout.duration)
-    log.debug(s"[hash:${local.port}] PutInMap: result = ${result} with configured W=$W")
-    if ((result map (status => status.equals("ok")) size) >= W) "ok" else "error"
+    putFutures map (statuses => system.actorSelection("/user/ring_gatherer") ! GatherPut(statuses, client))
   }
 
   def updateBuckets(): List[HashBucket] = {
