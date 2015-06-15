@@ -33,9 +33,9 @@ object Publish {
 object Dependencies {
 
   object Versions {
-    val scalaVersion = "2.11.5"
+    val scalaVersion = "2.11.6"
     val scalaTestVersion = "2.2.1"
-    val akkaVersion = "2.3.9"
+    val akkaVersion = "2.3.11"
   }
 
   object Compile {
