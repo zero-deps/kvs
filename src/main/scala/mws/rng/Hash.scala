@@ -80,11 +80,12 @@ class Hash extends Actor with ActorLogging {
       log.info("[hash_ring]Process put on local node")
       val storeRef = system.actorSelection("/user/ring_store")
       val f = storeRef ? StoreGet(k)
-      val data = Await.result(f, timeout.duration).asInstanceOf[Option[Data]]
-
+      val data = Await.result(f, timeout.duration).asInstanceOf[Option[List[Data]]] // TODO async
+      
       val vc: VectorClock = data match {
+        case Some(d) if d.size == 1 => d.head.vc
+        case Some(d) if d.size > 1 =>  (d map (_.vc) ).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
         case None => new VectorClock
-        case Some(d) => d.vc
       }
       val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
       mapInPut(nodes, updatedData, client)
@@ -95,12 +96,25 @@ class Hash extends Actor with ActorLogging {
   }
 
 
+  def flat(tuples: List[(Option[List[Data]], Node)], res: List[(Option[Data], Node)]): List[(Option[Data], Node)] = {
+    tuples match {
+      case h :: t => h._1 match {
+        case Some(l) =>
+          val list: List[(Some[Data], Node)] = l map (d => (Some(d), h._2))
+          flat(t, list ++ res)
+        case None => flat(t, (None, h._2) :: res)
+      }
+      case Nil => res
+    }
+  }
+
   private[mws] def doGet(key: Key, client: ActorRef) = {
     val nodes = findNodes(Left(key))
     import context.dispatcher
       val resultsF = Future.traverse(availableNodesFrom(nodes))(node =>
-        (system.actorSelection(RootActorPath(node) / "user" / "ring_store") ? StoreGet(key)).mapTo[Option[Data]].map(data => (data, node)))
-        resultsF.map(dataList => system.actorSelection("/user/ring_gatherer") ! GatherGet(dataList, client))
+        (system.actorSelection(RootActorPath(node) / "user" / "ring_store") ? StoreGet(key))
+          .mapTo[Option[List[Data]]].map(data => (data, node)))
+        resultsF.map(dataList => system.actorSelection("/user/ring_gatherer") ! GatherGet(flat(dataList, Nil), client))
   }
 
   private[mws] def doDelete(k: Key, client: ActorRef) = {
@@ -275,7 +289,7 @@ class Hash extends Actor with ActorLogging {
         val data = Await.result(dataf, timeout.duration)
 
         data match {
-          case Nil =>
+          case None =>
             val store = system.actorSelection(RootActorPath(node) / "user" / "ring_store")
             val localStore = system.actorSelection("/user/ring_store")
 

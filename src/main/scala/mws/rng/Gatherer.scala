@@ -65,7 +65,7 @@ class Gatherer extends Actor with ActorLogging {
     def last(l: List[(Option[Data], Node)], newest: Option[Data]): Option[Data] = l match {
       case (head :: tail) if head._1.get.vc > newest.get.vc => last(tail, head._1)
       case (head :: tail) if
-      head._1.get.vc <> newest.get.vc &&
+        head._1.get.vc <> newest.get.vc &&
         head._1.get.lastModified > newest.get.lastModified => last(tail, head._1) // last write win
       case Nil => newest
     }
