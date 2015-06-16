@@ -257,10 +257,8 @@ class Hash extends Actor with ActorLogging {
   @tailrec
   private def deleteBucket(b: Either[Bucket, List[_]]): Unit = b match {
     case Right(Nil) => //ok
-    case Right(metadata :: tail) =>
-      deleteBucket(Right(tail))
-    case Left(b) =>
-      deleteBucket(Right(Nil))
+    case Right(metadata :: tail) => deleteBucket(Right(tail))
+    case Left(b) => deleteBucket(Right(Nil))
   }
 
   @tailrec
@@ -271,10 +269,8 @@ class Hash extends Actor with ActorLogging {
         val listf = system.actorSelection(RootActorPath(head) / "user" / "ring_store").?(StoreListBucket(bucket))
         val list = Await.result(listf, timeout.duration)
         list match {
-          case list: List[Data] =>
-            retrieveData(head, list)
-          case ("error", reason) => // TODO - match real possible results
-            doUpdateBuckets(bucket, tail)
+          case list: List[Data] => retrieveData(head, list)
+          case Nil => doUpdateBuckets(bucket, tail)
         }
     }
   }

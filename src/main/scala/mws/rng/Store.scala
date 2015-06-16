@@ -109,9 +109,6 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   }
 
   private def doList(bucket:Bucket):List[Data] = {
-    // match the storage to get the data
-    // - ignore flags and value
-    // - key, last_modified, vector_clock, chechsum - should match
    fromBytesList(leveldb.get(bytes(bucket)))
   }
 
