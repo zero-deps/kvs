@@ -16,6 +16,8 @@ Ring is available as akka extension.
 
 `ring.put("key", "val")`
 
+ring.delete("key")`
+
 
 ### Configuration
 TO configure rng application on your cluster add the following configuration.
@@ -27,7 +29,6 @@ ring {
   quorum=[3,2,2]  #N,R,W. Change to [1,1,1] for single node
   buckets=1024
   virtual-nodes=128
-  sync_interval=1000 # not implemented yet. Ignoring.
   hashLength=32
   ring-node-name="ring_node"
   leveldb {
@@ -54,8 +55,6 @@ To join Ring node should have role that specified in rng configuration as `ring-
 
 ### Known issues
 
-  - Synchronisation among buckets ( portions of virtual nodes in count or N from quorum). ATM is disabled.
-  
   - read/write strategy if quorum not satisfied.
 
 ## Docker
