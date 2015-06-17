@@ -72,12 +72,10 @@ class Hash extends Actor with ActorLogging {
   }
 
   private[mws] def doPut(k: Key, v: Value, client: ActorRef) = {
-    log.info(s"[hash_ring: ${local.port}] put ($k->$v) on node ${cluster.selfAddress}")
     val bucket = hashing.findBucket(Left(k))
     val nodes = findNodes(Left(k))
 
     if (nodes.contains(local)) {
-      log.info("[hash_ring]Process put on local node")
       val storeRef = system.actorSelection("/user/ring_store")
       val f = storeRef ? StoreGet(k)
       val data = Await.result(f, timeout.duration).asInstanceOf[Option[List[Data]]] // TODO async
@@ -90,7 +88,6 @@ class Hash extends Actor with ActorLogging {
       val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
       mapInPut(nodes, updatedData, client)
     } else {
-      log.info(s"[hash_ring]Route to cluster nodes: $nodes")
       routeToCluster(nodes, Put(k, v), client)
     }
   }
@@ -121,12 +118,10 @@ class Hash extends Actor with ActorLogging {
     import context.dispatcher
     val nodes = findNodes(Left(k))
     if (nodes contains local) {
-      println(s"[hash_ring]Delete from local k = $k")
       val deleteF = Future.traverse(availableNodesFrom(nodes))(n =>
         (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreDelete(k)).mapTo[String]).
         map(statuses => GatherDel(statuses, client))
     } else {
-      log.info(s"[hash_ring]Delete k = $k route to cluster")
       routeToCluster(nodes, Delete(k), client)
     }
   }

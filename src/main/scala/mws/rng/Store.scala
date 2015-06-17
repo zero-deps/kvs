@@ -75,8 +75,7 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   private def doGet(key:Key): Option[List[Data]] = {
     val bucket = hashing findBucket Left(key)
     val lookup: Option[List[Data]] = Option(leveldb.get(bytes(bucket))) map fromBytesList
-
-    log.info(s"[store][get] $key -> $lookup")
+    
     lookup match {
       case Some(l) =>
         val sameKey: List[Data] = l.filter(d => d.key.equals(key))
@@ -87,7 +86,6 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   }
 
   private def doPut(data:Data):String = {
-    log.info(s"[store][put] k = ${data.key} ")
     val bucket = hashing findBucket Left(data.key)
     val lookup = fromBytesList(leveldb.get(bytes(bucket)))
     val updated = data  :: lookup.filterNot(d => d.key.equals(data.key) && d.vc < data.vc)
