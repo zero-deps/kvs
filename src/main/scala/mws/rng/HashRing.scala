@@ -1,7 +1,5 @@
 package mws.rng
 
-import java.security.MessageDigest
-
 import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
@@ -21,9 +19,7 @@ object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
 
 class HashRing(val system:ExtendedActorSystem) extends Extension {
 
-  implicit val timeout = Timeout(1 second)
-  implicit val digester = MessageDigest.getInstance("MD5")
-  lazy val config = system.settings.config.getConfig("ring")
+  implicit val timeout = Timeout(2 second)
   lazy val log = Logging(system, "hash-ring")
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
 
@@ -54,12 +50,12 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
 
   def put(k: String, v: String): Future[Ack] = {
     log.info(s"put $k -> $v")
-    //TODO create timestamp here
+    //TODO create timestamp heree
     (hash ? Put(k, v)).mapTo[Ack]
   }
 
-  def delete(k: String): String = {
+  def delete(k: String): Future[Ack] = {
     log.info(s" delete $k")
-    Await.result(hash ? Delete(k), timeout.duration).asInstanceOf[String]
+    (hash ? Delete(k)).mapTo[Ack]
   }
 }

@@ -34,7 +34,7 @@ class Hash extends Actor with ActorLogging {
   import context.system
 
   val config = system.settings.config.getConfig("ring")
-  implicit val timeout = Timeout(1.second)
+  implicit val timeout = Timeout(2.second)
 
   val quorum = config.getIntList("quorum")  //N,R,W
   log.info(s"q = $quorum")
@@ -119,8 +119,8 @@ class Hash extends Actor with ActorLogging {
     val nodes = findNodes(Left(k))
     if (nodes contains local) {
       val deleteF = Future.traverse(availableNodesFrom(nodes))(n =>
-        (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreDelete(k)).mapTo[String]).
-        map(statuses => GatherDel(statuses, client))
+        (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreDelete(k)).mapTo[String])
+      deleteF.map(statuses => system.actorSelection("/user/ring_gatherer") ! GatherDel(statuses, client))
     } else {
       routeToCluster(nodes, Delete(k), client)
     }
@@ -142,8 +142,7 @@ class Hash extends Actor with ActorLogging {
         syncBuckets(updateBuckets)
       case _ =>
       }
-    case s: CurrentClusterState =>
-      state = s
+    case s: CurrentClusterState => state = s
   }
 
   private def routeToCluster(nodes: List[Node], msg: HashMessage, client: ActorRef): Unit = {
