@@ -1,7 +1,3 @@
-/**
- * Copyright (C) 2009-2014 Typesafe Inc. <http://www.typesafe.com>
- */
-
 package mws.rng
 
 import com.typesafe.sbt.SbtMultiJvm
@@ -13,22 +9,6 @@ import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import sbt.Keys._
 import sbt._
 import sbtprotobuf.{ProtobufPlugin => PB}
-
-object Publish {
-  val repo = Some(Resolver.url("MWS Nexus Repo Snapshot",
-    new URL("http://nexus-mobile.ee.playtech.corp/nexus/content/repositories/mws-snapshots/")))
-
-  lazy val nexusCredentials = Credentials("Sonatype Nexus Repository Manager",
-    "nexus-mobile.ee.playtech.corp", "mws", "aG1reeshie")
-
-  lazy val settings = Seq(publishTo := repo,
-    publishArtifact in Test := false,
-    publishArtifact in(Compile, packageBin) := true,
-    publishArtifact in(Compile, packageDoc) := false,
-    publishArtifact in(Compile, packageSrc) := false,
-    isSnapshot in(Compile) := version.value.contains("-SNAPSHOT"),
-    credentials += nexusCredentials)
-}
 
 object Dependencies {
 
@@ -46,7 +26,6 @@ object Dependencies {
 
     val actor       = "com.typesafe.akka" %% "akka-actor" % akkaVersion
     val cluster     = "com.typesafe.akka" %% "akka-cluster" % akkaVersion
-    //val cmetrics    = "com.typesafe.akka" %% "akka-cluster-metrics" % "2.4-SNAPSHOT"
     val remote      = "com.typesafe.akka" %% "akka-remote" % akkaVersion
     val kernel      = "com.typesafe.akka" %% "akka-kernel" % akkaVersion
 
@@ -89,7 +68,7 @@ object Dependencies {
 object Build extends sbt.Build {
 
   lazy val buildSettings = Seq(
-    organization := "playtech",
+    organization := "com.playtech.mws",
     version      := "1.0-SNAPSHOT",
     scalaVersion := Dependencies.Versions.scalaVersion
   )
