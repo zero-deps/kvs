@@ -18,8 +18,6 @@ object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
 }
 
 class HashRing(val system:ExtendedActorSystem) extends Extension {
-
-  implicit val timeout = Timeout(2 second)
   lazy val log = Logging(system, "hash-ring")
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
 
@@ -37,7 +35,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   }
 
   system.registerOnTermination(shutdown())
-  
+
   private[mws] def shutdown():Unit= {
     jmx foreach {_.unregisterMBean}
     log.info("Hash ring down")
@@ -50,7 +48,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
 
   def put(k: String, v: String): Future[Ack] = {
     log.info(s"put $k -> $v")
-    //TODO create timestamp heree
+    //TODO create timestamp here
     (hash ? Put(k, v)).mapTo[Ack]
   }
 

@@ -35,9 +35,7 @@ private[mws] class HashRingJmx(ring:HashRing, log: LoggingAdapter) {
           case AckSuccess => "ok"
           case AckQuorumFailed => "quorum failed"
         }
-        
       }
-      
       def delete(key:String) = ring.delete(key)
     }
 
