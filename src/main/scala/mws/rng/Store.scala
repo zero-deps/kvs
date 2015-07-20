@@ -73,9 +73,11 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
     case BucketPut(data) => {
-      withBatch(batch => {
-        batch.put(bytes(data.head.bucket), bytes(data))
-      })
+      if(data.nonEmpty) {
+        withBatch(batch => {
+          batch.put(bytes(data.head.bucket), bytes(data))
+        })
+      }
     }
   }
 

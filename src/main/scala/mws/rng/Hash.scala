@@ -238,7 +238,21 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
 
     bucketsDataF map {
       case l if l.isEmpty || l.forall(_ == Nil) =>
-      case l =>
+      case l => localStore ! BucketPut(mergeData(l.flatten, Nil))
     }
   }
+
+  def mergeData(l: List[Data], n: List[Data]): List[Data] = l match {
+    case h :: t =>
+      n.find(_.key == h.key) match {
+        case Some(d) if h.vc == d.vc && h.lastModified > d.lastModified =>
+          mergeData(t, h :: n.filterNot(_.key == h.key))
+        case Some(d) if h.vc > d.vc =>
+          mergeData(t, h :: n.filterNot(_.key == h.key))
+        case None => mergeData(t, h :: n)
+        case _ => mergeData(t, n)
+      }
+    case Nil => n
+  }
+  
 }
