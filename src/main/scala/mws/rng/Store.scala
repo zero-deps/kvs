@@ -20,10 +20,12 @@ import org.iq80.leveldb._
  */
 
 
-case class StoreListBucket(bucket:Bucket)
 case class StoreGet(key:Key)
 case class StorePut(data:Data)
 case class StoreDelete(key:Key)
+case class BucketPut(data: List[Data])
+case class BucketDelete(b:Bucket)
+case class BucketGet(bucket:Bucket)
 
 
 class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLogging{
@@ -65,11 +67,16 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   }
 
   def receive: Receive = {
-    case StoreListBucket(bucket) => sender ! doList(bucket)
+    case BucketGet(bucket) => sender ! getBucketData(bucket)
     case StoreGet(key) => sender ! doGet(key)
     case StorePut(data) => sender ! doPut(data)
     case StoreDelete(data) => sender ! doDelete(data)
-
+    case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
+    case BucketPut(data) => {
+      withBatch(batch => {
+        batch.put(bytes(data.head.bucket), bytes(data))
+      })
+    }
   }
 
   private def doGet(key:Key): Option[List[Data]] = {
@@ -106,7 +113,7 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
     "ok"
   }
 
-  private def doList(bucket:Bucket):List[Data] = {
+  private def getBucketData(bucket:Bucket):List[Data] = {
    fromBytesList(leveldb.get(bytes(bucket)))
   }
 

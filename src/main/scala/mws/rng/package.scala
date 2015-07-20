@@ -10,10 +10,10 @@ package object rng {
   type Key = String
   type Value = String // todo:ByteString
 
-  type RingBucket = (Bucket, List[Node])
+  type PreferenceList = List[Node]
   type ReplicaKey = Option[Int]
 
-  type HashBucket = (Int, ReplicaKey, ReplicaKey)
+  type SynchReplica = (Bucket, ReplicaKey, ReplicaKey)
   
   //TODO try lm from VectorClock.versions: TreeMap[VectorClock.Node, Long]
   case class Data(key: Key, bucket: Bucket, lastModified: Long, vc: VectorClock, value: Value)

@@ -6,7 +6,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Future}
 
 /**
  * Created by doxtop on 12.02.15.
@@ -18,14 +18,16 @@ object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
 }
 
 class HashRing(val system:ExtendedActorSystem) extends Extension {
+
+  implicit val timeout = Timeout(3 second)
   lazy val log = Logging(system, "hash-ring")
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
 
   var jmx: Option[HashRingJmx] = None
 
   // todo: create system/hashring superviser
-  private val hash = system.actorOf(Props[Hash].withDeploy(Deploy.local), name="ring_hash")
   private val store= system.actorOf(Props[Store].withDeploy(Deploy.local), name="ring_store")
+  private val hash = system.actorOf(Props(classOf[Hash], store).withDeploy(Deploy.local), name = "ring_hash")
   private val gather = system.actorOf(Props[Gatherer].withDeploy(Deploy.local), name="ring_gatherer")
 
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {
