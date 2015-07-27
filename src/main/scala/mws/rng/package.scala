@@ -2,13 +2,14 @@ package mws
 
 import akka.actor.Address
 import akka.cluster.VectorClock
+import akka.util.ByteString
 
 package object rng {
   type Bucket = Int
   type VNode = Int
   type Node = Address
   type Key = String
-  type Value = String // todo:ByteString
+  type Value = ByteString
 
   type PreferenceList = List[Node]
   type ReplicaKey = Option[Int]

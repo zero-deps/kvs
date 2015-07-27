@@ -3,7 +3,7 @@ package mws.rng
 import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
-import akka.util.Timeout
+import akka.util.{Timeout}
 
 import scala.concurrent.duration._
 import scala.concurrent.{Future}
@@ -48,7 +48,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     (hash ? Get(key)).mapTo[Option[Value]]
   }
 
-  def put(k: String, v: String): Future[Ack] = {
+  def put(k: String, v: Value): Future[Ack] = {
     log.info(s"put $k -> $v")
     //TODO create timestamp here
     (hash ? Put(k, v)).mapTo[Ack]

@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit
 import akka.actor.{ActorSystem, Props}
 import akka.cluster.VectorClock
 import akka.testkit.{DefaultTimeout, ImplicitSender, TestKit}
+import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 import mws.rng.{Store, _}
 import org.iq80.leveldb.util.FileUtils
@@ -23,7 +24,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
 
   val store = system.actorOf(Props(classOf[Store]), "store")
   
-  val data: Data = new Data("key1", 10, 777, new VectorClock(), "value")
+  val data: Data = new Data("key1", 10, 777, new VectorClock(), ByteString( "value"))
 
   "Store " must {
 

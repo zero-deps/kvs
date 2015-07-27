@@ -6,7 +6,7 @@ import akka.cluster.Cluster
 import akka.cluster.ClusterEvent.{CurrentClusterState, MemberExited, MemberRemoved, MemberUp}
 import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec}
 import akka.testkit.ImplicitSender
-import akka.util.Timeout
+import akka.util.{ByteString, Timeout}
 import com.typesafe.config.ConfigFactory
 import org.iq80.leveldb.util.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
@@ -48,6 +48,7 @@ object RingSpecConfig extends MultiNodeConfig {
                                             |ring.leveldb.checksum=true
                                             |ring.leveldb.fsync=false
                                           """.stripMargin))
+  def bstr(str: String) = ByteString(str)
 }
 
 class RingSpecMultiJvmApiNode1 extends RingApiNodeSpec
@@ -97,7 +98,7 @@ with ImplicitSender {
     "provide consistent data" when {
       "data put to one node" in within(5 seconds) {
         runOn(node1) {
-          val f = HashRing(system).put("key", "val")
+          val f = HashRing(system).put("key", bstr("val"))
           val ack = Await.result(f, 3 seconds)
           ack match {
             case AckSuccess =>
@@ -107,14 +108,14 @@ with ImplicitSender {
         enterBarrier("put")
         runOn(node2, node3) {
           val rez = Await.result(HashRing(system).get("key"), 1 seconds)
-          assertResult(Some("val"))(rez)
+          assertResult(Some(ByteString("val")))(rez)
         }
       }
 
       "data updated on any node" in {
         enterBarrier("put")
         runOn(node2) {
-          val f = HashRing(system).put("key", "updVal")
+          val f = HashRing(system).put("key", bstr("updVal"))
           val ack = Await.result(f, 3 seconds)
           ack match {
             case AckSuccess =>
@@ -123,7 +124,7 @@ with ImplicitSender {
         }
         testConductor.enter("upd")
         runOn(node1, node3) {
-          awaitCond(Await.result(HashRing(system).get("key"), 1 seconds) == Some("updVal"))
+          awaitCond(Await.result(HashRing(system).get("key"), 1 seconds) == Some(ByteString("updVal")))
         }
       }
 
@@ -141,7 +142,7 @@ with ImplicitSender {
       
       "node get down data is still available" in within(10 seconds){
         runOn(node3){
-          val f = HashRing(system).put("key3", "val3")
+          val f = HashRing(system).put("key3", bstr("val3"))
           val ack = Await.result(f, 3 seconds)
           ack match {
             case AckSuccess =>
@@ -152,7 +153,7 @@ with ImplicitSender {
         enterBarrier("shutDown")
         runOn(node1,node2){
           awaitCond(Cluster(system).state.members.find(_.address eq thirdAddress) eq None, Duration(5, SECONDS))
-          awaitCond(Await.result(HashRing(system).get("key3"), 3 seconds) == Some("val3"),Duration(5, SECONDS))
+          awaitCond(Await.result(HashRing(system).get("key3"), 3 seconds) == Some(ByteString("val3")),Duration(5, SECONDS))
         }
       }
     }
