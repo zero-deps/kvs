@@ -106,9 +106,8 @@ object Build extends sbt.Build {
           "KAI_IP=`/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{print $1}'` bin/rng $*"),
       dockerRepository := Some("playtech")
     )
-  ).settings(net.virtualvoid.sbt.graph.Plugin.graphSettings: _*)
-  .configs(MultiJvm)
-  .enablePlugins(AkkaAppPackaging, DockerPlugin)
+  ).configs(MultiJvm)
+   .enablePlugins(AkkaAppPackaging, DockerPlugin)
 
   override lazy val settings = super.settings ++
     buildSettings ++
