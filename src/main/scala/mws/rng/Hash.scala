@@ -9,7 +9,7 @@ import akka.util.Timeout
 import scala.annotation.tailrec
 import scala.collection.SortedMap
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 
 /**
  * Partitioning. Not considering physical placement
@@ -72,18 +72,20 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   }
 
   private[mws] def doPut(k: Key, v: Value, client: ActorRef) = {
+    import scala.concurrent.ExecutionContext.Implicits.global
     val bucket = hashing.findBucket(Left(k))
     val nodes = findNodes(Left(k))
-    val f = localStore ? StoreGet(k)
-    val data = Await.result(f, timeout.duration).asInstanceOf[Option[List[Data]]] // TODO async
-
-    val vc: VectorClock = data match {
-      case Some(d) if d.size == 1 => d.head.vc
-      case Some(d) if d.size > 1 => (d map (_.vc)).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
-      case None => new VectorClock
+    localStore ? StoreGet(k) onSuccess {
+      case data : Option[List[Data]] => 
+        
+      val vc: VectorClock = data match {
+        case Some(d) if d.size == 1 => d.head.vc
+        case Some(d) if d.size > 1 => (d map (_.vc)).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
+        case None => new VectorClock
+      }
+      val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
+      mapInPut(nodes, updatedData, client)
     }
-    val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
-    mapInPut(nodes, updatedData, client)
 
   }
 

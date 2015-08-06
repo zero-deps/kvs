@@ -13,9 +13,7 @@ class HashingImpl(config: Config) extends  Extension{
   val hashLen = config.getInt("hashLength")
   val bucketsNum = config.getInt("buckets")
   val bucketRange = (math.pow(2, hashLen) / bucketsNum).ceil.toInt
-  implicit val digester = MessageDigest.getInstance("MD5")
 
-  def digest(a: Array[Byte]) = digester digest(a)
 
   /**
     * digest.take(4).zipWithIndex.foldLeft[Int](0)((out,x) => out | ((x._1 & 0xff) << 8*(3-x._2)))
@@ -26,6 +24,7 @@ class HashingImpl(config: Config) extends  Extension{
       case Right(key:Key) => key
     }).getBytes("UTF-8")
 
+    implicit val digester = MessageDigest.getInstance("MD5") //TODO remove from field
     digester update msg
     val digest = digester.digest
 
