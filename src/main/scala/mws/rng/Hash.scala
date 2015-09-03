@@ -29,6 +29,7 @@ case class Put(k: Key, v: Value) extends HashMessage
 case class Get(k: Key) extends HashMessage
 
 case class Delete(k: Key) extends HashMessage
+case object Ready
 
 class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   import context.system
@@ -49,6 +50,8 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   val local:Address = cluster.selfAddress
   val hashing = HashingExtension(system)
 
+  @volatile
+  private var initilized = false
   @volatile
   private var state:CurrentClusterState = CurrentClusterState()
   @volatile
@@ -120,7 +123,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   }
 
   def receiveCl: Receive = {
-    case e:ClusterDomainEvent => cluster.sendCurrentClusterState(self) // TODO bind to another event to avoid unnecessary spam.
+    case e:ClusterDomainEvent => cluster.sendCurrentClusterState(self)
       e match {
       case MemberUp(member) if member.hasRole(rngRoleName) =>
         log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
@@ -128,6 +131,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
           val hashedKey = hashing.hash(Left(member.address, vnode))
           vNodes += hashedKey -> member.address})
         syncBuckets(bucketsToUpdate)
+        if (member.address == local) initilized = true
       case MemberRemoved(member, prevState) if member.hasRole(rngRoleName) =>
         log.info(s"[ring_hash]Removing $member from ring")
         val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((member.address, v))))
@@ -135,6 +139,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
         syncBuckets(bucketsToUpdate)
       case _ =>
       }
+    case Ready => sender() ! initilized
     case s: CurrentClusterState => state = s
   }
 

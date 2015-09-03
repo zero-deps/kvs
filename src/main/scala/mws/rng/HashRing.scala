@@ -3,33 +3,36 @@ package mws.rng
 import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
-import akka.util.{Timeout}
-
+import akka.util.Timeout
+import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.concurrent.{Future}
+
 
 /**
  * Created by doxtop on 12.02.15.
  */
 object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
+  
   override def lookup = HashRing
-  override def createExtension(system: ExtendedActorSystem): HashRing = new HashRing(system)
+  
+  override def createExtension(system: ExtendedActorSystem): HashRing = {
+    new HashRing(system)
+  }
   override def get(system: ActorSystem):HashRing  = super.get(system)
 }
 
 class HashRing(val system:ExtendedActorSystem) extends Extension {
-
-  implicit val timeout = Timeout(3 second)
+  implicit val timeout = Timeout(3.second)
   lazy val log = Logging(system, "hash-ring")
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
-
+  system.eventStream
   var jmx: Option[HashRingJmx] = None
 
   // todo: create system/hashring superviser
   private val store= system.actorOf(Props[Store].withDeploy(Deploy.local), name="ring_store")
   private val hash = system.actorOf(Props(classOf[Hash], store).withDeploy(Deploy.local), name = "ring_hash")
   private val gather = system.actorOf(Props[Gatherer].withDeploy(Deploy.local), name="ring_gatherer")
-
+  
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {
     val jmx = new HashRingJmx(this, log)
     jmx.createMBean()
@@ -37,7 +40,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   }
 
   system.registerOnTermination(shutdown())
-
+  
   private[mws] def shutdown():Unit= {
     jmx foreach {_.unregisterMBean}
     log.info("Hash ring down")
@@ -58,4 +61,6 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     log.info(s" delete $k")
     (hash ? Delete(k)).mapTo[Ack]
   }
+  
+  def isReady: Future[Boolean] = (hash ? Ready).mapTo[Boolean]
 }
