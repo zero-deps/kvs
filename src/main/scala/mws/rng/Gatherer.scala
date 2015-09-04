@@ -48,11 +48,11 @@ class Gatherer extends Actor with ActorLogging {
 
   def doGatherGet(listData: List[(Option[Data], Node)]): Option[Data] = {
     listData match {
-      case l if l isEmpty => None
+      case l if l.isEmpty => None
       case l if l forall  (_._1 == None) => None
       case l if listData.forall(d => d._1 == listData.head._1) => listData.head._1
       case _ =>
-        val newest = findLast(listData)
+        val newest = findLast(listData filter(_._1.isDefined))
         newest foreach  (updateOutdateNodes(_, listData))
         newest
     }
