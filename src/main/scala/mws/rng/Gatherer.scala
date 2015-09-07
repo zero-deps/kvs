@@ -53,17 +53,17 @@ class Gatherer extends Actor with ActorLogging {
       case l if listData.forall(d => d._1 == listData.head._1) => listData.head._1
       case _ =>
         val newest = findLast(listData filter(_._1.isDefined))
-        newest foreach  (updateOutdateNodes(_, listData))
+        newest foreach  (updateOutdateNodes(_, listData filter(_._1.isDefined)))
         newest
     }
   }
 
   def updateOutdateNodes(newData: Data, nodes: List[(Option[Data], Node)]) = {
     nodes.foreach {
-      case (d, node) if d.get.vc < newData.vc =>
+      case (Some(d), node) if d.vc < newData.vc =>
         val path = RootActorPath(node) / "user" / "ring_store"
         val hs = context.system.actorSelection(path)
-        d map (hs ! StorePut(_))
+        hs ! StorePut(d)
       case _ =>
     }
   }
