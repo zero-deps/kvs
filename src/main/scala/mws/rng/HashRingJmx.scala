@@ -11,8 +11,8 @@ import scala.concurrent.duration._
 
 /** JMX cient */
 trait HashRingMBean {
-  def get(key:String): Value
-  def put(key:String, data: Value):String
+  def get(key:String): String
+  def put(key:String, data: String):String
   def delete(key:String):Unit
 }
 
@@ -27,11 +27,15 @@ private[mws] class HashRingJmx(ring:HashRing, log: LoggingAdapter) {
       def get(key: String) = {
         val value = Await.result(ring.get(key), timeout.duration)
         log.info(s"val for $key -> $value")
-        value getOrElse ByteString("NOT_PRESENT")
+        value match {
+          case Some(byteStr) => new String(byteStr.toArray)
+          case None => "not_present"
+          
+        }
       }
 
-      def put(key: String, value: Value): String = {
-        Await.result(ring.put(key, value),timeout.duration) match {
+      def put(key: String, value: String): String = {
+        Await.result(ring.put(key, ByteString(value)),timeout.duration) match {
           case AckSuccess => "ok"
           case AckQuorumFailed => "quorum failed"
         }
