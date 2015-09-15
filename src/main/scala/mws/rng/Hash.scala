@@ -5,7 +5,6 @@ import akka.cluster.ClusterEvent._
 import akka.cluster.{Cluster, ClusterEvent, MemberStatus, VectorClock}
 import akka.pattern.ask
 import akka.util.Timeout
-
 import scala.annotation.tailrec
 import scala.collection.SortedMap
 import scala.concurrent.duration._
@@ -40,6 +39,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   val quorum = config.getIntList("quorum")  //N,R,W
   log.info(s"q = $quorum")
   val N: Int = quorum.get(0)
+  val W: Int = quorum.get(2)  
   val vNodesNum = config.getInt("virtual-nodes")
   log.info(s"vNodesNum = $vNodesNum")
   val bucketsNum = config.getInt("buckets")
@@ -49,6 +49,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   val cluster = Cluster(system)
   val local:Address = cluster.selfAddress
   val hashing = HashingExtension(system)
+  val stores = new SelectionMemorize(context.system)
 
   @volatile
   private var initilized = false
@@ -78,18 +79,22 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
     import scala.concurrent.ExecutionContext.Implicits.global
     val bucket = hashing.findBucket(Left(k))
     val nodes = findNodes(Left(k))
-    localStore ? StoreGet(k) onSuccess {
-      case data : Option[List[Data]] => 
-        
-      val vc: VectorClock = data match {
-        case Some(d) if d.size == 1 => d.head.vc
-        case Some(d) if d.size > 1 => (d map (_.vc)).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
-        case None => new VectorClock
-      }
-      val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
-      mapInPut(nodes, updatedData, client)
-    }
+    val availableNodes = availableNodesFrom(nodes)
+    if (availableNodes.size >= W) {
+      localStore ? StoreGet(k) onSuccess {
+        case data: Option[List[Data]] =>
 
+          val vc: VectorClock = data match {
+            case Some(d) if d.size == 1 => d.head.vc
+            case Some(d) if d.size > 1 => (d map (_.vc)).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
+            case None => new VectorClock
+          }
+          val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
+          mapInPut(availableNodes, updatedData, client)
+      }
+    } else {
+      client ! AckQuorumFailed
+    }
   }
 
   def flat(tuples: List[(Option[List[Data]], Node)], res: List[(Option[Data], Node)]): List[(Option[Data], Node)] = {
@@ -105,12 +110,17 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   }
 
   private[mws] def doGet(key: Key, client: ActorRef) = {
-    val nodes = findNodes(Left(key))
     import context.dispatcher
-      val resultsF = Future.traverse(availableNodesFrom(nodes))(node =>
-        (system.actorSelection(RootActorPath(node) / "user" / "ring_store") ? StoreGet(key))
-          .mapTo[Option[List[Data]]].map(data => (data, node)))
-        resultsF.map(dataList => system.actorSelection("/user/ring_gatherer") ! GatherGet(flat(dataList, Nil), client))
+
+    val refs: List[ActorRef] = findStores(key)
+    val resultsF = Future.traverse(refs)(node => (node ? StoreGet(key))
+      .mapTo[Option[List[Data]]].map(data => (data, node.path.address)))
+    resultsF.map(dataList => system.actorSelection("/user/ring_gatherer") ! GatherGet(flat(dataList, Nil), client))
+  }
+
+  def findStores(key: Key): List[ActorRef] = {
+    val l = availableNodesFrom(findNodes(Left(key))) map stores.get
+    l.flatten
   }
 
   private[mws] def doDelete(k: Key, client: ActorRef) = {
@@ -145,13 +155,13 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
 
   private def availableNodesFrom(l: List[Node]) = {
     val unreachableMembers = state.unreachable.map(m => m.address)
-    l filterNot (node => unreachableMembers contains node)
+    l filterNot (node => unreachableMembers contains node)    
   }
 
   private[mws] def mapInPut(nodes: List[Node], updatedData: Data, client: ActorRef) = {
     import context.dispatcher
-    val putFutures = Future.traverse(availableNodesFrom(nodes))(n =>
-      (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StorePut(updatedData)).mapTo[String])
+    val storeList = nodes map stores.get
+    val putFutures = Future.traverse(storeList.flatten)(store => (store ? StorePut(updatedData)).mapTo[String])
     putFutures map (statuses => system.actorSelection("/user/ring_gatherer") ! GatherPut(statuses, client))
   }
 
@@ -241,7 +251,8 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
 
   private def updateBuckets(bucket: Bucket, nodes: List[Node]): Unit = {
     import context.dispatcher
-    val bucketsDataF = Future.traverse(nodes)(n => system.actorSelection(RootActorPath(n) / "user" / "ring_store").?(BucketGet(bucket))).mapTo[List[List[Data]]]
+    val storesOnNodes = nodes map stores.get
+    val bucketsDataF = Future.traverse(storesOnNodes.flatten)(n => n ? BucketGet(bucket)).mapTo[List[List[Data]]]
 
     bucketsDataF map {
       case l if l.isEmpty || l.forall(_ == Nil) =>

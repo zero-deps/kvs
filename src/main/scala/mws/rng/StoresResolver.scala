@@ -13,16 +13,22 @@ trait ActorStorage {
   def remove(node: Node): Unit
 }
 
-class IdentifyActor(val n: Node) extends Actor {
+class IdentifyActor(val n: Node) extends Actor with ActorLogging{
   private var client: ActorRef = _
 
   override def receive: Receive = {
-    case Select =>
+    case m @ Select =>
       client = sender()
       lookup
-    case ActorIdentity(`n`, Some(ref)) => client ! Some(ref)
-    case ActorIdentity(`n`, None) => client ! None
-    case _ => client ! None
+    case ActorIdentity(`n`, Some(ref)) => 
+      client ! Some(ref)
+      context.stop(self)
+    case ActorIdentity(`n`, None) => 
+      client ! None
+      context.stop(self)
+    case _ => 
+      client ! None
+      context.stop(self)
   }
 
   def lookup = {
