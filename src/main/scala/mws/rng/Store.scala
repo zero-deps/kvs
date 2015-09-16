@@ -27,6 +27,8 @@ case class BucketPut(data: List[Data])
 case class BucketDelete(b:Bucket)
 case class BucketGet(bucket:Bucket)
 
+case class GetResp(d: Option[List[Data]])
+
 
 class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLogging{
   
@@ -68,7 +70,7 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
 
   def receive: Receive = {
     case BucketGet(bucket) => sender ! getBucketData(bucket)
-    case StoreGet(key) => sender ! doGet(key)
+    case StoreGet(key) => sender ! GetResp(doGet(key))
     case StorePut(data) => sender ! doPut(data)
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
