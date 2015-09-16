@@ -18,4 +18,12 @@ package object rng {
   
   //TODO try lm from VectorClock.versions: TreeMap[VectorClock.Node, Long]
   case class Data(key: Key, bucket: Bucket, lastModified: Long, vc: VectorClock, value: Value)
+  
+  //FSM
+  sealed trait FsmState
+  case object Collecting extends FsmState
+
+  sealed trait FsmData
+  case class Statuses(l: List[String]) extends FsmData
+  case class DataCollection(l: List[(Option[List[Data]], Node)]) extends FsmData
 }
