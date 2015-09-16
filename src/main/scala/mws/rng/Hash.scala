@@ -39,6 +39,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   val quorum = config.getIntList("quorum")  //N,R,W
   log.info(s"q = $quorum")
   val N: Int = quorum.get(0)
+  val R: Int = quorum.get(1)
   val W: Int = quorum.get(2)  
   val vNodesNum = config.getInt("virtual-nodes")
   log.info(s"vNodesNum = $vNodesNum")
@@ -97,30 +98,12 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
     }
   }
 
-  def flat(tuples: List[(Option[List[Data]], Node)], res: List[(Option[Data], Node)]): List[(Option[Data], Node)] = {
-    tuples match {
-      case h :: t => h._1 match {
-        case Some(l) =>
-          val list: List[(Some[Data], Node)] = l map (d => (Some(d), h._2))
-          flat(t, list ++ res)
-        case None => flat(t, (None, h._2) :: res)
-      }
-      case Nil => res
-    }
-  }
-
   private[mws] def doGet(key: Key, client: ActorRef) = {
-    import context.dispatcher
-
-    val refs: List[ActorRef] = findStores(key)
-    val resultsF = Future.traverse(refs)(node => (node ? StoreGet(key))
-      .mapTo[Option[List[Data]]].map(data => (data, node.path.address)))
-    resultsF.map(dataList => system.actorSelection("/user/ring_gatherer") ! GatherGet(flat(dataList, Nil), client))
-  }
-
-  def findStores(key: Key): List[ActorRef] = {
-    val l = availableNodesFrom(findNodes(Left(key))) map stores.get
-    l.flatten
+    val refs = availableNodesFrom(findNodes(Left(key))) map stores.get
+    val gather = system.actorOf(Props(classOf[GatherGetFsm], client, R))
+    refs map (store => store.fold(
+      _.tell(StoreGet(key), gather),
+      _.tell(StoreGet(key), gather)))
   }
 
   private[mws] def doDelete(k: Key, client: ActorRef) = {
@@ -158,11 +141,13 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
     l filterNot (node => unreachableMembers contains node)    
   }
 
-  private[mws] def mapInPut(nodes: List[Node], updatedData: Data, client: ActorRef) = {
-    import context.dispatcher
+  private[mws] def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
     val storeList = nodes map stores.get
-    val putFutures = Future.traverse(storeList.flatten)(store => (store ? StorePut(updatedData)).mapTo[String])
-    putFutures map (statuses => system.actorSelection("/user/ring_gatherer") ! GatherPut(statuses, client))
+    val gather = system.actorOf(Props(classOf[GatherPutFSM], client, W))
+
+    storeList.map(ref =>
+      ref.fold(_.tell(StorePut(d), gather),
+      _.tell(StorePut(d), gather)))
   }
 
   def bucketsToUpdate: List[SynchReplica] = {
@@ -252,7 +237,9 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   private def updateBuckets(bucket: Bucket, nodes: List[Node]): Unit = {
     import context.dispatcher
     val storesOnNodes = nodes map stores.get
-    val bucketsDataF = Future.traverse(storesOnNodes.flatten)(n => n ? BucketGet(bucket)).mapTo[List[List[Data]]]
+    val bucketsDataF = Future.traverse(storesOnNodes)(n => n.fold(
+      _ ? BucketGet(bucket),
+      _ ? BucketGet(bucket))).mapTo[List[List[Data]]]
 
     bucketsDataF map {
       case l if l.isEmpty || l.forall(_ == Nil) =>
