@@ -8,7 +8,7 @@ import org.scalatest.{FlatSpec, Matchers}
 
 /**
  */
-object Test {
+object HashFunctionTest {
   val hashLen:Int = 32
   val hostPort:String = "127.0.0.1:4224"
   val vnode:Int = 1024
@@ -16,8 +16,8 @@ object Test {
   val digester = MessageDigest.getInstance("MD5")
 }
 
-class Test extends FlatSpec with Matchers{
-  import mws.Test._
+class HashFunctionTest extends FlatSpec with Matchers{
+  import mws.HashFunctionTest._
 
   "quorter hash" should "containts the first byte" in {
     println(s"The test ${node.hostPort}")
