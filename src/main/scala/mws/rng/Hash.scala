@@ -34,7 +34,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   import context.system
 
   val config = system.settings.config.getConfig("ring")
-  implicit val timeout = Timeout(3.second)
+  implicit val timeout = Timeout(5.second)
 
   val quorum = config.getIntList("quorum")  //N,R,W
   log.info(s"q = $quorum")

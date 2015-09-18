@@ -22,7 +22,7 @@ object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
 }
 
 class HashRing(val system:ExtendedActorSystem) extends Extension {
-  implicit val timeout = Timeout(3.second)
+  implicit val timeout = Timeout(5.second)
   lazy val log = Logging(system, "hash-ring")
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
   system.eventStream
@@ -31,7 +31,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   // todo: create system/hashring superviser
   private val store= system.actorOf(Props[Store].withDeploy(Deploy.local), name="ring_store")
   private val hash = system.actorOf(Props(classOf[Hash], store).withDeploy(Deploy.local), name = "ring_hash")
-  private val gather = system.actorOf(Props[Gatherer].withDeploy(Deploy.local), name="ring_gatherer")
+  private val gather = system.actorOf(Props[GathererDel].withDeploy(Deploy.local), name="ring_gatherer")
   
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {
     val jmx = new HashRingJmx(this, log)
@@ -47,18 +47,15 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   }
 
   def get(key:String): Future[Option[Value]] = {
-    log.info(s"get $key")
     (hash ? Get(key)).mapTo[Option[Value]]
   }
 
   def put(k: String, v: Value): Future[Ack] = {
-    log.info(s"put $k -> $v")
     //TODO create timestamp here
     (hash ? Put(k, v)).mapTo[Ack]
   }
 
   def delete(k: String): Future[Ack] = {
-    log.info(s" delete $k")
     (hash ? Delete(k)).mapTo[Ack]
   }
   
