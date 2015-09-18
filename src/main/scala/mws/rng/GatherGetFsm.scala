@@ -1,13 +1,15 @@
 package mws.rng
 
-import akka.actor.{ActorRef, RootActorPath, FSM}
+import akka.actor.FSM.Normal
+import akka.actor._
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 
 
-class GatherGetFsm(clint: ActorRef, R: Int) extends FSM[FsmState, FsmData] {
+class GatherGetFsm(client: ActorRef, N: Int, R: Int) extends FSM[FsmState, FsmData] with ActorLogging{
   
-  startWith(Collecting, DataCollection(Nil), Some(2 seconds))
+  startWith(Collecting, DataCollection(Nil))
+  setTimer("send_by_timeout", GatherTimeout, 2 seconds)
   
   when(Collecting){
     case Event(GetResp(rez), DataCollection(l))  =>
@@ -15,11 +17,28 @@ class GatherGetFsm(clint: ActorRef, R: Int) extends FSM[FsmState, FsmData] {
       val newData = DataCollection( head :: l)
       newData.l.length match {
         case `R` =>
-          doGatherGet(flat(newData.l, Nil))
-          stop()
-        case _ => 
+          client ! doGatherGet(flat(newData.l, Nil))
+          goto(Sent) using ReceivedValues(R)
+        case _ =>
           stay using newData
-      }    
+      }
+    case Event(GatherTimeout, DataCollection(l)) =>
+      client ! doGatherGet(flat(l, Nil)) // always readable
+      log.info(s"TIMEOUT!")
+      cancelTimer("send_by_timeout")
+      stop(Normal)
+  } 
+  
+  when(Sent) {
+    case Event(GetResp(rez), ReceivedValues(n)) => {
+      if (n + 1 == N)
+        stop(Normal)
+      else
+        stay using ReceivedValues(n + 1)
+    }
+    case Event(GatherTimeout, _ ) =>
+      cancelTimer("send_by_timeout")
+      stop(Normal)
   }
 
   def doGatherGet(listData: List[(Option[Data], Node)]): Option[Data] = {
