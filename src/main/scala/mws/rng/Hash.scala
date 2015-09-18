@@ -144,7 +144,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
 
   private[mws] def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
     val storeList = nodes map stores.get
-    val gather = system.actorOf(Props(classOf[GatherPutFSM], client, W))
+    val gather = system.actorOf(Props(classOf[GatherPutFSM], client, N, W))
 
     storeList.map(ref =>
       ref.fold(_.tell(StorePut(d), gather),
