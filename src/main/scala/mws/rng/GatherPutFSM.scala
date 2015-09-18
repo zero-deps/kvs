@@ -5,10 +5,10 @@ import scala.concurrent.duration._
 
 
 
-class GatherPutFSM(val client: ActorRef, val N: Int, val W: Int) extends FSM[FsmState, FsmData] with ActorLogging{
+class GatherPutFSM(val client: ActorRef, val N: Int, val W: Int, t: Int) extends FSM[FsmState, FsmData] with ActorLogging{
   
   startWith(Collecting, Statuses(Nil))
-  setTimer("send_by_timeout", GatherTimeout, 2 seconds)
+  setTimer("send_by_timeout", GatherTimeout, t seconds)
   
   when(Collecting) {
     case Event(incomeStatus: String, Statuses(statuses)) =>

@@ -6,10 +6,10 @@ import scala.annotation.tailrec
 import scala.concurrent.duration._
 
 
-class GatherGetFsm(client: ActorRef, N: Int, R: Int) extends FSM[FsmState, FsmData] with ActorLogging{
+class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int) extends FSM[FsmState, FsmData] with ActorLogging{
   
   startWith(Collecting, DataCollection(Nil))
-  setTimer("send_by_timeout", GatherTimeout, 2 seconds)
+  setTimer("send_by_timeout", GatherTimeout, t seconds)
   
   when(Collecting){
     case Event(GetResp(rez), DataCollection(l))  =>

@@ -41,6 +41,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   val N: Int = quorum.get(0)
   val R: Int = quorum.get(1)
   val W: Int = quorum.get(2)  
+  val gatherTimeout = config.getInt("gather-timeout")
   val vNodesNum = config.getInt("virtual-nodes")
   log.info(s"vNodesNum = $vNodesNum")
   val bucketsNum = config.getInt("buckets")
@@ -100,7 +101,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
 
   private[mws] def doGet(key: Key, client: ActorRef) = {
     val refs = availableNodesFrom(findNodes(Left(key))) map stores.get
-    val gather = system.actorOf(Props(classOf[GatherGetFsm], client, N, R))
+    val gather = system.actorOf(Props(classOf[GatherGetFsm], client, N, R, gatherTimeout))
     refs map (store => store.fold(
       _.tell(StoreGet(key), gather),
       _.tell(StoreGet(key), gather)))
@@ -144,7 +145,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
 
   private[mws] def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
     val storeList = nodes map stores.get
-    val gather = system.actorOf(Props(classOf[GatherPutFSM], client, N, W))
+    val gather = system.actorOf(Props(classOf[GatherPutFSM], client, N, W, gatherTimeout))
 
     storeList.map(ref =>
       ref.fold(_.tell(StorePut(d), gather),
