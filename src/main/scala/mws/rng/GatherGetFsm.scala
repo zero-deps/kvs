@@ -17,14 +17,21 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int) extends FSM[FsmState, FsmDa
       val newData = DataCollection( head :: l)
       newData.l.length match {
         case `R` =>
-          client ! doGatherGet(flat(newData.l, Nil))
+          val value = doGatherGet(flat(newData.l, Nil)) match {
+            case Some(d) => Some(d.value)
+            case None => None            
+          }
+          client ! value
           goto(Sent) using ReceivedValues(R)
         case _ =>
           stay using newData
       }
     case Event(GatherTimeout, DataCollection(l)) =>
-      client ! doGatherGet(flat(l, Nil)) // always readable
-
+      val value = doGatherGet(flat(l, Nil)) match {
+        case Some(d) => Some(d.value)
+        case None => None
+      }
+      client ! value  // always readable
       cancelTimer("send_by_timeout")
       stop(Normal)
   } 
