@@ -24,7 +24,7 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int) extends FSM[FsmState, FsmDa
       }
     case Event(GatherTimeout, DataCollection(l)) =>
       client ! doGatherGet(flat(l, Nil)) // always readable
-      log.info(s"TIMEOUT!")
+
       cancelTimer("send_by_timeout")
       stop(Normal)
   } 

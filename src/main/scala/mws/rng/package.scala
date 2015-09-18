@@ -22,8 +22,11 @@ package object rng {
   //FSM
   sealed trait FsmState
   case object Collecting extends FsmState
+  case object Sent extends FsmState
 
   sealed trait FsmData
   case class Statuses(l: List[String]) extends FsmData
   case class DataCollection(l: List[(Option[List[Data]], Node)]) extends FsmData
+  case class ReceivedValues(n: Int) extends FsmData
+  case object GatherTimeout
 }

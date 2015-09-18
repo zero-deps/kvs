@@ -83,7 +83,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
     val availableNodes = availableNodesFrom(nodes)
     if (availableNodes.size >= W) {
       localStore ? StoreGet(k) onSuccess {
-        case data: Option[List[Data]] =>
+        case GetResp(data)=>
 
           val vc: VectorClock = data match {
             case Some(d) if d.size == 1 => d.head.vc
@@ -100,7 +100,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
 
   private[mws] def doGet(key: Key, client: ActorRef) = {
     val refs = availableNodesFrom(findNodes(Left(key))) map stores.get
-    val gather = system.actorOf(Props(classOf[GatherGetFsm], client, R))
+    val gather = system.actorOf(Props(classOf[GatherGetFsm], client, N, R))
     refs map (store => store.fold(
       _.tell(StoreGet(key), gather),
       _.tell(StoreGet(key), gather)))
@@ -133,7 +133,8 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
       case _ =>
       }
     case Ready => sender() ! initilized
-    case s: CurrentClusterState => state = s
+    case s: CurrentClusterState =>
+      state = s
   }
 
   private def availableNodesFrom(l: List[Node]) = {
