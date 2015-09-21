@@ -1,16 +1,21 @@
 # Ring datastore #
 
-Scala implmentation of Kai (originally implemented in erlang).
+Scala implementation of Kai (originally implemented in erlang).
 Kai is a distributed key-value datastore, which is mainly inspired
 by Amazon's Dynamo.
 
 ## Overview ##
 
+[Consistent hashing - that`s how data is saved](https://en.wikipedia.org/wiki/Consistent_hashing)
+
+[What is quorum]((https://en.wikipedia.org/wiki/Quorum_(distributed_computing))
+
+
 
 ## Configuration ##
 
 To configure rng application on your cluster the next configs are available. Default values specified below.
-  
+_`quorum` and `leveldb.dir` must be configured for each envronment_   
 
 ```
 ring {
@@ -34,6 +39,7 @@ ring {
  
 Template is [N,W,R]: N - number of nodes in bucket (in other words the number of copies). R - number of nodes that must  be participated in successful read operation.
 W - number of nodes for successful write.
+
 To keep data consistent the quorums have to obey the following rules:
 1. R + W > N
 2. W > N/2
@@ -46,23 +52,35 @@ Or use the next hint:
 __NB!__ if quorum fails on write operation, data will not be saved. So in case if 2 nodes and [2,2,1] after 1 node down
   the cluster becomes not writeable and readable.
 
+#### `buckets` ####
 
+Number of buckets for key. Think about this like the size of HashMap. At the default value is appropriate.  
+ 
+#### virtual-nodes #### 
 
+Number of virtual nodes for each physical.
 
+#### hashLength ####
+Lengths of hash from key
 
+#### gather-timeout ####
+Number of seconds that requested cluster will wait for response from another nodes. 
+
+#### ring-node-name ####
+Role name that mark node as part of ring.
+
+#### leveldb ####
+levelDB database used as backend for ring. There is some configurations.
+1. `native` - usage of native or java implementation if LeveDB
+2. `dir` - directory location for levelDB storage.
+3. `checksum`
+4. `fsync` - if true levelDB will synchronise data to disk immediately.
 
 ## Usage
 
 Ring is available as akka extension.
 
-`val ring = HashRing(system);`
-
-`ring.get("key")`
-
-`ring.put("key", "val")`
-
-ring.delete("key")`
-
+`val ring = HashRing(system);` - create HashRing extension on specified actor system. Akka cluster should be created before.
 
 
 ## Docker
