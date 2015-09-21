@@ -31,7 +31,7 @@ ring {
 ```
 
 
-* `quorum` template [N,W,R]: N - number of nodes in bucket (in other words the number of copies). R - number of nodes that must  be participated in successful read operation.
+#### `quorum` #### template [N,W,R]: N - number of nodes in bucket (in other words the number of copies). R - number of nodes that must  be participated in successful read operation.
 W - number of nodes for successful write.
 To keep data consistent the quorums have to obey the following rules:
 1. R + W > N
