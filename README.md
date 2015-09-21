@@ -5,28 +5,25 @@ Scala implmentation of Kai (originally implemented in erlang).
 Kai is a distributed key-value datastore, which is mainly inspired
 by Amazon's Dynamo.
 
-
-## Usage
-
-Ring is available as akka extension.
- 
-`val ring = HashRing(system);`
-
-`ring.get("key")`
-
-`ring.put("key", "val")`
-
-ring.delete("key")`
+## Overview
 
 
-### Configuration
+## Configuration
 TO configure rng application on your cluster add the following configuration.
-Quorum template [N,R,W]: N - number of nodes in bucket. R - number of nodes that must  be participated in successful read operation.
+Quorum template [N,W,R]: N - number of nodes in bucket. R - number of nodes that must  be participated in successful read operation.
 W - number of nodes for successful write.
+To keep data consistent the quorums have to obey the following rules:
+1. R + W > N
+2. W > N/2
+
+Or use the next hint:
+* single node cluster [1,1,1]
+* two nodes cluster [2,2,1]
+* 3 and more nodes cluster [3,2,2]
 
 ```
 ring {
-  quorum=[3,2,2]  #N,R,W. Change to [1,1,1] for single node
+  quorum=[3,2,2]  #N,W,R. Change to [1,1,1] for single node
   buckets=1024
   virtual-nodes=128
   hashLength=32
@@ -40,9 +37,21 @@ ring {
 }
 ```
 
-### Configuration
 
-To join Ring node should have role that specified in rng configuration as `ring-node-name`
+
+## Usage
+
+Ring is available as akka extension.
+
+`val ring = HashRing(system);`
+
+`ring.get("key")`
+
+`ring.put("key", "val")`
+
+ring.delete("key")`
+
+
 
 ## Docker
 
@@ -67,8 +76,9 @@ Run sbt task to create basic docker container
 
 ### Run docker nodes
 
-  > docker run -P -t -i --rm --name seed playtech/rng:1.0-SNAPSHOT
-  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-SNAPSHOT
+  > docker run -P -t -i --rm --name seed playtech/rng:1.0-22-gdd6c507
+  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-22-gdd6c507
+  > docker run -P -t -i --rm --name c2 --link seed:seed playtech/rng:1.0-22-gdd6c507
   
 | name    | description
 | :-----: | :---------------------------------

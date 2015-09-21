@@ -39,8 +39,8 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   val quorum = config.getIntList("quorum")  //N,R,W
   log.info(s"q = $quorum")
   val N: Int = quorum.get(0)
-  val R: Int = quorum.get(1)
-  val W: Int = quorum.get(2)  
+  val W: Int = quorum.get(1)
+  val R: Int = quorum.get(2)
   val gatherTimeout = config.getInt("gather-timeout")
   val vNodesNum = config.getInt("virtual-nodes")
   log.info(s"vNodesNum = $vNodesNum")

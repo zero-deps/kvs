@@ -51,7 +51,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   }
 
   def put(k: String, v: Value): Future[Ack] = {
-    //TODO create timestamp here
+    //TODO create timestamp here from cluster clock
     (hash ? Put(k, v)).mapTo[Ack]
   }
 

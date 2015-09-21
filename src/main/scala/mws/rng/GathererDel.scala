@@ -20,7 +20,7 @@ class GathererDel extends Actor with ActorLogging {
   val timeout = Timeout(5 seconds)
   val config = system.settings.config.getConfig("ring")
   val quorum = config.getIntList("quorum")
-  val W: Int = quorum.get(2)
+  val W: Int = quorum.get(1)
 
   override def receive: Receive = {
 
