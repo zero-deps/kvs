@@ -17,6 +17,7 @@ by Amazon's Dynamo.
 To configure rng application on your cluster the next configs are available. Default values specified below.
 
 *!!!*  _`quorum` and `leveldb.dir` must be configured for each envronment_ *!!!*
+*!!!*  And if default value is suitable for particular deployment, rewrite is not needed. *!!!*
 
 ```
 ring {
