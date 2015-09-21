@@ -1,14 +1,13 @@
-Ring datastore
-===
+# Ring datastore #
 
 Scala implmentation of Kai (originally implemented in erlang).
 Kai is a distributed key-value datastore, which is mainly inspired
 by Amazon's Dynamo.
 
-## Overview
+## Overview ##
 
 
-## Configuration
+## Configuration ##
 
 To configure rng application on your cluster the next configs are available. Default values specified below.
   
@@ -31,7 +30,9 @@ ring {
 ```
 
 
-#### `quorum` #### template [N,W,R]: N - number of nodes in bucket (in other words the number of copies). R - number of nodes that must  be participated in successful read operation.
+#### `quorum` ####
+ 
+Template is [N,W,R]: N - number of nodes in bucket (in other words the number of copies). R - number of nodes that must  be participated in successful read operation.
 W - number of nodes for successful write.
 To keep data consistent the quorums have to obey the following rules:
 1. R + W > N
