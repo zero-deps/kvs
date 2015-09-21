@@ -9,24 +9,17 @@ by Amazon's Dynamo.
 
 
 ## Configuration
-TO configure rng application on your cluster add the following configuration.
-Quorum template [N,W,R]: N - number of nodes in bucket. R - number of nodes that must  be participated in successful read operation.
-W - number of nodes for successful write.
-To keep data consistent the quorums have to obey the following rules:
-1. R + W > N
-2. W > N/2
 
-Or use the next hint:
-* single node cluster [1,1,1]
-* two nodes cluster [2,2,1]
-* 3 and more nodes cluster [3,2,2]
+To configure rng application on your cluster the next configs are available. Default values specified below.
+  
 
 ```
 ring {
-  quorum=[3,2,2]  #N,W,R. Change to [1,1,1] for single node
+  quorum=[1,1,1]  #N,W,R.
   buckets=1024
   virtual-nodes=128
   hashLength=32
+  gather-timeout = 5
   ring-node-name="ring_node"
   leveldb {
     native = true
@@ -36,6 +29,24 @@ ring {
   }
 }
 ```
+
+
+* `quorum` template [N,W,R]: N - number of nodes in bucket (in other words the number of copies). R - number of nodes that must  be participated in successful read operation.
+W - number of nodes for successful write.
+To keep data consistent the quorums have to obey the following rules:
+1. R + W > N
+2. W > N/2
+   
+Or use the next hint:
+* single node cluster [1,1,1]
+* two nodes cluster [2,2,1]
+* 3 and more nodes cluster [3,2,2]
+
+__NB!__ if quorum fails on write operation, data will not be saved. So in case if 2 nodes and [2,2,1] after 1 node down
+  the cluster becomes not writeable and readable.
+
+
+
 
 
 
