@@ -56,36 +56,37 @@ __NB!__ if quorum fails on write operation, data will not be saved. So in case i
 
 Number of buckets for key. Think about this like the size of HashMap. At the default value is appropriate.  
  
-#### virtual-nodes #### 
+#### `virtual-nodes` #### 
 
 Number of virtual nodes for each physical.
 
-#### hashLength ####
+#### `hashLength` ####
+
 Lengths of hash from key
 
-#### gather-timeout ####
+#### `gather-timeout` ####
 Number of seconds that requested cluster will wait for response from another nodes. 
 
-#### ring-node-name ####
+#### `ring-node-name` ####
 Role name that mark node as part of ring.
 
-#### leveldb ####
+#### `leveldb` ####
 levelDB database used as backend for ring. There is some configurations.
 1. `native` - usage of native or java implementation if LeveDB
 2. `dir` - directory location for levelDB storage.
 3. `checksum`
 4. `fsync` - if true levelDB will synchronise data to disk immediately.
 
-## Usage
+## Usage ##
 
 Ring is available as akka extension.
 
 `val ring = HashRing(system);` - create HashRing extension on specified actor system. Akka cluster should be created before.
 
 
-## Docker
+## Docker ##
 
-### Install
+### Install ###
 Store the docker repo key
 
   > $ sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 36A1D7869245C8950F966E92D8576A8BA88D21E9
@@ -98,13 +99,13 @@ Verify installation with ubuntu image
 
   > $ sudo docker run -i -t ubuntu /bin/bash
 
-### sbt-docker plugin
+### sbt-docker plugin ###
 
 Run sbt task to create basic docker container
 
   > docker:publishLocal
 
-### Run docker nodes
+### Run docker nodes ###
 
   > docker run -P -t -i --rm --name seed playtech/rng:1.0-22-gdd6c507
   > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-22-gdd6c507
@@ -118,6 +119,6 @@ Run sbt task to create basic docker container
 | --rm    | remove after stop
 | --link  | link to another container by `alias:name` scheme
 
-### JMX
+### JMX ###
 
 Execute `bin/akka-cluster node(ip) port(9998)` to check the cluster status.
