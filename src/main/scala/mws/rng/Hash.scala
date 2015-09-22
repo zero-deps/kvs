@@ -249,7 +249,8 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
     }
   }
 
-  def mergeData(l: List[Data], n: List[Data]): List[Data] = l match {
+  @tailrec
+  private def mergeData(l: List[Data], n: List[Data]): List[Data] = l match {
     case h :: t =>
       n.find(_.key == h.key) match {
         case Some(d) if h.vc == d.vc && h.lastModified > d.lastModified =>

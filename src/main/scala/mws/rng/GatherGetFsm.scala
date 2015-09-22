@@ -86,7 +86,8 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int) extends FSM[FsmStat
   }
 
 
-  def flat(tuples: List[(Option[List[Data]], Node)], res: List[(Option[Data], Node)]): List[(Option[Data], Node)] = {
+  @tailrec
+  private def flat(tuples: List[(Option[List[Data]], Node)], res: List[(Option[Data], Node)]): List[(Option[Data], Node)] = {
     tuples match {
       case h :: t => h._1 match {
         case Some(l) =>
