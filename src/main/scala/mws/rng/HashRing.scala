@@ -5,6 +5,7 @@ import java.io.File
 import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
+import akka.routing.FromConfig
 import akka.util.Timeout
 import org.iq80.leveldb._
 import scala.concurrent.Future
@@ -53,10 +54,11 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   
 
   // todo: create system/hashring superviser
-  private val store= system.actorOf(Props[Store].withDeploy(Deploy.local), name="ring_store")
+  private val store= system.actorOf(Props(classOf[Store],leveldb).withDeploy(Deploy.local), name="ring_store")
   private val hash = system.actorOf(Props(classOf[Hash], store).withDeploy(Deploy.local), name = "ring_hash")
   private val gather = system.actorOf(Props[GathererDel].withDeploy(Deploy.local), name="ring_gatherer")
-  
+  private val readStore = system.actorOf(
+    FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "readonly_store")
   
   
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {

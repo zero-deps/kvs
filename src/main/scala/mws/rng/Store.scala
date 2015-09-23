@@ -1,8 +1,7 @@
 package mws.rng
 
-import java.io.File
-import java.nio.ByteBuffer
 
+import java.nio.ByteBuffer
 import akka.actor.{Actor, ActorLogging}
 import akka.serialization.SerializationExtension
 import org.iq80.leveldb._

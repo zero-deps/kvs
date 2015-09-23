@@ -100,7 +100,9 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   }
 
   private[mws] def doGet(key: Key, client: ActorRef) = {
+    
     val refs = availableNodesFrom(findNodes(Left(key))) map stores.get
+    
     val gather = system.actorOf(Props(classOf[GatherGetFsm], client, N, R, gatherTimeout))
     refs map (store => store.fold(
       _.tell(StoreGet(key), gather),
