@@ -6,6 +6,7 @@ import java.nio.ByteBuffer
 import akka.actor.{Actor, ActorLogging}
 import akka.serialization.SerializationExtension
 import org.iq80.leveldb._
+import scala.annotation.tailrec
 
 
 /**
@@ -26,27 +27,17 @@ case class StoreDelete(key:Key)
 case class BucketPut(data: List[Data])
 case class BucketDelete(b:Bucket)
 case class BucketGet(bucket:Bucket)
-
 case class GetResp(d: Option[List[Data]])
 
 
-class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLogging{
+class Store(leveldb: DB ) extends Actor with ActorLogging {
   
+  val configPath = "ring.leveldb"
   val config = context.system.settings.config.getConfig(configPath)
-  val nativeLeveldb = config.getBoolean("native")
-  val hashing = HashingExtension(context.system)
-
-  val leveldbOptions = new Options().createIfMissing(true)
-  def leveldbReadOptions = new ReadOptions().verifyChecksums(config.getBoolean("checksum"))
-  val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
-  val leveldbDir = new File(config.getString("dir"))
-  var leveldb: DB = _
-
-  def leveldbFactory =
-    if (nativeLeveldb) org.fusesource.leveldbjni.JniDBFactory.factory
-    else org.iq80.leveldb.impl.Iq80DBFactory.factory
-
   val serialization = SerializationExtension(context.system)
+  val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
+  val hashing = HashingExtension(context.system)
+  def leveldbReadOptions = new ReadOptions().verifyChecksums(config.getBoolean("checksum"))
 
   def bytes(any: Any): Array[Byte] = any match {
     case b: Bucket => ByteBuffer.allocate(4).putInt(b).array()
@@ -58,9 +49,12 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
     case None => Nil
   }
 
-  override def preStart() = {
-    leveldb = leveldbFactory.open(leveldbDir, if (nativeLeveldb) leveldbOptions else leveldbOptions.compressionType(CompressionType.NONE))
+  override def preStart() = { 
     super.preStart()
+    log.info(s"START REPARING")
+    (1 to 1024) foreach { b =>
+     doBucketPut(getBucketData(b))
+    }
   }
 
   override def postStop() = {
@@ -69,38 +63,36 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
   }
 
   def receive: Receive = {
-    case BucketGet(bucket) => sender ! getBucketData(bucket)
-    case StoreGet(key) => sender ! GetResp(doGet(key))
+    case BucketGet(bucket) => sender ! getBucketData(bucket)    
     case StorePut(data) => sender ! doPut(data)
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
-    case BucketPut(data) => {
-      if(data.nonEmpty) {
-        withBatch(batch => {
-          batch.put(bytes(data.head.bucket), bytes(data))
-        })
-      }
+    case BucketPut(data) => doBucketPut(data)
+    case _ =>
+  }
+
+
+  def doBucketPut(data: List[Data]) {
+    val keys = data.foldLeft(Set.empty[Key])((acc, d) => acc.+(d.key))
+    val bs = data.foldLeft(Set.empty[Bucket])((acc, d) => acc.+(d.bucket))
+
+    //      if(data.nonEmpty)log.debug(s"[BucketPut] buckets=${data.head.bucket} , keys = $keys, buckets=${bs}")
+    if (data.nonEmpty) {
+      withBatch(batch => {
+        batch.put(bytes(data.head.bucket), bytes(data))
+      })
     }
   }
 
-  private def doGet(key:Key): Option[List[Data]] = {
-    val bucket = hashing findBucket Left(key)
-    val lookup: Option[List[Data]] = Option(leveldb.get(bytes(bucket))) map fromBytesList
-    
-    lookup match {
-      case Some(l) =>
-        val sameKey: List[Data] = l.filter(d => d.key.equals(key))
-        if (sameKey.isEmpty) None else Some(sameKey)
-          
-      case None => None
-    }
-  }
 
   private def doPut(data:Data):String = {
     val bucket = hashing findBucket Left(data.key)
     val lookup = fromBytesList(leveldb.get(bytes(bucket)))
-    val updated = data  :: lookup.filterNot(d => d.key.equals(data.key) && d.vc < data.vc)
-    
+
+//    log.info(s"[store][put] before ${lookup.filter(_.key == data.key)}")
+
+    val updated = data  :: lookup.filterNot(d => d.key == data.key)
+    log.info(s"[store][put] k-> ${data.key}")
     withBatch(batch => {
       batch.put(bytes(bucket), bytes(updated))
     })
@@ -117,8 +109,27 @@ class Store extends {val configPath = "ring.leveldb"} with Actor with ActorLoggi
     "ok"
   }
 
-  private def getBucketData(bucket:Bucket):List[Data] = {
-   fromBytesList(leveldb.get(bytes(bucket)))
+  private def getBucketData(bucket: Bucket): List[Data] = {
+    val bucketData = fromBytesList(leveldb.get(bytes(bucket)))
+    val merged = mergeData(bucketData, Nil)
+    if(bucketData.size > 2) {
+      log.info(s"!!! Fix for b=${bucket}, before = ${bucketData.size}, after = ${merged.size}")
+    }
+    merged
+  }
+
+  @tailrec
+  private def mergeData(l: List[Data], n: List[Data]): List[Data] = l match {
+    case h :: t =>
+      n.find(_.key == h.key) match {
+        case Some(d) if h.vc == d.vc && h.lastModified > d.lastModified =>
+          mergeData(t, h :: n.filterNot(_.key == h.key))
+        case Some(d) if h.vc > d.vc =>
+          mergeData(t, h :: n.filterNot(_.key == h.key))
+        case None => mergeData(t, h :: n)
+        case _ => mergeData(t, n)
+      }
+    case Nil => n
   }
 
   private def withBatch[R](body: WriteBatch ⇒ R): R = {

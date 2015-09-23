@@ -1,9 +1,12 @@
 package mws.rng
 
+import java.io.File
+
 import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
 import akka.util.Timeout
+import org.iq80.leveldb._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
@@ -27,11 +30,34 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
   system.eventStream
   var jmx: Option[HashRingJmx] = None
+  //ADD connection
+  val configPath = "ring.leveldb"
+  val config = system.settings.config.getConfig(configPath)
+  val nativeLeveldb = config.getBoolean("native")
+  val hashing = HashingExtension(system)
+
+  val leveldbOptions = new Options().createIfMissing(true)
+  def leveldbReadOptions = new ReadOptions().verifyChecksums(config.getBoolean("checksum"))
+  val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
+  val leveldbDir = new File(config.getString("dir"))
+  
+  val rngConf = system.settings.config.getConfig("ring")
+  val bucketsNum = rngConf.getInt("buckets")
+  var leveldb = leveldbFactory.open(leveldbDir, if (nativeLeveldb) leveldbOptions else leveldbOptions.compressionType(CompressionType.NONE))
+
+  def leveldbFactory =
+    if (nativeLeveldb) org.fusesource.leveldbjni.JniDBFactory.factory
+    else org.iq80.leveldb.impl.Iq80DBFactory.factory
+  //
+  
+  
 
   // todo: create system/hashring superviser
   private val store= system.actorOf(Props[Store].withDeploy(Deploy.local), name="ring_store")
   private val hash = system.actorOf(Props(classOf[Hash], store).withDeploy(Deploy.local), name = "ring_hash")
   private val gather = system.actorOf(Props[GathererDel].withDeploy(Deploy.local), name="ring_gatherer")
+  
+  
   
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {
     val jmx = new HashRingJmx(this, log)
