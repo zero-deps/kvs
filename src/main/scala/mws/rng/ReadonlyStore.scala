@@ -35,7 +35,9 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
   }
 
   override def receive: Receive = {
-    case StoreGet(key) => sender ! GetResp(doGet(key))
+    case StoreGet(key) =>
+      log.info(s"[get]$self")
+      sender ! GetResp(doGet(key))
     case _ =>    
   }
 

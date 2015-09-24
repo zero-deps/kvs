@@ -30,13 +30,13 @@ case class Get(k: Key) extends HashMessage
 case class Delete(k: Key) extends HashMessage
 case object Ready
 
-class Hash(localStore: ActorRef) extends Actor with ActorLogging {
+class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with ActorLogging {
   import context.system
 
   val config = system.settings.config.getConfig("ring")
   implicit val timeout = Timeout(5.second)
 
-  val quorum = config.getIntList("quorum")  //N,R,W
+  val quorum = config.getIntList("quorum")  //N,W,R
   log.info(s"q = $quorum")
   val N: Int = quorum.get(0)
   val W: Int = quorum.get(1)
@@ -51,7 +51,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   val cluster = Cluster(system)
   val local:Address = cluster.selfAddress
   val hashing = HashingExtension(system)
-  val stores = new SelectionMemorize(context.system)
+  val writeStores = new SelectionMemorize(context.system)
 
   @volatile
   private var initilized = false
@@ -72,7 +72,9 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   override def receive: Receive = receiveCl orElse receiveApi
 
   def receiveApi: Receive = {
-    case Put(k, v) =>doPut(k, v, sender())
+    case Put(k, v) =>
+      log.info(s"[hash][put] $k -> $v")
+      doPut(k, v, sender())
     case Get(k) => doGet(k, sender())
     case Delete(k) => doDelete(k, sender())
   }
@@ -82,8 +84,10 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
     val bucket = hashing.findBucket(Left(k))
     val nodes = findNodes(Left(k))
     val availableNodes = availableNodesFrom(nodes)
+    log.info(s"[hash][put]available nodes = $availableNodes")
+
     if (availableNodes.size >= W) {
-      localStore ? StoreGet(k) onSuccess {
+      localRStore ? StoreGet(k) onSuccess {
         case GetResp(data)=>
 
           val vc: VectorClock = data match {
@@ -100,13 +104,10 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   }
 
   private[mws] def doGet(key: Key, client: ActorRef) = {
-    
-    val refs = availableNodesFrom(findNodes(Left(key))) map stores.get
-    
+    val refs = availableNodesFrom(findNodes(Left(key))) map(n => system.actorSelection(RootActorPath(n) / "user"/"readonly_store" ))
+    log.info(s"[hash] get from $refs")
     val gather = system.actorOf(Props(classOf[GatherGetFsm], client, N, R, gatherTimeout))
-    refs map (store => store.fold(
-      _.tell(StoreGet(key), gather),
-      _.tell(StoreGet(key), gather)))
+    refs map (_.tell(StoreGet(key), gather))
   }
 
   private[mws] def doDelete(k: Key, client: ActorRef) = {
@@ -146,9 +147,9 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
   }
 
   private[mws] def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
-    val storeList = nodes map stores.get
+    val storeList = nodes map writeStores.get
     val gather = system.actorOf(Props(classOf[GatherPutFSM], client, N, W, gatherTimeout))
-
+    log.info(s"[hash][put] to $storeList")
     storeList.map(ref =>
       ref.fold(_.tell(StorePut(d), gather),
       _.tell(StorePut(d), gather)))
@@ -232,7 +233,7 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
         (newReplica, oldReplica) match {
           case (`newReplica`, None) =>
             updateBuckets(bucket, findNodes(Right(bucket)).filterNot(_ == cluster.selfAddress))
-          case (None, `oldReplica`) => localStore ! BucketDelete(bucket)
+          case (None, `oldReplica`) => localRStore ! BucketDelete(bucket)
           case _ => //nop
         }
         syncBuckets(tail)
@@ -240,14 +241,14 @@ class Hash(localStore: ActorRef) extends Actor with ActorLogging {
 
   private def updateBuckets(bucket: Bucket, nodes: List[Node]): Unit = {
     import context.dispatcher
-    val storesOnNodes = nodes map stores.get
+    val storesOnNodes = nodes map writeStores.get
     val bucketsDataF = Future.traverse(storesOnNodes)(n => n.fold(
       _ ? BucketGet(bucket),
       _ ? BucketGet(bucket))).mapTo[List[List[Data]]]
 
     bucketsDataF map {
       case l if l.isEmpty || l.forall(_ == Nil) =>
-      case l => localStore ! BucketPut(mergeData(l.flatten, Nil))
+      case l => localRStore ! BucketPut(mergeData(l.flatten, Nil))
     }
   }
 

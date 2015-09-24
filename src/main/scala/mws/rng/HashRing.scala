@@ -55,11 +55,11 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
 
   // todo: create system/hashring superviser
   private val store= system.actorOf(Props(classOf[Store],leveldb).withDeploy(Deploy.local), name="ring_store")
-  private val hash = system.actorOf(Props(classOf[Hash], store).withDeploy(Deploy.local), name = "ring_hash")
   private val gather = system.actorOf(Props[GathererDel].withDeploy(Deploy.local), name="ring_gatherer")
   private val readStore = system.actorOf(
     FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "readonly_store")
-  
+  private val hash = system.actorOf(Props(classOf[Hash], store, readStore).withDeploy(Deploy.local), name = "ring_hash")
+
   
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {
     val jmx = new HashRingJmx(this, log)
