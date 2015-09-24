@@ -2,6 +2,7 @@ package mws.rng
 
 import akka.actor.FSM.Normal
 import akka.actor._
+import akka.cluster.VectorClock
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 
@@ -12,6 +13,15 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int) extends FSM[FsmStat
   setTimer("send_by_timeout", GatherTimeout, t seconds)
   
   when(Collecting){
+    case Event(LocalGetResp(data), DataCollection(l)) => {
+        val vc: VectorClock = data match {
+          case Some(d) if d.size == 1 => d.head.vc
+          case Some(d) if d.size > 1 => (d map (_.vc)).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
+          case None => new VectorClock        }
+        val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
+        mapInPut(availableNodes, updatedData, client)
+    }
+      
     case Event(GetResp(rez), DataCollection(l))  =>
       val head  = (rez, sender().path.address)
       val newData = DataCollection( head :: l)
@@ -55,7 +65,7 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int) extends FSM[FsmStat
       case l if listData.forall(d => d._1 == listData.head._1) => listData.head._1
       case _ =>
         val newest = findLast(listData filter(_._1.isDefined))
-        newest foreach  (updateOutdateNodes(_, listData filter(_._1.isDefined)))
+        newest foreach  (updateOutdatedNodes(_, listData filter(_._1.isDefined)))
         newest
     }
   }
@@ -64,18 +74,18 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int) extends FSM[FsmStat
 
     @tailrec
     def last(l: List[(Option[Data], Node)], newest: Option[Data]): Option[Data] = l match {
+      case Nil => newest
       case (head :: tail) if head._1.get.vc > newest.get.vc => last(tail, head._1)
       case (head :: tail) if
       head._1.get.vc <> newest.get.vc &&
         head._1.get.lastModified > newest.get.lastModified => last(tail, head._1) // last write win if versions are concurrent
-      case Nil => newest
       case _ => last(l.tail, newest)
     }
 
     last(data.tail, data.head._1)
   }
 
-  def updateOutdateNodes(newData: Data, nodes: List[(Option[Data], Node)]) = {
+  def updateOutdatedNodes(newData: Data, nodes: List[(Option[Data], Node)]) = {
     nodes.foreach {
       case (Some(d), node) if d.vc < newData.vc =>
         val path = RootActorPath(node) / "user" / "ring_store"
@@ -85,17 +95,24 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int) extends FSM[FsmStat
     }
   }
 
-
   @tailrec
-  private def flat(tuples: List[(Option[List[Data]], Node)], res: List[(Option[Data], Node)]): List[(Option[Data], Node)] = {
-    tuples match {
-      case h :: t => h._1 match {
+  private def flat(tuples: List[(Option[List[Data]], Node)], res: List[(Option[Data], Node)]): List[(Option[Data], Node)] = tuples match {
+    case Nil => res
+    case h :: t => h._1 match {
         case Some(l) =>
           val list: List[(Some[Data], Node)] = l map (d => (Some(d), h._2))
           flat(t, list ++ res)
         case None => flat(t, (None, h._2) :: res)
-      }
-      case Nil => res
     }
   }
+
+private[mws] def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
+val storeList = nodes map writeStores.get
+
+log.info(s"[hash][put] to $storeList")
+storeList.map(ref =>
+ref.fold(_.tell(StorePut(d), self),
+_.tell(StorePut(d), self)))
+}
+
 }

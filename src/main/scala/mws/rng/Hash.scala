@@ -51,7 +51,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   val cluster = Cluster(system)
   val local:Address = cluster.selfAddress
   val hashing = HashingExtension(system)
-  val writeStores = new SelectionMemorize(context.system)
+  val stores = SelectionMemorize(context.system)
 
   @volatile
   private var initilized = false
@@ -80,24 +80,14 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   }
 
   private[mws] def doPut(k: Key, v: Value, client: ActorRef) = {
-    import scala.concurrent.ExecutionContext.Implicits.global
     val bucket = hashing.findBucket(Left(k))
     val nodes = findNodes(Left(k))
     val availableNodes = availableNodesFrom(nodes)
     log.info(s"[hash][put]available nodes = $availableNodes")
-
+    
     if (availableNodes.size >= W) {
-      localRStore ? StoreGet(k) onSuccess {
-        case GetResp(data)=>
-
-          val vc: VectorClock = data match {
-            case Some(d) if d.size == 1 => d.head.vc
-            case Some(d) if d.size > 1 => (d map (_.vc)).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
-            case None => new VectorClock
-          }
-          val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
-          mapInPut(availableNodes, updatedData, client)
-      }
+      val gather = system.actorOf(Props(classOf[GatherPutFSM], client, N, W, gatherTimeout))
+      localRStore ! LocalStoreGet(k, gather)
     } else {
       client ! AckQuorumFailed
     }
@@ -116,7 +106,6 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
       val deleteF = Future.traverse(availableNodesFrom(nodes))(n =>
         (system.actorSelection(RootActorPath(n) / "user" / "ring_store") ? StoreDelete(k)).mapTo[String])
       deleteF.map(statuses => system.actorSelection("/user/ring_gatherer") ! GatherDel(statuses, client))
-
   }
 
   def receiveCl: Receive = {
@@ -144,15 +133,6 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   private def availableNodesFrom(l: List[Node]) = {
     val unreachableMembers = state.unreachable.map(m => m.address)
     l filterNot (node => unreachableMembers contains node)    
-  }
-
-  private[mws] def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
-    val storeList = nodes map writeStores.get
-    val gather = system.actorOf(Props(classOf[GatherPutFSM], client, N, W, gatherTimeout))
-    log.info(s"[hash][put] to $storeList")
-    storeList.map(ref =>
-      ref.fold(_.tell(StorePut(d), gather),
-      _.tell(StorePut(d), gather)))
   }
 
   def bucketsToUpdate: List[SynchReplica] = {
@@ -241,7 +221,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
 
   private def updateBuckets(bucket: Bucket, nodes: List[Node]): Unit = {
     import context.dispatcher
-    val storesOnNodes = nodes map writeStores.get
+    val storesOnNodes = nodes.map { stores.get(_, "ring_store") }
     val bucketsDataF = Future.traverse(storesOnNodes)(n => n.fold(
       _ ? BucketGet(bucket),
       _ ? BucketGet(bucket))).mapTo[List[List[Data]]]

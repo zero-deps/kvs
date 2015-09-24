@@ -38,6 +38,7 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
     case StoreGet(key) =>
       log.info(s"[get]$self")
       sender ! GetResp(doGet(key))
+    case LocalStoreGet(key) => sender ! LocalGetResp(doGet(key))
     case _ =>    
   }
 

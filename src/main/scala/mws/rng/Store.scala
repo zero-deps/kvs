@@ -2,7 +2,7 @@ package mws.rng
 
 
 import java.nio.ByteBuffer
-import akka.actor.{Actor, ActorLogging}
+import akka.actor.{ActorRef, Actor, ActorLogging}
 import akka.serialization.SerializationExtension
 import org.iq80.leveldb._
 import scala.annotation.tailrec
@@ -21,12 +21,14 @@ import scala.annotation.tailrec
 
 
 case class StoreGet(key:Key)
+case class LocalStoreGet(key:Key, received: ActorRef)
 case class StorePut(data:Data)
 case class StoreDelete(key:Key)
 case class BucketPut(data: List[Data])
 case class BucketDelete(b:Bucket)
 case class BucketGet(bucket:Bucket)
 case class GetResp(d: Option[List[Data]])
+case class LocalGetResp(d: Option[List[Data]])
 
 
 class Store(leveldb: DB ) extends Actor with ActorLogging {

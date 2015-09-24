@@ -3,9 +3,8 @@ package mws.rng
 import akka.actor.{ActorLogging, ActorRef, FSM}
 import scala.concurrent.duration._
 
-
-
-class GatherPutFSM(val client: ActorRef, val N: Int, val W: Int, t: Int) extends FSM[FsmState, FsmData] with ActorLogging{
+class GatherPutFSM(val client: ActorRef, val N: Int, val W: Int, t: Int, val stores: SelectionMemorize)
+  extends FSM[FsmState, FsmData] with ActorLogging {
   
   startWith(Collecting, Statuses(Nil))
   setTimer("send_by_timeout", GatherTimeout, t seconds)
