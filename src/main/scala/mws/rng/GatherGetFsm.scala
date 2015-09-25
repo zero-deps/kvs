@@ -2,26 +2,17 @@ package mws.rng
 
 import akka.actor.FSM.Normal
 import akka.actor._
-import akka.cluster.VectorClock
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 
 
-class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int) extends FSM[FsmState, FsmData] with ActorLogging{
+class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int)
+  extends FSM[FsmState, FsmData] with ActorLogging{
   
   startWith(Collecting, DataCollection(Nil))
   setTimer("send_by_timeout", GatherTimeout, t seconds)
   
   when(Collecting){
-    case Event(LocalGetResp(data), DataCollection(l)) => {
-        val vc: VectorClock = data match {
-          case Some(d) if d.size == 1 => d.head.vc
-          case Some(d) if d.size > 1 => (d map (_.vc)).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
-          case None => new VectorClock        }
-        val updatedData = Data(k, bucket, System.currentTimeMillis(), vc.:+(local.toString), v)
-        mapInPut(availableNodes, updatedData, client)
-    }
-      
     case Event(GetResp(rez), DataCollection(l))  =>
       val head  = (rez, sender().path.address)
       val newData = DataCollection( head :: l)
@@ -106,13 +97,5 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int) extends FSM[FsmStat
     }
   }
 
-private[mws] def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
-val storeList = nodes map writeStores.get
-
-log.info(s"[hash][put] to $storeList")
-storeList.map(ref =>
-ref.fold(_.tell(StorePut(d), self),
-_.tell(StorePut(d), self)))
-}
 
 }
