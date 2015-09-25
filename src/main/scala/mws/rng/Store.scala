@@ -38,6 +38,8 @@ class Store(leveldb: DB ) extends Actor with ActorLogging {
   val serialization = SerializationExtension(context.system)
   val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
   val hashing = HashingExtension(context.system)
+  val bucket = context.system.settings.config.getInt("ring.buckets")
+  
   def leveldbReadOptions = new ReadOptions().verifyChecksums(config.getBoolean("checksum"))
 
   def bytes(any: Any): Array[Byte] = any match {
@@ -53,7 +55,7 @@ class Store(leveldb: DB ) extends Actor with ActorLogging {
   override def preStart() = { 
     super.preStart()
     log.info(s"START REPARING")
-    (1 to 1024) foreach { b =>
+    (1 to bucket) foreach { b =>
      doBucketPut(getBucketData(b))
     }
   }
@@ -77,7 +79,6 @@ class Store(leveldb: DB ) extends Actor with ActorLogging {
     val keys = data.foldLeft(Set.empty[Key])((acc, d) => acc.+(d.key))
     val bs = data.foldLeft(Set.empty[Bucket])((acc, d) => acc.+(d.bucket))
 
-    //      if(data.nonEmpty)log.debug(s"[BucketPut] buckets=${data.head.bucket} , keys = $keys, buckets=${bs}")
     if (data.nonEmpty) {
       withBatch(batch => {
         batch.put(bytes(data.head.bucket), bytes(data))
@@ -89,8 +90,6 @@ class Store(leveldb: DB ) extends Actor with ActorLogging {
   private def doPut(data:Data):String = {
     val bucket = hashing findBucket Left(data.key)
     val lookup = fromBytesList(leveldb.get(bytes(bucket)))
-
-//    log.info(s"[store][put] before ${lookup.filter(_.key == data.key)}")
 
     val updated = data  :: lookup.filterNot(d => d.key == data.key)
     log.info(s"[store][put] k-> ${data.key}")

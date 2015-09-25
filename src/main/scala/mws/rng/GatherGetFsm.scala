@@ -96,6 +96,4 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int)
         case None => flat(t, (None, h._2) :: res)
     }
   }
-
-
 }
