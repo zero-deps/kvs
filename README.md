@@ -54,17 +54,20 @@ Or use the next hint:
 __NB!__ if quorum fails on write operation, data will not be saved. So in case if 2 nodes and [2,2,1] after 1 node down
   the cluster becomes not writeable and readable.
   
-| name               | description |
-| :----------------: | :------------------------------------------------------------------------------------: |
-| `buckets`          | Number of buckets for key. Think about this like the size of HashMap. At the default value is appropriate.|
-| `virtual-nodes`    | Number of virtual nodes for each physical.|
-| `hashLength`       | Lengths of hash from key|
-| `gather-timeout`   | This configuration should be specified by client developer. Number of seconds that requested cluster will wait   for responses from nodes that persist data by given key.  Result of request will returned to client on either received data from other nodes(number specified in quorum) or after this time out. The main cause if this function is to avoid TimeoutException in case some  nodes become Unreachable for some period or another situation when requested node is not able to gather info from other nodes.|
-| `ring-node-name`   | Role name that mark node as part of ring.|
-| `leveldb.native`   | usage of native or java implementation if LeveDB |
-| `leveldb.dir`      |  directory location for levelDB storage. |
+| name               | description 
+| :----------------: | :------------------------------------------------------------------------------------
+| `buckets`          | Number of buckets for key. Think about this like the size of HashMap. At the default value is appropriate.
+| `virtual-nodes`    | Number of virtual nodes for each physical.
+| `hashLength`       | Lengths of hash from key
+| `gather-timeout`   | This configuration should be specified by client developer.
+Number of seconds that requested cluster will wait for responses from nodes that persist data by given key.
+Result of request will returned to client on either received data from other nodes(number specified in quorum) or after this time out.
+The main cause if this function is to avoid TimeoutException in case some  nodes become Unreachable for some period or another situation when requested node is not able to gather info from other nodes.
+| `ring-node-name`   | Role name that mark node as part of ring.
+| `leveldb.native`   | usage of native or java implementation if LeveDB 
+| `leveldb.dir`      |  directory location for levelDB storage. 
 | `leveldb.checksum` |  checksum
-| `leveldb.fsync`    |  if true levelDB will synchronise data to disk immediately. |
+| `leveldb.fsync`    |  if true levelDB will synchronise data to disk immediately.
 
 ## Usage ##
 
