@@ -67,7 +67,11 @@ Number of virtual nodes for each physical.
 Lengths of hash from key
 
 #### `gather-timeout` ####
-Number of seconds that requested cluster will wait for response from another nodes. 
+This configuration should be specified by client developer.
+Number of seconds that requested cluster will wait for responses from nodes that persist data by given key. 
+Result of request will returned to client on either received data from other nodes(number specified in quorum) or after this time out. 
+The main cause if this function is to avoid TimeoutException in case some nodes become Unreachable for some period or another situation
+when requested node is not able to gather info from other nodes.
 
 #### `ring-node-name` ####
 Role name that mark node as part of ring.
