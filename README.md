@@ -54,9 +54,9 @@ Or use the next hint:
 __NB!__ if quorum fails on write operation, data will not be saved. So in case if 2 nodes and [2,2,1] after 1 node down
   the cluster becomes not writeable and readable.
   
-  
+      
   | name               | description
-  | :----------------: | :------------------------------------------------------------------------------------
+  | ----------------   | ------------------------------------------------------------------------------------
   | `buckets`          | Number of buckets for key. Think about this like the size of HashMap. At the default value is appropriate.
   | `virtual-nodes`    | Number of virtual nodes for each physical.
   | `hashLength`       | Lengths of hash from key
