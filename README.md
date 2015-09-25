@@ -25,7 +25,7 @@ ring {
   buckets=1024
   virtual-nodes=128
   hashLength=32
-  gather-timeout = 5
+  gather-timeout = 3
   ring-node-name="ring_node"
   leveldb {
     native = true
