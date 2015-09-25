@@ -60,16 +60,14 @@ __NB!__ if quorum fails on write operation, data will not be saved. So in case i
   | `buckets`        | Number of buckets for key. Think about this like the size of HashMap. At the default value is appropriate. |
   | `virtual-nodes`  | Number of virtual nodes for each physical. |
   | `hashLength`     | Lengths of hash from key |
-  | `gather-timeout` | This configuration should be specified by client developer. Number of seconds that requested cluster will wait 
-   for responses from nodes that persist data by given key.  Result of request will returned to client on either received data from other 
-   nodes(number specified in quorum) or after this time out. The main cause if this function is to avoid TimeoutException in case some 
-   nodes become Unreachable for some period or another situation when requested node is not able to gather info from other nodes. |
+  | `gather-timeout` | This configuration should be specified by client developer. Number of seconds that requested cluster will wait   for responses from nodes that persist data by given key.  Result of request will returned to client on either received data from other nodes(number specified in quorum) or after this time out. The main cause if this function is to avoid TimeoutException in case some  nodes become Unreachable for some period or another situation when requested node is not able to gather info from other nodes. |
   | `ring-node-name` | Role name that mark node as part of ring. |
-  | `leveldb`        | levelDB database used as backend for ring. There is some configurations. |
-                       1. `native` - usage of native or java implementation if LeveDB
-                       2. `dir` - directory location for levelDB storage.
-                       3. `checksum`
-                       4. `fsync` - if true levelDB will synchronise data to disk immediately. |
+  | `leveldb.native` | usage of native or java implementation if LeveDB
+  | `leveldb.dir` |  directory location for levelDB storage.
+  | `leveldb.checksum` |
+  | `leveldb.fsync` |  if true levelDB will synchronise data to disk immediately.
+
+
 
 ## Usage ##
 
