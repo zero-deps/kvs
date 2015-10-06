@@ -1,24 +1,10 @@
 package mws.rng
 
-
 import java.nio.ByteBuffer
 import akka.actor.{ActorRef, Actor, ActorLogging}
 import akka.serialization.SerializationExtension
 import org.iq80.leveldb._
 import scala.annotation.tailrec
-
-
-/**
- *
- * Bucket -> List[ Key->List[Data] ]
- *
- * Retrieves Data associated with Key
- * List[Data] = ring_store:get(Key),
- *
- * % Stores Data, which is a variable of data record
- * ring_store:put(Data).
- */
-
 
 case class StoreGet(key:Key)
 case class LocalStoreGet(key:Key, received: ActorRef)
@@ -30,8 +16,7 @@ case class BucketGet(bucket:Bucket)
 case class GetResp(d: Option[List[Data]])
 case class LocalGetResp(d: Option[List[Data]])
 
-
-class Store(leveldb: DB ) extends Actor with ActorLogging {
+class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   
   val configPath = "ring.leveldb"
   val config = context.system.settings.config.getConfig(configPath)
@@ -66,12 +51,12 @@ class Store(leveldb: DB ) extends Actor with ActorLogging {
   }
 
   def receive: Receive = {
-    case BucketGet(bucket) => sender ! getBucketData(bucket)    
+    case BucketGet(bucket) => sender ! getBucketData(bucket) // TODO move to readonly
     case StorePut(data) => sender ! doPut(data)
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
     case BucketPut(data) => doBucketPut(data)
-    case _ =>
+    case unhandled => log.warning(s"[store]unhandled message: $unhandled")
   }
 
 

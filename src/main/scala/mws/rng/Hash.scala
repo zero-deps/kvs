@@ -22,11 +22,8 @@ import scala.concurrent.Future
  */
 
 sealed class HashMessage
-
 case class Put(k: Key, v: Value) extends HashMessage
-
 case class Get(k: Key) extends HashMessage
-
 case class Delete(k: Key) extends HashMessage
 case object Ready
 
@@ -54,7 +51,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   val actorsMem = new SelectionMemorize(system)
 
   @volatile
-  private var initilized = false
+  private var initialized = false
   @volatile
   private var state:CurrentClusterState = CurrentClusterState()
   @volatile
@@ -120,7 +117,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
           val hashedKey = hashing.hash(Left(member.address, vnode))
           vNodes += hashedKey -> member.address})
         syncBuckets(bucketsToUpdate)
-        if (member.address == local) initilized = true
+        if (member.address == local) initialized = true
       case MemberRemoved(member, prevState) if member.hasRole(rngRoleName) =>
         log.info(s"[ring_hash]Removing $member from ring")
         val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((member.address, v))))
@@ -128,9 +125,9 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
         syncBuckets(bucketsToUpdate)
       case _ =>
       }
-    case Ready => sender() ! initilized
-    case s: CurrentClusterState =>
-      state = s
+      
+    case Ready => sender() ! initialized
+    case s: CurrentClusterState => state = s
   }
 
   private def availableNodesFrom(l: List[Node]) = {

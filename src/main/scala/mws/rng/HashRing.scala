@@ -54,7 +54,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   
 
   // todo: create system/hashring superviser
-  private val store= system.actorOf(Props(classOf[Store],leveldb).withDeploy(Deploy.local), name="ring_store")
+  private val store= system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_store")
   private val gather = system.actorOf(Props[GathererDel].withDeploy(Deploy.local), name="ring_gatherer")
   private val readStore = system.actorOf(
     FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
