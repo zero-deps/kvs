@@ -5,22 +5,13 @@ import akka.actor._
 case class Watch(a: ActorRef)
 case class Select(node: Node, path: String)
 
-
-object SelectionMemorize extends ExtensionId[SelectionMemorize] with ExtensionIdProvider {
-
-  override def createExtension(system: ExtendedActorSystem): SelectionMemorize =
-    new SelectionMemorize(system)
-
-  override def lookup = SelectionMemorize
-}
-
-trait ActorStorage {
+trait ActorRefStorage {
   def get(node: Node, path: String): Either[ActorRef, ActorSelection]
   def put(n: (Node, String), actor: ActorRef)
   def remove(node: (Node, String)): Unit
 }
 
-class SelectionMemorize(val s: ActorSystem) extends  Extension with ActorStorage {
+class SelectionMemorize(val s: ActorSystem)  extends ActorRefStorage {
 
   @volatile
   private var map = Map.empty[(Node, String), ActorRef]
@@ -39,15 +30,13 @@ class SelectionMemorize(val s: ActorSystem) extends  Extension with ActorStorage
   override def remove(n: (Node, String)) = map = map - n
 }
 
-class Monitor(storage: ActorStorage) extends Actor {
+class Monitor(storage: ActorRefStorage) extends Actor {
 
-  override def receive: Actor.Receive = {
-
+  override def receive = {
     case Select(node, path: String) =>
       val fullPath = RootActorPath(node) / "user" / path
       context.system.actorSelection(fullPath) ! Identify(node)
     case ActorIdentity(n, Some(ref)) if n.isInstanceOf[Node] =>
-
       storage.put((n.asInstanceOf[Node], ref.path.name), ref)
     case Watch(actor) => context.watch(actor)
     case Terminated(actor) => storage.remove((actor.path.address, actor.path.name))

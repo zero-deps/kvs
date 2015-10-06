@@ -51,7 +51,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   val cluster = Cluster(system)
   val local:Address = cluster.selfAddress
   val hashing = HashingExtension(system)
-  val actorsMem = SelectionMemorize(system)
+  val actorsMem = new SelectionMemorize(system)
 
   @volatile
   private var initilized = false
