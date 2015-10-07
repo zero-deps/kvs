@@ -29,9 +29,9 @@ class GatherPutFSM(val client: ActorRef, t: Int, stores: SelectionMemorize, putI
       stay()
     }
     
-    case Event(incomeStatus: String, Statuses(statuses)) =>
+    case Event(incomeStatus: PutStatus, Statuses(statuses)) =>
       val updStatuses = Statuses( incomeStatus :: statuses )
-      updStatuses.l.count(_ == "ok") match {
+      updStatuses.l.count(_ == Saved) match {
         case w if w == putInfo.W =>
           client ! AckSuccess
           goto(Sent) using ReceivedValues(putInfo.W)
@@ -45,7 +45,7 @@ class GatherPutFSM(val client: ActorRef, t: Int, stores: SelectionMemorize, putI
   }
   
   when(Sent){
-    case Event(status: String, ReceivedValues(n)) => 
+    case Event(status: PutStatus, ReceivedValues(n)) =>
       if(n + 1 == putInfo.N)
         stop()
       else
@@ -56,9 +56,7 @@ class GatherPutFSM(val client: ActorRef, t: Int, stores: SelectionMemorize, putI
   }
 
   private[mws] def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
-    
     val storeList = nodes.map(stores.get(_, "ring_store"))
-
       storeList.map(ref =>
       ref.fold(_.tell(StorePut(d), self),
         _.tell(StorePut(d), self)))

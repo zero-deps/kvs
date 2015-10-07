@@ -18,7 +18,7 @@ case class LocalGetResp(d: Option[List[Data]])
 
 sealed trait PutStatus
 case object Saved extends PutStatus
-case object Conflict extends PutStatus
+case class Conflict(broken: List[Data]) extends PutStatus
 
 //TODO extract all merge functions to conflict prevent component
 
@@ -77,25 +77,24 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     }
   }
 
-  private def doPut(data:Data): PutStatus = {
+  private def doPut(data: Data): PutStatus = {
     val bucket = hashing findBucket Left(data.key)
-    val dividedLookup  = divideByKey(data.key, fromBytesList(leveldb get bytes(bucket) ))
+    val dividedLookup = divideByKey(data.key, fromBytesList(leveldb get bytes(bucket)))
 
-    val upd: (PutStatus, List[Data]) = dividedLookup._1 match {
+    val updated: (PutStatus, List[Data]) = dividedLookup._1 match {
       case Nil => (Saved, List(data))
-      case list => list filterNot (_.vc < data.vc) match { // remove outdated data
-        case Nil => (Saved, List(data))
-        case conflicted if conflicted exists (_.vc <> data.vc) => (Conflict, data :: conflicted)
-        case newest if newest.size == 1 => (Saved, newest) // input data is outdated
-        case needFix =>
-      }
+      case list if list.size == 1 && list.head.vc < data.vc =>
+        (Saved, List(data.copy(vc = list.head.vc.merge(data.vc))))
+      case list if list.size == 1 && list.head.vc == data.vc =>
+        (Saved, List(data))
+      case brokenData => (Conflict(brokenData), data :: brokenData)
     }
-    
+
     log.info(s"[store][put] k-> ${data.key}")
     withBatch(batch => {
-      batch.put(bytes(bucket), bytes(upd._2 ::: dividedLookup._2))
+      batch.put(bytes(bucket), bytes(updated._2 ::: dividedLookup._2))
     })
-    upd._1
+    updated._1
   }
 
   def divideByKey(k: Key, data: List[Data]): (List[Data], List[Data]) = {

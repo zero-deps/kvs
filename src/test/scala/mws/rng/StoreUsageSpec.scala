@@ -43,7 +43,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
 
     "provide crud" in {
       writeStore ! StorePut(data)
-      expectMsgType[String] should equal("ok")
+      expectMsgType[PutStatus] should equal(Saved)
 
       readStore ! StoreGet(data.key)
       expectMsgType[GetResp] should equal(GetResp(Some(List(data))))
@@ -62,14 +62,14 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       val vectorClock = data.vc.:+("node1")
 
       writeStore ! StorePut(data.copy(vc = vectorClock))
-      expectMsgType[String] should equal("ok")
+      expectMsgType[PutStatus] should equal(Saved)
 
       val newVc = vectorClock.:+("node2")
       writeStore ! StorePut(data.copy(vc = newVc))
-      expectMsgType[String] should equal("ok")
+      expectMsgType[PutStatus] should equal(Saved)
 
       readStore ! StoreGet(data.key)
-      receiveN(1) head match {
+      receiveN(1).head match {
         case GetResp(Some(updData)) if updData.size == 1 => updData.foreach(d => assert(d.vc == newVc))        
         case e => fail(s"Old version is not substituted with new. res : $e")
       }
@@ -82,28 +82,28 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
     }
 
 
-//    "save concurrent data and substitute with merged" in {
-//      val vc1 = data.vc.:+("node1")
-//      val vc2 = data.vc.:+("node2")
-//
-//      writeStore ! StorePut(data.copy(vc = vc1))
-//      expectMsgType[String] should equal("ok")
-//
-//      writeStore ! StorePut(data.copy(vc = vc2))
-//      expectMsgType[String] should equal("ok")
-//
-//      readStore ! StoreGet(data.key)
-//      receiveOne(Duration(3, TimeUnit.SECONDS)) match {
-//        case GetResp(dataList) if dataList.size == 2 =>
-//          val vectorClocks = dataList.get.map(d => d.vc)
-//          assertResult(Set(vc1,vc2))(vectorClocks.toSet)
-//
-//        case e => fail(s"Concurrent vector clock not persisted, Rez = $e")
-//      }
-//
+    "save concurrent data and substitute with merged" in {
+      val vc1 = data.vc.:+("node1")
+      val vc2 = data.vc.:+("node2")
+
+      writeStore ! StorePut(data.copy(vc = vc1))
+      expectMsgType[PutStatus] should equal(Saved)
+
+      writeStore ! StorePut(data.copy(vc = vc2))
+      expectMsgType[PutStatus] should equal(Conflict(List(data.copy(vc = vc1))))
+
+      readStore ! StoreGet(data.key)
+      receiveOne(Duration(3, TimeUnit.SECONDS)) match {
+        case GetResp(dataList) if dataList.get.size == 2 =>
+          val vectorClocks = dataList.get.map(_.vc)
+          assertResult(Set(vc1,vc2))(vectorClocks.toSet)
+
+        case incorrect => fail(s"Concurrent vector clock not persisted, Rez = $incorrect")
+      }
+
 //      val mergeVersion = vc1.merge(vc2)
 //      writeStore ! StorePut(data.copy(vc = mergeVersion))
-//      expectMsgType[String] should equal("ok")
+//      expectMsgType[PutStatus] should equal(Saved)
 //
 //      readStore ! StoreGet(data.key)
 //      receiveOne(Duration(3, TimeUnit.SECONDS)) match {
@@ -114,8 +114,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
 //
 //        case e => fail(s"Concurrent data not persisted, Rez = $e")
 //      }
-//
-//    }
+
+    }
   }
 
   override def afterAll() {
