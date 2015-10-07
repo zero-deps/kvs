@@ -16,6 +16,12 @@ case class BucketGet(bucket:Bucket)
 case class GetResp(d: Option[List[Data]])
 case class LocalGetResp(d: Option[List[Data]])
 
+sealed trait PutStatus
+case object Saved extends PutStatus
+case object Conflict extends PutStatus
+
+//TODO extract all merge functions to conflict prevent component
+
 class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   
   val configPath = "ring.leveldb"
@@ -71,17 +77,35 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     }
   }
 
-
-  private def doPut(data:Data):String = {
+  private def doPut(data:Data): PutStatus = {
     val bucket = hashing findBucket Left(data.key)
-    val lookup = fromBytesList(leveldb.get(bytes(bucket)))
+    val dividedLookup  = divideByKey(data.key, fromBytesList(leveldb get bytes(bucket) ))
 
-    val updated = data  :: lookup.filterNot(d => d.key == data.key)
+    val upd: (PutStatus, List[Data]) = dividedLookup._1 match {
+      case Nil => (Saved, List(data))
+      case list => list filterNot (_.vc < data.vc) match { // remove outdated data
+        case Nil => (Saved, List(data))
+        case conflicted if conflicted exists (_.vc <> data.vc) => (Conflict, data :: conflicted)
+        case newest if newest.size == 1 => (Saved, newest) // input data is outdated
+        case needFix =>
+      }
+    }
+    
     log.info(s"[store][put] k-> ${data.key}")
     withBatch(batch => {
-      batch.put(bytes(bucket), bytes(updated))
+      batch.put(bytes(bucket), bytes(upd._2 ::: dividedLookup._2))
     })
-    "ok"
+    upd._1
+  }
+
+  def divideByKey(k: Key, data: List[Data]): (List[Data], List[Data]) = {
+    @tailrec
+    def divide(allData: List[Data], my: List[Data], others: List[Data]): (List[Data], List[Data]) = allData match {
+      case Nil => (my, others)
+      case h :: t if h.key == k => divide(t, h :: my, others)
+      case h :: t if h.key != k => divide(t, my, h :: others)
+    }
+    divide(data, Nil, Nil)
   }
 
   private def doDelete(key: Key): String = {
