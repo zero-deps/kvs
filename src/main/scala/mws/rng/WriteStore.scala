@@ -13,7 +13,7 @@ case class StorePut(data:Data)
 case class StoreDelete(key:Key)
 case class BucketPut(data: List[Data])
 case class BucketDelete(b:Bucket)
-case class BucketGet(bucket:Bucket)
+case class BucketGet(b:Bucket)
 case class GetResp(d: Option[List[Data]])
 case class LocalGetResp(d: Option[List[Data]])
 
@@ -21,7 +21,7 @@ sealed trait PutStatus
 case object Saved extends PutStatus
 case class Conflict(broken: List[Data]) extends PutStatus
 
-//TODO extract all merge functions to conflict prevent component
+//TODO extract all merge functions to conflict_prevent_component
 
 class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   
@@ -30,7 +30,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   val serialization = SerializationExtension(context.system)
   val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
   val hashing = HashingExtension(context.system)
-  val bucket = context.system.settings.config.getInt("ring.buckets")
+  val bucketsNumber = context.system.settings.config.getInt("ring.buckets")
   
   def leveldbReadOptions = new ReadOptions().verifyChecksums(config.getBoolean("checksum"))
 
@@ -47,7 +47,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   override def preStart() = { 
     super.preStart()
     log.info(s"START REPARING")
-    (1 to bucket) foreach { b =>
+    (1 to bucketsNumber) foreach { b =>
      doBucketPut(getBucketData(b))
     }
   }
@@ -58,29 +58,27 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   }
 
   def receive: Receive = {
-    case BucketGet(bucket) => sender ! getBucketData(bucket) // TODO move to readonly
+    case BucketGet(b) => sender ! getBucketData(b) // TODO move to readonly
     case StorePut(data) => sender ! doPut(data)
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
-    case BucketPut(data) => doBucketPut(data)
+    case BucketPut(data) => sender ! doBucketPut(data)
     case unhandled => log.warning(s"[store]unhandled message: $unhandled")
   }
 
-
-  def doBucketPut(data: List[Data]) {
-    val keys = data.foldLeft(Set.empty[Key])((acc, d) => acc.+(d.key))
-    val bs = data.foldLeft(Set.empty[Bucket])((acc, d) => acc.+(d.bucket))
-
-    if (data.nonEmpty) {
+  // this operation uses only after getbucket. So bucket index should be present 
+  def doBucketPut(data: List[Data]): String = {
+    if (data.nonEmpty) {     
+      // TODO iterate through to fix omited bucket number
       withBatch(batch => {
         batch.put(bytes(data.head.bucket), bytes(data))
       })
     }
+    "ok"
   }
 
   private def doPut(data: Data): PutStatus = {
-    val bucket = hashing findBucket Left(data.key)
-    val dividedLookup = divideByKey(data.key, fromBytesList(leveldb get bytes(bucket)))
+    val dividedLookup = divideByKey(data.key, fromBytesList(leveldb get bytes(data.bucket)))
 
     val updated: (PutStatus, List[Data]) = dividedLookup._1 match {
       case Nil => (Saved, List(data))
@@ -94,7 +92,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
 
     log.info(s"[store][put] k-> ${data.key}")
     withBatch(batch => {
-      batch.put(bytes(bucket), bytes(updated._2 ::: dividedLookup._2))
+      batch.put(bytes(data.bucket), bytes(updated._2 ::: dividedLookup._2))
     })
     updated._1
   }
