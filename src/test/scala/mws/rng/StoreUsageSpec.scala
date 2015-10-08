@@ -101,19 +101,19 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
         case incorrect => fail(s"Concurrent vector clock not persisted, Rez = $incorrect")
       }
 
-//      val mergeVersion = vc1.merge(vc2)
-//      writeStore ! StorePut(data.copy(vc = mergeVersion))
-//      expectMsgType[PutStatus] should equal(Saved)
-//
-//      readStore ! StoreGet(data.key)
-//      receiveOne(Duration(3, TimeUnit.SECONDS)) match {
-//        case GetResp(dataList)=>
-//          val vectorClocks = dataList.get.map(d => d.vc)
-//          assert(vectorClocks.size == 1)
-//          assert(vectorClocks.contains(mergeVersion))
-//
-//        case e => fail(s"Concurrent data not persisted, Rez = $e")
-//      }
+      val mergeVersion = vc1.merge(vc2)
+      writeStore ! StorePut(data.copy(vc = mergeVersion))
+      expectMsgType[PutStatus] should equal(Saved)
+
+      readStore ! StoreGet(data.key)
+      receiveOne(Duration(3, TimeUnit.SECONDS)) match {
+        case GetResp(Some(dataList)) if dataList.size == 1 =>
+          val vectorClocks = dataList.map(d => d.vc)
+          assert(vectorClocks.size == 1)
+          assert(vectorClocks.contains(mergeVersion))
+
+        case e => fail(s"Merged version not substitute conflict, Rez = $e")
+      }
 
     }
   }

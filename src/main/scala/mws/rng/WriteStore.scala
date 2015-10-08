@@ -2,6 +2,7 @@ package mws.rng
 
 import java.nio.ByteBuffer
 import akka.actor.{ActorRef, Actor, ActorLogging}
+import akka.cluster.VectorClock
 import akka.serialization.SerializationExtension
 import org.iq80.leveldb._
 import scala.annotation.tailrec
@@ -83,10 +84,11 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
 
     val updated: (PutStatus, List[Data]) = dividedLookup._1 match {
       case Nil => (Saved, List(data))
-      case list if list.size == 1 && list.head.vc < data.vc =>
+      case list if list.size == 1 & older(list.head.vc, data.vc) =>
         (Saved, List(data.copy(vc = list.head.vc.merge(data.vc))))
-      case list if list.size == 1 && list.head.vc == data.vc =>
-        (Saved, List(data))
+      case list if list forall (d => older(d.vc, data.vc)) =>
+        val newVC = (list map (_.vc)).foldLeft(data.vc)((sum, i) => sum.merge(i))
+        (Saved, List(data.copy(vc = newVC)))
       case brokenData => (Conflict(brokenData), data :: brokenData)
     }
 
@@ -121,7 +123,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     val bucketData = fromBytesList(leveldb.get(bytes(bucket)))
     val merged = mergeData(bucketData, Nil)
     if(bucketData.size > 2) {
-      log.info(s"!!! Fix for b=${bucket}, before = ${bucketData.size}, after = ${merged.size}")
+      log.info(s"!!! Fix for b=$bucket, before = ${bucketData.size}, after = ${merged.size}")
     }
     merged
   }
@@ -164,5 +166,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     }
   }
 
+  def older(who: VectorClock, than: VectorClock) = !(who <> than) && (who < than || who == than)
+  
 }
 
