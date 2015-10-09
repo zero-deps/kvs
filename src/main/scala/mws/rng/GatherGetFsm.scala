@@ -5,95 +5,90 @@ import akka.actor._
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 
-
-class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int)
+class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int, refResolver: ActorRefStorage)
   extends FSM[FsmState, FsmData] with ActorLogging{
   
-  startWith(Collecting, DataCollection(Nil))
-  setTimer("send_by_timeout", GatherTimeout, t seconds)
-  
-  when(Collecting){
-    case Event(GetResp(rez), DataCollection(l))  =>
-      val head  = (rez, sender().path.address)
-      val newData = DataCollection( head :: l)
-      newData.l.length match {
-        case `R` =>
-          val value = doGatherGet(flat(newData.l, Nil)) match {
-            case Some(d) => Some(d.value)
-            case None => None            
-          }
-          client ! value
-          goto(Sent) using ReceivedValues(R)
-        case _ =>
-          stay using newData
+  startWith(Collecting, DataCollection(Nil, Nil))
+  setTimer("send_by_timeout", GatherTimeout, t.seconds)
+
+  def fixInconsistency(correct: Data, fromNodes: DataCollection) = {
+    fromNodes.perNode collect {
+      case (Some(d), n) if d.vc == correct.vc =>
+        refResolver.get(n, "/user/write_store").fold(
+          _ ! StorePut(correct),
+          _ ! StorePut(correct))
+    }
+    fromNodes.inconsistent.foreach {
+      case (l, n) => refResolver.get(n, "/user/write_store").fold(
+        _ ! StorePut(correct),
+        _ ! StorePut(correct))
+    }
+  }
+
+  when(Collecting) {
+    case Event(GetResp(rez), state@DataCollection(perNode, inconsistent)) =>
+      updateFSMState(rez, state, sender().path.address).get match {
+        case d @ DataCollection(l, inc) if l.size == R =>
+          val response = mostFresh(l.map(_._1).flatten)
+          client ! response.map(_.value)
+          goto(Sent) using d
+        case d @ DataCollection(l, inc) if d.size == N => // fuck          
+          val response = mostFresh(l.map(_._1).flatten ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
+          client ! response.map(_.value)
+          response.foreach(fixInconsistency(_, d))
+          cancelTimer("send_by_timeout")
+          stop()
+        case d => stay() using d
       }
-    case Event(GatherTimeout, DataCollection(l)) =>
-      val value = doGatherGet(flat(l, Nil)) match {
-        case Some(d) => Some(d.value)
-        case None => None
-      }
-      client ! value  // always readable
+      
+    case Event(GatherTimeout, DataCollection(l, inc)) =>
+      val response = mostFresh(l.map(_._1).flatten ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
+      client ! response.map(_.value)      
+      // cannot fix inconsistent because quorum not satisfied. But check what can do
       cancelTimer("send_by_timeout")
-      stop(Normal)
+      stop()
   } 
   
   when(Sent) {
-    case Event(GetResp(rez), ReceivedValues(n)) => {
-      if (n + 1 == N)
-        stop(Normal)
-      else
-        stay using ReceivedValues(n + 1)
-    }
-    case Event(GatherTimeout, _ ) =>
+    case Event(GetResp(rez), state@DataCollection(l, inc)) =>
+      val newState = updateFSMState(rez, state, sender().path.address).get
+      if (newState.size == N) {
+        val response = mostFresh(l.map(_._1).flatten ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
+        response.foreach(fixInconsistency(_, state))
+        cancelTimer("send_by_timeout")      
+        stop()
+      } else {
+        stay() using newState
+      }     
+      
+    case Event(GatherTimeout, state @ DataCollection(l, inc) ) =>
+      val response = mostFresh(l.map(_._1).flatten ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
+      response.foreach(fixInconsistency(_, state))
       cancelTimer("send_by_timeout")
       stop(Normal)
   }
 
-  def doGatherGet(listData: List[(Option[Data], Node)]): Option[Data] = {
-    listData match {
-      case l if l.isEmpty => None
-      case l if l forall  (_._1 == None) => None
-      case l if listData.forall(d => d._1 == listData.head._1) => listData.head._1
-      case _ =>
-        val newest = findLast(listData filter(_._1.isDefined))
-        newest foreach  (updateOutdatedNodes(_, listData filter(_._1.isDefined)))
-        newest
-    }
+  def updateFSMState(rez: Option[List[Data]], old: DataCollection, sender: Node) = rez map {
+    case Nil => DataCollection((None, sender) :: old.perNode, old.inconsistent)
+    case l if l.size == 1 => DataCollection((Some(l.head), sender) :: old.perNode, old.inconsistent)
+    case l => DataCollection(old.perNode, (l, sender) :: old.inconsistent)
   }
 
-  def findLast(data: List[(Option[Data], Node)]) = {
-
+  def mostFresh(from: List[Data]): Option[Data] = {
     @tailrec
-    def last(l: List[(Option[Data], Node)], newest: Option[Data]): Option[Data] = l match {
-      case Nil => newest
-      case (head :: tail) if head._1.get.vc > newest.get.vc => last(tail, head._1)
-      case (head :: tail) if
-      head._1.get.vc <> newest.get.vc &&
-        head._1.get.lastModified > newest.get.lastModified => last(tail, head._1) // last write win if versions are concurrent
-      case _ => last(l.tail, newest)
+    def iterate(data: List[Data], mostFresh: Option[Data] = None): Option[Data] = data match {
+      case Nil => mostFresh      
+      case head :: tail =>
+        val newest: Option[Data] = mostFresh match {
+          case None => Some(head)
+          case Some(currFresh) if currFresh.vc == head.vc || currFresh.vc > head.vc => mostFresh
+          case Some(currFresh) if currFresh.vc < head.vc => Some(head)
+          case Some(currFresh) if currFresh.vc <> head.vc => //last write win
+            if (currFresh.lastModified > head.lastModified) mostFresh
+            else Some(head)
+        }
+        iterate(tail, newest)
     }
-
-    last(data.tail, data.head._1)
-  }
-
-  def updateOutdatedNodes(newData: Data, nodes: List[(Option[Data], Node)]) = {
-    nodes.foreach {
-      case (Some(d), node) if d.vc < newData.vc =>
-        val path = RootActorPath(node) / "user" / "ring_store"
-        val hs = context.system.actorSelection(path)
-        hs ! StorePut(d)
-      case _ =>
-    }
-  }
-
-  @tailrec
-  private def flat(tuples: List[(Option[List[Data]], Node)], res: List[(Option[Data], Node)]): List[(Option[Data], Node)] = tuples match {
-    case Nil => res
-    case h :: t => h._1 match {
-        case Some(l) =>
-          val list: List[(Some[Data], Node)] = l map (d => (Some(d), h._2))
-          flat(t, list ++ res)
-        case None => flat(t, (None, h._2) :: res)
-    }
+    iterate(from)
   }
 }

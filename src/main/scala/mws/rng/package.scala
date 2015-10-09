@@ -27,7 +27,9 @@ package object rng {
 
   sealed trait FsmData
   case class Statuses(l: List[PutStatus]) extends FsmData
-  case class DataCollection(l: List[(Option[List[Data]], Node)]) extends FsmData
+  case class DataCollection(perNode: List[(Option[Data], Node)], inconsistent: List[(List[Data], Node)]) extends FsmData{
+    def size = perNode.size + inconsistent.size
+  }
   case class ReceivedValues(n: Int) extends FsmData
   case object GatherTimeout
 }
