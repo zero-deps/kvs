@@ -27,6 +27,10 @@ package object rng {
 
   sealed trait FsmData
   case class Statuses(l: List[PutStatus]) extends FsmData
+  /**
+   * inconsistent means that key points to more then one values. So data is inconsistent. 
+   * It's not related to vector clock.
+   * */
   case class DataCollection(perNode: List[(Option[Data], Node)], inconsistent: List[(List[Data], Node)]) extends FsmData{
     def size = perNode.size + inconsistent.size
   }
