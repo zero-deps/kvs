@@ -26,7 +26,7 @@ package object rng {
   case object Sent extends FsmState
 
   sealed trait FsmData
-  case class Statuses(l: List[PutStatus]) extends FsmData
+  case class Statuses(all: List[PutStatus]) extends FsmData
   /**
    * inconsistent means that key points to more then one values. So data is inconsistent. 
    * It's not related to vector clock.

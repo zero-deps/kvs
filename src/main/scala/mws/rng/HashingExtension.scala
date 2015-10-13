@@ -24,7 +24,7 @@ class HashingImpl(config: Config) extends  Extension{
       case Right(key:Key) => key
     }).getBytes("UTF-8")
 
-    implicit val digester = MessageDigest.getInstance("MD5") //TODO remove from field
+    implicit val digester = MessageDigest.getInstance("MD5")
     digester update msg
     val digest = digester.digest
 

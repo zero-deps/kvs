@@ -90,7 +90,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
       case brokenData => (Conflict(brokenData), data :: brokenData)
     }
 
-    log.info(s"[store][put] k-> ${data.key}")
+    log.debug(s"[store][put] k-> ${data.key}")
     withBatch(batch => {
       batch.put(bytes(data.bucket), bytes(updated._2 ::: dividedLookup._2))
     })
@@ -121,7 +121,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     val bucketData = fromBytesList(leveldb.get(bytes(bucket)))
     val merged = mergeData(bucketData, Nil)
     if(bucketData.size > 2) {
-      log.info(s"!!! Fix for b=$bucket, before = ${bucketData.size}, after = ${merged.size}")
+      log.debug(s"!!! Fix for b=$bucket, before = ${bucketData.size}, after = ${merged.size}")
     }
     merged
   }

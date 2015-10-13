@@ -15,23 +15,22 @@ class GatherPutFSM(val client: ActorRef, t: Int, stores: SelectionMemorize, putI
   extends FSM[FsmState, FsmData] with ActorLogging {
   
   startWith(Collecting, Statuses(Nil))
-  setTimer("send_by_timeout", GatherTimeout, t seconds)
+  setTimer("send_by_timeout", GatherTimeout, t.seconds)
   
   when(Collecting) {
-    case Event(LocalGetResp(data), _) => {
+    case Event(LocalGetResp(data), _) =>
       val vc: VectorClock = data match {
         case Some(d) if d.size == 1 => d.head.vc
         case Some(d) if d.size > 1 => (d map (_.vc)).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
-        case None => new VectorClock        
+        case None => new VectorClock
       }
       val updatedData = Data(putInfo.key, putInfo.bucket, System.currentTimeMillis(), vc.:+(putInfo.localHashAdr.toString), putInfo.v)
       mapInPut(putInfo.nodes, updatedData, client)
       stay()
-    }
     
     case Event(incomeStatus: PutStatus, Statuses(statuses)) =>
       val updStatuses = Statuses( incomeStatus :: statuses )
-      updStatuses.l.count(_ == Saved) match {
+      updStatuses.all.count(_ == Saved) match {
         case w if w == putInfo.W =>
           client ! AckSuccess
           goto(Sent) using ReceivedValues(putInfo.W)
