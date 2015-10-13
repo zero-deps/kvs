@@ -6,6 +6,27 @@ by Amazon's Dynamo.
 
 ## Overview ##
 
+Ring persisten overview
+
+1. Extention starsts on node with configuration:
+	buckets - size of "hash map"
+	virtual nodes - number of nodes each node is responsible to store
+	quorum
+
+2. After node join cluster a membership round occurs.
+	hash from (node.address + i ). Updateting SortedMap of hashes that poins to node. As result we had sequense of sorted integers [0 - Int.MAX] pointing to node.
+
+	bucket range is Int.Max / 1024.
+	for each bucket -> find corresponding nodes. get nearest value + try vNodes to the right other nodes. Stop if find N nodes.
+
+	update map of bucket -> preference list, if needed. Pref. list taken from above operation.
+
+	bucket with updated preference list is updates and self in this list. Either delete data for bucket or get from other nodes.
+
+3. API requests can be handled. put get delete
+	e.g. GET(key). hash from key. [0 - INt.MAX] / 1024. this is bucket.
+	we already know nodes that responsive for any bucket. Spawn actro to ask and merge resault if needed.
+
 [Consistent hashing - that`s how data is saved](https://en.wikipedia.org/wiki/Consistent_hashing)
 
 [What is quorum]((https://en.wikipedia.org/wiki/Quorum_(distributed_computing))
