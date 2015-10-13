@@ -43,8 +43,6 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   log.info(s"vNodesNum = $vNodesNum")
   val bucketsNum = config.getInt("buckets")
   log.info(s"bucketsNum = $bucketsNum")
-  val rngRoleName = config.getString("ring-node-name")
-  log.info(s"nodeRoleName = $rngRoleName")
   val cluster = Cluster(system)
   val local:Address = cluster.selfAddress
   val hashing = HashingExtension(system)
@@ -91,10 +89,12 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
 
   private[mws] def doGet(key: Key, client: ActorRef) = {
     val fromNodes = availableNodesFrom(findNodes(Left(key)))
-    val refs = fromNodes map(n => system.actorSelection(RootActorPath(n) / "user"/"ring_readonly_store" ))
-    val gather = system.actorOf(Props(classOf[GatherGetFsm], client, N, R, gatherTimeout))
+    val refs = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
     if(refs.nonEmpty){
-      refs map (_.tell(StoreGet(key), gather))
+      val gather = system.actorOf(Props(classOf[GatherGetFsm], client, N, R, gatherTimeout, actorsMem))
+      refs map (store => store.fold(
+        _.tell(StoreGet(key), gather),
+        _.tell(StoreGet(key), gather)))
     }else {
       client ! None
     }
@@ -111,28 +111,28 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   def receiveCl: Receive = {
     case e:ClusterDomainEvent => cluster.sendCurrentClusterState(self)
       e match {
-      case MemberUp(member) if member.hasRole(rngRoleName) =>
+      case MemberUp(member) =>
         log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
         (1 to vNodesNum).foreach(vnode => {
           val hashedKey = hashing.hash(Left(member.address, vnode))
           vNodes += hashedKey -> member.address})
         syncBuckets(bucketsToUpdate)
         if (member.address == local) initialized = true
-      case MemberRemoved(member, prevState) if member.hasRole(rngRoleName) =>
+      case MemberRemoved(member, prevState) =>
         log.info(s"[ring_hash]Removing $member from ring")
         val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((member.address, v))))
         vNodes = vNodes.filterNot(vn =>  hashes.contains(vn._1))
         syncBuckets(bucketsToUpdate)
       case _ =>
       }
-      
+
     case Ready => sender() ! initialized
     case s: CurrentClusterState => state = s
   }
 
   private def availableNodesFrom(l: List[Node]) = {
     val unreachableMembers = state.unreachable.map(m => m.address)
-    l filterNot (node => unreachableMembers contains node)    
+    l filterNot (node => unreachableMembers contains node)
   }
 
   def bucketsToUpdate: List[SynchReplica] = {
@@ -190,7 +190,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   }
 
   def nodesInRing: Int = {
-    state.members.count(m => m.status == MemberStatus.Up && m.hasRole(rngRoleName)) + 1 // state doesn't calculates current node.
+    state.members.count(m => m.status == MemberStatus.Up) + 1 // state doesn't calculates current node.
   }
 
   def findNodes(keyOrBucket: Either[Key, Bucket]): List[Node] = {
