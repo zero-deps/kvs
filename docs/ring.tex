@@ -56,10 +56,13 @@ Role name that mark node as part of ring.
 
 \section*{leveldb}
 levelDB database used as backend for ring. There is some configurations.
-1. `native` \- usage of native or java implementation if LeveDB
-2. `dir` \- directory location for levelDB storage.
-3. `checksum`
-4. `fsync` \- if true levelDB will synchronise data to disk immediately.
+
+\begin{description}
+\item[native] usage of native or java implementation if LeveDB
+\item[dir] directory location for levelDB storage.
+\item[checksum]
+\item[fsync] if true levelDB will synchronise data to disk immediately.
+\end{description}
 
 \section*{Usage}
 
@@ -80,13 +83,16 @@ Run sbt task to create basic docker container
 
 \section*{Run docker nodes}
 
-| name    | description
-| :-----: | :---------------------------------
-| -i      | interactive mode. keep STDIN open
-| -t      | allocate pseudo-TTY
-| -P      | publish all exposed ports to host
-| --rm    | remove after stop
-| --link  | link to another container by `alias:name` scheme
+\begin{tabular}{|c|l|}
+\hline
+name & description\\ \hline
+-i & interactive mode. keep STDIN open\\
+-t & allocate pseudo-TTY\\
+-P & publish all exposed ports to host\\
+--rm & remove after stop\\
+--link & link to another container by \lstinline|`alias:name`| scheme\\
+\hline
+\end{tabular}
 
 \section*{JMX}
 
