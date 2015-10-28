@@ -6,26 +6,26 @@ by Amazon's Dynamo.
 
 ## Overview ##
 
-Ring persisten overview
+Ring persistence overview
 
-1. Extention starsts on node with configuration:
-	buckets - size of "hash map"
-	virtual nodes - number of nodes each node is responsible to store
-	quorum
+1. Extensions starts on node with configuration:
+  buckets - size of "hash map"
+  virtual nodes - number of nodes each node is responsible to store
+  quorum
 
 2. After node join cluster a membership round occurs.
-	hash from (node.address + i ). Updateting SortedMap of hashes that poins to node. As result we had sequense of sorted integers [0 - Int.MAX] pointing to node.
+  hash from (node.address + i ). Updating SortedMap of hashes that points to node. As result we had sequence of sorted integers [0 - Int.MAX] pointing to node.
 
-	bucket range is Int.Max / 1024.
-	for each bucket -> find corresponding nodes. get nearest value + try vNodes to the right other nodes. Stop if find N nodes.
+  bucket range is Int.Max / 1024.
+  for each bucket -> find corresponding nodes. get nearest value + try vNodes to the right other nodes. Stop if find N nodes.
 
-	update map of bucket -> preference list, if needed. Pref. list taken from above operation.
+  update map of bucket -> preference list, if needed. Pref. list taken from above operation.
 
-	bucket with updated preference list is updates and self in this list. Either delete data for bucket or get from other nodes.
+  bucket with updated preference list is updates and self in this list. Either delete data for bucket or get from other nodes.
 
 3. API requests can be handled. put get delete
-	e.g. GET(key). hash from key. [0 - INt.MAX] / 1024. this is bucket.
-	we already know nodes that responsive for any bucket. Spawn actro to ask and merge resault if needed.
+  e.g. GET(key). hash from key. [0 - INt.MAX] / 1024. this is bucket.
+  we already know nodes that responsive for any bucket. Spawn actor to ask and merge result if needed.
 
 [Consistent hashing - that`s how data is saved](https://en.wikipedia.org/wiki/Consistent_hashing)
 
@@ -81,7 +81,7 @@ __NB!__ if quorum fails on write operation, data will not be saved. So in case i
 | `virtual-nodes`    | Number of virtual nodes for each physical.
 | `hashLength`       | Lengths of hash from key
 | `gather-timeout`   | This configuration should be specified by client developer.<br>Number of seconds that requested cluster will wait for responses from nodes that persist data by given key.<br>Result of request will returned to client on either received data from other nodes(number specified in quorum) or after this time out.<br>The main cause if this function is to avoid TimeoutException in case some  nodes become Unreachable for some period or another situation when requested node is not able to gather info from other nodes.
-| `leveldb.native`   | usage of native or java implementation if LeveDB 
+| `leveldb.native`   | usage of native or java implementation if LevelDB
 | `leveldb.dir`      |  directory location for levelDB storage. 
 | `leveldb.checksum` |  checksum
 | `leveldb.fsync`    |  if true levelDB will synchronise data to disk immediately.
@@ -116,9 +116,9 @@ Run sbt task to create basic docker container
 
 ### Run docker nodes ###
 
-  > docker run -P -t -i --rm --name seed playtech/rng:1.0-62-g27c97d6
-  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-62-g27c97d6
-  > docker run -P -t -i --rm --name c2 --link seed:seed playtech/rng:1.0-62-g27c97d6
+  > docker run -P -t -i --rm --name seed playtech/rng:1.0-65-gfbf6aa6
+  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-64-ga483a57
+  > docker run -P -t -i --rm --name c2 --link seed:seed playtech/rng:1.0-64-ga483a57
   
 | name    | description
 | :-----: | :---------------------------------

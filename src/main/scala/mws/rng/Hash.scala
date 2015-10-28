@@ -9,6 +9,7 @@ import scala.annotation.tailrec
 import scala.collection.SortedMap
 import scala.concurrent.duration._
 import scala.concurrent.Future
+import scala.collection.JavaConversions._
 
 /**
  * Partitioning. Not considering physical placement
@@ -31,18 +32,18 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   import context.system
 
   val config = system.settings.config.getConfig("ring")
+  log.info(s"Ring configuration: ")
+  for (c <- config.entrySet()){ log.info(s"${c.getKey} = ${c.getValue.render()}")}
+
   implicit val timeout = Timeout(5.second)
 
   val quorum = config.getIntList("quorum")  //N,W,R
-  log.info(s"q = $quorum")
   val N: Int = quorum.get(0)
   val W: Int = quorum.get(1)
   val R: Int = quorum.get(2)
   val gatherTimeout = config.getInt("gather-timeout")
   val vNodesNum = config.getInt("virtual-nodes")
-  log.info(s"vNodesNum = $vNodesNum")
   val bucketsNum = config.getInt("buckets")
-  log.info(s"bucketsNum = $bucketsNum")
   val cluster = Cluster(system)
   val local:Address = cluster.selfAddress
   val hashing = HashingExtension(system)
@@ -60,6 +61,13 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   override def preStart() = {
     cluster.subscribe(self, ClusterEvent.initialStateAsEvents, classOf[ClusterDomainEvent], classOf[CurrentClusterState])
     cluster.sendCurrentClusterState(self)
+
+    (1 to vNodesNum).foreach(vnode => {
+      val hashedKey = hashing.hash(Left(local, vnode))
+      vNodes += hashedKey -> local})
+    updateStrategy(bucketsToUpdate)
+    initialized = true
+    log.info("Ring: complete initial partitioning")
   }
 
   override def postStop(): Unit = cluster.unsubscribe(self)
@@ -114,8 +122,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
         (1 to vNodesNum).foreach(vnode => {
           val hashedKey = hashing.hash(Left(member.address, vnode))
           vNodes += hashedKey -> member.address})
-        updateStrategy(bucketsToUpdate)
-        if (member.address == local) initialized = true
+        updateStrategy(bucketsToUpdate)        
       case MemberRemoved(member, prevState) =>
         log.info(s"[ring_hash]Removing $member from ring")
         val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((member.address, v))))
@@ -209,7 +216,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
         (newReplica, oldReplica) match {
           case (`newReplica`, None) =>
             updateBucket(bucket, findNodes(Right(bucket)).filterNot(_ == local))
-          case (None, `oldReplica`) => localRStore ! BucketDelete(bucket)
+          case (None, `oldReplica`) => // we don't responsible for this buckets
           case _ => //nop
         }
         updateStrategy(tail)
