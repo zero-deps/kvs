@@ -6,7 +6,27 @@ by Amazon's Dynamo.
 
 ## Overview ##
 
-Ring persistence overview
+   Ring is a distributed key-value data storage implemented on top of akka and injected as akka extension. 
+   Ring storage has 5 main properties:
+| Properties         | Achieved with
+| :----------------: | :------------------------
+| membership and failure detection | reused akka's membership events that uses gossip for communication. FD also reused from akka.
+| data partitioning | consistent hashing
+| high availability to wright | vector clocks
+| handling nodes failures | quorum
+| recovering from permanent node failure | fix on read
+
+   
+### Consistent hashing ###
+  To figure out where the data for a particular key goes in that cluster you need to apply a hash function to the key.
+  Just like a hashtable, a unique key maps to a value and of course the same key will always return the same hash code.
+  In very first and simple version of this algorithm the node for particular key is determined by hash(key) mod n, where n is a number of
+  nodes in cluster. This works well and trivial in implementation but when new node join or removed from cluster we got a problem,
+  every object is hashed to a new location.
+    The idea of the consistent hashing algorithm is to hash both node and key using the same hash function.
+  As result we can map the node to an interval, which will contain a number of key hashes. If the node is removed
+  then its interval is taken over by a node with an adjacent interval.
+
 
 1. Extensions starts on node with configuration:
   buckets - size of "hash map"
@@ -14,9 +34,9 @@ Ring persistence overview
   quorum
 
 2. After node join cluster a membership round occurs.
-  hash from (node.address + i ). Updating SortedMap of hashes that points to node. As result we had sequence of sorted integers [0 - Int.MAX] pointing to node.
+  i) hash from (node.address + i ). Updating SortedMap of hashes that points to node. As result we had sequence of sorted integers [0 - Int.MAX] pointing to node.
 
-  bucket range is Int.Max / 1024.
+  ii) bucket range is Int.Max / 1024.
   for each bucket -> find corresponding nodes. get nearest value + try vNodes to the right other nodes. Stop if find N nodes.
 
   update map of bucket -> preference list, if needed. Pref. list taken from above operation.
@@ -116,8 +136,8 @@ Run sbt task to create basic docker container
 
 ### Run docker nodes ###
 
-  > docker run -P -t -i --rm --name seed playtech/rng:1.0-65-gfbf6aa6
-  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-64-ga483a57
+  > docker run -P -t -i --rm --name seed playtech/rng:1.0-68-g0ca5bed
+  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-68-g0ca5bed
   > docker run -P -t -i --rm --name c2 --link seed:seed playtech/rng:1.0-64-ga483a57
   
 | name    | description
