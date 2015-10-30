@@ -3,6 +3,95 @@
 \paragraph{}
 To configure rng application on your cluster the next configs are available. Default values specified below.
 
+\section*{Configuration}
+To configure rng application on your cluster the next configs are available. Default values specified below.
+
+Quorum and leveldb.dir MUST be configured for each envronment.
+And if default value is suitable for particular deployment, rewrite is not needed.
+
+\section*{Quorum}
+
+Template is N,W,R:
+N \- number of nodes in bucket(in other words the number of copies).
+R \- number of nodes that must  be participated in successful read operation.
+W \- number of nodes for successful write.
+
+To keep data consistent the quorums have to obey the following rules:
+1. R + W > N
+2. W > N/2
+
+Or use the next hint:
+* single node cluster [1,1,1]
+* two nodes cluster [2,2,1]
+* 3 and more nodes cluster [3,2,2]
+
+
+if quorum fails on write operation, data will not be saved. So in case if 2 nodes and [2,2,1] after 1 node down
+the cluster becomes not writeable and readable.
+
+\section*{buckets}
+
+Number of buckets for key. Think about this like the size of HashMap. At the default value is appropriate.
+
+\section*{virtual\-nodes}
+
+Number of virtual nodes for each physical.
+
+\section*{hashLength}
+
+Lengths of hash from key
+
+\section*{gather\-timeout}
+Number of seconds that requested cluster will wait for response from another nodes.
+
+\section*{ring\-node\-name}
+Role name that mark node as part of ring.
+
+\section*{leveldb}
+levelDB database used as backend for ring. There is some configurations.
+
+\begin{description}
+\item[native] usage of native or java implementation if LeveDB
+\item[dir] directory location for levelDB storage.
+\item[checksum]
+\item[fsync] if true levelDB will synchronise data to disk immediately.
+\end{description}
+
 \paragraph{}
 Quorum and leveldb.dir MUST be configured for each envronment.
 And if default value is suitable for particular deployment, rewrite is not needed.
+
+\section*{Usage}
+
+Ring is available as akka extension.
+
+`val ring = HashRing(system);` \- create HashRing extension on specified actor system. Akka cluster should be created before.
+
+\section*{Docker}
+\section*{Install}
+Store the docker repo key
+
+
+Verify installation with ubuntu image
+
+\section*{sbt\-docker plugin}
+
+Run sbt task to create basic docker container
+
+\section*{Run docker nodes}
+
+\begin{tabular}{|c|l|}
+\hline
+name & description\\ \hline
+-i & interactive mode. keep STDIN open\\
+-t & allocate pseudo-TTY\\
+-P & publish all exposed ports to host\\
+--rm & remove after stop\\
+--link & link to another container by \lstinline|`alias:name`| scheme\\
+\hline
+\end{tabular}
+
+\section*{JMX}
+
+Execute `bin/akka-cluster node(ip) port(9998)` to check the cluster status.
+
