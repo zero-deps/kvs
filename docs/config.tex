@@ -1,10 +1,24 @@
 \section*{Ring datastore}
 
-\paragraph{}
-To configure rng application on your cluster the next configs are available. Default values specified below.
-
 \section*{Configuration}
 To configure rng application on your cluster the next configs are available. Default values specified below.
+
+\begin{json}
+ring{
+  quorum=[1,1,1]  #N,W,R.
+  buckets=1024
+  virtual-nodes=128
+  hashLength=32
+  gather-timeout = 3
+  ring-node-name="ring_node"
+  leveldb {
+    native = true
+    dir = "fav-data"
+    checksum = false
+    fsync = false
+  }
+}
+\end{json}
 
 Quorum and leveldb.dir MUST be configured for each envronment.
 And if default value is suitable for particular deployment, rewrite is not needed.
