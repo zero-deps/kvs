@@ -122,7 +122,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
         (1 to vNodesNum).foreach(vnode => {
           val hashedKey = hashing.hash(Left(member.address, vnode))
           vNodes += hashedKey -> member.address})
-        updateStrategy(bucketsToUpdate)        
+        updateStrategy(bucketsToUpdate)
       case MemberRemoved(member, prevState) =>
         log.info(s"[ring_hash]Removing $member from ring")
         val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((member.address, v))))

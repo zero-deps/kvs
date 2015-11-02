@@ -13,13 +13,13 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int, refResolver: ActorR
   def updateIfNeeded(correct: Data, fromNodes: DataCollection) = {
     fromNodes.perNode collect {
       case (Some(d), n) if outdate(correct, d) =>
-        refResolver.get(n, "/user/ring_store").fold(
+        refResolver.get(n, "ring_store").fold(
           _ ! StorePut(correct),
           _ ! StorePut(correct))
     }
     fromNodes.inconsistent.foreach {
       case (l, n) =>
-        refResolver.get(n, "/user/ring_store").fold( // must update, but check
+        refResolver.get(n, "ring_store").fold( // must update, but check
         _ ! StorePut(correct),
         _ ! StorePut(correct))
     }
