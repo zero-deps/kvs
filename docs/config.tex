@@ -1,10 +1,15 @@
-\section*{Ring Datastore Configuration}
+\section*{Ring Datastore}
 \paragraph{}
-Ring Application is available as akka extension.
-\lstinline|val ring = HashRing(system)| \- create HashRing extension on specified actor system.
+Ring Application is available as akka extension. 
+
+Create HashRing extension on specified actor system
+\begin{lstlisting}[language=Java]
+val ring = HashRing(system)
+\end{lstlisting}
+to make you system part of the highly available, fault tolerant data distrubution cluster.
 
 \paragraph{}
-To configure rng application on your cluster the next config options are available:
+To configure \texttt{RNG} application on your cluster the next config options are available:
 
 \begin{description}
 \item[quorum] Configured by template N,W,R where
@@ -42,7 +47,7 @@ So in case if 2 nodes and [2,2,1] after 1 node down the cluster becomes not writ
 Quorum and leveldb.dir MUST be configured for each envronment.
 And if default value is suitable for particular deployment, rewrite is not needed.
 
-\section{LevelDB Configuration}
+\section{LevelDB}
 Where are options to configure the backend under ring.leveldb configuration section:
 \begin{description}
 \item[native] usage of native or java implementation if LeveDB
