@@ -23,13 +23,11 @@ object Build extends sbt.Build {
     id = "rng",
     base = file("."),
     settings = SbtMultiJvm.multiJvmSettings ++ PB.protobufSettings ++ Publish.settings ++Seq(
-      javaSource in PB.protobufConfig <<= (sourceDirectory in Compile)(_ / "java"),
       libraryDependencies ++= Dependencies.akka,
       mainClass in Compile := Some("mws.rng.RingApp"),
       Keys.fork in run := true,
       isSnapshot := true,
       compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
-      compileOrder := CompileOrder.JavaThenScala,
       parallelExecution in Test := false,
       executeTests in Test <<= (executeTests in Test, executeTests in MultiJvm) map {
         case (testResults, multiNodeResults)  =>
@@ -43,8 +41,8 @@ object Build extends sbt.Build {
             testResults.summaries ++ multiNodeResults.summaries)
       },
 
-      mappings in Docker <+= (defaultLinuxInstallLocation in Docker, sourceDirectory) map { (path,src) =>
-        val conf = src / "main" / "resources" / "reference.conf"
+        mappings in Docker <+= (defaultLinuxInstallLocation in Docker, sourceDirectory) map { (path,src) =>
+        val conf = src / "main" / "resources" / "docker.conf"
         conf -> s"$path/conf/application.conf"
       },
       dockerExposedPorts in Docker := Seq(4334,9998),

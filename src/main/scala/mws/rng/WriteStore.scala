@@ -46,7 +46,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
 
   override def preStart() = { 
     super.preStart()
-    log.info(s"START REPARING")
+    log.info(s"START REPAIRING")
     (1 to bucketsNumber) foreach { b =>
      doBucketPut(getBucketData(b))
     }
