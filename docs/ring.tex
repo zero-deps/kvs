@@ -1,4 +1,4 @@
-\section*{Ring datastore}
+\section{Ring datastore}
 
 Scala implementation of Kai (originally implemented in erlang).
 Kai is a distributed key-value datastore, which is mainly inspired
@@ -7,15 +7,15 @@ by Amazon's Dynamo. Ring is implemented on top of akka and injected as akka exte
 \section*{Overview}
 
 To reach fault tolerance and scalability ring resolve next problems:
- \hline
+
 
 \begin{center}
       \begin{tabular}{| l | l |}
-          Problems & Technique \\ \hline
-          Membership and failure detection & reused akka's membership events that uses gossip for communication. FD also reused from akka. \\ \hline
-          Data partitioning  & consistent hashing. \\ \hline
-          High availability to wright  & vector clocks. \\ \hline
-          Handling nodes failures   & quorum. \\ \hline
+          Problems & Technique \\
+          Membership and failure detection & reused akka's membership events that uses gossip for communication. FD also reused from akka. \\
+          Data partitioning  & consistent hashing. \\
+          High availability to wright  & vector clocks. \\
+          Handling nodes failures   & quorum. \\
       \end{tabular}
 \end{center}
 
