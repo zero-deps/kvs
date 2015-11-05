@@ -6,10 +6,11 @@ by Amazon's Dynamo.
 
 ## Overview ##
 
-   Ring is a distributed key-value data storage implemented on top of akka and injected as akka extension. 
-   Ring storage has 5 main properties:
-| Properties         | Achieved with
-| :----------------: | :------------------------
+Ring is a distributed key-value data storage implemented on top of akka and injected as akka extension.
+To reach fault tolerance and scalability ring resolve next problems:
+
+| Problems               | Technique
+| :----------------------: | :------------------------------------------------------------------------------------
 | membership and failure detection | reused akka's membership events that uses gossip for communication. FD also reused from akka.
 | data partitioning | consistent hashing
 | high availability to wright | vector clocks
@@ -18,16 +19,37 @@ by Amazon's Dynamo.
 
    
 ### Consistent hashing ###
-  To figure out where the data for a particular key goes in that cluster you need to apply a hash function to the key.
-  Just like a hashtable, a unique key maps to a value and of course the same key will always return the same hash code.
-  In very first and simple version of this algorithm the node for particular key is determined by hash(key) mod n, where n is a number of
-  nodes in cluster. This works well and trivial in implementation but when new node join or removed from cluster we got a problem,
-  every object is hashed to a new location.
-    The idea of the consistent hashing algorithm is to hash both node and key using the same hash function.
-  As result we can map the node to an interval, which will contain a number of key hashes. If the node is removed
-  then its interval is taken over by a node with an adjacent interval.
+
+To figure out where the data for a particular key goes in that cluster you need to apply a hash function to the key.
+Just like a hashtable, a unique key maps to a value and of course the same key will always return the same hash code.
+In very first and simple version of this algorithm the node for particular key is determined by hash(key) mod n, where n is a number of
+nodes in cluster. This works well and trivial in implementation but when new node join or removed from cluster we got a problem,
+every object is hashed to a new location.
+The idea of the consistent hashing algorithm is to hash both node and key using the same hash function.
+As result we can map the node to an interval, which will contain a number of key hashes. If the node is removed
+then its interval is taken over by a node with an adjacent interval.
+  
+### Vector clocks ###
+
+Vector clocks is an algorithm for generating a partial ordering of events in a distributed system and detecting causality violations. (from wikipedia.org)
+Vector clocks help us to determine order in which data writes was occurred. This provide ability to write data from one node and after that 
+merge version of data. Vector clock is a list of pairs of node name and number of changes from this node.
+When data writs first time the vector clock will have one entity ( node-A : 1). Each time data amended the counter is incremented.
+
+### Quorum ###
+
+Quorum determines the number of nodes that should be participated in operation.  Quorum-like system configured by values: R ,W and N. R is the
+minimum number of nodes that must participate in a successful read operation. W is the minimum number of nodes that must participate.
+N is a preference list, the max number of nodes that can be participated in operation. Also quorum can configure balance of latency
+for read and write operation.
+ In order to keep data strongly consistent configuration should obey rules:
+ 1) R + W > N
+ 2) W > V/2
+
+### Mixing in Ring ###
 
 
+  
 1. Extensions starts on node with configuration:
   buckets - size of "hash map"
   virtual nodes - number of nodes each node is responsible to store
@@ -77,24 +99,21 @@ ring {
 }
 ```
 
-
-#### `quorum` ####
- 
-Template is [N,W,R]: N - number of nodes in bucket (in other words the number of copies). R - number of nodes that must  be participated in successful read operation.
+`quorum` template is [N,W,R]: N - number of nodes in bucket (in other words the number of copies). R - number of nodes that must  be participated in successful read operation.
 W - number of nodes for successful write.
 
 To keep data consistent the quorums have to obey the following rules:
 1. R + W > N
 2. W > N/2
-   
+
 Or use the next hint:
 * single node cluster [1,1,1]
 * two nodes cluster [2,2,1]
 * 3 and more nodes cluster [3,2,2]
 
 __NB!__ if quorum fails on write operation, data will not be saved. So in case if 2 nodes and [2,2,1] after 1 node down
-  the cluster becomes not writeable and readable.
-  
+  the cluster becomes readable but not writeable.
+ 
 | name               | description 
 | :----------------: | :------------------------------------------------------------------------------------
 | `buckets`          | Number of buckets for key. Think about this like the size of HashMap. At the default value is appropriate.
@@ -105,6 +124,7 @@ __NB!__ if quorum fails on write operation, data will not be saved. So in case i
 | `leveldb.dir`      |  directory location for levelDB storage. 
 | `leveldb.checksum` |  checksum
 | `leveldb.fsync`    |  if true levelDB will synchronise data to disk immediately.
+
 
 ## Usage ##
 
@@ -136,9 +156,9 @@ Run sbt task to create basic docker container
 
 ### Run docker nodes ###
 
-  > docker run -P -t -i --rm --name seed playtech/rng:1.0-68-g0ca5bed
-  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-68-g0ca5bed
-  > docker run -P -t -i --rm --name c2 --link seed:seed playtech/rng:1.0-64-ga483a57
+  > docker run -P -t -i --rm --name seed playtech/rng:1.0-78-g96322f3
+  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-78-g96322f3
+  > docker run -P -t -i --rm --name c2 --link seed:seed playtech/rng:1.0-78-g96322f3
   
 | name    | description
 | :-----: | :---------------------------------
