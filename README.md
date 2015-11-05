@@ -84,7 +84,7 @@ To configure rng application on your cluster the next configs are available. Def
 
 ```
 ring {
-  quorum=[1,1,1]  #N,W,R.
+  quorum=[1,1,1] 
   buckets=1024
   virtual-nodes=128
   hashLength=32
@@ -101,6 +101,8 @@ ring {
 
 `quorum` template is [N,W,R]: N - number of nodes in bucket (in other words the number of copies). R - number of nodes that must  be participated in successful read operation.
 W - number of nodes for successful write.
+__ ! All current production version has outdated template - `[N R W]` . This document follows current development version. So when configuring
+ production environment follow old style template. __
 
 To keep data consistent the quorums have to obey the following rules:
 1. R + W > N
@@ -108,11 +110,10 @@ To keep data consistent the quorums have to obey the following rules:
 
 Or use the next hint:
 * single node cluster [1,1,1]
-* two nodes cluster [2,2,1]
+* two nodes cluster [2,2,1]  # for current production environment use `[2,1,2]`
 * 3 and more nodes cluster [3,2,2]
 
-__NB!__ If quorum fails on write operation, data will not be saved. For example if 2 nodes and [2,2,1] after 1 node down
-  the cluster becomes readable but not writeable.
+__NB!__ Issues that can be lead with failed quorum on operations. For example in case of 2 nodes and [2,2,1] after 1 node down the cluster becomes readonly.
  
 | name               | description 
 | :----------------: | :------------------------------------------------------------------------------------
