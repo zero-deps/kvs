@@ -111,7 +111,7 @@ Or use the next hint:
 * two nodes cluster [2,2,1]
 * 3 and more nodes cluster [3,2,2]
 
-__NB!__ if quorum fails on write operation, data will not be saved. So in case if 2 nodes and [2,2,1] after 1 node down
+__NB!__ If quorum fails on write operation, data will not be saved. For example if 2 nodes and [2,2,1] after 1 node down
   the cluster becomes readable but not writeable.
  
 | name               | description 
