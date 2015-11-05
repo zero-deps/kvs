@@ -20,7 +20,7 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
   }
 
   override def postStop() = {
-    leveldb.close()
+//    leveldb.close() write store will close
     super.postStop()
   }
   
