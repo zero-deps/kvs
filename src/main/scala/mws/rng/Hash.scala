@@ -2,7 +2,7 @@ package mws.rng
 
 import akka.actor._
 import akka.cluster.ClusterEvent._
-import akka.cluster.{Cluster, ClusterEvent, MemberStatus}
+import akka.cluster.{Member, Cluster, ClusterEvent}
 import akka.pattern.ask
 import akka.util.Timeout
 import scala.annotation.tailrec
@@ -50,24 +50,17 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   val actorsMem = new SelectionMemorize(system)
 
   @volatile
-  private var initialized = false
-  @volatile
   private var state:CurrentClusterState = CurrentClusterState()
   @volatile
   private var vNodes:SortedMap[Bucket,Address] = SortedMap.empty[Bucket, Address]
   @volatile
   private var buckets:SortedMap[Bucket, PreferenceList] = SortedMap.empty // {bucket-to-replicas }
+  @volatile
+  private var processedNodes = Set.empty[Member]
 
   override def preStart() = {
     cluster.subscribe(self, ClusterEvent.initialStateAsEvents, classOf[ClusterDomainEvent], classOf[CurrentClusterState])
     cluster.sendCurrentClusterState(self)
-
-    (1 to vNodesNum).foreach(vnode => {
-      val hashedKey = hashing.hash(Left(local, vnode))
-      vNodes += hashedKey -> local})
-    updateStrategy(bucketsToUpdate)
-    initialized = true
-    log.info("Ring: complete initial partitioning")
   }
 
   override def postStop(): Unit = cluster.unsubscribe(self)
@@ -118,20 +111,28 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
     case e:ClusterDomainEvent => cluster.sendCurrentClusterState(self)
       e match {
       case MemberUp(member) =>
-        log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
+        processedNodes = processedNodes + member
         (1 to vNodesNum).foreach(vnode => {
           val hashedKey = hashing.hash(Left(member.address, vnode))
           vNodes += hashedKey -> member.address})
-        updateStrategy(bucketsToUpdate)
-      case MemberRemoved(member, prevState) =>
+        updateStrategy(bucketsToUpdate(member.address))
+        log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
+      case UnreachableMember(member) =>
+        processedNodes = processedNodes - member
+        log.info(s"[ring_hash] $member become unreachable among cluster and ring")
+        val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((member.address, v))))
+        vNodes = vNodes.filterNot(vn =>  hashes.contains(vn._1))
+        updateStrategy(bucketsToUpdate(member.address))
+      case MemberRemoved(member, prevState) => // TODO impossible case
+        processedNodes = processedNodes - member
         log.info(s"[ring_hash]Removing $member from ring")
         val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((member.address, v))))
         vNodes = vNodes.filterNot(vn =>  hashes.contains(vn._1))
-        updateStrategy(bucketsToUpdate)
-      case _ =>
+        updateStrategy(bucketsToUpdate(member.address))
+      case _ => 
       }
 
-    case Ready => sender() ! initialized
+    case Ready => sender() ! (state.members.size == processedNodes.size)
     case s: CurrentClusterState => state = s
   }
 
@@ -140,20 +141,20 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
     l filterNot (node => unreachableMembers contains node)
   }
 
-  def bucketsToUpdate: List[SynchReplica] = {
-    val maxSearch = if (nodesInRing == 1) 1 else vNodes.size // don't search other nodes to fill the bucket when 1 node
-    log.info(s"[hash] nodes in ring = $nodesInRing")
-    bucketsToUpdate(bucketsNum - 1, maxSearch, List.empty)
+  def bucketsToUpdate(newjoiner: Node): List[SynchReplica] = {     
+    val maxSearch = if (nodesInRing() == 1) 1 else vNodes.size // don't search other nodes to fill the bucket when 1 node
+    log.info(s"[hash] nodes in ring = ${nodesInRing()}")
+    bucketsToUpdate(bucketsNum - 1, maxSearch, nodesInRing(), List.empty)
   }
 
   @tailrec
-  private def bucketsToUpdate(bucket: Bucket, max: Int, hasBeenMoved: List[SynchReplica]): List[SynchReplica] = bucket match {
+  private def bucketsToUpdate(bucket: Bucket, max: Int,nodesCount: Int, hasBeenMoved: List[SynchReplica]): List[SynchReplica] = bucket match {
     case -1 => hasBeenMoved
     case bucket: Int =>
-      val newNodes = findBucketNodes(bucket * hashing.bucketRange, max, nodesInRing, Nil)
+      val newNodes = findBucketNodes(bucket * hashing.bucketRange, max, nodesCount, Nil)
       buckets.get(bucket) match {
         case Some(`newNodes`) =>
-          bucketsToUpdate(bucket - 1, max, hasBeenMoved)
+          bucketsToUpdate(bucket - 1, max, nodesCount, hasBeenMoved)
         case outdatedNodes =>
           buckets += bucket -> newNodes
           val isResponsibleNow = newNodes.indexOf(cluster.selfAddress) match {
@@ -173,7 +174,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
             case (_, `wasResponsible`) => hasBeenMoved // my responsibility not changed.
             case _ => (bucket, isResponsibleNow, wasResponsible) :: hasBeenMoved
           }
-          bucketsToUpdate(bucket - 1, max, replacedUpd)
+          bucketsToUpdate(bucket - 1, max,nodesCount, replacedUpd)
       }
   }
 
@@ -193,9 +194,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
         }
     }
 
-  def nodesInRing: Int = {
-    state.members.count(m => m.status == MemberStatus.Up) + 1 // state doesn't calculates self node.
-  }
+  def nodesInRing(): Int = processedNodes.size
 
   def findNodes(keyOrBucket: Either[Key, Bucket]): List[Node] = {
     val bucket: Bucket = keyOrBucket match {
