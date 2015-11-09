@@ -151,20 +151,6 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     }
   }
 
-  def leveldbSnapshot(): ReadOptions = leveldbReadOptions.snapshot(leveldb.getSnapshot)
-
-  def withIterator[R](body: DBIterator ⇒ R): R = {
-    val ro = leveldbSnapshot()
-    val iterator = leveldb.iterator(ro)
-    try {
-      body(iterator)
-    } finally {
-      iterator.close()
-      ro.snapshot().close()
-    }
-  }
-
-  def older(who: VectorClock, than: VectorClock) = !(who <> than) && (who < than || who == than)
-  
+ def older(who: VectorClock, than: VectorClock) = !(who <> than) && (who < than || who == than)
 }
 
