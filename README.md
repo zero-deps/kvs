@@ -126,6 +126,8 @@ __NB!__ Issues that can be lead with failed quorum on operations. For example in
 | `leveldb.checksum` |  checksum
 | `leveldb.fsync`    |  if true levelDB will synchronise data to disk immediately.
 
+## Migration from 2 nodes to n, where n > 2 ##
+// TODO
 
 ## Usage ##
 
@@ -157,9 +159,9 @@ Run sbt task to create basic docker container
 
 ### Run docker nodes ###
 
-  > docker run -P -t -i --rm --name seed playtech/rng:1.0-78-g96322f3
-  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-78-g96322f3
-  > docker run -P -t -i --rm --name c2 --link seed:seed playtech/rng:1.0-78-g96322f3
+  > docker run -P -t -i --rm --name seed playtech/rng:1.0-95-gde5b11f
+  > docker run -P -t -i --rm --name c1 --link seed:seed playtech/rng:1.0-95-gde5b11f
+  > docker run -P -t -i --rm --name c2 --link seed:seed playtech/rng:1.0-95-gde5b11f
   
 | name    | description
 | :-----: | :---------------------------------

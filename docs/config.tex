@@ -1,24 +1,56 @@
 \section{Ring Datastore}
 \paragraph{}
-Ring Application is available as akka extension and makes your system part of the highly available, fault tolerant data distrubution cluster.
+Ring Application (also referred by the inner name RNG) is available as akka extension and makes your system part of the highly available, fault tolerant data distrubution cluster.
 
 \paragraph{}
-To configure \texttt{RNG} application on your cluster the next config options are available:
+To configure RNG application on your cluster the next config options are available:
+
+\begin{description}
+  \item[quorum] Configured by template N,W,R where
+  \begin{description}
+    \item[N] Number of nodes in bucket(in other words the number of copies).
+    \item[R] Number of nodes that must  be participated in successful read operation.
+    \item[W] Number of nodes for successful write.
+  \end{description}
+  To keep data consistent the quorums have to obey the following rules:
+  \begin{enumerate}
+    \item R + W > N
+    \item W > N/2
+  \end{enumerate}
+  Or use the next hint:
+  \begin{itemize}
+    \item single node cluster [1,1,1]
+    \item two nodes cluster [2,2,1]
+    \item 3 and more nodes cluster [3,2,2]
+  \end{itemize}
+  if quorum fails on write operation, data will not be saved. So in case if 2 nodes and [2,2,1] after 1 node down the cluster becomes not writeable and readable.
+  \item[buckets] Number of buckets for key. Think about this as about size of HashMap. In current implementation this value should not be changed after first setup.
+  \item[virtual-nodes] Number of virtual nodes for each physical. In current implementation this value should not be changed after first setup.
+  \item[hashLength] Lengths of hash from key. In current implementation this value should not be changed after first setup.
+  \item[gather-timeout] Number of seconds that requested cluster will wait for response from another nodes.
+  \item[ring-node-name] Role name that mark node as part of ring.
+  \item[leveldb] Configuration of levelDB database used as backend for ring.
+  \begin{description}
+    \item[native] usage of native or java implementation if LeveDB
+    \item[dir] directory location for levelDB storage.
+    \item[checksum] checksum verification of all data that is read from the file system.
+    \item[fsync] if true levelDB will synchronise data to disk immediately.
+  \end{description}
+\end{description}
 
 \paragraph{}
-Default configuration provide single mode configuration, other default properties listed below:
+RNG provides default configuration for single node mode:
 
 \begin{lstlisting}[language=json,caption=Example]
-ring{
-  quorum = [1,1,1] # N,W,R.
+ring {
+  quorum = [1, 1, 1]  //N,R,W
   buckets = 1024
   virtual-nodes = 128
   hashLength = 32
   gather-timeout = 3
-  ring-node-name = "ring_node"
   leveldb {
     native = true
-    dir = "fav-data"
+    dir = "rng_data_"${akka.remote.netty.tcp.hostname}"_"${akka.remote.netty.tcp.port}
     checksum = false
     fsync = false
   }
@@ -26,45 +58,4 @@ ring{
 \end{lstlisting}
 
 \paragraph{}
-In case default value is suitable for particular deployment, rewrite is not needed.
-
-\begin{description}
-\item[quorum] Configured by template N,W,R where
-
-\begin{description}
-\item[N] Number of nodes in bucket(in other words the number of copies).
-\item[R] Number of nodes that must  be participated in successful read operation.
-\item[W] Number of nodes for successful write.
-\end{description}
-
-To keep data consistent the quorums have to obey the following rules:
-\begin{enumerate}
-\item R + W > N
-\item W > N/2
-\end{enumerate}
-
-Or use the next hint:
-\begin{itemize}
-\item single node cluster [1,1,1]
-\item two nodes cluster [2,2,1]
-\item 3 and more nodes cluster [3,2,2]
-\end{itemize}
-if quorum fails on write operation, data will not be saved. So in case if 2 nodes and [2,2,1] after 1 node down the cluster becomes not writeable and readable.
-\item[buckets] Number of buckets for key. Think about this as about size of HashMap. In current implementation this value should not be changed after first setup.
-\item[virtual-nodes] Number of virtual nodes for each physical. In current implementation this value should not be changed after first setup.
-\item[hashLength] Lengths of hash from key. In current implementation this value should not be changed after first setup.
-\item[gather-timeout] Number of seconds that requested cluster will wait for response from another nodes.
-\item[ring-node-name] Role name that mark node as part of ring.
-\item[leveldb] Configuration of levelDB database used as backend for ring.
-\end{description}
-
-\section{LevelDB}
-Where are options to configure the backend under ring.leveldb configuration section:
-\begin{description}
-\item[native] usage of native or java implementation if LeveDB
-\item[dir] directory location for levelDB storage.
-\item[checksum] checksum verification of all data that is read from the file system.
-\item[fsync] if true levelDB will synchronise data to disk immediately.
-\end{description}
-
-\section{Migration from 2 node to n, where n > 2}
+In case default values are suitable for particular deployment, rewrite is not needed.
