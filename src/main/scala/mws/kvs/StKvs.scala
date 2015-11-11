@@ -1,4 +1,4 @@
-package mws.stats
+package mws.kvs
 
 import scala.language.implicitConversions
 
