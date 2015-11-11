@@ -8,7 +8,10 @@ object Build extends sbt.Build{
     id = "kvs",
     base = file("."),
     settings = defaultSettings ++ Seq(
-      libraryDependencies ++=Seq("com.playtech.mws" %% "rng" % "1.0-68-g0ca5bed")))
+      libraryDependencies ++=Seq(
+        "com.playtech.mws" %% "rng" % "1.0-68-g0ca5bed",
+        "org.scalatest"    %% "scalatest" % "2.2.4" % "test",
+        "com.typesafe.akka" %% "akka-testkit" % "2.3.14" % "test")))
 
   lazy val defaultSettings = Defaults.coreDefaultSettings ++ Seq()
 
