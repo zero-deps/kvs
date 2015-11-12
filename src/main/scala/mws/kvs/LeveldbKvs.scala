@@ -14,11 +14,11 @@ object LeveldbKvs {
   implicit def toBytes(value: String): Array[Byte] = bytes(value)
   implicit def fromBytes(value: Array[Byte]): String = asString(value)
 
-  def apply(config: Config)(implicit system: ActorSystem): Kvs =
+  def apply(config: Config)(implicit system: ActorSystem): StKvs =
     new LeveldbKvs(config, system.log)
 }
 
-class LeveldbKvs(config: Config, log: LoggingAdapter) extends Kvs {
+class LeveldbKvs(config: Config, log: LoggingAdapter) extends StKvs {
   val leveldbOptions = new Options().createIfMissing(true)
   def leveldbReadOptions = new ReadOptions().verifyChecksums(config.checksum)
   val leveldbWriteOptions = new WriteOptions().sync(config.fsync).snapshot(false)

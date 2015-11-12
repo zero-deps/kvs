@@ -1,3 +1,3 @@
 package mws.kvs
 
-class LastMessageKvs(kvs: Kvs, list: String) extends Kvs.Wrapper(kvs, list) with Kvs.Iterable
+class LastMessageKvs(kvs: StKvs, list: String) extends StKvs.Wrapper(kvs, list) with StKvs.Iterable

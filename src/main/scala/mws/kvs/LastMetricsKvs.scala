@@ -1,3 +1,3 @@
 package mws.kvs
 
-class LastMetricKvs(kvs: Kvs, list: String) extends Kvs.Wrapper(kvs, list) with Kvs.Iterable
+class LastMetricKvs(kvs: StKvs, list: String) extends StKvs.Wrapper(kvs, list) with StKvs.Iterable
