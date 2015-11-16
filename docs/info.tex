@@ -1,0 +1,18 @@
+\section*{KVS - Abstract Scala Data Types Key-Value Storage}
+\paragraph{}
+The Key-Value Database for storing scala value types. It has the simple put/get API plus some extended operation to manage the data feeds.
+
+\section*{Backend Storage Engine}
+\paragraph{}
+The KVS can be backed by the various storage engines.
+\begin{description}
+\item[RING] For distributed, scalable, fault tolerant key-value store.
+\item[LevelDB] For usage in simple non-clustered environment
+\item[Memory] In memory storage for chache or testing purposes
+\item[FS] Filesystem storage.
+\end{description}
+
+\section{MWS Services Handlers}
+\paragraph{}
+Particular MWS Services can operate with specific data types. Storing every specific type may require some additional logic.
+You should think about the handlers as some kind of serializators/picklers/marshallers for KVS.
