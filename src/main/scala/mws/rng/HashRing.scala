@@ -11,10 +11,6 @@ import org.iq80.leveldb._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-
-/**
- * Created by doxtop on 12.02.15.
- */
 object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
   
   override def lookup = HashRing
@@ -49,9 +45,6 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   def leveldbFactory =
     if (nativeLeveldb) org.fusesource.leveldbjni.JniDBFactory.factory
     else org.iq80.leveldb.impl.Iq80DBFactory.factory
-  //
-  
-  
 
   // todo: create system/hashring superviser
   private val store= system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_store")

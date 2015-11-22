@@ -12,14 +12,8 @@ import scala.concurrent.Future
 import scala.collection.JavaConversions._
 
 /**
- * Partitioning. Not considering physical placement
- *
- * Consistent hashing
- * - 32 hash space
- * - Virtual nodes
- * - Buckets
- * # rehash when membership changes
- * # find node associated with key for get/put
+ * rehash when membership changes
+ * find nodes associated with key for get/put
  */
 
 sealed class HashMessage
@@ -91,7 +85,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
     val refs = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
     if(refs.nonEmpty){
       val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, gatherTimeout, actorsMem))
-      refs map (store => store.fold(
+      refs foreach (store => store.fold(
         _.tell(StoreGet(key), gather),
         _.tell(StoreGet(key), gather)))
     }else {
@@ -247,5 +241,4 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
       }
     case Nil => merged
   }
-  
 }

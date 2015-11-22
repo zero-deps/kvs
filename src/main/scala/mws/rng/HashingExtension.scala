@@ -14,7 +14,6 @@ class HashingImpl(config: Config) extends  Extension{
   val bucketsNum = config.getInt("buckets")
   val bucketRange = (math.pow(2, hashLen) / bucketsNum).ceil.toInt
 
-
   /**
     * digest.take(4).zipWithIndex.foldLeft[Int](0)((out,x) => out | ((x._1 & 0xff) << 8*(3-x._2)))
    */
@@ -33,7 +32,7 @@ class HashingImpl(config: Config) extends  Extension{
 
   def findBucket(keyOrBucket:Either[Key,Bucket]):Bucket = keyOrBucket match {
     case Left(key:Key) => (hash(Right(key)) / bucketRange ).abs
-    case Right(bucket) => bucket % bucketsNum
+    case Right(named) => named % bucketsNum
   }
 }
 
