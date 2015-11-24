@@ -9,9 +9,6 @@ object KvsExt extends ExtensionKey[KvsU]{
   override def createExtension(system: ExtendedActorSystem): KvsU = new KvsU(system)
 }
 
-trait Store {
-}
-
 object KvsU {
   class Cfg(cfg:Config){
     val kvs = cfg.getConfig("mws.kvs")

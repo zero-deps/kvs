@@ -1,4 +1,5 @@
 package mws.kvs
+package store
 
 import akka.actor.{ActorSystem}
 import akka.serialization.SerializationExtension
@@ -6,7 +7,11 @@ import akka.util.ByteString
 import mws.rng.HashRing
 import scala.concurrent.Future
 
-class RingKvs(implicit system: ActorSystem) extends Kvs {
+object Ring {
+  def apply()(implicit system: ActorSystem): Kvs = new Ring
+}
+
+class Ring(implicit system: ActorSystem) extends Kvs {
   import scala.concurrent.ExecutionContext.Implicits.global
   val rng: HashRing = HashRing(system)
   val s = SerializationExtension(system)
@@ -25,8 +30,7 @@ class RingKvs(implicit system: ActorSystem) extends Kvs {
   private def composeKey(k: String): String = (schemaName, k).toString()
 
   def isReady: Future[Boolean] = rng.isReady
-}
 
-object RingKvs {
-  def apply()(implicit system: ActorSystem): Kvs = new RingKvs
+  def close: Unit = println("close")
+  def entries: Iterator[String] = Iterator.empty
 }

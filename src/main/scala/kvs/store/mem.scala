@@ -1,14 +1,15 @@
 package mws.kvs
+package store
 
 import akka.actor.{Actor, ActorLogging}
 import mws.rng.{AckSuccess, Ack}
 import collection.concurrent.TrieMap
 import scala.concurrent.Future
 
-object MemoryKvs {
-  def apply(): Kvs = new MemoryKvs
+object Memory {
+  def apply(): Kvs = new Memory
 }
-class MemoryKvs extends Kvs {
+class Memory extends Kvs {
   val data = TrieMap[String, String]()
 
   def put(key: String, value: AnyRef): Future[Ack] = {
@@ -26,6 +27,9 @@ class MemoryKvs extends Kvs {
     Future.successful(AckSuccess)
   }
 
-  def isReady: Future[Boolean] =
-    Future.successful(true)
+  def isReady: Future[Boolean] = Future.successful(true)
+
+  def close: Unit = println("close")
+  def entries: Iterator[String] = Iterator.empty
+
 }
