@@ -19,12 +19,13 @@ object Leveldb {
   implicit def toBytes(value: String): Array[Byte] = bytes(value)
   implicit def fromBytes(value: Array[Byte]): String = asString(value)
 
-  def apply(config: Config)(implicit system: ActorSystem): Kvs = new Leveldb(config, system)
+  def apply()(implicit system: ActorSystem): Kvs = new Leveldb(system)
 }
 
-class Leveldb(config: Config, system: ActorSystem) extends Kvs {
+class Leveldb(system: ActorSystem) extends Kvs {
   import Leveldb._
   import scala.language.implicitConversions
+  val config = system.settings.config.getConfig("leveldb")
   val log = system.log
   val serialization = SerializationExtension(system)
 

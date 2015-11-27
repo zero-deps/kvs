@@ -7,7 +7,7 @@ object Build extends sbt.Build{
   lazy val root = Project(
     id = "kvs",
     base = file("."),
-    settings = defaultSettings ++ Seq(
+    settings = defaultSettings ++ publishSettings ++ Seq(
       libraryDependencies ++=Seq(
         ("com.playtech.mws" %% "rng" % "1.0-99-g4c53565").
           exclude("org.scalatest", "scalatest_2.11"),
@@ -38,4 +38,14 @@ object Build extends sbt.Build{
     credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
     resolvers := Resolver.mavenLocal
       +: Seq("MWS Releases" at "http://ua-mws-nexus01.ee.playtech.corp/nexus/content/repositories/releases/"))
+
+  lazy val publishSettings = Seq(
+    isSnapshot := true,
+    publishMavenStyle := true,
+    publishLocal <<= publishM2,
+    publishArtifact in (Compile, packageBin) := true,
+    publishArtifact in (Compile, packageDoc) := false,
+    publishArtifact in (Compile, packageSrc) := false,
+    publishArtifact in Test := false
+  )
 }

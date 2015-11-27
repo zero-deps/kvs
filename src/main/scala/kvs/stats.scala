@@ -7,8 +7,8 @@ import com.typesafe.config.Config
 import akka.actor.ActorSystem
 import scala.concurrent.Future
 
-class LastMetricKvs(config: Config, system: ActorSystem, container: String) extends Kvs with Iterable {
-  private val store = Leveldb(config)(system)
+class LastMetricKvs(container: String)(implicit val system:ActorSystem) extends Kvs with Iterable {
+  private val store = Leveldb()
   private val namespace = "metric"
   type T = String
 
@@ -20,8 +20,8 @@ class LastMetricKvs(config: Config, system: ActorSystem, container: String) exte
   def close(): Unit = store.close
 }
 
-class LastMessageKvs(config: Config, system: ActorSystem, container: String) extends Kvs with Iterable {
-  private val store = Leveldb(config)(system)
+class LastMessageKvs(container: String)(implicit val system: ActorSystem) extends Kvs with Iterable {
+  private val store = Leveldb()
   private val namespace = "message"
   type T = String
 
