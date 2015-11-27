@@ -1,9 +1,49 @@
 package mws.kvs
 
+import akka.actor.{ActorSystem, ExtensionKey, Extension, ExtendedActorSystem}
+import com.typesafe.config.Config
+
 import mws.rng.Ack
 import scala.concurrent.{Future,Await}
 import scala.concurrent.duration._
 
+/**
+ *:create_schema(node()) ok
+ * create_tables(name, [att, info(record)]), add_table_index
+ *:start ok
+ *:stop ok
+ *:destroy 
+ *:join
+ *:version
+ *:dir 
+ * info()-> processes, transactions, schema, etc.
+ *:config
+ * ---------
+ *:containers
+ *:create
+ *:link
+ *:add
+ *:delete
+ *:traversal
+ *:entries
+ *:put
+ *:get
+ *:all
+ *:index
+ *:next_id
+ *:save_db
+ *:load_db
+ *:dump
+ *-------
+ *:id_sec
+ *:last_disc  ^
+ *:last_table ^
+ *:update_cfg ^
+ * store handlers
+ * - same with modified data
+ *
+ *
+ */
 trait Kvs {
   def put(key: String, str: AnyRef): Future[Ack]
   def get[T](key: String, clazz: Class[T]): Future[Option[T]]
@@ -15,6 +55,32 @@ trait Kvs {
   def remove[T](container:String, el:T): Either[Throwable, T]
 }
 
+/** Akka Extension to interact with KVS storage as built into Akka */
+object KvsExt extends ExtensionKey[KvsExt] {
+  override def lookup = KvsExt
+  override def createExtension(system: ExtendedActorSystem): KvsExt = new KvsExt(system)
+}
+class KvsExt(val system: ExtendedActorSystem) extends Extension with Kvs {
+  val c = system.settings.config
+  val kvsc = c.getConfig("kvs")
+  val store = kvsc.getString("store")
+
+  import scala.collection._
+
+  val storeArgs = immutable.Seq(classOf[ActorSystem]-> system)
+  implicit val dba:Kvs = system.dynamicAccess.createInstanceFor[Kvs](store, storeArgs).get
+
+  def add[T](container: String,el: T): Either[Throwable,T] = dba.add(container,el)
+  def close: Unit = dba.close
+  def delete(key: String): scala.concurrent.Future[mws.rng.Ack] = dba.delete(key)
+  def entries: Iterator[String] = dba.entries
+  def get[T](key: String,clazz: Class[T]): scala.concurrent.Future[Option[T]] = dba.get(key,clazz)
+  def isReady: scala.concurrent.Future[Boolean] = dba.isReady
+  def put(key: String,str: AnyRef): scala.concurrent.Future[mws.rng.Ack] = dba.put(key,str)
+  def remove[T](container: String,el: T): Either[Throwable,T] = dba.remove(container,el)
+
+}
+//
 trait TypedKvs[T <: AnyRef] {
   def put(key: String, value: T): Either[Throwable, T]
   def get(key: String): Either[Throwable, Option[T]]
@@ -92,9 +158,10 @@ trait Iterable { self: Kvs =>
       self.delete(key)
   }
   }
-  
+
   def first: Option[String] = Await.result(self.get[String](First,classOf[String]), 1 second).flatMap(getEntry).map(_.data)
   def last: Option[String] = Await.result(self.get[String](Last,classOf[String]),1 second).flatMap(getEntry).map(_.data)
+
   private def getEntry(key: String): Option[Entry] =
     Await.result(self.get[String](key,classOf[String]),1 second) map { entry =>
       val xs = entry.split(Sep, -1)
