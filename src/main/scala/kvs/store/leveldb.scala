@@ -72,6 +72,8 @@ class Leveldb(system: ActorSystem) extends Kvs {
   def isReady = Future.successful(true)
 
   def entries: Iterator[String] = Iterator.empty
+  def add[T](container: String,el: T): Either[Throwable,T] = ???
+  def remove[T](container: String,el: T): Either[Throwable,T] = ???
 }
 
 //

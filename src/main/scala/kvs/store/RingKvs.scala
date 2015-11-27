@@ -33,4 +33,7 @@ class Ring(implicit system: ActorSystem) extends Kvs {
 
   def close: Unit = println("close")
   def entries: Iterator[String] = Iterator.empty
+  def add[T](container: String,el: T): Either[Throwable,T] = ???
+  def remove[T](container: String,el: T): Either[Throwable,T] = ???
+
 }

@@ -11,6 +11,8 @@ trait Kvs {
   def isReady: Future[Boolean]
   def close: Unit
   def entries:Iterator[String]
+  def add[T](container:String, el: T): Either[Throwable, T]
+  def remove[T](container:String, el:T): Either[Throwable, T]
 }
 
 trait TypedKvs[T <: AnyRef] {
@@ -58,7 +60,9 @@ trait Iterable { self: Kvs =>
       val k = _v.flatMap(_.next)
       k.flatMap(getEntry)
     } takeWhile(_.isDefined) map(_.get.data)
-    def deleteFromList(key: String): Unit = 
+
+  def deleteFromList(el: Data): Unit = {
+    val key = el.key
     getEntry(key) map { case Entry(_, prev, next) =>
       prev match {
         case Some(prev) =>
@@ -86,7 +90,8 @@ trait Iterable { self: Kvs =>
         case _ =>
       }
       self.delete(key)
-    }
+  }
+  }
   
   def first: Option[String] = Await.result(self.get[String](First,classOf[String]), 1 second).flatMap(getEntry).map(_.data)
   def last: Option[String] = Await.result(self.get[String](Last,classOf[String]),1 second).flatMap(getEntry).map(_.data)
