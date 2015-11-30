@@ -110,7 +110,7 @@ To keep data consistent the quorums have to obey the following rules:
 
 Or use the next hint:
 * single node cluster [1,1,1]
-* two nodes cluster [2,2,1]  # for current production environment use `[2,1,2]`
+* two nodes cluster [2,2,1]  # for version mws services 15.8.1.5 and older use old-style configuration `[2,1,2]`
 * 3 and more nodes cluster [3,2,2]
 
 __NB!__ Issues that can be lead with failed quorum on operations. For example in case of 2 nodes and [2,2,1] after 1 node down the cluster becomes readonly.
