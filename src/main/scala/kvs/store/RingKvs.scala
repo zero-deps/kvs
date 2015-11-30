@@ -7,7 +7,7 @@ import akka.util.ByteString
 import mws.rng.HashRing
 import scala.concurrent.Future
 
-object Ring {
+/*object Ring {
   def apply()(implicit system: ActorSystem): Kvs = new Ring
 }
 
@@ -37,3 +37,4 @@ class Ring(implicit system: ActorSystem) extends Kvs {
   def remove[T](container: String,el: T): Either[Throwable,T] = ???
 
 }
+*/

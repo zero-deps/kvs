@@ -2,7 +2,7 @@ package mws.kvs
 package favorite
 
 import akka.actor.Props
-import mws.kvs.ImporterKvs
+//import mws.kvs.ImporterKvs
 
 object FavoriteImporterInMemoryKvs {
 //  def props(): Props = Props[FavoriteImporterInMemoryKvs]

@@ -6,7 +6,7 @@ import mws.rng.{AckSuccess, Ack}
 import collection.concurrent.TrieMap
 import scala.concurrent.Future
 
-object Memory {
+/*object Memory {
   def apply(): Kvs = new Memory
 }
 class Memory extends Kvs {
@@ -34,3 +34,4 @@ class Memory extends Kvs {
   def add[T](container: String,el: T): Either[Throwable,T] = ???
   def remove[T](container: String,el: T): Either[Throwable,T] = ???
 }
+*/

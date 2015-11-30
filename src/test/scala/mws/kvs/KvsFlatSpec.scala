@@ -2,18 +2,23 @@ package mws.kvs
 
 import org.scalatest._
 import org.scalatest.matchers._
+import org.scalatest.concurrent._
+import org.scalatest.concurrent.ScalaFutures._
 
 import akka.actor.{ActorSystem}
 import akka.pattern.ask
 import akka.testkit._
 import akka.testkit.TestKit
 import akka.testkit.TestEvent._
+
 import com.typesafe.config.ConfigFactory
 
-import scala.concurrent.Await
+import scala.concurrent.{Await,Future}
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class KvsFlatSpec(_system:ActorSystem) extends TestKit(_system)
+//  with ShouldMatchers
   with DefaultTimeout
   with ImplicitSender
   with FlatSpecLike
@@ -23,68 +28,69 @@ class KvsFlatSpec(_system:ActorSystem) extends TestKit(_system)
 
   def this() = this(ActorSystem("st",ConfigFactory.parseString("""
     kvs {
-      store=leveldb
+      store="mws.kvs.store.Leveldb"
+    }
+    leveldb {
+      dir = storage
+      fsync = on
+      checksum = off
+      native = on
     }
   """)))
-  override def afterAll = TestKit.shutdownActorSystem(system)
 
-  "kvs" should "have the configured backend" in {
-    val c = system.settings.config
-    val kvsc = c.getConfig("kvs")
-    println(s"kvsc")
+  implicit val kvs:Kvs = Kvs(system)
+
+  override def afterAll = {
+    kvs.close
+    TestKit.shutdownActorSystem(system)
   }
 
-  "a" should "a" in {
-    import favorite._
-
-    val at:Map[String,String] = Map.empty[String,String]
-    val pr:Int = 1
-    implicit val g = Game(at,pr)
-
-    info(s"Empty Game:${g.toString}")
-
-    g match {
-      case Game(a,p) => info(s"Game unnaplied successfully $a, $p")
-      case _ => error("game is failed to match")
+  "kvs" should "have the configured and ready" in {
+    info(s"${kvs.config}")
+    whenReady(kvs.isReady){r=>
+      r should be (true)
     }
-
-    info(s"${g._1}  ${g._2} ${Game.id(g)}")
-    info(s"""${Game.withId("f1")}""")
-
-    val g1 = Game.withId("f1")
-    info(s"${Game.withPriority(2)(g1)}")
-
-//    info(s"object type: ${Game.type}")
   }
 
-  "FavHandler" should "operate with favs" in {
-    import favorite._
-    val fh = TestActorRef(new FavHandler)
-    val ffh = fh ? "fuck"
-    val m = Await.result(ffh, 500 milliseconds)
-    m should be("ok")
+  it should "perform DBA operation under Tuple2[String,String] type" in {
+    val el1 = ("k1","v1")
+    info(s"put $el1")
+    val res = kvs.put(el1).fold(l=>"", r=>r)
+    res should be (el1)
 
-    val ech = system.actorOf(FavHandler.props)
-    ech ! "fuck"
-    expectMsg("ok")
+    val v1 = kvs.get("k1").fold(l=>"", r=>r)
+    info(s"get(k1) = $v1")
+    v1 should be (el1)
+
+    val v2 = kvs.get("k2").fold(l=>Dbe.unapply(l).get, r=>"")
+    info(s"unknown key should return $v2")
+    v2 should be (("error","not_found"))
+
+    val v3 = kvs.delete("k1").fold(l=>"", r=>r)
+    info(s"delete k1 key, return $v3")
+    v3 should be (el1)
+
+    val v4 = kvs.delete("k1").fold(l=>Dbe.unapply(l).get, r=>"")
+    info(s"value by k1 is deleted, so delete it again is $v4")
+    v4 should be (("error","not_found"))
   }
+
+//  "-" should "" in {
+//    val el3 = ("k2","v2","n2")
+    /*implicit object dh3 extends Handler[Tuple3[String,String,String]]{
+      def put(el:Tuple3[String,String,String])(implicit dba:Dba):Either[Th,Tuple3[String,String,String]] ={
+        println(s"put the new object $el")
+        dba.put(el._1, el._2.getBytes)
+        Right(el)
+      }
+      def get(k:String) (implicit dba:Dba)= {
+        dba.get(k)
+        Right(Tuple3("simple","fucking","tuple"))
+      }
+      override def toString() = "DH3"
+    }*/
+
+//    println("get with specified tuple3 and implicit dh3 handler")
+//    val a = Kvs.get[Tuple3[String,String,String]]("k")
+//    println(s"get: $a\n")
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

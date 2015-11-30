@@ -1,92 +1,40 @@
 package mws.kvs
 
+import store._
+
 import akka.actor.{ActorSystem, ExtensionKey, Extension, ExtendedActorSystem}
 import com.typesafe.config.Config
 
-import mws.rng.Ack
+import mws.rng._
 import scala.concurrent.{Future,Await}
 import scala.concurrent.duration._
 
-/**
- *:create_schema(node()) ok
- * create_tables(name, [att, info(record)]), add_table_index
- *:start ok
- *:stop ok
- *:destroy 
- *:join
- *:version
- *:dir 
- * info()-> processes, transactions, schema, etc.
- *:config
- * ---------
- *:containers
- *:create
- *:link
- *:add
- *:delete
- *:traversal
- *:entries
- *:put
- *:get
- *:all
- *:index
- *:next_id
- *:save_db
- *:load_db
- *:dump
- *-------
- *:id_sec
- *:last_disc  ^
- *:last_table ^
- *:update_cfg ^
- * store handlers
- * - same with modified data
- *
- *
+/** 
+ * Akka Extension to interact with KVS storage as built into Akka.
  */
-trait Kvs {
-  def put(key: String, str: AnyRef): Future[Ack]
-  def get[T](key: String, clazz: Class[T]): Future[Option[T]]
-  def delete(key: String): Future[Ack]
-  def isReady: Future[Boolean]
-  def close: Unit
-  def entries:Iterator[String]
-  def add[T](container:String, el: T): Either[Throwable, T]
-  def remove[T](container:String, el:T): Either[Throwable, T]
+object Kvs extends ExtensionKey[Kvs] {
+  override def lookup = Kvs
+  override def createExtension(system: ExtendedActorSystem): Kvs = new Kvs(system)
 }
-
-/** Akka Extension to interact with KVS storage as built into Akka */
-object KvsExt extends ExtensionKey[KvsExt] {
-  override def lookup = KvsExt
-  override def createExtension(system: ExtendedActorSystem): KvsExt = new KvsExt(system)
-}
-class KvsExt(val system: ExtendedActorSystem) extends Extension with Kvs {
+class Kvs(val system: ExtendedActorSystem) extends Extension {
   val c = system.settings.config
-  val kvsc = c.getConfig("kvs")
-  val store = kvsc.getString("store")
+  val kvsCfg = c.getConfig("kvs")
+  val store = kvsCfg.getString("store")
 
   import scala.collection._
 
-  val storeArgs = immutable.Seq(classOf[ActorSystem]-> system)
-  implicit val dba:Kvs = system.dynamicAccess.createInstanceFor[Kvs](store, storeArgs).get
+  implicit val dba:Dba = system.dynamicAccess.createInstanceFor[Dba](store,
+    immutable.Seq(classOf[Config]-> c.getConfig("leveldb"))).get
 
-  def add[T](container: String,el: T): Either[Throwable,T] = dba.add(container,el)
-  def close: Unit = dba.close
-  def delete(key: String): scala.concurrent.Future[mws.rng.Ack] = dba.delete(key)
-  def entries: Iterator[String] = dba.entries
-  def get[T](key: String,clazz: Class[T]): scala.concurrent.Future[Option[T]] = dba.get(key,clazz)
-  def isReady: scala.concurrent.Future[Boolean] = dba.isReady
-  def put(key: String,str: AnyRef): scala.concurrent.Future[mws.rng.Ack] = dba.put(key,str)
-  def remove[T](container: String,el: T): Either[Throwable,T] = dba.remove(container,el)
+  def put[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].put(el)
 
-}
-//
-trait TypedKvs[T <: AnyRef] {
-  def put(key: String, value: T): Either[Throwable, T]
-  def get(key: String): Either[Throwable, Option[T]]
-  def remove(key: String): Either[Throwable, Option[T]]
+  def get[H: Handler](k:String):Either[Err,H] = implicitly[Handler[H]].get(k)
 
-  protected def clazz: Class[T]
+  def delete[H:Handler](key: String): Either[Err,H] = implicitly[Handler[H]].delete(key)
+
+  def isReady: Future[Boolean] = dba.isReady
+  def close:Unit = dba.close
+  def config:Config = kvsCfg
 }
 
 trait Iterable { self: Kvs =>
@@ -94,14 +42,19 @@ trait Iterable { self: Kvs =>
   private val Last = "last"
   private val Sep = ";"
 
-  def putToList(item: Data): Unit = {
+//  def add[T](container:String, el: T): Either[Throwable, T]
+//  def remove[T](container:String, el:T): Either[Throwable, T]
+//  def entries:Iterator[String]
+
+
+/*  def putToList(item: Data): Unit = {
     val key = item.key
     val data = item.serialize
     getEntry(key) match {
       case Some(Entry(_, prev, next)) =>
         self.put(key, Entry(data, prev, next))
       case _ =>
-        Await.result(self.get[String](Last,classOf[String]),1 second) match {
+        Await.result(self.get[String](Last),1 second) match {
           case Some(lastKey) =>
             // insert last
             self.put(key, Entry(data, prev = Some(lastKey), next = None))
@@ -176,4 +129,5 @@ trait Iterable { self: Kvs =>
       entry.prev.getOrElse(""),
       entry.next.getOrElse("")
     ).mkString(Sep)
+*/
 }

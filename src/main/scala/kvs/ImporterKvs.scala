@@ -3,7 +3,7 @@ package mws.kvs
 import akka.actor.Actor
 import java.util.Calendar
 
-object ImporterKvs {
+/*object ImporterKvs {
   case class Get(filePath: String)
   case class GetAck(importTime: Option[String], filePath: String)
   case class Put(filePath: String)
@@ -28,3 +28,4 @@ trait ImporterKvs { _: Kvs with Actor =>
       sender ! PutAck(filePath)
   }
 }
+*/

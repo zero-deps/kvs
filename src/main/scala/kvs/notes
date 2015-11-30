@@ -1,0 +1,37 @@
+/**
+ *:create_schema(node()) ok
+ * create_tables(name, [att, info(record)]), add_table_index
+ *:start ok
+ *:stop ok
+ *:destroy 
+ *:join
+ *:version
+ *:dir 
+ * info()-> processes, transactions, schema, etc.
+ *:config
+ * ---------
+ *:containers
+ *:create
+ *:link
+ *:add
+ *:delete
+ *:traversal
+ *:entries
+ *:put
+ *:get
+ *:all
+ *:index
+ *:next_id
+ *:save_db
+ *:load_db
+ *:dump
+ *-------
+ *:id_sec
+ *:last_disc  ^
+ *:last_table ^
+ *:update_cfg ^
+ * store handlers
+ * - same with modified data
+ *
+ *
+ */

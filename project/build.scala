@@ -23,7 +23,9 @@ object Build extends sbt.Build{
         "org.scalatest"    %% "scalatest" % "2.2.4" % "test",
         "com.typesafe.akka" %% "akka-testkit" % "2.3.14" % "test")))
 
-  lazy val defaultSettings = Defaults.coreDefaultSettings ++ Seq()
+  lazy val defaultSettings = Defaults.coreDefaultSettings ++ Seq(
+    fork := true,
+    scalacOptions ++= Seq("-feature", "-deprecation"))
 
   lazy val buildSettings = Seq(
     organization := "mws",

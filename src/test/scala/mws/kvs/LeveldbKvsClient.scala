@@ -3,7 +3,7 @@ package mws.kvs
 import akka.actor.{Actor, ActorSystem, Props}
 import org.iq80.leveldb.DBIterator
 import scala.util.Try
-import LeveldbKvs._
+/*import LeveldbKvs._
 
 object LeveldbKvsClient extends App {
   implicit val system = ActorSystem("leveldb-client")
@@ -72,3 +72,4 @@ object Tabulator {
 
   def rowSeparator(colSizes: Seq[Int]) = colSizes map { "-" * _ } mkString("+", "+", "+")
 }
+*/
