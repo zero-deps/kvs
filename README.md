@@ -127,7 +127,9 @@ __NB!__ Issues that can be lead with failed quorum on operations. For example in
 | `leveldb.fsync`    |  if true levelDB will synchronise data to disk immediately.
 
 ## Migration from 2 nodes to n, where n > 2 ##
-// TODO
+
+* Add third, and others new node configured for multi node cluster
+* Stop, reconfigure and start old two nodes one-by-one
 
 ## Usage ##
 
