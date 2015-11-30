@@ -10,6 +10,8 @@ package object rng {
   type Node = Address
   type Key = String
   type Value = ByteString
+  type FeedId = String
+  type FeedBucket = Bucket
 
   type PreferenceList = List[Node]
   type ReplicaKey = Option[Int]

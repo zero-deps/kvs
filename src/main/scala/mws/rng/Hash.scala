@@ -5,6 +5,7 @@ import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster, ClusterEvent}
 import akka.pattern.ask
 import akka.util.Timeout
+import com.google.common.hash.HashFunction
 import scala.annotation.tailrec
 import scala.collection.SortedMap
 import scala.concurrent.duration._
@@ -16,10 +17,17 @@ import scala.collection.JavaConversions._
  * find nodes associated with key for get/put
  */
 
-sealed class HashMessage
-case class Put(k: Key, v: Value) extends HashMessage
-case class Get(k: Key) extends HashMessage
-case class Delete(k: Key) extends HashMessage
+sealed class RingMessage
+//kvs
+case class Put(k: Key, v: Value) extends RingMessage
+case class Get(k: Key) extends RingMessage
+case class Delete(k: Key) extends RingMessage
+//feed
+case class Add(feed:String, v:Value) extends RingMessage
+case class Traverse(b:String, start:Option[Int], end:Option[Int]) extends RingMessage
+case class Remove(nb:String, v:Value) extends RingMessage
+case class RegisterFeed(feed:String) extends RingMessage
+//utilits
 case object Ready
 
 class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with ActorLogging {
@@ -40,7 +48,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   val bucketsNum = config.getInt("buckets")
   val cluster = Cluster(system)
   val local:Address = cluster.selfAddress
-  val hashing = HashingExtension(system)
+  val hashing = new HashingFunction(config)
   val actorsMem = new SelectionMemorize(system)
 
   @volatile
@@ -65,6 +73,12 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
     case Put(k, v) => doPut(k, v, sender())
     case Get(k) => doGet(k, sender())
     case Delete(k) => doDelete(k, sender())
+    case Add(b,v) => {
+      //findNodes()
+
+    }
+    case RegisterFeed(feed) =>
+
   }
 
   private[mws] def doPut(k: Key, v: Value, client: ActorRef) = {
@@ -107,20 +121,20 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
       case MemberUp(member) =>
         processedNodes = processedNodes + member
         (1 to vNodesNum).foreach(vnode => {
-          val hashedKey = hashing.hash(Left(member.address, vnode))
+          val hashedKey = hashing.hash(member.address.hostPort+ vnode) //node.hostPort + vnode
           vNodes += hashedKey -> member.address})
         updateStrategy(bucketsToUpdate(member.address))
         log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
       case UnreachableMember(member) =>
         processedNodes = processedNodes - member
         log.info(s"[ring_hash] $member become unreachable among cluster and ring")
-        val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((member.address, v))))
+        val hashes = (1 to vNodesNum).map(v => hashing.hash(member.address.hostPort+ v))
         vNodes = vNodes.filterNot(vn =>  hashes.contains(vn._1))
         updateStrategy(bucketsToUpdate(member.address))
       case MemberRemoved(member, prevState) => // TODO impossible case
         processedNodes = processedNodes - member
         log.info(s"[ring_hash]Removing $member from ring")
-        val hashes = (1 to vNodesNum).map(v => hashing.hash(Left((member.address, v))))
+        val hashes = (1 to vNodesNum).map(v => hashing.hash(member.address.hostPort+ v))
         vNodes = vNodes.filterNot(vn =>  hashes.contains(vn._1))
         updateStrategy(bucketsToUpdate(member.address))
       case _ => 

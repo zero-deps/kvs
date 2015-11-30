@@ -16,6 +16,7 @@ case class BucketDelete(b:Bucket)
 case class BucketGet(b:Bucket)
 case class GetResp(d: Option[List[Data]])
 case class LocalGetResp(d: Option[List[Data]])
+case class FeedPut(feedId:FeedId, List[Value])
 
 sealed trait PutStatus
 case object Saved extends PutStatus

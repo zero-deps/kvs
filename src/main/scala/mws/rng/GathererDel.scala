@@ -6,11 +6,6 @@ import akka.actor._
 import akka.util.Timeout
 
 sealed class Gather
-
-case class GatherGet(data: List[(Option[Data], Node)], client: ActorRef) extends Gather
-
-case class GatherPut(statuses: List[String], client: ActorRef) extends Gather
-
 case class GatherDel(statuses: List[String], client: ActorRef) extends Gather
 
 class GathererDel extends Actor with ActorLogging {
