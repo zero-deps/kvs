@@ -52,27 +52,50 @@ class KvsFlatSpec(_system:ActorSystem) extends TestKit(_system)
     }
   }
 
-  it should "perform DBA operation under Tuple2[String,String] type" in {
+  it should "perform DBA operation with Tuple2[String,String] type" in {
     val el1 = ("k1","v1")
     info(s"put $el1")
     val res = kvs.put(el1).fold(l=>"", r=>r)
     res should be (el1)
 
-    val v1 = kvs.get("k1").fold(l=>"", r=>r)
+    val v1 = kvs.get[D]("k1").fold(l=>"", r=>r)
     info(s"get(k1) = $v1")
     v1 should be (el1)
 
-    val v2 = kvs.get("k2").fold(l=>Dbe.unapply(l).get, r=>"")
+    val v2 = kvs.get[D]("k2").fold(l=>Dbe.unapply(l).get, r=>"")
     info(s"unknown key should return $v2")
     v2 should be (("error","not_found"))
 
-    val v3 = kvs.delete("k1").fold(l=>"", r=>r)
+    val v3 = kvs.delete[D]("k1").fold(l=>"", r=>r)
     info(s"delete k1 key, return $v3")
     v3 should be (el1)
 
-    val v4 = kvs.delete("k1").fold(l=>Dbe.unapply(l).get, r=>"")
+    val v4 = kvs.delete[D]("k1").fold(l=>Dbe.unapply(l).get, r=>"")
     info(s"value by k1 is deleted, so delete it again is $v4")
     v4 should be (("error","not_found"))
+  }
+
+  it should "perform DBA with Stats types" in {
+    val sm = Message(key="k1", data="1:2:3")
+
+    val v1 = kvs.put(sm).fold(l=>"", r=> Message.unapply(r).get)
+    info(s"put $v1")
+
+    val v2 = kvs.get[Message](s"${sm.name}.${sm.key}").fold(l=>"", r=>Message.unapply(r).get)
+    info(s"get ${sm.key} = $v2")
+
+    val v5 = kvs.delete[Message](s"${sm.name}.${sm.key}").fold(l=>"", r=>Message.unapply(r).get)
+    info(s"deleted $v5")
+
+    val smt = Metric(key="k1", data="1:2:3")
+    val v3 = kvs.put(smt).fold(l=>"", r=> Metric.unapply(r).get)
+    info(s"put $v3")
+
+    val v4 = kvs.get[Metric](s"${smt.name}.${smt.key}").fold(l=>"", r=>Metric.unapply(r).get)
+    info(s"get ${smt.key} = $v4")
+
+    val v6 = kvs.delete[Metric](s"${smt.name}.${smt.key}").fold(l=>"", r=> Metric.unapply(r).get)
+    info(s"deleted $v6")
   }
 
 //  "-" should "" in {

@@ -31,4 +31,42 @@ object Handler{
   }
 
   implicit object dh extends DHandler
+
+  trait StatMessageHandler extends Handler[Message]{
+    def put(el:Message)(implicit dba:Dba) = dba.put(s"${el.name}.${el.key}", el.data.getBytes) match {
+      case Right(v) => Right(el.copy())
+      case Left(e) => Left(e)
+    }
+
+    def get(k:String)(implicit dba:Dba) = dba.get(k) match {
+      case Right(v) => Right(Message(key=k.stripPrefix("message."), data=new String(v)))
+      case Left(e) => Left(e)
+    }
+
+    def delete(k:String)(implicit dba:Dba) = dba.delete(k) match {
+      case Right(v) => Right(Message(key=k.stripPrefix("message."), data=new String(v)))
+      case Left(e)  => Left(e)
+    }
+  }
+
+  implicit object lm extends StatMessageHandler
+
+  trait StatMetricHandler extends Handler[Metric]{
+    def put(el:Metric)(implicit dba:Dba) = dba.put(s"${el.name}.${el.key}", el.data.getBytes) match {
+      case Right(v) => Right(el.copy())
+      case Left(e) => Left(e)
+    }
+
+    def get(k:String)(implicit dba:Dba) = dba.get(k) match {
+      case Right(v) => Right(Metric(key=k.stripPrefix("metric."), data=new String(v)))
+      case Left(e) => Left(e)
+    }
+
+    def delete(k:String)(implicit dba:Dba) = dba.delete(k) match {
+      case Right(v) => Right(Metric(key=k.stripPrefix("metric."), data=new String(v)))
+      case Left(e)  => Left(e)
+    }
+  }
+
+  implicit object lmt extends StatMetricHandler
 }

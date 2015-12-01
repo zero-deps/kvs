@@ -7,6 +7,12 @@ package object kvs{
   type D    = Tuple2[String,String]
   type Err  = Dbe
 
+  case class Message(name:String="message", key:String, data:String)
+  case class Metric (name:String= "metric", key:String, data:String)
+
+  type StatMessage = Message // wtf
+  type StatMetric  = Metric  // wtf
+
   trait Data {
     def key: String
     def serialize: String
