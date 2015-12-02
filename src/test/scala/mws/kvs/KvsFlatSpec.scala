@@ -52,7 +52,7 @@ class KvsFlatSpec(_system:ActorSystem) extends TestKit(_system)
     }
   }
 
-  it should "perform DBA operation with Tuple2[String,String] type" in {
+  ignore should "perform DBA operation with Tuple2[String,String] type" in {
     val el1 = ("k1","v1")
     info(s"put $el1")
     val res = kvs.put(el1).fold(l=>"", r=>r)
@@ -96,6 +96,19 @@ class KvsFlatSpec(_system:ActorSystem) extends TestKit(_system)
 
     val v6 = kvs.delete[Metric](s"${smt.name}.${smt.key}").fold(l=>"", r=> Metric.unapply(r).get)
     info(s"deleted $v6")
+  }
+
+  it should "support iterator for Messages" in {
+    val sm0 = Message(key="k0", data="1:2:3")
+    val sm1 = Message(key="k1", data="4:5:6")
+
+//    kvs.add(sm0)
+//    kvs.add(sm1)
+    val m = Metric(key="k0", data="7:8:9")
+    println(s"${kvs.put(m).fold(l=>"", r=> Metric.unapply(r).get)}")
+
+    val m2 = kvs.get[Metric](s"${m.name}.${m.key}")
+    println(s"$m2")
   }
 
 //  "-" should "" in {
