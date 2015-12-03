@@ -16,8 +16,8 @@ case class BucketDelete(b:Bucket)
 case class BucketGet(b:Bucket)
 case class GetResp(d: Option[List[Data]])
 case class LocalGetResp(d: Option[List[Data]])
-case class FeedPut(feedId:FeedId, List[Value])
 
+case class FeedAppend(fid:String, v:Value,  version: VectorClock)
 sealed trait PutStatus
 case object Saved extends PutStatus
 case class Conflict(broken: List[Data]) extends PutStatus

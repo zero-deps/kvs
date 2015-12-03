@@ -31,7 +31,6 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   val configPath = "ring.leveldb"
   val config = system.settings.config.getConfig(configPath)
   val nativeLeveldb = config.getBoolean("native")
-  val hashing = HashingExtension(system)
 
   val leveldbOptions = new Options().createIfMissing(true)
   def leveldbReadOptions = new ReadOptions().verifyChecksums(config.getBoolean("checksum"))
@@ -47,7 +46,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     else org.iq80.leveldb.impl.Iq80DBFactory.factory
 
   // todo: create system/hashring superviser
-  private val store= system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_store")
+  private val store= system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_write_store")
   private val gather = system.actorOf(Props[GathererDel].withDeploy(Deploy.local), name="ring_gatherer")
   private val readStore = system.actorOf(
     FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")

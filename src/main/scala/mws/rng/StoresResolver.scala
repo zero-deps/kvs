@@ -6,7 +6,7 @@ case class Watch(a: ActorRef)
 case class Select(node: Node, path: String)
 
 trait ActorRefStorage {
-  def get(node: Node, path: String): Either[ActorRef, ActorSelection]
+  def get(node: Node, path: String): Either[ActorRef, ActorSelection] //TODO return only actorRef, wait first time
   def put(n: (Node, String), actor: ActorRef)
   def remove(node: (Node, String)): Unit
 }
