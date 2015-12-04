@@ -1,6 +1,6 @@
 package mws.rng
 
-import akka.actor.{ActorRef, FSM, Actor}
+import akka.actor.{Props, ActorRef, FSM, Actor}
 import akka.cluster.VectorClock
 
 //api
@@ -9,12 +9,14 @@ case class AddToFeed(fid: String, v: Value, nodes: Seq[Node]) extends FeedAPI
 case class TraverseFeed(fid: String, nodes: Seq[Node], start: Option[Int], end: Option[Int]) extends FeedAPI
 
 //TODO add timeout
-//TODO extract fid to field because one feed handlers by one worker
+//TODO extract fid and nodes to field because one feed handlers by one worker
 class FeedsSupervisor(stores: SelectionMemorize) extends Actor {
+  val add = context.system.actorOf(Props(classOf[AddWorker],stores))
+  val travers = context.system.actorOf(Props(classOf[TraverseFeed],stores))
 
   override def receive: Receive = {
-    case msg@AddToFeed =>
-    case msg@TraverseFeed =>
+    case msg@AddToFeed => add ! msg
+    case msg@TraverseFeed => travers ! msg
   }
 }
 
@@ -30,11 +32,12 @@ case object Idle extends FeedWorkerState
 //TODO time out, rollback, read quorum from config
 //TODO return Id
 
-class AddWorker( stores: SelectionMemorize) extends FSM[FeedWorkerState, WorkerData] {
+class AddWorker(stores: SelectionMemorize) extends FSM[FeedWorkerState, WorkerData] {
   startWith(CollectingVersions, WorkerData(None, Nil, Nil, None))
 
   when(Idle) {
     case Event(msg:AddToFeed, state) =>
+      println(s"ADD WORKER $msg")
       msg.nodes foreach (stores.get(_, "ring_readonly_store").fold(
         _.tell(StoreGet(s"${msg.fid}:version"), self),
         _.tell(StoreGet(s"${msg.fid}:version"), self)
@@ -58,10 +61,10 @@ class AddWorker( stores: SelectionMemorize) extends FSM[FeedWorkerState, WorkerD
   }
 
   when(WaitingStatuses){
-    case Event("ok", state) =>
+    case Event(id:Int, state) =>
       sender().path.address :: state.updated match {
         case l if l.size == 3 =>
-          state.client foreach (_ ! "Added")
+          state.client foreach (_ ! id)
           goto(Idle) using WorkerData(None, Nil, Nil, None)
         case l => stay() using WorkerData(None, Nil, l, state.client)
       }
@@ -74,6 +77,7 @@ class TraverseWorker(stores: SelectionMemorize) extends FSM[FeedWorkerState, Wor
 
   when(Idle){
     case Event(msg:TraverseFeed, state) =>
+      println(s"TraverseFeed WORKER $msg")
       msg.nodes foreach (stores.get(_, "ring_readonly_store").fold(
         _.tell(StoreGet(s"${msg.fid}:version"), self),
         _.tell(StoreGet(s"${msg.fid}:version"), self)

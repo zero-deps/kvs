@@ -78,6 +78,14 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   def delete(k: String): Future[Ack] = {
     (hash ? Delete(k)).mapTo[Ack]
   }
+
+  def travers(fid:String, start: Option[Int], end: Option[Int]):Future[List[Value]] = {
+    (hash ? Traverse(fid, start, end)).mapTo[List[Value]]
+  }
+
+  def add(fid:String, v: Value) = {
+    (hash ? Add(fid,v)).mapTo[Int]
+  }
   
   def isReady: Future[Boolean] = (hash ? Ready).mapTo[Boolean]
 }

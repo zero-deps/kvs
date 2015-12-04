@@ -2,20 +2,12 @@ package mws.rng
 
 import akka.actor._
 import akka.kernel.Bootable
-import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 
 sealed trait Ack
 case object AckSuccess extends Ack
 case object AckQuorumFailed extends Ack
 case object AckTimeoutFailed extends Ack
-
-/** Ring application API.*/
-trait RingAPI{
-  def get(key:String):ByteString
-  def put(key:String, data:ByteString):Unit
-  def delete(key:String):Unit
-}
 
 class RingApp extends Bootable {
   implicit val system = ActorSystem("rng", ConfigFactory.load)

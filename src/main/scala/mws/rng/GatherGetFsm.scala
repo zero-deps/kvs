@@ -78,7 +78,6 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int, refResolver: ActorR
     case Some(l) => DataCollection(old.perNode, (l, sender) :: old.inconsistent)
   }
 
-
   def mostFresh(from: List[Data]): Option[Data] = {
     @tailrec
     def iterate(data: List[Data], mostFresh: Option[Data] = None): Option[Data] = data match {

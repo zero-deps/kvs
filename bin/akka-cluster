@@ -77,6 +77,32 @@ case "$1" in
       invoke Store delete $KEY
       ;;
 
+    add)
+      if [ $# -ne 2 ]; then
+              echo "Usage: $SELF <node-hostname> <jmx-port> add <feedId> <value>"
+            fi
+
+            ensureNodeIsRunningAndAvailable
+
+            FEEDID=$2
+            VALUE=$3
+            invoke Store add $FEEDID $VALUE
+            ;;
+
+    traverse)
+        if [ $# -ne 3 ]; then
+            echo "Usage: $SELF <node-hostname> <jmx-port> traverse <feedId> <start-index> <end-index>"
+        fi
+
+        ensureNodeIsRunningAndAvailable
+
+        FEEDID=$2
+        START=$3
+        END=$3
+        invoke Store traverse $FEEDID $START $END
+        ;;
+
+
     member-status)
         if [ $# -ne 1 ]; then
             echo "Usage: $SELF <node-hostname> <jmx-port> member-status"

@@ -13,33 +13,45 @@ import scala.concurrent.Future
 import scala.collection.JavaConversions._
 
 /**
- * rehash when membership changes
- * find nodes associated with key for get/put
- */
+  * rehash when membership changes
+  * find nodes associated with key for get/put
+  */
 
 sealed class RingMessage
+
 //kvs
 case class Put(k: Key, v: Value) extends RingMessage
+
 case class Get(k: Key) extends RingMessage
+
 case class Delete(k: Key) extends RingMessage
+
 //feed
-case class Add(feed:String, v:Value) extends RingMessage
-case class Traverse(b:String, start:Option[Int], end:Option[Int]) extends RingMessage
-case class Remove(nb:String, v:Value) extends RingMessage
-case class RegisterFeed(feed:String) extends RingMessage
+case class Add(feed: String, v: Value) extends RingMessage
+
+case class Traverse(fid: String, start: Option[Int], end: Option[Int]) extends RingMessage
+
+case class Remove(nb: String, v: Value) extends RingMessage
+
+case class RegisterFeed(feed: String) extends RingMessage
+
 //utilits
 case object Ready
 
-class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with ActorLogging {
+class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with ActorLogging {
+
   import context.system
 
   val config = system.settings.config.getConfig("ring")
   log.info(s"Ring configuration: ")
-  for (c <- config.entrySet()){ log.info(s"${c.getKey} = ${c.getValue.render()}")}
+  for (c <- config.entrySet()) {
+    log.info(s"${c.getKey} = ${c.getValue.render()}")
+  }
 
   implicit val timeout = Timeout(5.second)
 
-  val quorum = config.getIntList("quorum")  //N,W,R
+  val quorum = config.getIntList("quorum")
+  //N,W,R
   val N: Int = quorum.get(0)
   val W: Int = quorum.get(1)
   val R: Int = quorum.get(2)
@@ -47,19 +59,21 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   val vNodesNum = config.getInt("virtual-nodes")
   val bucketsNum = config.getInt("buckets")
   val cluster = Cluster(system)
-  val local:Address = cluster.selfAddress
-  val hashing =  HashingExtension(system)
+  val local: Address = cluster.selfAddress
+  val hashing = HashingExtension(system)
   val actorsMem = new SelectionMemorize(system)
 
   @volatile
-  private var state:CurrentClusterState = CurrentClusterState()
+  private var state: CurrentClusterState = CurrentClusterState()
   @volatile
-  private var vNodes:SortedMap[Bucket,Address] = SortedMap.empty[Bucket, Address]
+  private var vNodes: SortedMap[Bucket, Address] = SortedMap.empty[Bucket, Address]
   @volatile
-  private var buckets:SortedMap[Bucket, PreferenceList] = SortedMap.empty// {bucket-to-replicas }
+  private var buckets: SortedMap[Bucket, PreferenceList] = SortedMap.empty
+  // {bucket-to-replicas }
   private var feeds: SortedMap[FeedId, PreferenceList] = SortedMap.empty
   @volatile
   private var processedNodes = Set.empty[Member]
+  val feedSuperviser = system.actorOf(Props(classOf[FeedsSupervisor], actorsMem))
 
   override def preStart() = {
     cluster.subscribe(self, ClusterEvent.initialStateAsEvents, classOf[ClusterDomainEvent], classOf[CurrentClusterState])
@@ -74,11 +88,8 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
     case Put(k, v) => doPut(k, v, sender())
     case Get(k) => doGet(k, sender())
     case Delete(k) => doDelete(k, sender())
-    case Add(fid,v) => feeds(fid) match {
-      case nodes =>
-      case Nil => sender() ! "incorrect feed id"
-    }
-
+    case Add(fid, v) => feedSuperviser.tell(AddToFeed(fid, v, nodesForKey(fid)), sender())
+    case Traverse(fid, start, end) => feedSuperviser.tell(TraverseFeed(fid, nodesForKey(fid), start, end), sender())
 
     case RegisterFeed(feed) => {
       feeds = feeds + (feed -> nodesForKey(feed))
@@ -101,13 +112,15 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
 
   private[mws] def doGet(key: Key, client: ActorRef) = {
     val fromNodes = availableNodesFrom(nodesForKey(key))
-    val refs = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
-    if(refs.nonEmpty){
+    val refs = fromNodes map {
+      actorsMem.get(_, "ring_readonly_store")
+    }
+    if (refs.nonEmpty) {
       val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, gatherTimeout, actorsMem))
       refs foreach (store => store.fold(
         _.tell(StoreGet(key), gather),
         _.tell(StoreGet(key), gather)))
-    }else {
+    } else {
       client ! None
     }
   }
@@ -115,37 +128,38 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   private[mws] def doDelete(k: Key, client: ActorRef) = {
     import context.dispatcher
     val nodes = nodesForKey(k)
-      val deleteF = Future.traverse(availableNodesFrom(nodes))(n =>
-        (system.actorSelection(RootActorPath(n) / "user" / "ring_write_store") ? StoreDelete(k)).mapTo[String])
-      deleteF.map(statuses => system.actorSelection("/user/ring_gatherer") ! GatherDel(statuses, client))
+    val deleteF = Future.traverse(availableNodesFrom(nodes))(n =>
+      (system.actorSelection(RootActorPath(n) / "user" / "ring_write_store") ? StoreDelete(k)).mapTo[String])
+    deleteF.map(statuses => system.actorSelection("/user/ring_gatherer") ! GatherDel(statuses, client))
   }
 
   def receiveCl: Receive = {
-    case e:ClusterDomainEvent => cluster.sendCurrentClusterState(self)
+    case e: ClusterDomainEvent => cluster.sendCurrentClusterState(self)
       e match {
-      case MemberUp(member) =>
-        processedNodes = processedNodes + member
-        (1 to vNodesNum).foreach(vnode => {
-          val hashedKey = hashing.hash(member.address.hostPort+ vnode)
-          vNodes += hashedKey -> member.address})
-        synchNodes(bucketsToUpdate(member.address))
-        // TODO synch named bucket
-        log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
-      case UnreachableMember(member) =>
-        // TODO synch named bucket
-        processedNodes = processedNodes - member
-        log.info(s"[ring_hash] $member become unreachable among cluster and ring")
-        val hashes = (1 to vNodesNum).map(v => hashing.hash(member.address.hostPort+ v))
-        vNodes = vNodes.filterNot(vn =>  hashes.contains(vn._1))
-        synchNodes(bucketsToUpdate(member.address))
-      case MemberRemoved(member, prevState) =>
-        // TODO synch named bucket
-        processedNodes = processedNodes - member
-        log.info(s"[ring_hash]Removing $member from ring")
-        val hashes = (1 to vNodesNum).map(v => hashing.hash(member.address.hostPort+ v))
-        vNodes = vNodes.filterNot(vn =>  hashes.contains(vn._1))
-        synchNodes(bucketsToUpdate(member.address))
-      case _ =>
+        case MemberUp(member) =>
+          processedNodes = processedNodes + member
+          (1 to vNodesNum).foreach(vnode => {
+            val hashedKey = hashing.hash(member.address.hostPort + vnode)
+            vNodes += hashedKey -> member.address
+          })
+          synchNodes(bucketsToUpdate(member.address))
+          // TODO synch named bucket
+          log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
+        case UnreachableMember(member) =>
+          // TODO synch named bucket
+          processedNodes = processedNodes - member
+          log.info(s"[ring_hash] $member become unreachable among cluster and ring")
+          val hashes = (1 to vNodesNum).map(v => hashing.hash(member.address.hostPort + v))
+          vNodes = vNodes.filterNot(vn => hashes.contains(vn._1))
+          synchNodes(bucketsToUpdate(member.address))
+        case MemberRemoved(member, prevState) =>
+          // TODO synch named bucket
+          processedNodes = processedNodes - member
+          log.info(s"[ring_hash]Removing $member from ring")
+          val hashes = (1 to vNodesNum).map(v => hashing.hash(member.address.hostPort + v))
+          vNodes = vNodes.filterNot(vn => hashes.contains(vn._1))
+          synchNodes(bucketsToUpdate(member.address))
+        case _ =>
       }
 
     case Ready => sender() ! (state.members.size == processedNodes.size)
@@ -164,7 +178,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
   }
 
   @tailrec
-  private def bucketsToUpdate(bucket: Bucket, max: Int,nodesCount: Int, hasBeenMoved: List[SynchReplica]): List[SynchReplica] = bucket match {
+  private def bucketsToUpdate(bucket: Bucket, max: Int, nodesCount: Int, hasBeenMoved: List[SynchReplica]): List[SynchReplica] = bucket match {
     case -1 => hasBeenMoved
     case bucket: Int =>
       val newNodes = findBucketNodes(bucket * hashing.bucketRange, max, nodesCount, Nil)
@@ -190,25 +204,25 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
             case (_, `wasResponsible`) => hasBeenMoved // my responsibility not changed.
             case _ => (bucket, isResponsibleNow, wasResponsible) :: hasBeenMoved
           }
-          bucketsToUpdate(bucket - 1, max,nodesCount, replacedUpd)
+          bucketsToUpdate(bucket - 1, max, nodesCount, replacedUpd)
       }
   }
 
   @tailrec
   private def findBucketNodes(hashedKey: Int, maxSearch: Int, nodesAvailable: Int, nodes: List[Node]): List[Node] = maxSearch match {
-      case 0 => nodes.reverse
-      case _ =>
-        val it = vNodes.keysIteratorFrom(hashedKey)
-        val hashedNode = if (it.hasNext) it.next() else vNodes.firstKey
-        val node = vNodes.get(hashedNode).get
-        val prefList = if (nodes.contains(node)) nodes else node :: nodes
+    case 0 => nodes.reverse
+    case _ =>
+      val it = vNodes.keysIteratorFrom(hashedKey)
+      val hashedNode = if (it.hasNext) it.next() else vNodes.firstKey
+      val node = vNodes.get(hashedNode).get
+      val prefList = if (nodes.contains(node)) nodes else node :: nodes
 
-        prefList.length match {
-          case `N` => prefList.reverse
-          case `nodesAvailable` => prefList.reverse
-          case _ => findBucketNodes(hashedNode + 1, nodesAvailable, maxSearch - 1, prefList)
-        }
-    }
+      prefList.length match {
+        case `N` => prefList.reverse
+        case `nodesAvailable` => prefList.reverse
+        case _ => findBucketNodes(hashedNode + 1, nodesAvailable, maxSearch - 1, prefList)
+      }
+  }
 
   def nodesInRing(): Int = processedNodes.size
 
@@ -219,20 +233,22 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef ) extends Actor with Act
 
   @tailrec
   private def synchNodes(buckets: List[SynchReplica]): Unit = buckets match {
-      case Nil => // done synch
-      case (bucket, newReplica, oldReplica) :: tail =>
-        (newReplica, oldReplica) match {
-          case (`newReplica`, None) =>
-            updateBucket(bucket, this.buckets(bucket).filterNot(_ == local))
-          case (None, `oldReplica`) => // we don't responsible for this buckets
-          case _ => //nop
-        }
-        synchNodes(tail)
-    }
+    case Nil => // done synch
+    case (bucket, newReplica, oldReplica) :: tail =>
+      (newReplica, oldReplica) match {
+        case (`newReplica`, None) =>
+          updateBucket(bucket, this.buckets(bucket).filterNot(_ == local))
+        case (None, `oldReplica`) => // we don't responsible for this buckets
+        case _ => //nop
+      }
+      synchNodes(tail)
+  }
 
   private def updateBucket(bucket: Bucket, nodes: List[Node]): Unit = {
     import context.dispatcher
-    val storesOnNodes = nodes.map { actorsMem.get(_, "ring_write_store") }
+    val storesOnNodes = nodes.map {
+      actorsMem.get(_, "ring_write_store")
+    }
     val bucketsDataF = Future.traverse(storesOnNodes)(n => n.fold(
       _ ? BucketGet(bucket),
       _ ? BucketGet(bucket))).mapTo[List[List[Data]]]
