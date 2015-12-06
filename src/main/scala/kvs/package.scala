@@ -10,12 +10,4 @@ package object kvs{
 //  case class Entry(data: String, prev: Option[String], next: Option[String])
   case class Message(name:String="message", key:String, data:String, prev:Option[String]=None, next:Option[String]=None)
   case class Metric (name:String= "metric", key:String, data:String)
-
-//  type StatMessage = Message // wtf
-//  type StatMetric  = Metric  // wtf
-
-  trait Data {
-    def key: String
-    def data:String
-  }
 }

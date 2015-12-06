@@ -21,6 +21,7 @@ object Build extends sbt.Build{
           exclude("com.fasterxml.jackson.core", "jackson-core"),
         "junit" % "junit" % "4.12" % "test",
         "org.scalatest"    %% "scalatest" % "2.2.4" % "test",
+        "org.scalactic" %% "scalactic" % "2.2.4" % "test",
         "com.typesafe.akka" %% "akka-testkit" % "2.3.14" % "test")))
 
   lazy val defaultSettings = Defaults.coreDefaultSettings ++ Seq(

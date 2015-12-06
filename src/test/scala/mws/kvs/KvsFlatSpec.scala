@@ -5,6 +5,8 @@ import org.scalatest.matchers._
 import org.scalatest.concurrent._
 import org.scalatest.concurrent.ScalaFutures._
 
+import org.scalactic._
+
 import akka.actor.{ActorSystem}
 import akka.pattern.ask
 import akka.testkit._
@@ -17,6 +19,9 @@ import scala.concurrent.{Await,Future}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+/**
+ * mostly not the kvs but the handler spec. consider to be separated
+ */
 class KvsFlatSpec(_system:ActorSystem) extends TestKit(_system)
 //  with ShouldMatchers
   with DefaultTimeout
@@ -39,6 +44,12 @@ class KvsFlatSpec(_system:ActorSystem) extends TestKit(_system)
   """)))
 
   implicit val kvs:Kvs = Kvs(system)
+
+  val sms:List[Message] = List(
+    Message(key="k0", data="1:2:3"),
+    Message(key="k1", data="4:5:6"),
+    Message(key="k2", data="7:8:9"),
+    Message(key="k3", data="10:11:12"))
 
   override def afterAll = {
     kvs.close
@@ -73,6 +84,8 @@ class KvsFlatSpec(_system:ActorSystem) extends TestKit(_system)
     val v4 = kvs.delete[D]("k1").fold(l=>Dbe.unapply(l).get, r=>"")
     info(s"value by k1 is deleted, so delete it again is $v4")
     v4 should be (("error","not_found"))
+
+    // add cases for existing key
   }
 
   it should "perform DBA with Stats types" in {
@@ -98,35 +111,26 @@ class KvsFlatSpec(_system:ActorSystem) extends TestKit(_system)
     info(s"deleted $v6")
   }
 
-  it should "support iterator for Messages" in {
-    val sm0 = Message(key="k0", data="1:2:3")
-    val sm1 = Message(key="k1", data="4:5:6")
+  it should "make the items added with `add` available throught `get` | compared ignore links" in {
+    sms.map(kvs.add(_))
 
-//    kvs.add(sm0)
-//    kvs.add(sm1)
-    val m = Metric(key="k0", data="7:8:9")
-    println(s"${kvs.put(m).fold(l=>"", r=> Metric.unapply(r).get)}")
+    val res = sms.map {sm => kvs.get[Message](s"${sm.name}.${sm.key}")}.
+      map {r=> r.fold(l=>"", r=> r.copy(next=None,prev=None))}.
+      map {s => info(s"$s - done");s}
 
-    val m2 = kvs.get[Metric](s"${m.name}.${m.key}")
-    println(s"$m2")
+    res should equal(sms)
+
+    sms.map(kvs.remove(_))
   }
 
-//  "-" should "" in {
-//    val el3 = ("k2","v2","n2")
-    /*implicit object dh3 extends Handler[Tuple3[String,String,String]]{
-      def put(el:Tuple3[String,String,String])(implicit dba:Dba):Either[Th,Tuple3[String,String,String]] ={
-        println(s"put the new object $el")
-        dba.put(el._1, el._2.getBytes)
-        Right(el)
-      }
-      def get(k:String) (implicit dba:Dba)= {
-        dba.get(k)
-        Right(Tuple3("simple","fucking","tuple"))
-      }
-      override def toString() = "DH3"
-    }*/
+  it should "support entries iterator with the element in order of `add`" in {
+    sms.map(kvs.add(_))
 
-//    println("get with specified tuple3 and implicit dh3 handler")
-//    val a = Kvs.get[Tuple3[String,String,String]]("k")
-//    println(s"get: $a\n")
+    val e = kvs.entries[Message]()
+    val i:Iterator[Message] = e.fold(l=>Iterator.empty, r=>r)
+    i.toList.map{e=> info(s"$e");e}.map{_.copy(next=None,prev=None)} should equal(sms)
+
+    sms.map(kvs.remove(_))
+  }
+
 }

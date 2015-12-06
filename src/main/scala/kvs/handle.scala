@@ -2,120 +2,6 @@ package mws.kvs
 
 import store._
 
-/*trait Iterable[T] { self: Handler[T] =>
-  private val First = "first"
-  private val Last = "last"
-  private val Sep = ";"
-
-  def add(item:Data):Unit = {
-    val key = item.key
-    val data = item.data
-
-    getEntry(key) match {
-      case e => println(s"entry $e")
-    }
-  }
-
-  private def getEntry(key: String): Option[Entry] =
-    self.get(key) map { entry =>
-      val xs = entry.split(Sep, -1)
-      val data = xs(0)
-      val prev = if (xs(1) != "") Some(xs(1)) else None
-      val next = if (xs(2) != "") Some(xs(2)) else None
-      Entry(data, prev, next)
-    }
-*/
-//  def add[T](container:String, el: T): Either[Throwable, T]
-//  def remove[T](container:String, el:T): Either[Throwable, T]
-//  def entries:Iterator[String]
-
-
-/*  def putToList(item: Data): Unit = {
-    val key = item.key
-    val data = item.serialize
-    getEntry(key) match {
-      case Some(Entry(_, prev, next)) =>
-        self.put(key, Entry(data, prev, next))
-      case _ =>
-        Await.result(self.get[String](Last),1 second) match {
-          case Some(lastKey) =>
-            // insert last
-            self.put(key, Entry(data, prev = Some(lastKey), next = None))
-            // link prev to last
-            val last = getEntry(lastKey).get
-            self.put(lastKey, last.copy(next = Some(key)))
-            // update link to last
-            self.put(Last, key)
-          case None =>
-            self.put(key, Entry(data, prev = None, next = None))
-            self.put(First, key)
-            self.put(Last, key)
-        }
-    }
-  }
-
-  def entries: Iterator[String] =
-    Iterator.iterate {
-      val k = Await.result(self.get[String](First,classOf[String]),1 second)
-      k.flatMap(getEntry)
-    } { _v =>
-      val k = _v.flatMap(_.next)
-      k.flatMap(getEntry)
-    } takeWhile(_.isDefined) map(_.get.data)
-
-  def deleteFromList(el: Data): Unit = {
-    val key = el.key
-    getEntry(key) map { case Entry(_, prev, next) =>
-      prev match {
-        case Some(prev) =>
-          getEntry(prev) map { entry =>
-            self.put(prev, entry.copy(next = next))
-          }
-        case _ =>
-      }
-      next match {
-        case Some(next) =>
-          getEntry(next) map { entry =>
-            self.put(next, entry.copy(prev = prev))
-          }
-        case _ =>
-      }
-      (Await.result(self.get[String](First,classOf[String]),1 second),
-       Await.result(self.get[String](Last,classOf[String]),1 second)) match {
-        case (Some(`key`), Some(`key`)) =>
-          self.delete(First)
-          self.delete(Last)
-        case (Some(`key`), _) =>
-          self.put(First, next.get)
-        case (_, Some(`key`)) =>
-          self.put(Last, prev.get)
-        case _ =>
-      }
-      self.delete(key)
-  }
-  }
-
-  def first: Option[String] = Await.result(self.get[String](First,classOf[String]), 1 second).flatMap(getEntry).map(_.data)
-  def last: Option[String] = Await.result(self.get[String](Last,classOf[String]),1 second).flatMap(getEntry).map(_.data)
-
-  private def getEntry(key: String): Option[Entry] =
-    Await.result(self.get[String](key,classOf[String]),1 second) map { entry =>
-      val xs = entry.split(Sep, -1)
-      val data = xs(0)
-      val prev = if (xs(1) != "") Some(xs(1)) else None
-      val next = if (xs(2) != "") Some(xs(2)) else None
-      Entry(data, prev, next)
-    }
-  implicit private def serialize(entry: Entry): String =
-    List(
-      entry.data,
-      entry.prev.getOrElse(""),
-      entry.next.getOrElse("")
-    ).mkString(Sep)
-*/
-//}
-
-
 /**
  * KVS Handler for specific type T.
  * object Handler holds implicit default handlers.
@@ -125,6 +11,8 @@ trait Handler[T] {
   def get(k:String)(implicit dba:Dba):Either[Err,T]
   def delete(k:String)(implicit dba:Dba):Either[Err,T]
   def add(el:T)(implicit dba:Dba):Either[Err,T]
+  def remove(el:T)(implicit dba:Dba):Either[Err,T]
+  def entries()(implicit dba:Dba):Either[Err,Iterator[T]]
 }
 object Handler{
   def apply[T](implicit h:Handler[T]) = h
@@ -148,19 +36,36 @@ object Handler{
       case Right(v) => Right((k,new String(v)))
       case Left(e)  => Left(e)
     }
+
     def add(el:D)(implicit dba:Dba) = ???
+    def remove(el:D)(implicit dba:Dba) = ???
+    def entries()(implicit dba:Dba) = ???
   }
 
   implicit object dh extends DHandler
 
   trait StatMessageHandler extends Handler[Message]{
-    def put(el:Message)(implicit dba:Dba) = dba.put(s"${el.name}.${el.key}", el.data.getBytes) match {
+    private[this] def key(el:Message):String = s"${el.name}.${el.key}"
+    private[this] def data(el:Message):Array[Byte] =
+      (el.data+Sep+el.prev.getOrElse("none") +Sep+el.next.getOrElse("none")).getBytes
+
+    private[this] def ent(d:Array[Byte]):Tuple3[String,Option[String],Option[String]] = {
+      val xs:Array[String] = new String(d).split(Sep, -1)
+      val data = xs(0)
+      val prev = if (xs(1) != "none") Some(xs(1)) else None
+      val next = if (xs(2) != "none") Some(xs(2)) else None
+
+      (data,prev,next)
+    }
+
+    def put(el:Message)(implicit dba:Dba) = dba.put(key(el), data(el)) match {
       case Right(v) => Right(el.copy())
       case Left(e) => Left(e)
     }
 
     def get(k:String)(implicit dba:Dba) = dba.get(k) match {
-      case Right(v) => Right(Message(key=k.stripPrefix("message."), data=new String(v)))
+      case Right(v) => val e1 = ent(v)
+        Right(Message(key=k.stripPrefix("message."), data= e1._1,prev= e1._2, next= e1._3))
       case Left(e) => Left(e)
     }
 
@@ -170,49 +75,71 @@ object Handler{
     }
 
     def add(el:Message)(implicit dba:Dba) = {
-      println(s"add -> $el")
+      val k = key(el)
+      get(k) match {
+        case Right(a: Message) => Left(Dbe(msg="exist"))
+        case Left(l) => dba.get(Last) match {
+          case Right(lkey) =>
+            val lastK = new String(lkey)
 
-      val key = s"${el.name}.${el.key}"
-      val data = el.data
+            get(lastK) match {
+              case Right(e) => {
+                dba.put(Last, k.getBytes)
+                put(e.copy(next=Some(k))).right.map {_=>
+                  put(el.copy(prev=Some(lastK)))
+                }.joinRight
+              }
+              case Left(l) => Left(Dbe(msg=s"broken_links"))
+            }
 
-      def en(k:String):Either[Err,Message] = get(k).right.map { msg =>
-        println(s"map the right $msg")
-        val xs = msg.data.split(Sep, -1)
-        val data = xs(0)
-        val prev = if (xs(1) != "") Some(xs(1)) else None
-        val next = if (xs(2) != "") Some(xs(2)) else None
-        msg.copy(data=data, prev=prev, next=next)
-      }
-
-      en(key) match {
-        case Right(a @ Message(_,_,_,prev,next)) => {
-          println("put the entry")
-//          put(key, Entry(data, prev, next))
-          Right(a)
-        }
-        case Left(l) => {
-          println(s"no entry found $l")
-          dba.get(Last) match {
-            case Right(lastKey) =>
-              println("some last returnel")
-              // insert last
-//              put(key, Entry(data, prev = Some(lastKey), next = None))
-              // link prev to last
-              //val last = en(lastKey).right
-//              put(lastKey, last.copy(next = Some(key)))
-              // update link to last
-//              put(Last, key)
-              Right(el)
-            case Left(l) =>
-              println(s"no last $l")
-//              put(key, Entry(data, prev = None, next = None))
-//              put(First, key)
-//              put(Last, key)
-              Left(l)
-          }
+          case Left(l) =>
+            dba.put(Last, k.getBytes)
+            dba.put(First, k.getBytes)
+            put(el)
         }
       }
     }
+
+    def remove(el:Message)(implicit dba:Dba) = {
+      val k = key(el)
+      val kb = k.getBytes
+
+      get(k).right.map { case e @ Message(_,_,_,prev,next) =>
+        prev match {
+          case Some(p) => get(p).right.map { entry => put(entry.copy(next=next)) }
+          case _=>
+        }// ! errors
+        next match{
+          case Some(n)=> get(n).right.map { entry=> put(entry.copy(prev=prev)) }
+          case _ =>
+        }///! errors
+
+        (dba.get(First), dba.get(Last)) match {
+          case (Right(a),Right(b)) if (new String(a).equals(k) && new String(b).equals(k))=>
+            dba.delete(First)
+            dba.delete(Last)
+          case (Right(r),_) if new String(r).equals(k) => dba.put(First,next.get.getBytes)
+          case (_,Right(r)) if new String(r).equals(k) => dba.put(Last, prev.get.getBytes)
+          case _ =>
+        }
+        delete(k)
+      }.joinRight
+    }
+
+    def entries()(implicit dba:Dba):Either[Err, Iterator[Message]] =
+      dba.get(First).right.map { bs =>
+        get(new String(bs)).right.map { msg =>
+
+          Iterator.iterate(Option(msg)) { m =>
+            m.get.next.map { x =>
+              get(x) match {
+                case Right(xx) => xx
+                case Left(l) => m.get.copy(next=None)
+              }
+            }
+          } takeWhile(_.isDefined) map(_.get)
+        }
+      }.joinRight
   }
 
   implicit object lm extends StatMessageHandler
@@ -225,6 +152,8 @@ object Handler{
     def get(k:String)(implicit dba:Dba):Either[Err,T] = h.get(ky(k)).right.map(g)
     def delete(k:String)(implicit dba:Dba):Either[Err,T] = h.delete(ky(k)).right.map(g)
     def add(el:T)(implicit dba:Dba):Either[Err,T] = h.add(f(el)).right.map(g)
+    def remove(el:T)(implicit dba:Dba):Either[Err,T] = h.remove(f(el)).right.map(g)
+    def entries()(implicit dba:Dba):Either[Err,Iterator[T]] = h.entries().right.map { _ map g }
     def by[T,S](f:T=>S)(g:S=>T) = this
   }
 

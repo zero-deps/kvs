@@ -30,6 +30,8 @@ class Kvs(val system: ExtendedActorSystem) extends Extension {
   def get[H: Handler](k:String):Either[Err,H] = implicitly[Handler[H]].get(k)
   def delete[H:Handler](key: String): Either[Err,H] = implicitly[Handler[H]].delete(key)
   def add[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].add(el)
+  def remove[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].remove(el)
+  def entries[H:Handler]():Either[Err,Iterator[H]] = implicitly[Handler[H]].entries()
 
   def isReady: Future[Boolean] = dba.isReady
   def close:Unit = dba.close
