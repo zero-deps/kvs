@@ -10,16 +10,8 @@ object Build extends sbt.Build{
     settings = defaultSettings ++ publishSettings ++ Seq(
       libraryDependencies ++=Seq(
         "org.scalaz" %% "scalaz-core" % "7.2.0",
-        ("com.playtech.mws" %% "rng" % "1.0-99-g4c53565").
-          exclude("org.scalatest", "scalatest_2.11"),
         "net.sf.opencsv" % "opencsv" % "2.3",
-        ("com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.5.2").
-          exclude("org.scala-lang", "scala-reflect").
-          exclude("com.fasterxml.jackson.core", "jackson-databind").
-          exclude("org.scalatest", "scalatest_2.11"),
-        ("com.fasterxml.jackson.core" % "jackson-databind" % "2.5.2").
-          exclude("com.fasterxml.jackson.core", "jackson-annotations").
-          exclude("com.fasterxml.jackson.core", "jackson-core"),
+        ("com.playtech.mws" %% "rng" % "1.0-99-g4c53565").exclude("org.scalatest", "scalatest_2.11"),
         "junit" % "junit" % "4.12" % "test",
         "org.scalatest"    %% "scalatest" % "2.2.4" % "test",
         "org.scalactic" %% "scalactic" % "2.2.4" % "test",

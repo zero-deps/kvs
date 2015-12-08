@@ -2,9 +2,9 @@ package mws.kvs.importer
 
 import java.io.File
 import akka.actor._
-import com.fasterxml.jackson.core.`type`.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
+//import com.fasterxml.jackson.core.`type`.TypeReference
+//import com.fasterxml.jackson.databind.ObjectMapper
+//import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.fusesource.leveldbjni.JniDBFactory
 import org.iq80.leveldb.Options
 
@@ -19,7 +19,7 @@ class LevelDbImport(val path: String, service: ActorRef) extends Actor with Acto
   val factory = JniDBFactory.factory
   val options = new Options().createIfMissing(true)
   val db = factory.open(dbFile, options)
-  val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
+  //val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
 
   val itr = db.iterator
   itr.seekToFirst()
