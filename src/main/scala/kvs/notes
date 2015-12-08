@@ -33,4 +33,8 @@
  * store handlers
  * - same with modified data
  *
+ * part of val serialization
+ * https://github.com/twitter/bijection
+ * scalaz tagged types
+ * more shit from sz
  */
