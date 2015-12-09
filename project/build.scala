@@ -10,6 +10,8 @@ object Build extends sbt.Build{
     settings = defaultSettings ++ publishSettings ++ Seq(
       libraryDependencies ++=Seq(
         "org.scalaz" %% "scalaz-core" % "7.2.0",
+        "com.twitter" %% "bijection-core" % "0.8.1",
+        "org.scala-lang.modules" %% "scala-pickling" % "0.10.1",
         "net.sf.opencsv" % "opencsv" % "2.3",
         ("com.playtech.mws" %% "rng" % "1.0-99-g4c53565").exclude("org.scalatest", "scalatest_2.11"),
         "junit" % "junit" % "4.12" % "test",

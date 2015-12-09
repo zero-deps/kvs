@@ -24,7 +24,7 @@ object Handler{
   implicit object dh extends DHandler
   implicit object mh extends MessageHandler
   implicit object fdh extends FdHandler
-  implicit object enh extends EHandler
+  implicit object seh extends EHandler[String]
 
   /**
    * Given handler S create the handler for T from conversion functions.

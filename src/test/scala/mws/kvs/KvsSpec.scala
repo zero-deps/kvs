@@ -45,7 +45,7 @@ class KvsSpec(_system:ActorSystem) extends TestKit(_system)
     whenReady(kvs.isReady){r => r should be (true)}
   }
 
-  "user handler" should "implement handler API for user" in {
+  "user handler" should "implement handler API for user" ignore {
     val u1 = User("users","k1", None, None, "{email:andrii.zadorozhnii@gmail.com}")
     val u2 = u1.copy(key="k2")
     val u3 = u1.copy(key="k3")

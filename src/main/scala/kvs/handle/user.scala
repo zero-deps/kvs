@@ -13,8 +13,8 @@ object UserHandler {
   implicit val uh = Handler.by[User,En](f)(g)((s:String) => s)
 */
   val f = (u:User) => (u.cn, u.key, u.prev, u.next, u.data)
-  val g = (e:En) => User(cn=e._1,key=e._2, prev=e._3, next=e._4, data=e._5)
+  val g = (e:En[String]) => User(cn=e._1,key=e._2, prev=e._3, next=e._4, data=e._5)
   val k = (s:String) => s
 
-  implicit val uh = Handler.by[User,En](f)(g)(k)
+  implicit val uh = Handler.by[User,En[String]](f)(g)(k)
 }

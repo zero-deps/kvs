@@ -10,7 +10,9 @@ package object handle {
   type Fid  = String
   type Fd   = Tuple3[Id,Option[String],Int]
   type FdId = Tuple2[Ns,Id]
-  type En   = Tuple5[Fid,Id,Option[String],Option[String],V]
+  type En[T]= Tuple5[Fid,Id,Option[String],Option[String],T]
+
+  type Session = En[String]
 
   case class Message(name:String="message", key:String, data:String, prev:Option[String]=None, next:Option[String]=None)
   case class Metric (name:String= "metric", key:String, data:String, prev:Option[String]=None, next:Option[String]=None)
