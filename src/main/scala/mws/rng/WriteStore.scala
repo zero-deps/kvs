@@ -66,13 +66,13 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
     case BucketPut(data) => sender ! doBucketPut(data)
     case FeedAppend(fid,v,version) =>
-      val fidBytes = fid.getBytes()
-      fromBytesList(fidBytes, classOf[List[Value]]) foreach  {
-        case feed => withBatch(batch => {
-          batch.put(bytes(fidBytes), bytes(v :: feed))
-        })
-        sender() ! feed.size
-      }
+      val fidBytes= bytes(fid)
+      val feed = fromBytesList(leveldb.get(fidBytes), classOf[List[Value]]).getOrElse(Nil)
+      withBatch(batch => {
+        batch.put(bytes(fidBytes), bytes(v :: feed))
+        batch.put(bytes(s"$fid:version"), bytes(version))
+      })
+      sender() ! feed.size
     case unhandled => log.warning(s"[store]unhandled message: $unhandled")
   }
 
