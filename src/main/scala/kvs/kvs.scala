@@ -30,6 +30,9 @@ class Kvs(val system: ExtendedActorSystem) extends Extension {
 
   //todo: create system feeds
 
+  import scala.pickling._, Defaults._,binary._
+
+  //todo: call directly for now. should be managed by feed server for sequential consistency.
   def put[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].put(el)
   def get[H: Handler](k:String):Either[Err,H] = implicitly[Handler[H]].get(k)
   def delete[H:Handler](key: String): Either[Err,H] = implicitly[Handler[H]].delete(key)

@@ -4,108 +4,78 @@ package handle
 import store._
 
 import scala.language.postfixOps
-import scalaz._
-import Scalaz._
 
 /**
- * Entry type handler.
+ * Abstract type entry handler.
+ *
+ * Since we don't know the exact type the pickler/unpickler still needs to be provided explicitly.
  */
-trait EHandler[T] extends Handler[En[T]]{
+trait EnHandler[T] extends Handler[En[T]]{
   import Handler._
-  private val Sep = ";"
+  val fh = implicitly[Handler[Fd]]
 
-  val feedHandler = implicitly[Handler[Fd]]
+  def put(el:En[T])     (implicit dba: Dba):Res[En[T]] = dba.put(el.id, pickle(el)).right.map{_=>el}
+  def get(k: String)    (implicit dba: Dba):Res[En[T]] = dba.get(k).right.map(unpickle)
+  def delete(k: String) (implicit dba: Dba):Res[En[T]] = dba.delete(k).right.map(unpickle)
 
-  private[this] def ns(el:En[T]):String = el._1
-  private[this] def key(el:En[T]):Id = s"${el._1}.${el._2}"
+  /**
+   * Adds the entry to the container specified as id.
+   * Creates the container with specified id if its absent.
+   *
+   * todo: merge top/el update error cases. top update failures now skipped
+   */
+  def add(el: En[T])(implicit dba: Dba): Res[En[T]] = {
+    val eid = s"${el.fid}.${el.id}"
 
-  private[this] def toNs(s:String):Either[Err,(Fid,Id)] = s.split('.') match {
-    case Array(fid,eid) => Right((fid,eid))
-    case k => println(s"${s} broken"); Left(Dbe(msg="broken_key")) }
-
-  private[this] def pickle(el:En[T]):Array[Byte] =
-    (el._5 + Sep + el._3.getOrElse("none") + Sep +el._4.getOrElse("none")).getBytes
-
-  private[this] def depickle(d:Array[Byte]):Tuple3[T,Option[String],Option[String]] = {
-    val xs:Array[String] = new String(d).split(Sep, -1)
-    val data = xs(0).asInstanceOf[T]
-    val prev = if (xs(1) != "none") Some(xs(1)) else None
-    val next = if (xs(2) != "none") Some(xs(2)) else None
-    (data,prev,next)
-  }
-
-  def add(el: En[T])(implicit dba: Dba): Either[Err,En[T]] = {
-    val k = key(el)
-    val ckey = ns(el)
-
-    val feed = feedHandler.get(ckey).left.map {
-      case Dbe("error","not_found") => feedHandler.put(new Fd(ckey,None,0))}.joinLeft
-
-    feed.right.map { c:Fd => get(k) match {
-      case Right(a: En[T]) => Left(Dbe(msg="exist"))
-      case Left(l) => val x:Either[Err,En[T]] = c._2 match {
-        case Some(top) => get(top) match {
-          case Right(e) => {
-            put(e.copy(_4=Some(k)));
-            put(el.copy(_3=Some(top)))
-          }
-          case Left(l) => Left(Dbe(msg=s"broken_links"))
-        }
-        case None => put(el.copy(_1=c._1))
-      }
-      x.right.map { aa:En[T] => feedHandler.put(c.copy(_2=Some(k),_3=c._3 + 1)); aa }
-    }}.joinRight
-  }
-
-  val skip:Either[Err,Fd] = Left(Dbe(msg="skip"))
-
-  def remove(el: En[T])(implicit dba: Dba): Either[Err,En[T]] = {
-    val k = key(el)
-    val kb = k.getBytes
-
-    get(k).right.map { case e @ Tuple5(_,_,prev,next,_) =>
-      prev map { get(_).right.map { entry => put(entry.copy(_4=next)) } }
-      next map { get(_).right.map { entry=> put(entry.copy(_3=prev)) } }
-
-      feedHandler.get(ns(el)).right.map { c:Fd => 
-        c._2 match {
-          case Some(`k`) => feedHandler.put(c.copy(_2=prev,_3=c._3 - 1))
-          case _ =>
-        }
-        c.copy()
-      }
-      delete(k)
+    fh.get(el.fid).left.map {
+      case Dbe("error","not_found") => fh.put(new Fd(el.fid,None,0))
+    }.joinLeft.right.map { feed:Fd =>
+      get(eid).fold(_ =>
+        put(el.copy(id=eid,prev=feed.top)).right.map { _ =>
+          //update top
+          feed.top.map {id=> get(s"${el.fid}.$id").right.map{a=> put(a.copy(next=Some(el.id))) }.joinRight }
+          //update el
+          fh.put(feed.copy(top=Some(el.id),count=feed.count+1)).
+            fold(l => Left(l),r => Right(el.copy(prev=feed.top)))
+        }.joinRight.swap,
+        _ => Right(Dbe("error",s"entry ${el.id} exist in ${el.fid}"))
+      ).swap
     }.joinRight
   }
 
-  val none:Either[Err,En[T]]=Left(Dbe(msg="none"))
-  def nextEntry(implicit dba:Dba): (Either[Err,En[T]]) => Either[Err,En[T]] = _.right.map {_._3.fold(none)(get)}.joinRight
+  /**
+   * Remove the entry from the container specified as id.
+   * todo: check failure cases
+   */
+  def remove(el: En[T])(implicit dba: Dba): Res[En[T]] = {
+    val id = s"${el.fid}.${el.id}"
+    get(id).right.map { _ =>
+      delete(id).fold(
+        l => Left(l),
+        r => r match { case En(fid,_,prev,next,_) =>
+          prev map { get(_).right.map { p => put(p.copy(next=next)) }}
+          next map { get(_).right.map { n => put(n.copy(prev=prev)) }}
 
-  def entries(fid:String, from:Option[En[T]], count:Option[Int])(implicit dba:Dba):Either[Err,List[En[T]]] = 
-    feedHandler.get(fid).right.map { case (fid,top,size) =>
-    val start = (from orElse top).map{_.toString}.get
-    val n = count.getOrElse(size)
-    List.iterate(get(start), n)(nextEntry).sequenceU
-  }.joinRight
-
-  def get(k: String)(implicit dba: Dba): Either[Err,En[T]] = dba.get(k) match {
-    case Right(v) => toNs(k).right.map { case (fid,key) =>
-      val e1 = depickle(v)
-      (fid, key, e1._2, e1._3, e1._1)
-    }
-    case Left(e) => Left(e)
+          fh.get(fid).right.map { feed =>
+            fh.put(feed.copy(top=prev,count=feed.count-1))
+          }.joinRight.right.map{_ => el}
+        })
+    }.joinRight
   }
 
-  def put(el: En[T])(implicit dba: Dba): Either[Err,En[T]] = dba.put(key(el), pickle(el)) match {
-    case Right(v) => Right(el.copy())
-    case Left(e) => Left(e)
-  }
+  /**
+   * Iterate through container and return the list of entry with specified size.
+   */
+  import scalaz._, Scalaz._
 
-  def delete(k: String)(implicit dba: Dba): Either[Err,En[T]] = dba.delete(k) match {
-    case Right(v) => toNs(k).right.map{ case (fid,key) =>
-      val d1 = depickle(v)
-      (fid, key, d1._2, d1._3, d1._1)
-    }
-    case Left(e)  => Left(e)
-  }
+  def entries(fid:String, from:Option[En[T]], count:Option[Int])(implicit dba:Dba):Res[List[En[T]]] = fh.get(fid).fold(
+    l => Left(Dbe("error",s"$fid $l")),
+    r => r match {case Fd(`fid`, top, size) =>
+
+      val none:Res[En[T]] = Left(Dbe(msg="done"))
+      def next:(Res[En[T]]) => Res[En[T]] = _.right.map {_.prev.fold(none)({id=> get(s"$fid.$id")})}.joinRight
+      val start = (from orElse top).map{eid => s"${fid}.${eid}"}.get
+
+      List.iterate(get(start), count.getOrElse(size))(next).sequenceU
+  })
 }

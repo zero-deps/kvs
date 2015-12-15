@@ -38,3 +38,17 @@
  * scalaz tagged types
  * more shit from sz
  */
+
+/**
+ * sample flow to implement
+ */
+
+val u = kvs.get(user, User.id/email)
+
+handler[Acl].check_access(User.id/email, (feature,login)) match {
+  disabled => reject,blocked account
+  _ => msg:notify[user,login,id/email,update_status] [ok]
+}
+
+- handlers should be imported by feed server and guarded with the supervisor.
+- handlers should have the specific methods and this methods should be available in feed server workers.

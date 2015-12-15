@@ -1,22 +1,11 @@
 package mws.kvs
 
+/**
+ * Container/Iterator types
+ *
+ * Case classed as functions and pickled take much less space when scala types.
+ */
 package object handle {
-
-  type D  = Tuple2[String,String]
-
-  type V    = String //  type V <: AnyVal
-  type Ns   = String
-  type Id   = String
-  type Fid  = String
-  type Fd   = Tuple3[Id,Option[String],Int]
-  type FdId = Tuple2[Ns,Id]
-  type En[T]= Tuple5[Fid,Id,Option[String],Option[String],T]
-
-  type Session = En[String]
-
-  case class Message(name:String="message", key:String, data:String, prev:Option[String]=None, next:Option[String]=None)
-  case class Metric (name:String= "metric", key:String, data:String, prev:Option[String]=None, next:Option[String]=None)
-
-  case class Feed(ns:String,id:String)
-  case class User(cn:String, key:String, prev:Option[String]=None, next:Option[String]=None, data:String)
+  case class Fd(id:String,top:Option[String]=None,count:Int=0)
+  case class En[T](fid:String,id:String,prev:Option[String]=None,next:Option[String]=None,data:T)
 }
