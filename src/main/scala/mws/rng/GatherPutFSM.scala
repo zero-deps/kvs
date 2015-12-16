@@ -54,7 +54,7 @@ class GatherPutFSM(val client: ActorRef, t: Int, stores: SelectionMemorize, putI
       stop()
   }
 
-  private[mws] def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
+  def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
     val storeList = nodes.map(stores.get(_, "ring_write_store"))
       storeList.map(ref =>
       ref.fold(_.tell(StorePut(d), self),

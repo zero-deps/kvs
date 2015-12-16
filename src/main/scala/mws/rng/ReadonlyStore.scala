@@ -30,7 +30,7 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
     case _ =>    
   }
 
-  private def doGet(key:Key): Option[List[Data]] = {
+  def doGet(key:Key): Option[List[Data]] = {
     val bucket = hashing findBucket Left(key)
     fromBytesList(leveldb.get(bytes(bucket)), classOf[List[Data]]) match {
       case Some(l) =>

@@ -5,37 +5,24 @@ import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster, ClusterEvent}
 import akka.pattern.ask
 import akka.util.Timeout
-import com.google.common.hash.HashFunction
 import scala.annotation.tailrec
 import scala.collection.SortedMap
 import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.collection.JavaConversions._
 
-/**
-  * rehash when membership changes
-  * find nodes associated with key for get/put
-  */
-
 sealed class RingMessage
-
 //kvs
 case class Put(k: Key, v: Value) extends RingMessage
-
 case class Get(k: Key) extends RingMessage
-
 case class Delete(k: Key) extends RingMessage
-
 //feed
 case class Add(feed: String, v: Value) extends RingMessage
-
 case class Traverse(fid: String, start: Option[Int], end: Option[Int]) extends RingMessage
-
 case class Remove(nb: String, v: Value) extends RingMessage
-
 case class RegisterFeed(feed: String) extends RingMessage
 
-//utilits
+//utilities
 case object Ready
 
 class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with ActorLogging {
@@ -63,16 +50,11 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   val hashing = HashingExtension(system)
   val actorsMem = new SelectionMemorize(system)
 
-  @volatile
-  private var state: CurrentClusterState = CurrentClusterState()
-  @volatile
-  private var vNodes: SortedMap[Bucket, Address] = SortedMap.empty[Bucket, Address]
-  @volatile
-  private var buckets: SortedMap[Bucket, PreferenceList] = SortedMap.empty
-  // {bucket-to-replicas }
-  private var feeds: SortedMap[FeedId, PreferenceList] = SortedMap.empty
-  @volatile
-  private var processedNodes = Set.empty[Member]
+  var state: CurrentClusterState = CurrentClusterState()
+  var vNodes: SortedMap[Bucket, Address] = SortedMap.empty[Bucket, Address]
+  var buckets: SortedMap[Bucket, PreferenceList] = SortedMap.empty
+  var feeds: SortedMap[FeedId, PreferenceList] = SortedMap.empty
+  var processedNodes = Set.empty[Member]
   val feedSuperviser = system.actorOf(Props(classOf[FeedsSupervisor], actorsMem))
 
   override def preStart() = {
@@ -82,7 +64,15 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
 
   override def postStop(): Unit = cluster.unsubscribe(self)
 
-  override def receive: Receive = receiveCl orElse receiveApi
+  override def receive: Receive = ready
+
+  def ready = receiveCl orElse receiveApi
+  def prepearing = notReady orElse receiveApi
+
+  def notReady: Receive =  {
+    case Ready => sender ! false
+    case msg:RingMessage => //ignore all messages
+  }
 
   def receiveApi: Receive = {
     case Put(k, v) => doPut(k, v, sender())
@@ -94,10 +84,9 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     case RegisterFeed(feed) => {
       feeds = feeds + (feed -> nodesForKey(feed))
     }
-
   }
 
-  private[mws] def doPut(k: Key, v: Value, client: ActorRef) = {
+  def doPut(k: Key, v: Value, client: ActorRef):Unit = {
     val bucket = hashing.findBucket(Left(k))
     val nodsFrom = availableNodesFrom(nodesForKey(k))
 
@@ -110,7 +99,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     }
   }
 
-  private[mws] def doGet(key: Key, client: ActorRef) = {
+  def doGet(key: Key, client: ActorRef) : Unit = {
     val fromNodes = availableNodesFrom(nodesForKey(key))
     val refs = fromNodes map {
       actorsMem.get(_, "ring_readonly_store")
@@ -125,7 +114,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     }
   }
 
-  private[mws] def doDelete(k: Key, client: ActorRef) = {
+  def doDelete(k: Key, client: ActorRef) : Unit = {
     import context.dispatcher
     val nodes = nodesForKey(k)
     val deleteF = Future.traverse(availableNodesFrom(nodes))(n =>
@@ -166,7 +155,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     case s: CurrentClusterState => state = s
   }
 
-  private def availableNodesFrom(l: List[Node]) = {
+  def availableNodesFrom(l: List[Node]): List[Node] = {
     val unreachableMembers = state.unreachable.map(m => m.address)
     l filterNot (node => unreachableMembers contains node)
   }
@@ -178,7 +167,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   }
 
   @tailrec
-  private def bucketsToUpdate(bucket: Bucket, max: Int, nodesCount: Int, hasBeenMoved: List[SynchReplica]): List[SynchReplica] = bucket match {
+  final def bucketsToUpdate(bucket: Bucket, max: Int, nodesCount: Int, hasBeenMoved: List[SynchReplica]): List[SynchReplica] = bucket match {
     case -1 => hasBeenMoved
     case bucket: Int =>
       val newNodes = findBucketNodes(bucket * hashing.bucketRange, max, nodesCount, Nil)
@@ -209,7 +198,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   }
 
   @tailrec
-  private def findBucketNodes(hashedKey: Int, maxSearch: Int, nodesAvailable: Int, nodes: List[Node]): List[Node] = maxSearch match {
+  final def findBucketNodes(hashedKey: Int, maxSearch: Int, nodesAvailable: Int, nodes: List[Node]): List[Node] = maxSearch match {
     case 0 => nodes.reverse
     case _ =>
       val it = vNodes.keysIteratorFrom(hashedKey)
@@ -232,7 +221,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   }
 
   @tailrec
-  private def synchNodes(buckets: List[SynchReplica]): Unit = buckets match {
+  final def synchNodes(buckets: List[SynchReplica]): Unit = buckets match {
     case Nil => // done synch
     case (bucket, newReplica, oldReplica) :: tail =>
       (newReplica, oldReplica) match {
@@ -244,7 +233,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
       synchNodes(tail)
   }
 
-  private def updateBucket(bucket: Bucket, nodes: List[Node]): Unit = {
+  def updateBucket(bucket: Bucket, nodes: List[Node]): Unit = {
     import context.dispatcher
     val storesOnNodes = nodes.map {
       actorsMem.get(_, "ring_write_store")
@@ -260,7 +249,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   }
 
   @tailrec
-  private def mergeData(l: List[Data], merged: List[Data]): List[Data] = l match {
+  final def mergeData(l: List[Data], merged: List[Data]): List[Data] = l match {
     case h :: t =>
       merged.find(_.key == h.key) match {
         case Some(d) if h.vc == d.vc && h.lastModified > d.lastModified =>
