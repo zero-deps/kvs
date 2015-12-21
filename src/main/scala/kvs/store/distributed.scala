@@ -8,13 +8,14 @@ import akka.util.ByteString
 import mws.rng.{HashRing, AckSuccess, Ack}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
+import com.typesafe.config.Config
 
 object Ring {
   val not_found:Err = Dbe(msg="not_found")
-  def apply()(implicit system: ExtendedActorSystem): Dba = new Ring(system)
+  def apply(system: ExtendedActorSystem): Dba = new Ring(system)
 }
 
-class Ring(val system: ExtendedActorSystem) extends Dba {
+class Ring(system: ExtendedActorSystem) extends Dba {
   import Ring._
 
   val cluster = Cluster(system)

@@ -2,14 +2,13 @@ package mws.kvs
 package store
 
 import java.io.File
-
 import scala.util.Try
 import scala.concurrent.Future
 import scala.language.implicitConversions
-
 import org.fusesource.leveldbjni.JniDBFactory._
 import org.iq80.leveldb._
 import com.typesafe.config.Config
+import akka.actor.ExtendedActorSystem
 
 object Leveldb {
   implicit def toBytes(value: String): Array[Byte] = bytes(value)
@@ -19,11 +18,12 @@ object Leveldb {
 
   val not_found:Err = Dbe(msg="not_found")
 
-  def apply(cfg:Config):Dba = new Leveldb(cfg)
+  def apply(system: ExtendedActorSystem):Dba = new Leveldb(system)
 }
-class Leveldb(cfg:Config) extends Dba {
+class Leveldb(system: ExtendedActorSystem) extends Dba {
   import Leveldb._
 
+  val cfg = system.settings.config.getConfig("leveldb")
   val leveldbOptions = new Options().createIfMissing(true)
   def leveldbReadOptions = new ReadOptions().verifyChecksums(cfg.checksum)
   val leveldbWriteOptions = new WriteOptions().sync(cfg.fsync).snapshot(false)

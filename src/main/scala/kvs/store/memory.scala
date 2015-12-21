@@ -4,14 +4,15 @@ package store
 import scala.concurrent.Future
 import scala.collection.concurrent.TrieMap
 import com.typesafe.config.Config
+import akka.actor.ExtendedActorSystem
 import Memory.not_found
 
 object Memory {
   val not_found:Err = Dbe(msg="not_found")
 
-  def apply(cfg:Config): Dba = new Memory(cfg)
+  def apply(system: ExtendedActorSystem): Dba = new Memory(system)
 }
-class Memory(cfg:Config) extends Dba {
+class Memory(system: ExtendedActorSystem) extends Dba {
   val storage = TrieMap[String, Array[Byte]]()
 
   def put(key:String,value:Array[Byte]):Either[Err,Array[Byte]] = {

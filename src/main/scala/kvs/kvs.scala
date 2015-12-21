@@ -15,7 +15,7 @@ object Kvs extends ExtensionKey[Kvs] {
   override def lookup = Kvs
   override def createExtension(system: ExtendedActorSystem): Kvs = new Kvs(system)
 }
-class Kvs(val system: ExtendedActorSystem) extends Extension {
+class Kvs(system: ExtendedActorSystem) extends Extension {
   import scala.collection.JavaConverters._
 
   val c = system.settings.config
@@ -26,7 +26,7 @@ class Kvs(val system: ExtendedActorSystem) extends Extension {
   import scala.collection._
 
   implicit val dba:Dba = system.dynamicAccess.createInstanceFor[Dba](store,
-    immutable.Seq(classOf[Config]-> c.getConfig("leveldb"))).get
+    immutable.Seq(classOf[ExtendedActorSystem]-> system)).get
 
   //todo: create system feeds
 
