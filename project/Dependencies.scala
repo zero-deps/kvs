@@ -32,7 +32,7 @@ object Dependencies {
     // Test
 
     object Test {
-      val scalatest     = "org.scalatest"     %% "scalatest"    % "2.1.5"
+      val scalatest     = "org.scalatest"     %% "scalatest"    % "2.1.5" % "test"
       val scalautils    = "org.scalautils"    %% "scalautils"   % "2.1.5" % "test"
       val testkit       = "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
       val multinodekit  = "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion
