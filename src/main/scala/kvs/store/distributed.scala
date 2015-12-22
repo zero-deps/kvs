@@ -3,7 +3,6 @@ package store
 
 import java.util.concurrent.TimeUnit
 import akka.actor.ExtendedActorSystem
-import akka.cluster.Cluster
 import akka.util.ByteString
 import mws.rng.{HashRing, AckSuccess, Ack}
 import scala.concurrent.duration.Duration
@@ -18,9 +17,8 @@ object Ring {
 class Ring(system: ExtendedActorSystem) extends Dba {
   import Ring._
 
-  val cluster = Cluster(system)
   val rng = HashRing(system)
-  Thread.sleep(3000)
+
   val d = Duration(5, TimeUnit.SECONDS)
 
   override def put(key: String, value: V): Either[Err, V] = {
