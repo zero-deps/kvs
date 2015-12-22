@@ -23,9 +23,9 @@ object Build extends sbt.Build{
     scalacOptions ++= Seq("-feature", "-deprecation"))
 
   lazy val buildSettings = Seq(
-    organization := "mws",
+    organization := "com.playtech.mws",
     description := "Abstract Scala Types Key-Value Storage",
-    version := "0.1",
+    version := org.eclipse.jgit.api.Git.open(file(".")).log().setMaxCount(1).call().iterator.next.getName.take(7),
     scalaVersion := "2.11.7")
 
   override lazy val settings = super.settings ++ buildSettings ++ resolverSettings ++ Seq(
