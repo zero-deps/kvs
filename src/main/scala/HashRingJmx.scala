@@ -37,6 +37,7 @@ private[mws] class HashRingJmx(ring:HashRing, log: LoggingAdapter) {
         Await.result(ring.put(key, ByteString(value)),timeout.duration) match {
           case AckSuccess => "ok"
           case AckQuorumFailed => "quorum failed"
+          case AckTimeoutFailed => "failed by timeout"
         }
       }
       def delete(key:String) = ring.delete(key)

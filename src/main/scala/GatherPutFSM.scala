@@ -18,7 +18,7 @@ class GatherPutFSM(val client: ActorRef, t: Int, stores: SelectionMemorize, putI
   setTimer("send_by_timeout", GatherTimeout, t.seconds)
   
   when(Collecting) {
-    case Event(LocalGetResp(data), _) =>
+    case Event(GetResp(data), _) =>
       val vc: VectorClock = data match {
         case Some(d) if d.size == 1 => d.head.vc
         case Some(d) if d.size > 1 => (d map (_.vc)).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
@@ -56,7 +56,7 @@ class GatherPutFSM(val client: ActorRef, t: Int, stores: SelectionMemorize, putI
 
   def mapInPut(nodes: List[Node], d: Data, client: ActorRef) = {
     val storeList = nodes.map(stores.get(_, "ring_write_store"))
-      storeList.map(ref =>
+      storeList.foreach(ref =>
       ref.fold(_.tell(StorePut(d), self),
         _.tell(StorePut(d), self)))
   }

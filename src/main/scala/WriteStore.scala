@@ -8,14 +8,12 @@ import org.iq80.leveldb._
 import scala.annotation.tailrec
 
 case class StoreGet(key:Key)
-case class LocalStoreGet(key:Key, received: ActorRef)
 case class StorePut(data:Data)
 case class StoreDelete(key:Key)
 case class BucketPut(data: List[Data])
 case class BucketDelete(b:Bucket)
 case class BucketGet(b:Bucket)
 case class GetResp(d: Option[List[Data]])
-case class LocalGetResp(d: Option[List[Data]])
 
 case class FeedAppend(fid:String, v:Value,  version: VectorClock)
 sealed trait PutStatus

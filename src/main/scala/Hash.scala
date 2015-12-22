@@ -2,13 +2,13 @@ package mws.rng
 
 import akka.actor._
 import akka.cluster.ClusterEvent._
-import akka.cluster.{Member, Cluster, ClusterEvent}
+import akka.cluster.{Member, Cluster}
 import akka.pattern.ask
 import akka.util.Timeout
 import scala.annotation.tailrec
 import scala.collection.SortedMap
 import scala.concurrent.duration._
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 import scala.collection.JavaConversions._
 
 sealed class RingMessage
@@ -21,13 +21,13 @@ case class Add(feed: String, v: Value) extends RingMessage
 case class Traverse(fid: String, start: Option[Int], end: Option[Int]) extends RingMessage
 case class Remove(nb: String, v: Value) extends RingMessage
 case class RegisterFeed(feed: String) extends RingMessage
-
 //utilities
 case object Ready
+case object Init
 
 class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with ActorLogging {
-
   import context.system
+  implicit val timeout = Timeout(5.second)
 
   val config = system.settings.config.getConfig("ring")
   log.info(s"Ring configuration: ")
@@ -35,10 +35,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     log.info(s"${c.getKey} = ${c.getValue.render()}")
   }
 
-  implicit val timeout = Timeout(5.second)
-
   val quorum = config.getIntList("quorum")
-  //N,W,R
   val N: Int = quorum.get(0)
   val W: Int = quorum.get(1)
   val R: Int = quorum.get(2)
@@ -58,20 +55,30 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   val feedSuperviser = system.actorOf(Props(classOf[FeedsSupervisor], actorsMem))
 
   override def preStart() = {
-    cluster.subscribe(self, ClusterEvent.initialStateAsEvents, classOf[ClusterDomainEvent], classOf[CurrentClusterState])
+    cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[ClusterDomainEvent], classOf[CurrentClusterState])
     cluster.sendCurrentClusterState(self)
+    context.become(preparing)
+    self ! Init
   }
 
   override def postStop(): Unit = cluster.unsubscribe(self)
 
-  override def receive: Receive = ready
+  override def receive: Receive = preparing
 
-  def ready = receiveCl orElse receiveApi
-  def prepearing = notReady orElse receiveApi
+  def ready = receiveApi orElse receiveCl
+  def preparing = notReadyApi orElse receiveCl
 
-  def notReady: Receive =  {
+  def notReadyApi: Receive =  {
     case Ready => sender ! false
-    case msg:RingMessage => //ignore all messages
+    case Init =>
+      val v = Await.result((localRStore ? StoreGet("version")).mapTo[GetResp], timeout.duration)
+      val oldVersion = v.d match {
+        case Some(d) => Some(new String(d.head.value.toArray))
+        case None => None
+      }
+      log.info(s"version = $oldVersion")
+      //doing migration if needed
+    case msg:RingMessage => log.info(s"ignoring $msg because not ready")
   }
 
   def receiveApi: Receive = {
@@ -80,10 +87,8 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     case Delete(k) => doDelete(k, sender())
     case Add(fid, v) => feedSuperviser.tell(AddToFeed(fid, v, nodesForKey(fid)), sender())
     case Traverse(fid, start, end) => feedSuperviser.tell(TraverseFeed(fid, nodesForKey(fid), start, end), sender())
-
-    case RegisterFeed(feed) => {
-      feeds = feeds + (feed -> nodesForKey(feed))
-    }
+    case Ready => sender() ! true
+    case RegisterFeed(feed) => feeds = feeds + (feed -> nodesForKey(feed))
   }
 
   def doPut(k: Key, v: Value, client: ActorRef):Unit = {
@@ -93,7 +98,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     if (nodsFrom.size >= W) {
       val info: PutInfo = PutInfo(k, v, N, W, bucket, local, nodsFrom)
       val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
-      localRStore ! LocalStoreGet(k, gather)
+      localRStore.tell(StoreGet(k), gather)
     } else {
       client ! AckQuorumFailed
     }
@@ -133,6 +138,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
           })
           synchNodes(bucketsToUpdate(member.address))
           // TODO synch named bucket
+          if(processedNodes.size == N) context.become(ready)
           log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
         case UnreachableMember(member) =>
           // TODO synch named bucket
@@ -151,7 +157,6 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
         case _ =>
       }
 
-    case Ready => sender() ! (state.members.size == processedNodes.size)
     case s: CurrentClusterState => state = s
   }
 
@@ -167,7 +172,8 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   }
 
   @tailrec
-  final def bucketsToUpdate(bucket: Bucket, max: Int, nodesCount: Int, hasBeenMoved: List[SynchReplica]): List[SynchReplica] = bucket match {
+  final def bucketsToUpdate(bucket: Bucket, max: Int, nodesCount: Int, hasBeenMoved: List[SynchReplica]): List[SynchReplica] =
+    bucket match {
     case -1 => hasBeenMoved
     case bucket: Int =>
       val newNodes = findBucketNodes(bucket * hashing.bucketRange, max, nodesCount, Nil)
