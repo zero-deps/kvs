@@ -37,12 +37,15 @@ object Build extends sbt.Build{
       +: Seq("MWS Releases" at "http://ua-mws-nexus01.ee.playtech.corp/nexus/content/repositories/releases/"))
 
   lazy val publishSettings = Seq(
-    isSnapshot := true,
-    publishMavenStyle := true,
-    publishLocal <<= publishM2,
+    publishTo := Some("MWS Releases" at "http://ua-mws-nexus01.ee.playtech.corp/nexus/content/repositories/releases"),
+    credentials += Credentials("Sonatype Nexus Repository Manager", "ua-mws-nexus01.ee.playtech.corp", "wpl-deployer", "aG1reeshie"),
+    publishArtifact := true,
+    publishArtifact in Compile := false,
     publishArtifact in (Compile, packageBin) := true,
-    publishArtifact in (Compile, packageDoc) := false,
-    publishArtifact in (Compile, packageSrc) := false,
-    publishArtifact in Test := false
+    publishArtifact in Test := false,
+    publishMavenStyle := true,
+    pomIncludeRepository := (_ => false),
+    publishLocal <<= publishM2,
+    isSnapshot := true
   )
 }
