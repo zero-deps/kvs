@@ -32,9 +32,8 @@ object Build extends sbt.Build{
     shellPrompt := (Project.extract(_).currentProject.id + " > "))
 
   lazy val resolverSettings = Seq(
-    credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
-    resolvers := Resolver.mavenLocal
-      +: Seq("MWS Releases" at "http://ua-mws-nexus01.ee.playtech.corp/nexus/content/repositories/releases/"))
+    resolvers += Resolver.mavenLocal
+  )
 
   lazy val publishSettings = Seq(
     publishTo := Some("MWS Releases" at "http://ua-mws-nexus01.ee.playtech.corp/nexus/content/repositories/releases"),
