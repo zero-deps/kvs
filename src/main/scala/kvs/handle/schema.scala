@@ -3,6 +3,7 @@ package handle
 
 import scala.language.{higherKinds,implicitConversions}
 import scalaz._, Scalaz._, Tags._
+import scala.pickling._, binary._, Defaults._
 
 import store._, handle._
 
@@ -65,7 +66,10 @@ object SocialSchema {
   type User = En[Feeds] @@ Usr
   implicit def User(u:En[Feeds]):En[Feeds] @@ Usr = Tag[En[Feeds], Usr](u)
 
-  import scala.pickling._, binary._, Defaults._
+  trait S
+  type Ss = En[String] @@ S
+  def Ss(s:En[String]):En[String] @@ S = Tag[En[String],S](s)
+
 
   implicit object enFeedsHandler extends EnHandler[Feeds]{
     def pickle(e:En[Feeds]) = e.pickle.value
@@ -76,4 +80,41 @@ object SocialSchema {
   def u2en(s:User):En[Feeds] = Tag.unwrap(s)
 
   implicit val usrHandler:Handler[User] = Handler.by[User,En[Feeds]](u2en)(en2u)(identity(_))
+
+  def en2s(e:En[String]):Ss = Ss(e)
+  def s2en(s:Ss):En[String] = Tag.unwrap(s)
+
+  implicit val sessionHandler:Handler[Ss] = Handler.by[Ss,En[String]](s2en)(en2s)(identity(_))
+
 }
+
+/**
+ * User Games schema
+ */
+object GamesSchema {
+  val usrFeeds = List(Left("favorite"), Left("recent"))
+
+  case class Game(id:String,title:String,body:String)
+
+  trait Fav
+  type Favorite = En[Game] @@ Fav
+  implicit def Favorite(g:En[Game]):En[Game] @@ Fav = Tag[En[Game], Fav](g)
+
+  trait Rct
+  type Recent = En[Game] @@ Rct
+  implicit def Recent(g:En[Game]):En[Game] @@ Rct = Tag[En[Game], Rct](g)
+
+  implicit object gameHandler extends EnHandler[Game]{
+    def pickle(e:En[Game]) = e.pickle.value
+    def unpickle(a:Array[Byte]) = a.unpickle[En[Game]]
+  }
+
+  def en2f(e:En[Game]):Favorite = Favorite(e) 
+  def f2en(f:Favorite):En[Game] = Tag.unwrap(f)
+  implicit val favHandler:Handler[Favorite] = Handler.by[Favorite,En[Game]](f2en)(en2f)(identity(_))
+
+  def en2r(e:En[Game]):Recent = Recent(e)
+  def r2en(r:Recent):En[Game] = Tag.unwrap(r)
+  implicit val revHandler:Handler[Recent] = Handler.by[Recent,En[Game]](r2en)(en2r)(identity(_))
+}
+
