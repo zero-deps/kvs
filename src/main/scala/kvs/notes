@@ -52,3 +52,6 @@ handler[Acl].check_access(User.id/email, (feature,login)) match {
 
 - handlers should be imported by feed server and guarded with the supervisor.
 - handlers should have the specific methods and this methods should be available in feed server workers.
+
+
+(typeName: String, entityProps: Option[akka.actor.Props], idExtractor: akka.contrib.pattern.ShardRegion.IdExtractor, shardResolver: akka.contrib.pattern.ShardRegion.ShardResolver)
