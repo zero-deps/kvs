@@ -4,6 +4,7 @@ import store._
 import handle._
 
 import akka.actor.{ExtensionKey, Extension, ExtendedActorSystem}
+import akka.event.Logging
 import com.typesafe.config.Config
 
 import scala.concurrent.Future
@@ -18,6 +19,8 @@ object Kvs extends ExtensionKey[Kvs] {
 class Kvs(system: ExtendedActorSystem) extends Extension {
   import scala.collection.JavaConverters._
 
+  val log = Logging(system, "kvs")
+  var jmx: Option[KvsJmx] = None
   val c = system.settings.config
   val kvsCfg = c.getConfig("kvs")
   val store = kvsCfg.getString("store")
@@ -27,6 +30,13 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
 
   implicit val dba:Dba = system.dynamicAccess.createInstanceFor[Dba](store,
     immutable.Seq(classOf[ExtendedActorSystem]-> system)).get
+
+  if (system.settings.config.getConfig("akka.cluster").getBoolean("jmx.enabled")) jmx = {
+    val jmx = new KvsJmx(this, log)
+    jmx.createMBean()
+    Some(jmx)
+  }
+  sys.addShutdownHook { jmx foreach {_.unregisterMBean} }
 
   //todo: create system feeds
 
