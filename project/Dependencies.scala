@@ -35,7 +35,7 @@ object Dependencies {
       val scalatest     = "org.scalatest"     %% "scalatest"    % "2.1.5" % "test"
       val scalautils    = "org.scalautils"    %% "scalautils"   % "2.1.5" % "test"
       val testkit       = "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
-      val multinodekit  = "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion
+      val multinodekit  = "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion % "test"
       //val remotetest    = "com.typesafe.akka" %% "akka-remote-tests" % akkaVersion % "test"
       val specs2        = "org.specs2" %% "specs2" % "2.3.12" % "test"
       //val junit         = "junit" % "junit" % "4.10" % "test"
