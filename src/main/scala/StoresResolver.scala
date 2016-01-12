@@ -5,13 +5,21 @@ import akka.actor._
 case class Watch(a: ActorRef)
 case class Select(node: Node, path: String)
 
+object SelectionMemorize extends ExtensionId[SelectionMemorize] with ExtensionIdProvider {
+
+  override def createExtension(system: ExtendedActorSystem): SelectionMemorize =
+    new SelectionMemorize(system)
+
+  override def lookup = SelectionMemorize
+}
+
 trait ActorRefStorage {
-  def get(node: Node, path: String): Either[ActorRef, ActorSelection] //TODO return only actorRef, wait first time
+  def get(node: Node, path: String): Either[ActorRef, ActorSelection]
   def put(n: (Node, String), actor: ActorRef)
   def remove(node: (Node, String)): Unit
 }
 
-class SelectionMemorize(val s: ActorSystem)  extends ActorRefStorage {
+class SelectionMemorize(val s: ActorSystem)  extends  Extension with ActorRefStorage {
 
   @volatile
   private var map = Map.empty[(Node, String), ActorRef]

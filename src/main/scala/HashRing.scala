@@ -1,14 +1,13 @@
 package mws.rng
 
 import java.io.File
-
 import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.Timeout
 import org.iq80.leveldb._
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 
 object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
@@ -24,10 +23,10 @@ object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
 class HashRing(val system:ExtendedActorSystem) extends Extension {
   implicit val timeout = Timeout(5.second)
   lazy val log = Logging(system, "hash-ring")
+
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
   system.eventStream
   var jmx: Option[HashRingJmx] = None
-  //ADD connection
   val configPath = "ring.leveldb"
   val config = system.settings.config.getConfig(configPath)
   val nativeLeveldb = config.getBoolean("native")
@@ -77,6 +76,10 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
 
   def delete(k: String): Future[Ack] = {
     (hash ? Delete(k)).mapTo[Ack]
+  }
+
+  def regNamedBucket(bid: String): Unit = {
+    Await.ready(hash ? RegisterBucket(bid), timeout.duration)
   }
 
   def travers(fid:String, start: Option[Int], end: Option[Int]):Future[List[Value]] = {

@@ -2,57 +2,52 @@ package mws.rng
 
 import akka.actor._
 import akka.cluster.VectorClock
+import mws.rng.BucketGuard.{GuardData, GuardState}
 
-object FeedsSupervisor{
+object BucketGuard{
   val ZERO_VECTOR_CLOCK = new VectorClock()
+  sealed trait GuardState
+  sealed trait GuardData
 }
-//api
-sealed trait FeedAPI
-case class AddToFeed(fid: String, v: Value, nodes: Seq[Node]) extends FeedAPI
-case class TraverseFeed(fid: String, nodes: Seq[Node], start: Option[Int], end: Option[Int]) extends FeedAPI
-
-//TODO add timeout
-//TODO extract fid and nodes to field ecause one feed handlers by one worker
-class FeedsSupervisor(stores: SelectionMemorize) extends Actor with ActorLogging{
-  val add = context.system.actorOf(Props(classOf[AddWorker],stores), "add_wrkr")
-  val travers = context.system.actorOf(Props(classOf[TraverseWorker],stores), "trv_wrk")
+class BucketGuard(bid: String, nodes: List[Node]) extends FSM[GuardState,GuardData] with ActorLogging{
+  val add = context.system.actorOf(Props(classOf[AddWorker], nodes, bid), "add_wrkr")
+  val travers = context.system.actorOf(Props(classOf[TraverseWorker], nodes,bid), "trv_wrkr")
 
   override def receive: Receive = {
-    case msg :AddToFeed =>
+    case msg :Add =>
       log.info(s"Superviser $msg")
       add.tell( msg,sender())
-    case msg: TraverseFeed =>
+    case msg: Traverse =>
       log.info(s"Superviser $msg")
-      travers .tell( msg,sender())
-    case e => log.info(s"unexpected msg $e")
+      travers.tell( msg,sender())
+    case e => log.warning(s"unexpected msg $e")
   }
 }
 
 //workers
-
-case class WorkerData(msg: Option[FeedAPI], vs: List[(Node, Option[VectorClock])], updated: List[Node], client: Option[ActorRef])
+case class WorkerData(msg: Option[RingMessage], vs: List[(Node, Option[VectorClock])], nodes: List[Node],
+                      client: Option[ActorRef], updated: List[Node])
 
 sealed trait FeedWorkerState
 case object CollectingVersions extends FeedWorkerState
 case object WaitingStatuses extends FeedWorkerState
 case object Idle extends FeedWorkerState
 
-//TODO time out, rollback, read quorum from config
-//TODO return Id
-
-class AddWorker(stores: SelectionMemorize) extends FSM[FeedWorkerState, WorkerData] with ActorLogging {
+//TODO time out, read quorum from config
+class AddWorker(bid:String, ns: List[Node]) extends FSM[FeedWorkerState, WorkerData] with ActorLogging {
   val c = context.system.settings.config.getIntList("ring.quorum")
+  val stores = SelectionMemorize(context.system)
   val N = c.get(0)
 
-  startWith(Idle, WorkerData(None, Nil, Nil, None))
+  startWith(Idle, WorkerData(None, Nil, ns, None, Nil))
 
   when(Idle) {
-    case Event(msg:AddToFeed, state) =>
-      msg.nodes foreach (stores.get(_, "ring_readonly_store").fold(
-        _.tell(StoreGet(s"${msg.fid}:version"), self),
-        _.tell(StoreGet(s"${msg.fid}:version"), self)
+    case Event(msg:Add, state) =>
+      state.nodes foreach (stores.get(_, "ring_readonly_store").fold(
+        _.tell(StoreGet(s"${msg.bid}:version"), self),
+        _.tell(StoreGet(s"${msg.bid}:version"), self)
       ))
-      goto(CollectingVersions) using WorkerData(Some(msg), Nil, Nil, Some(sender()))
+      goto(CollectingVersions) using WorkerData(Some(msg), Nil, state.nodes, Some(sender()),Nil)
   }
 
   when(CollectingVersions) {
@@ -61,17 +56,17 @@ class AddWorker(stores: SelectionMemorize) extends FSM[FeedWorkerState, WorkerDa
         case None => None
         case Some(data) => Some(data.head.vc)
       }
-      val s = WorkerData(state.msg, (sender.path.address, vc) :: state.vs, Nil, state.client)
+      val s = WorkerData(state.msg, (sender.path.address, vc) :: state.vs, state.nodes, state.client, Nil)
       s.msg match  {
-        case Some(AddToFeed(fid, v, nodes)) if nodes.size == s.vs.size =>
+        case Some(Add(`bid`, v)) if state.nodes.size == s.vs.size =>
           val newVc = s.vs.flatMap(_._2) match {
             case Nil => new VectorClock().:+(self.path.address.toString)
             case l => l.head.:+(self.path.address.toString)
           }
-          nodes foreach(
+          state.nodes foreach(
           stores.get(_, "ring_write_store").fold(
-            _.tell(FeedAppend(fid, v,newVc), self),
-            _.tell(FeedAppend(fid, v, newVc), self))
+            _.tell(FeedAppend(bid, v,newVc), self),
+            _.tell(FeedAppend(bid, v, newVc), self))
             )
           goto(WaitingStatuses) using s
         case Some(m) => stay() // TODO update outdated nodes
@@ -84,28 +79,28 @@ class AddWorker(stores: SelectionMemorize) extends FSM[FeedWorkerState, WorkerDa
       sender.path.address :: state.updated match {
         case l if l.size == N =>
           state.client foreach (_ ! id)
-          goto(Idle) using WorkerData(None, Nil, Nil, None)
-        case l => stay() using WorkerData(None, Nil, l, state.client)
+          goto(Idle) using WorkerData(None, Nil, state.nodes, None, Nil)
+        case l => stay() using WorkerData(None, Nil,state.nodes , state.client, l)
       }
   }
   initialize()
 }
 
-class TraverseWorker(stores: SelectionMemorize) extends FSM[FeedWorkerState, WorkerData] with ActorLogging{
-  import  FeedsSupervisor._
+class TraverseWorker(stores: SelectionMemorize, ns: List[Node]) extends FSM[FeedWorkerState, WorkerData] with ActorLogging{
+  import  BucketGuard._
   val c = context.system.settings.config.getIntList("ring.quorum")
   val N = c.get(0)
   val R = c.get(2)
-  startWith(Idle, WorkerData(None, Nil,Nil,None))
+  startWith(Idle, WorkerData(None, Nil, ns, None, Nil))
 
   when(Idle){
-    case Event(msg:TraverseFeed, state) =>
+    case Event(msg:Traverse, state) =>
       println(s"TraverseFeed WORKER $msg")
-      msg.nodes foreach (stores.get(_, "ring_readonly_store").fold(
-        _.tell(StoreGet(s"${msg.fid}:version"), self),
-        _.tell(StoreGet(s"${msg.fid}:version"), self)
+      state.nodes foreach (stores.get(_, "ring_readonly_store").fold(
+        _.tell(StoreGet(s"${msg.bid}:version"), self),
+        _.tell(StoreGet(s"${msg.bid}:version"), self)
       ))
-      goto(CollectingVersions) using WorkerData(Some(msg), Nil, Nil, Some(sender()))
+      goto(CollectingVersions) using WorkerData(Some(msg), Nil, state.nodes, Some(sender()), Nil)
   }
 
   when(CollectingVersions) {
@@ -116,23 +111,23 @@ class TraverseWorker(stores: SelectionMemorize) extends FSM[FeedWorkerState, Wor
       }
       (sender.path.address, version) :: state.vs match {
         case l if l.size < R =>
-          stay() using WorkerData(state.msg, l, Nil, state.client)
+          stay() using WorkerData(state.msg, l, state.nodes, state.client, Nil)
         case l => l find(v => v._1 == self.path.address) match {
           case Some(local) if l forall( v => v._2.getOrElse(ZERO_VECTOR_CLOCK) == local._2.getOrElse(ZERO_VECTOR_CLOCK)
             || v._2.getOrElse(ZERO_VECTOR_CLOCK) < local._2.getOrElse(ZERO_VECTOR_CLOCK)) =>
             stores.get(self.path.address, "ring_readonly_store").fold(
             _.tell(state.msg.get, state.client.get),
             _.tell(state.msg.get, state.client.get))
-            goto(Idle) using WorkerData(None, Nil, Nil, None)
+            goto(Idle) using WorkerData(None, Nil, state.nodes, None, Nil)
           case None if l.size < N =>
-            stay() using WorkerData(state.msg, (sender().path.address, version) :: state.vs, Nil, state.client)
+            stay() using WorkerData(state.msg, (sender().path.address, version) :: state.vs, state.nodes, state.client, Nil)
           case _ => // TODO update old nodes
             state.msg foreach(trav =>
               stores.get(l.head._1, "ring_readonly_store").fold(
               _.tell(trav, state.client.get),
               _.tell(trav, state.client.get))
               )
-            goto(Idle) using WorkerData(None, Nil, Nil, None)
+            goto(Idle) using WorkerData(None, Nil, state.nodes, None, Nil)
         }
       }
   }

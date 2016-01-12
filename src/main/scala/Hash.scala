@@ -17,10 +17,10 @@ case class Put(k: Key, v: Value) extends RingMessage
 case class Get(k: Key) extends RingMessage
 case class Delete(k: Key) extends RingMessage
 //feed
-case class Add(feed: String, v: Value) extends RingMessage
-case class Traverse(fid: String, start: Option[Int], end: Option[Int]) extends RingMessage
+case class Add(bid: String, v: Value) extends RingMessage
+case class Traverse(bid: String, start: Option[Int], end: Option[Int]) extends RingMessage
 case class Remove(nb: String, v: Value) extends RingMessage
-case class RegisterFeed(feed: String) extends RingMessage
+case class RegisterBucket(bid: String) extends RingMessage
 //utilities
 case object Ready
 case object Init
@@ -45,14 +45,13 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   val cluster = Cluster(system)
   val local: Address = cluster.selfAddress
   val hashing = HashingExtension(system)
-  val actorsMem = new SelectionMemorize(system)
+  val actorsMem = SelectionMemorize(system)
 
   var state: CurrentClusterState = CurrentClusterState()
   var vNodes: SortedMap[Bucket, Address] = SortedMap.empty[Bucket, Address]
   var buckets: SortedMap[Bucket, PreferenceList] = SortedMap.empty
-  var feeds: SortedMap[FeedId, PreferenceList] = SortedMap.empty
+  var feedNodes: SortedMap[FeedId, PreferenceList] = SortedMap.empty
   var processedNodes = Set.empty[Member]
-  val feedSuperviser = system.actorOf(Props(classOf[FeedsSupervisor], actorsMem))
 
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[ClusterDomainEvent], classOf[CurrentClusterState])
@@ -78,17 +77,33 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
       }
       log.info(s"version = $oldVersion")
       //doing migration if needed
-    case msg:RingMessage => log.info(s"ignoring $msg because not ready")
+    case msg:RingMessage => log.info(s"ignoring $msg because ring is not ready")
   }
 
   def receiveApi: Receive = {
     case Put(k, v) => doPut(k, v, sender())
     case Get(k) => doGet(k, sender())
     case Delete(k) => doDelete(k, sender())
-    case Add(fid, v) => feedSuperviser.tell(AddToFeed(fid, v, nodesForKey(fid)), sender())
-    case Traverse(fid, start, end) => feedSuperviser.tell(TraverseFeed(fid, nodesForKey(fid), start, end), sender())
+    case msg: Add => feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
+      _ ! msg, _ ! msg
+    ))
+    case msg: Traverse => feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
+      _ ! msg, _ ! msg
+    ))
     case Ready => sender() ! true
-    case RegisterFeed(feed) => feeds = feeds + (feed -> nodesForKey(feed))
+    case m: RegisterBucket =>
+      log.info(s"[hash] register bucket ${m.bid}")
+      if(feedNodes(m.bid).isEmpty)
+        feedNodes = feedNodes + (m.bid -> nodesForKey(m.bid))
+
+      feedNodes(m.bid).headOption foreach {
+        case n if n == local =>
+          log.info(s"[hash] spawn guard for ${m.bid}")
+          system.actorOf(Props(classOf[BucketGuard], nodesForKey(m.bid)),s"${m.bid}-guard")
+          sender() ! "ok"
+        case n => actorsMem.get(n,"hash").fold( // head is guard
+        _ ! m, _ ! m
+      )}
   }
 
   def doPut(k: Key, v: Value, client: ActorRef):Unit = {

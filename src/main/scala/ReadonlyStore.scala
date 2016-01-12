@@ -21,7 +21,7 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case StoreGet(key) => sender ! GetResp(doGet(key))
-    case TraverseFeed(fid, _, start, end) =>
+    case Traverse(fid, start, end) =>
       fromBytesList(leveldb.get(bytes(fid)), classOf[List[Value]]) match {
         case Some(feed) => sender() ! feed.slice(start.getOrElse(0), end.getOrElse(feed.size))
         case None => sender() ! Nil
