@@ -230,7 +230,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
       prefList.length match {
         case `N` => prefList.reverse
         case `nodesAvailable` => prefList.reverse
-        case _ => findBucketNodes(hashedNode + 1, nodesAvailable, maxSearch - 1, prefList)
+        case _ => findBucketNodes(hashedNode + 1, maxSearch - 1,nodesAvailable, prefList)
       }
   }
 
