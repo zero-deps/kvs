@@ -8,7 +8,7 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int, refResolver: ActorR
   extends FSM[FsmState, FsmData] with ActorLogging{
   
   startWith(Collecting, DataCollection(Nil, Nil))
-  setTimer("send_by_timeout", GatherTimeout, t.seconds)
+  setTimer("send_by_timeout", OpsTimeout, t.seconds)
 
   def updateIfNeeded(correct: Data, fromNodes: DataCollection) = {
     fromNodes.perNode collect {
@@ -33,11 +33,11 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int, refResolver: ActorR
     case Event(GetResp(rez), state@DataCollection(perNode, inconsistent)) =>
       updateFSMState(rez, state, sender().path.address) match {
         case d @ DataCollection(l, inc) if d.size == R =>
-          val response = mostFresh(l.map(_._1).flatten ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
+          val response = mostFresh(l.flatMap(_._1) ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
           client ! response.map(_.value)
           goto(Sent) using d
         case d @ DataCollection(l, inc) if d.size == N => // fuck          
-          val response = mostFresh(l.map(_._1).flatten ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
+          val response = mostFresh(l.flatMap(_._1) ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
           client ! response.map(_.value)
           response.foreach(updateIfNeeded(_, d))
           cancelTimer("send_by_timeout")
@@ -45,8 +45,8 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int, refResolver: ActorR
         case d => stay() using d
       }
       
-    case Event(GatherTimeout, DataCollection(l, inc)) =>
-      val response = mostFresh(l.map(_._1).flatten ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
+    case Event(OpsTimeout, DataCollection(l, inc)) =>
+      val response = mostFresh(l.flatMap(_._1) ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
       client ! response.map(_.value)      
       // cannot fix inconsistent because quorum not satisfied. But check what can do
       cancelTimer("send_by_timeout")
@@ -57,7 +57,7 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int, refResolver: ActorR
     case Event(GetResp(rez), state@DataCollection(l, inc)) =>
       val newState = updateFSMState(rez, state, sender().path.address)
       if (newState.size == N) {
-        val response = mostFresh(l.map(_._1).flatten ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
+        val response = mostFresh(l.flatMap(_._1) ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
         response.foreach(updateIfNeeded(_, state))
         cancelTimer("send_by_timeout")      
         stop()
@@ -65,8 +65,8 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int, refResolver: ActorR
         stay() using newState
       }     
       
-    case Event(GatherTimeout, state @ DataCollection(l, inc) ) =>
-      val response = mostFresh(l.map(_._1).flatten ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
+    case Event(OpsTimeout, state @ DataCollection(l, inc) ) =>
+      val response = mostFresh(l.flatMap(_._1) ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
       response.foreach(updateIfNeeded(_, state))
       cancelTimer("send_by_timeout")
       stop()

@@ -38,5 +38,9 @@ package object rng {
     def size = perNode.size + inconsistent.size
   }
   case class ReceivedValues(n: Int) extends FsmData
-  case object GatherTimeout
+  case object OpsTimeout
+
+  def orderHistorically(l: List[(Node, VectorClock)]) :
+  (List[(Node, VectorClock)],List[(Node, VectorClock)],List[(Node, VectorClock)]) = ???
+
 }

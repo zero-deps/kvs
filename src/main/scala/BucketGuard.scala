@@ -1,5 +1,6 @@
 package mws.rng
 
+import scala.concurrent.duration._
 import akka.actor._
 import akka.cluster.VectorClock
 import mws.rng.BucketGuard.{GuardData, GuardState}
@@ -25,7 +26,7 @@ class BucketGuard(bid: String, nodes: List[Node]) extends FSM[GuardState,GuardDa
 }
 
 //workers
-case class WorkerData(msg: Option[RingMessage], vs: List[(Node, Option[VectorClock])], nodes: List[Node],
+case class WorkerData(msg: Option[RingMessage], versions: List[(Node, Option[VectorClock])], nodes: List[Node],
                       client: Option[ActorRef], updated: List[Node])
 
 sealed trait FeedWorkerState
@@ -33,13 +34,14 @@ case object CollectingVersions extends FeedWorkerState
 case object WaitingStatuses extends FeedWorkerState
 case object Idle extends FeedWorkerState
 
-//TODO time out, read quorum from config
 class AddWorker(bid:String, ns: List[Node]) extends FSM[FeedWorkerState, WorkerData] with ActorLogging {
   val c = context.system.settings.config.getIntList("ring.quorum")
   val stores = SelectionMemorize(context.system)
   val N = c.get(0)
+  val t = context.system.settings.config.getInt("ring.gather-timeout")
 
   startWith(Idle, WorkerData(None, Nil, ns, None, Nil))
+  setTimer("add_timeout", OpsTimeout, t.seconds )
 
   when(Idle) {
     case Event(msg:Add, state) =>
@@ -56,21 +58,21 @@ class AddWorker(bid:String, ns: List[Node]) extends FSM[FeedWorkerState, WorkerD
         case None => None
         case Some(data) => Some(data.head.vc)
       }
-      val s = WorkerData(state.msg, (sender.path.address, vc) :: state.vs, state.nodes, state.client, Nil)
-      s.msg match  {
-        case Some(Add(`bid`, v)) if state.nodes.size == s.vs.size =>
-          val newVc = s.vs.flatMap(_._2) match {
+      val updState = WorkerData(state.msg, (sender.path.address, vc) :: state.versions, state.nodes, state.client, Nil)
+      updState.msg match  {
+        case Some(Add(`bid`, v)) if state.nodes.size == updState.versions.size =>
+          val newVc = updState.versions.flatMap(_._2) match {
             case Nil => new VectorClock().:+(self.path.address.toString)
-            case l => l.head.:+(self.path.address.toString)
+            case l => l.head.:+(self.path.address.toString) // **** need update old
           }
           state.nodes foreach(
           stores.get(_, "ring_write_store").fold(
             _.tell(FeedAppend(bid, v,newVc), self),
             _.tell(FeedAppend(bid, v, newVc), self))
             )
-          goto(WaitingStatuses) using s
+          goto(WaitingStatuses) using updState
         case Some(m) => stay() // TODO update outdated nodes
-        case None => stay() using s //TODO stop and notify client about fail
+        case None => stay() using updState //TODO stop and notify client about fail
       }
   }
 
@@ -109,7 +111,7 @@ class TraverseWorker(stores: SelectionMemorize, ns: List[Node]) extends FSM[Feed
         case None => None
         case Some(l) => Some(l.head.vc)
       }
-      (sender.path.address, version) :: state.vs match {
+      (sender.path.address, version) :: state.versions match {
         case l if l.size < R =>
           stay() using WorkerData(state.msg, l, state.nodes, state.client, Nil)
         case l => l find(v => v._1 == self.path.address) match {
@@ -120,7 +122,7 @@ class TraverseWorker(stores: SelectionMemorize, ns: List[Node]) extends FSM[Feed
             _.tell(state.msg.get, state.client.get))
             goto(Idle) using WorkerData(None, Nil, state.nodes, None, Nil)
           case None if l.size < N =>
-            stay() using WorkerData(state.msg, (sender().path.address, version) :: state.vs, state.nodes, state.client, Nil)
+            stay() using WorkerData(state.msg, (sender().path.address, version) :: state.versions, state.nodes, state.client, Nil)
           case _ => // TODO update old nodes
             state.msg foreach(trav =>
               stores.get(l.head._1, "ring_readonly_store").fold(
