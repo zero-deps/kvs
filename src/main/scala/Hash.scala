@@ -113,7 +113,8 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     if (nodsFrom.size >= W) {
       val info: PutInfo = PutInfo(k, v, N, W, bucket, local, nodsFrom)
       val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
-      localRStore.tell(StoreGet(k), gather)
+      val node = nodsFrom.find( _ == local).getOrElse(nodsFrom.head)
+        actorsMem.get(node, "ring_readonly_store").fold( _.tell(StoreGet(k), gather), _.tell(StoreGet(k), gather))
     } else {
       client ! AckQuorumFailed
     }
@@ -121,12 +122,10 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
 
   def doGet(key: Key, client: ActorRef) : Unit = {
     val fromNodes = availableNodesFrom(nodesForKey(key))
-    val refs = fromNodes map {
-      actorsMem.get(_, "ring_readonly_store")
-    }
-    if (refs.nonEmpty) {
+    if (fromNodes.nonEmpty) {
       val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, gatherTimeout, actorsMem))
-      refs foreach (store => store.fold(
+      val stores = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
+      stores foreach (store => store.fold(
         _.tell(StoreGet(key), gather),
         _.tell(StoreGet(key), gather)))
     } else {
