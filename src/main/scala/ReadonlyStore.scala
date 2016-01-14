@@ -8,6 +8,7 @@ import org.iq80.leveldb._
 class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
   val serialization = SerializationExtension(context.system)
   val hashing = HashingExtension(context.system)
+  val local: Node = self.path.address
 
   def bytes(any: Any): Array[Byte] = any match {
     case b: Bucket => ByteBuffer.allocate(4).putInt(b).array()
@@ -35,7 +36,7 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
       case Some(l) =>
         val sameKey: List[Data] = l.filter(d => d.key.equals(key))
         if (sameKey.isEmpty) None else {
-          log.debug(s"[store][get] $key")
+          log.debug(s"${local} : [store][get] key = $key, v = $sameKey")
           Some(sameKey)
         }
       case None => None

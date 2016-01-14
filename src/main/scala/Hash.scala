@@ -70,7 +70,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   def notReadyApi: Receive =  {
     case Ready => sender ! false
     case Init =>
-      val v = Await.result((localRStore ? StoreGet("version")).mapTo[GetResp], timeout.duration)
+      val v = Await.result((localRStore ? StoreGet(s"$local-version")).mapTo[GetResp], timeout.duration)
       val oldVersion = v.d match {
         case Some(d) => Some(new String(d.head.value.toArray))
         case None => None

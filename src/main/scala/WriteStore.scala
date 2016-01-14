@@ -24,14 +24,11 @@ case class Conflict(broken: List[Data]) extends PutStatus
 
 class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   
-  val configPath = "ring.leveldb"
-  val config = context.system.settings.config.getConfig(configPath)
+  val config = context.system.settings.config.getConfig("ring.leveldb")
   val serialization = SerializationExtension(context.system)
   val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
   val hashing = HashingExtension(context.system)
   val bucketsNumber = context.system.settings.config.getInt("ring.buckets")
-  
-  def leveldbReadOptions = new ReadOptions().verifyChecksums(config.getBoolean("checksum"))
 
   def bytes(any: Any): Array[Byte] = any match {
     case b: Bucket => ByteBuffer.allocate(4).putInt(b).array()
@@ -97,10 +94,11 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
       case brokenData => (Conflict(brokenData), data :: brokenData)
     }
 
-    log.debug(s"[store][put] k-> ${data.key}")
+    val save: List[Data] = updated._2 ::: dividedLookup._2
     withBatch(batch => {
-      batch.put(bytes(data.bucket), bytes(updated._2 ::: dividedLookup._2))
+      batch.put(bytes(data.bucket), bytes(save))
     })
+    log.debug(s"[store][put] k-> ${data.key} , v -> $save")
     updated._1
   }
 
