@@ -108,14 +108,15 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
 
   def doPut(k: Key, v: Value, client: ActorRef):Unit = {
     val bucket = hashing.findBucket(Left(k))
-    val nodsFrom = availableNodesFrom(nodesForKey(k))
-
-    if (nodsFrom.size >= W) {
-      val info: PutInfo = PutInfo(k, v, N, W, bucket, local, nodsFrom)
+    val nodes = availableNodesFrom(nodesForKey(k))
+    log.debug(s"[hash][put] put on $nodes")
+    if (nodes.size >= W) {
+      val info: PutInfo = PutInfo(k, v, N, W, bucket, local, nodes)
       val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
-      val node = nodsFrom.find( _ == local).getOrElse(nodsFrom.head)
+      val node = nodes.find( _ == local).getOrElse(nodes.head)
         actorsMem.get(node, "ring_readonly_store").fold( _.tell(StoreGet(k), gather), _.tell(StoreGet(k), gather))
     } else {
+      log.debug(s"[hash][put] put - quorum failed")
       client ! AckQuorumFailed
     }
   }
@@ -123,12 +124,14 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   def doGet(key: Key, client: ActorRef) : Unit = {
     val fromNodes = availableNodesFrom(nodesForKey(key))
     if (fromNodes.nonEmpty) {
+      log.debug(s"[hash][get] from $fromNodes")
       val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, gatherTimeout, actorsMem))
       val stores = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
       stores foreach (store => store.fold(
         _.tell(StoreGet(key), gather),
         _.tell(StoreGet(key), gather)))
     } else {
+      log.debug(s"[hash][get] no nodes to get")
       client ! None
     }
   }
