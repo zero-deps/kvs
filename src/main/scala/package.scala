@@ -4,6 +4,8 @@ import akka.actor.Address
 import akka.cluster.VectorClock
 import akka.util.ByteString
 
+import scala.annotation.tailrec
+
 package object rng {
   type Bucket = Int
   type VNode = Int
@@ -12,6 +14,7 @@ package object rng {
   type Value = ByteString
   type FeedId = String
   type FeedBucket = Bucket
+  type Age = (VectorClock, Long)
 
   type PreferenceList = List[Node]
   type ReplicaKey = Option[Int]
@@ -30,17 +33,28 @@ package object rng {
 
   sealed trait FsmData
   case class Statuses(all: List[PutStatus]) extends FsmData
-  /**
-   * inconsistent means that key points to more then one values. So data is inconsistent. 
-   * It's not related to vector clock.
-   * */
-  case class DataCollection(perNode: List[(Option[Data], Node)], inconsistent: List[(List[Data], Node)]) extends FsmData{
-    def size = perNode.size + inconsistent.size
-  }
+
+  case class DataCollection(perNode: List[(Option[Data], Node)]) extends FsmData
+
   case class ReceivedValues(n: Int) extends FsmData
   case object OpsTimeout
 
-  def orderHistorically(l: List[(Node, VectorClock)]) :
-  (List[(Node, VectorClock)],List[(Node, VectorClock)],List[(Node, VectorClock)]) = ???
+  def order[E](l: List[E], age: E => (VectorClock, Long)): (E, List[E]) = {
+    @tailrec
+    def itr(l: List[E], newest: E): E = l match {
+      case Nil => newest
+      case h :: t if t.exists(age(h)._1 < age(_)._1) => itr(t, newest )
+      case h :: t if age(h)._1 > age(newest)._1 => itr(t, h)
+      case h :: t if age(h)._1 <> age(newest)._1 &&
+        age(h)._2 > age(newest)._2 => itr(t, h)
+      case _ => itr(l.tail, newest)
+    }
 
+    (l map (age(_)._1)).toSet.size match {
+      case 1 => (l.head, Nil)
+      case n =>
+        val correct = itr(l.tail, l.head)
+        (correct, l.filterNot(age(_)._1 == age(correct)._1))
+    }
+  }
 }
