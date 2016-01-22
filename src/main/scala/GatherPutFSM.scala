@@ -33,7 +33,7 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
       updStatuses.all.count(_ == Saved) match {
         case w if w == putInfo.W =>
           client ! AckSuccess
-          goto(Sent) using ReceivedValues(putInfo.W)
+          goto(Sent) using updStatuses
         case _ => stay using updStatuses
       }
 
@@ -44,11 +44,11 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
   }
   
   when(Sent){
-    case Event(status: PutStatus, ReceivedValues(n)) =>
-      if(n + 1 == putInfo.N)
+    case Event(status: PutStatus, Statuses(ss)) =>
+      if(ss.size + 1 == putInfo.N)
         stop()
       else
-        stay using ReceivedValues(n + 1)
+        stay using Statuses(status :: ss)
     case Event(OpsTimeout, _ ) =>
       cancelTimer("send_by_timeout")
       stop()

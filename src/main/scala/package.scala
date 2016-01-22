@@ -33,10 +33,7 @@ package object rng {
 
   sealed trait FsmData
   case class Statuses(all: List[PutStatus]) extends FsmData
-
   case class DataCollection(perNode: List[(Option[Data], Node)]) extends FsmData
-
-  case class ReceivedValues(n: Int) extends FsmData
   case object OpsTimeout
 
   def order[E](l: List[E], age: E => (VectorClock, Long)): (E, List[E]) = {
