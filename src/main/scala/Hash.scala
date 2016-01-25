@@ -125,7 +125,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     val fromNodes = availableNodesFrom(nodesForKey(key))
     if (fromNodes.nonEmpty) {
       log.debug(s"[hash][get] from $fromNodes")
-      val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, gatherTimeout, actorsMem))
+      val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, key))
       val stores = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
       stores foreach (store => store.fold(
         _.tell(StoreGet(key), gather),

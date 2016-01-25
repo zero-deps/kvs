@@ -33,9 +33,10 @@ package object rng {
 
   sealed trait FsmData
   case class Statuses(all: List[PutStatus]) extends FsmData
-  case class DataCollection(perNode: List[(Option[Data], Node)]) extends FsmData
+  case class DataCollection(perNode: List[(Option[Data], Node)], nodes: Int) extends FsmData
   case object OpsTimeout
 
+  /* returns (actual data, list of outdated nodes) */
   def order[E](l: List[E], age: E => (VectorClock, Long)): (E, List[E]) = {
     @tailrec
     def itr(l: List[E], newest: E): E = l match {

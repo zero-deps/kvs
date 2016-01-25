@@ -1,98 +1,50 @@
 package mws.rng
 
 import akka.actor._
-import scala.annotation.tailrec
+import akka.cluster.VectorClock
 import scala.concurrent.duration._
 
-class GatherGetFsm(client: ActorRef, N: Int, R: Int, t: Int, refResolver: ActorRefStorage)
+class GatherGetFsm(client: ActorRef, N: Int, R: Int, k: Key)
   extends FSM[FsmState, FsmData] with ActorLogging{
-  
-  startWith(Collecting, DataCollection(Nil, Nil))
-  setTimer("send_by_timeout", OpsTimeout, t.seconds)
+  val stores = SelectionMemorize(context.system)
+  val ZERO:(VectorClock, Long) = (new VectorClock(), 0L)
 
-  def updateIfNeeded(correct: Data, fromNodes: DataCollection) = {
-    fromNodes.perNode collect {
-      case (Some(d), n) if outdate(correct, d) =>
-        refResolver.get(n, "ring_write_store").fold(
-          _ ! StorePut(correct),
-          _ ! StorePut(correct))
-    }
-    fromNodes.inconsistent.foreach {
-      case (l, n) =>
-        refResolver.get(n, "ring_write_store").fold( // must update, but check
-        _ ! StorePut(correct),
-        _ ! StorePut(correct))
-    }
-  }
+  startWith(Collecting, DataCollection(List.empty[(Option[Data], Node)], 0))
+  setTimer("send_by_timeout", OpsTimeout, context.system.settings.config.getInt("ring.gather-timeout").seconds)
 
-  def outdate(correct: Data, d: Data): Boolean = {
-    d.vc < correct.vc || (d.vc <> correct.vc && correct.lastModified > d.lastModified)
+  def update(correct: Option[Data], nodes: List[Node]) = {
+    val msg = correct match {
+      case Some(d) => StorePut(d)
+      case None => StoreDelete(k)
+    }
+    nodes foreach {
+      stores.get(_, "ring_write_store").fold(_ ! msg, _ ! msg)
+    }
   }
 
   when(Collecting) {
-    case Event(GetResp(rez), state@DataCollection(perNode, inconsistent)) =>
-      updateFSMState(rez, state, sender().path.address) match {
-        case d @ DataCollection(l, inc) if d.size == R =>
-          val response = mostFresh(l.flatMap(_._1) ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
-          client ! response.map(_.value)
-          goto(Sent) using d
-        case d @ DataCollection(l, inc) if d.size == N => // fuck          
-          val response = mostFresh(l.flatMap(_._1) ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
-          client ! response.map(_.value)
-          response.foreach(updateIfNeeded(_, d))
+    case Event(GetResp(rez), state@DataCollection(perNode, nodes)) =>
+      val address = sender().path.address
+      val receive = rez.fold[List[(Option[Data], Node)]](List((None, address)))(_.map(d => (Some(d), address)))
+
+      nodes + 1 match {
+        case `N` => // TODO wait for R or N nodes ?
           cancelTimer("send_by_timeout")
+          val response = order[(Option[Data], Node)](receive ::: perNode, age)
+          if (response._2.nonEmpty) update(response._1._1, response._2.map(_._2))
+          client ! response._1._1.fold[Option[Value]](None)(d => Some(d.value))
           stop()
-        case d => stay() using d
+        case ns => stay() using DataCollection(receive ::: perNode, ns)
       }
-      
-    case Event(OpsTimeout, DataCollection(l, inc)) =>
-      val response = mostFresh(l.flatMap(_._1) ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
-      client ! response.map(_.value)      
+
+    case Event(OpsTimeout, DataCollection(l, ns)) =>
+      val response = order(l, age)
+      client !  response._1._1.fold[Option[Value]](None)(d => Some(d.value))
       // cannot fix inconsistent because quorum not satisfied. But check what can do
       cancelTimer("send_by_timeout")
       stop()
-  } 
-  
-  when(Sent) {
-    case Event(GetResp(rez), state@DataCollection(l, inc)) =>
-      val newState = updateFSMState(rez, state, sender().path.address)
-      if (newState.size == N) {
-        val response = mostFresh(l.flatMap(_._1) ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
-        response.foreach(updateIfNeeded(_, state))
-        cancelTimer("send_by_timeout")      
-        stop()
-      } else {
-        stay() using newState
-      }     
-      
-    case Event(OpsTimeout, state @ DataCollection(l, inc) ) =>
-      val response = mostFresh(l.flatMap(_._1) ::: inc.foldLeft(List.empty[Data])((acc, ll) => ll._1 ::: acc))
-      response.foreach(updateIfNeeded(_, state))
-      cancelTimer("send_by_timeout")
-      stop()
   }
-
-  def updateFSMState(rez: Option[List[Data]], old: DataCollection, sender: Node): DataCollection = rez match {
-    case None => DataCollection((None, sender) :: old.perNode, old.inconsistent)
-    case Some(l) if l.size == 1 => DataCollection((Some(l.head), sender) :: old.perNode, old.inconsistent)
-    case Some(l) => DataCollection(old.perNode, (l, sender) :: old.inconsistent)
-  }
-
-  def mostFresh(from: List[Data]): Option[Data] = {
-    @tailrec
-    def iterate(data: List[Data], mostFresh: Option[Data] = None): Option[Data] = data match {
-      case Nil => mostFresh      
-      case head :: tail =>
-        val newest: Option[Data] = mostFresh match {
-          case None => Some(head)
-          case Some(currFresh) if currFresh.vc == head.vc || (currFresh.vc > head.vc) => Some(currFresh)
-          case Some(currFresh) if currFresh.vc < head.vc => Some(head)
-          case Some(currFresh) if currFresh.vc <> head.vc => //last write win
-            if (currFresh.lastModified > head.lastModified) Some(currFresh)
-            else Some(head)
-        }
-        iterate(tail, newest)
-    }
-    iterate(from)
+  def age(d: (Option[Data], Node)): (VectorClock, Long) = {
+    d._1.fold(ZERO)(e => (e.vc, e.lastModified))
   }
 }
