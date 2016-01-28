@@ -2,12 +2,9 @@ package mws
 
 import java.nio.ByteBuffer
 import java.security.MessageDigest
-
 import akka.actor.Address
 import org.scalatest.{FlatSpec, Matchers}
 
-/**
- */
 object HashFunctionTest {
   val hashLen:Int = 32
   val hostPort:String = "127.0.0.1:4224"

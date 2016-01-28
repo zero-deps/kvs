@@ -37,7 +37,7 @@ package object rng {
   case object OpsTimeout
 
   /* returns (actual data, list of outdated nodes) */
-  def order[E](l: List[E], age: E => (VectorClock, Long)): (E, List[E]) = {
+  def order[E](l: List[E], age: E => (VectorClock, Long)): (Option[E], List[E]) = {
     @tailrec
     def itr(l: List[E], newest: E): E = l match {
       case Nil => newest
@@ -49,10 +49,11 @@ package object rng {
     }
 
     (l map (age(_)._1)).toSet.size match {
-      case 1 => (l.head, Nil)
+      case 0 => (None, Nil)
+      case 1 => (Some(l.head), Nil)
       case n =>
         val correct = itr(l.tail, l.head)
-        (correct, l.filterNot(age(_)._1 == age(correct)._1))
+        (Some(correct), l.filterNot(age(_)._1 == age(correct)._1))
     }
   }
 }
