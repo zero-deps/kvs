@@ -5,6 +5,7 @@ import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import akka.pattern.ask
 import akka.util.Timeout
+import stores._
 import scala.annotation.tailrec
 import scala.collection.SortedMap
 import scala.concurrent.duration._
@@ -107,7 +108,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   }
 
   def doPut(k: Key, v: Value, client: ActorRef):Unit = {
-    val bucket = hashing.findBucket(Left(k))
+    val bucket = hashing findBucket k
     val nodes = availableNodesFrom(nodesForKey(k))
     log.debug(s"[hash][put] put on $nodes")
     if (nodes.size >= W) {
@@ -235,7 +236,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
 
   def nodesInRing(): Int = processedNodes.size
 
-  def nodesForKey(k: Key): List[Node] = buckets.get(hashing.findBucket(Left(k))) match {
+  def nodesForKey(k: Key): List[Node] = buckets.get(hashing.findBucket(k)) match {
     case Some(nods) => nods
     case _ => Nil
   }
@@ -256,7 +257,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   def updateBucket(bucket: Bucket, nodes: List[Node]): Unit = {
     import context.dispatcher
     val storesOnNodes = nodes.map {
-      actorsMem.get(_, "ring_write_store")
+      actorsMem.get(_, "ring_readonly_store")
     }
     val bucketsDataF = Future.traverse(storesOnNodes)(n => n.fold(
       _ ? BucketGet(bucket),

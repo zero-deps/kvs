@@ -12,6 +12,7 @@ import org.iq80.leveldb.impl.Iq80DBFactory
 import org.iq80.leveldb.{CompressionType, WriteOptions, ReadOptions, Options}
 import org.iq80.leveldb.util.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import stores._
 
 import scala.concurrent.duration.Duration
 
@@ -129,7 +130,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       readStore ! StoreGet(data2.key)
       expectMsg(GetResp(Some(List(data2))))
 
-      writeStore ! BucketGet(1)
+      readStore ! BucketGet(1)
       expectMsgType[List[Data]].toSet[Data] should be(Set(data, data2))
 
       get_delete_get(data)

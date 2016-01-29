@@ -1,10 +1,13 @@
-package mws.rng
+package stores
 
 import java.nio.ByteBuffer
+
 import akka.actor.{Actor, ActorLogging}
 import akka.cluster.VectorClock
 import akka.serialization.SerializationExtension
+import mws.rng._
 import org.iq80.leveldb._
+
 import scala.annotation.tailrec
 
 case class StoreGet(key:Key)
@@ -20,15 +23,12 @@ sealed trait PutStatus
 case object Saved extends PutStatus
 case class Conflict(broken: List[Data]) extends PutStatus
 
-//TODO extract all merge functions to conflict_prevent_component
-
 class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   
   val config = context.system.settings.config.getConfig("ring.leveldb")
   val serialization = SerializationExtension(context.system)
   val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
   val hashing = HashingExtension(context.system)
-  val bucketsNumber = context.system.settings.config.getInt("ring.buckets")
 
   def bytes(any: Any): Array[Byte] = any match {
     case b: Bucket => ByteBuffer.allocate(4).putInt(b).array()
@@ -40,21 +40,12 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     case None => None
   }
 
-  override def preStart() = { 
-    super.preStart()
-    log.info(s"START REPAIRING")
-    (1 to bucketsNumber) foreach { b =>
-     doBucketPut(getBucketData(b))
-    }
-  }
-
   override def postStop() = {
     leveldb.close()
     super.postStop()
   }
 
   def receive: Receive = {
-    case BucketGet(b) => sender ! getBucketData(b) // TODO move to readonly
     case StorePut(data) => sender ! doPut(data)
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
@@ -70,14 +61,10 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     case unhandled => log.warning(s"[store]unhandled message: $unhandled")
   }
 
-  // this operation uses only after getbucket. So bucket index should be present 
   def doBucketPut(data: List[Data]): String = {
-    if (data.nonEmpty) {     
-      // TODO iterate through to fix omited bucket number
-      withBatch(batch => {
-        batch.put(bytes(data.head.bucket), bytes(data))
-      })
-    }
+    data.headOption.map(elem => withBatch(batch => {
+      batch.put(bytes(elem.bucket), bytes(data))
+    }))
     "ok"
   }
 
@@ -113,36 +100,13 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   }
 
   def doDelete(key: Key): String = {
-    val b = hashing.findBucket(Left(key))
+    val b = hashing.findBucket(key)
     val lookup = fromBytesList(leveldb.get(bytes(b)), classOf[List[Data]]).getOrElse(Nil)
 
     withBatch(batch => {
       batch.put(bytes(b), bytes(lookup.filterNot(d => d.key.equals(key))))
     })
     "ok"
-  }
-
-  def getBucketData(bucket: Bucket): List[Data] = {
-    val bucketData = fromBytesList(leveldb.get(bytes(bucket)),classOf[List[Data]]).getOrElse(Nil)
-    val merged = mergeData(bucketData, Nil)
-    if(bucketData.size > 2) {
-      log.debug(s"!!! Fix for b=$bucket, before = ${bucketData.size}, after = ${merged.size}")
-    }
-    merged
-  }
-
-  @tailrec
-  final def mergeData(l: List[Data], n: List[Data]): List[Data] = l match {
-    case h :: t =>
-      n.find(_.key == h.key) match {
-        case Some(d) if h.vc == d.vc && h.lastModified > d.lastModified =>
-          mergeData(t, h :: n.filterNot(_.key == h.key))
-        case Some(d) if h.vc > d.vc =>
-          mergeData(t, h :: n.filterNot(_.key == h.key))
-        case None => mergeData(t, h :: n)
-        case _ => mergeData(t, n)
-      }
-    case Nil => n
   }
 
   def withBatch[R](body: WriteBatch ⇒ R): R = {

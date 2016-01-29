@@ -1,5 +1,6 @@
 package mws.rng
 
+import stores.{GetResp, FeedAppend, StoreGet}
 import scala.concurrent.duration._
 import akka.actor._
 import akka.cluster.VectorClock

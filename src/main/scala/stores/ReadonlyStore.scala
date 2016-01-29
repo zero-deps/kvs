@@ -1,14 +1,15 @@
-package mws.rng
+package stores
 
 import java.nio.ByteBuffer
-import akka.actor.{ActorLogging, Actor}
+
+import akka.actor.{Actor, ActorLogging}
 import akka.serialization.SerializationExtension
+import mws.rng._
 import org.iq80.leveldb._
 
 class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
   val serialization = SerializationExtension(context.system)
   val hashing = HashingExtension(context.system)
-  val local: Node = self.path.address
 
   def bytes(any: Any): Array[Byte] = any match {
     case b: Bucket => ByteBuffer.allocate(4).putInt(b).array()
@@ -22,6 +23,7 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case StoreGet(key) => sender ! GetResp(doGet(key))
+    case BucketGet(b) => sender ! fromBytesList(leveldb.get(bytes(b)),classOf[List[Data]]).getOrElse(Nil)
     case Traverse(fid, start, end) =>
       fromBytesList(leveldb.get(bytes(fid)), classOf[List[Value]]) match {
         case Some(feed) => sender() ! feed.slice(start.getOrElse(0), end.getOrElse(feed.size))
@@ -31,12 +33,12 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
   }
 
   def doGet(key:Key): Option[List[Data]] = {
-    val bucket = hashing findBucket Left(key)
+    val bucket = hashing findBucket key
     fromBytesList(leveldb.get(bytes(bucket)), classOf[List[Data]]) match {
       case Some(l) =>
         val sameKey: List[Data] = l.filter(d => d.key.equals(key))
         if (sameKey.isEmpty) None else {
-          log.debug(s"${local} : [store][get] key = $key, v = $sameKey")
+          log.debug(s"[store][get] key = $key, v = $sameKey")
           Some(sameKey)
         }
       case None => None
