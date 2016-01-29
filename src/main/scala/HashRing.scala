@@ -28,17 +28,13 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
   system.eventStream
   var jmx: Option[HashRingJmx] = None
-  val configPath = "ring.leveldb"
-  val config = system.settings.config.getConfig(configPath)
+  val config = system.settings.config.getConfig("ring.leveldb")
   val nativeLeveldb = config.getBoolean("native")
 
   val leveldbOptions = new Options().createIfMissing(true)
   def leveldbReadOptions = new ReadOptions().verifyChecksums(config.getBoolean("checksum"))
   val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
   val leveldbDir = new File(config.getString("dir"))
-  
-  val rngConf = system.settings.config.getConfig("ring")
-  val bucketsNum = rngConf.getInt("buckets")
   var leveldb = leveldbFactory.open(leveldbDir, if (nativeLeveldb) leveldbOptions else leveldbOptions.compressionType(CompressionType.NONE))
 
   def leveldbFactory =
