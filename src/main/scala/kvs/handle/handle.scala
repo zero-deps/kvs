@@ -3,8 +3,6 @@ package handle
 
 import store._
 
-import scala.pickling._
-
 import scala.language.postfixOps
 
 /**
@@ -33,12 +31,16 @@ object Handler {
   /**
    * The basic feed/entry handlers with scala-pickling serialization
    */
-  import scala.pickling._, binary._, Defaults._
-
   implicit object feedHandler extends FdHandler
   implicit object enStrHandler extends EnHandler[String]{
+    import scala.pickling._,Defaults._,binary._
     def pickle(e:En[String]) = e.pickle.value
     def unpickle(a:Array[Byte]) = a.unpickle[En[String]]
+  }
+  implicit object enTupleStrHandler extends EnHandler[(String,String)]{
+    import scala.pickling._,Defaults._,binary._,static._
+    def pickle(e:En[(String,String)]): Array[Byte] = e.pickle.value
+    def unpickle(a: Array[Byte]): En[(String,String)] = a.unpickle[En[(String,String)]]
   }
 
   import scalaz._,Scalaz._
