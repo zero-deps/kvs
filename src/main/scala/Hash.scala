@@ -55,8 +55,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   var processedNodes = Set.empty[Member]
 
   override def preStart() = {
-    cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[ClusterDomainEvent], classOf[CurrentClusterState])
-    cluster.sendCurrentClusterState(self)
+    cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
     context.become(preparing)
     self ! Init
   }
@@ -146,37 +145,26 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
   }
 
   def receiveCl: Receive = {
-    case e: ClusterDomainEvent => cluster.sendCurrentClusterState(self)
-      e match {
-        case MemberUp(member) =>
-          processedNodes = processedNodes + member
-          (1 to vNodesNum).foreach(vnode => {
-            val hashedKey = hashing.hash(member.address.hostPort + vnode)
-            vNodes += hashedKey -> member.address
-          })
-          synchNodes(bucketsToUpdate(member.address))
-          if(processedNodes.size == N) context.become(ready)
-          log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
-        case UnreachableMember(member) =>
-          processedNodes = processedNodes - member
-          log.info(s"[ring_hash] $member become unreachable among cluster and ring")
-          val hashes = (1 to vNodesNum).map(v => hashing.hash(member.address.hostPort + v))
-          vNodes = vNodes.filterNot(vn => hashes.contains(vn._1))
-          synchNodes(bucketsToUpdate(member.address))
-        case MemberRemoved(member, prevState) =>
-          processedNodes = processedNodes - member
-          log.info(s"[ring_hash]Removing $member from ring")
-          val hashes = (1 to vNodesNum).map(v => hashing.hash(member.address.hostPort + v))
-          vNodes = vNodes.filterNot(vn => hashes.contains(vn._1))
-          synchNodes(bucketsToUpdate(member.address))
-        case _ =>
-      }
-
-    case s: CurrentClusterState => state = s
+    case MemberUp(member) =>
+      processedNodes = processedNodes + member
+      (1 to vNodesNum).foreach(vnode => {
+      val hashedKey = hashing.hash(member.address.hostPort + vnode)
+        vNodes += hashedKey -> member.address
+      })
+      synchNodes(bucketsToUpdate(member.address))
+      if(processedNodes.size == N) context.become(ready)
+      log.info(s"=>[ring_hash] Node ${member.address} is joining ring")
+    case MemberRemoved(member, prevState) =>
+      processedNodes = processedNodes - member
+      log.info(s"[ring_hash]Removing $member from ring")
+      val hashes = (1 to vNodesNum).map(v => hashing.hash(member.address.hostPort + v))
+      vNodes = vNodes.filterNot(vn => hashes.contains(vn._1))
+      synchNodes(bucketsToUpdate(member.address))
+    case _ =>
   }
 
   def availableNodesFrom(l: List[Node]): List[Node] = {
-    val unreachableMembers = state.unreachable.map(m => m.address)
+    val unreachableMembers = cluster.state.unreachable.map(m => m.address)
     l filterNot (node => unreachableMembers contains node)
   }
 
