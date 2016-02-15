@@ -41,22 +41,39 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config)) w
     "should save value2" in {
       val saved = kvs.add(entry2).right.get
       (saved.fid, saved.id, saved.data) shouldBe (entry2.fid, entry2.id, entry2.data)
-      println(kvs.dba.asInstanceOf[Memory].storage)
     }
 
     "should get two values from feed" in {
       val entries = kvs.entries[EnType](FID)
 
       entries.right.get.size shouldBe 2
-      entries.right.get(0).fid shouldBe entry2.fid
-      entries.right.get(0).data shouldBe entry2.data
-      entries.right.get(0).id shouldBe entry2.id
 
-      entries.right.get(1).fid shouldBe entry1.fid
-      entries.right.get(1).data shouldBe entry1.data
-      entries.right.get(1).id shouldBe entry1.id
-
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe (entry2.fid, entry2.id, entry2.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe (entry1.fid, entry1.id, entry1.data)
     }
 
+    "should remove value2 from feed" in {
+      val deleted = kvs.remove(entry2).right.get
+
+      (deleted.fid, deleted.id, deleted.data) shouldBe (entry2.fid, entry2.id, entry2.data)
+    }
+
+    "should get one value from feed" in {
+      val entries = kvs.entries[EnType](FID)
+
+      entries.right.get.size shouldBe 1
+
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe (entry1.fid, entry1.id, entry1.data)
+    }
+
+    "should remove value1 from feed" in {
+      val deleted = kvs.remove(entry1).right.get
+
+      (deleted.fid, deleted.id, deleted.data) shouldBe (entry1.fid, entry1.id, entry1.data)
+    }
+
+    "should be empty" in {
+      kvs.entries[EnType](FID).right.get shouldBe empty
+    }
   }
 }
