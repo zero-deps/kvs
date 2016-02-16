@@ -76,7 +76,7 @@ trait EnHandler[T] extends Handler[En[T]] {
         val none: Res[En[T]] = Left(Dbe(msg = "done"))
         def next: (Res[En[T]]) => Res[En[T]] = _.right.map { _.prev.fold(none)({ id => get(fid, id) }) }.joinRight
         (from map { _.id } orElse top).map { eid => (fid, eid) }.map { start =>
-          List.iterate(get(start), count.getOrElse(size))(next).sequenceU
+          List.iterate(get(start), count map {x => x min size} getOrElse size)(next).sequenceU
         }.getOrElse(Right(List()))
     })
 }
