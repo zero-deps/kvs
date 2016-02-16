@@ -5,7 +5,7 @@ import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import akka.pattern.ask
 import akka.util.Timeout
-import stores._
+import mws.rng.store._
 import scala.annotation.tailrec
 import scala.collection.SortedMap
 import scala.concurrent.duration._
@@ -25,6 +25,7 @@ case class RegisterBucket(bid: String) extends RingMessage
 //utilities
 case object Ready
 case object Init
+case object Dump
 
 class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with ActorLogging {
   import context.system
@@ -244,16 +245,15 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
 
   def updateBucket(bucket: Bucket, nodes: List[Node]): Unit = {
     import context.dispatcher
-    val storesOnNodes = nodes.map {
-      actorsMem.get(_, "ring_readonly_store")
-    }
+    val storesOnNodes = nodes.map { actorsMem.get(_, "ring_readonly_store")}
     val bucketsDataF = Future.traverse(storesOnNodes)(n => n.fold(
       _ ? BucketGet(bucket),
-      _ ? BucketGet(bucket))).mapTo[List[List[Data]]]
+      _ ? BucketGet(bucket))).mapTo[List[GetBucketResp]]
 
     bucketsDataF map {
-      case l if l.isEmpty || l.forall(_ == Nil) =>
-      case l => localWStore ! BucketPut(mergeData(l.flatten, Nil))
+      case  bdata: List[GetBucketResp] if bdata.isEmpty || bdata.forall(_.l == Nil) =>
+      case  bdata: List[GetBucketResp] => localWStore ! BucketPut(
+        mergeData((List.empty[Data] /: bdata )((acc, resp) => resp.l.getOrElse(Nil) ::: acc), Nil))
     }
   }
 

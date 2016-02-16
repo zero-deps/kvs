@@ -1,4 +1,4 @@
-package stores
+package mws.rng.store
 
 import java.nio.ByteBuffer
 
@@ -6,6 +6,8 @@ import akka.actor.{Actor, ActorLogging}
 import akka.serialization.SerializationExtension
 import mws.rng._
 import org.iq80.leveldb._
+
+case class GetBucketResp(b:Bucket,l: Option[List[Data]])
 
 class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
   val serialization = SerializationExtension(context.system)
@@ -23,7 +25,7 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case StoreGet(key) => sender ! GetResp(doGet(key))
-    case BucketGet(b) => sender ! fromBytesList(leveldb.get(bytes(b)),classOf[List[Data]]).getOrElse(Nil)
+    case BucketGet(b) => sender ! GetBucketResp(b,fromBytesList(leveldb.get(bytes(b)),classOf[List[Data]]))
     case Traverse(fid, start, end) =>
       fromBytesList(leveldb.get(bytes(fid)), classOf[List[Value]]) match {
         case Some(feed) => sender() ! feed.slice(start.getOrElse(0), end.getOrElse(feed.size))

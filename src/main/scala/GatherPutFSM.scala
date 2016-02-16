@@ -2,7 +2,7 @@ package mws.rng
 
 import akka.actor.{Props, ActorLogging, ActorRef, FSM}
 import akka.cluster.VectorClock
-import stores.{GetResp, Saved, PutStatus, StorePut}
+import mws.rng.store.{GetResp, Saved, PutStatus, StorePut}
 import scala.concurrent.duration._
 
 case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: List[Node])

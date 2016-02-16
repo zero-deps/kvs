@@ -7,7 +7,7 @@ import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.Timeout
 import org.iq80.leveldb._
-import stores.{WriteStore, ReadonlyStore}
+import mws.rng.store.{WriteStore, ReadonlyStore}
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 

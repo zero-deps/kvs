@@ -1,4 +1,4 @@
-package stores
+package mws.rng.store
 
 import java.nio.ByteBuffer
 

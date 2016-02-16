@@ -3,7 +3,7 @@ package mws
 import akka.actor.Address
 import akka.cluster.VectorClock
 import akka.util.ByteString
-import stores.PutStatus
+import mws.rng.store.PutStatus
 
 import scala.annotation.tailrec
 

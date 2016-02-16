@@ -2,7 +2,7 @@ package mws.rng
 
 import akka.actor._
 import akka.cluster.VectorClock
-import stores.{GetResp, StoreDelete, StorePut}
+import mws.rng.store._
 import scala.concurrent.duration._
 
 class GatherGetFsm(client: ActorRef, N: Int, R: Int, k: Key)

@@ -26,6 +26,3 @@ class GathererDel extends Actor with ActorLogging {
 
   } 
 }
-
-  
-  
