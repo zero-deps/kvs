@@ -65,33 +65,14 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
 
   override def receive: Receive = preparing
 
-  def ready = receiveApi orElse receiveCl
+  def ready = readApi orElse writeApi orElse receiveCl
   def preparing = notReadyApi orElse receiveCl
 
-  def notReadyApi: Receive =  {
-    case Ready => sender ! false
-    case Init =>
-      val v = Await.result((localRStore ? StoreGet(s"$local-version")).mapTo[GetResp], timeout.duration)
-      val oldVersion = v.d match {
-        case Some(d) => Some(new String(d.head.value.toArray))
-        case None => None
-      }
-      log.info(s"version = $oldVersion")
-      //doing migration if needed
-    case msg:RingMessage => log.info(s"ignoring $msg because ring is not ready")
-  }
-
-  def receiveApi: Receive = {
-    case Put(k, v) => doPut(k, v, sender())
+  def readApi: Receive = {
     case Get(k) => doGet(k, sender())
-    case Delete(k) => doDelete(k, sender())
-    case msg: Add => feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
-      _ ! msg, _ ! msg
-    ))
     case msg: Traverse => feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
       _ ! msg, _ ! msg
     ))
-    case Ready => sender() ! true
     case m: RegisterBucket =>
       log.info(s"[hash] register bucket ${m.bid}")
       if(feedNodes(m.bid).isEmpty)
@@ -105,6 +86,29 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
         case n => actorsMem.get(n,"hash").fold( // head is guard
         _ ! m, _ ! m
       )}
+    case Ready => sender() ! true
+  }
+
+  def writeApi: Receive = {
+    case Put(k, v) => doPut(k, v, sender())
+    case Delete(k) => doDelete(k, sender())
+    case msg: Add => feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
+      _ ! msg, _ ! msg
+    ))
+    case Ready => sender() ! true
+  }
+
+  def notReadyApi: Receive =  {
+    case Ready => sender ! false
+    case Init =>
+      val v = Await.result((localRStore ? StoreGet(s"$local-version")).mapTo[GetResp], timeout.duration)
+      val oldVersion = v.d match {
+        case Some(d) => Some(new String(d.head.value.toArray))
+        case None => None
+      }
+      log.info(s"version = $oldVersion")
+      //doing migration if needed
+    case msg:RingMessage => log.info(s"ignoring $msg because ring is not ready")
   }
 
   def doPut(k: Key, v: Value, client: ActorRef):Unit = {
