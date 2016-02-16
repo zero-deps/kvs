@@ -5,6 +5,23 @@ import store._
 import scala.language.implicitConversions
 import scala.language.postfixOps
 
+object EnHandler {
+  /**
+   * Given EnHandler S create the EnHandler for A from conversion functions.
+   */
+  def by[A, S](f: A => S)(g: S => A)(implicit h: EnHandler[S]): EnHandler[A] = new EnHandler[A] {
+    def pickle(e: En[A]): Array[Byte] = h.pickle(en_A_to_En_S(e))
+    def unpickle(a: Array[Byte]): En[A] = en_S_to_En_A(h.unpickle(a))
+    
+    private val en_A_to_En_S: PartialFunction[En[A], En[S]] = {
+      case En(fid,id,prev,next,data) => En[S](fid,id,prev,next,f(data))
+    }
+    
+     private val en_S_to_En_A: PartialFunction[En[S], En[A]] = {
+      case En(fid,id,prev,next,data) => En[A](fid,id,prev,next,g(data))
+    }
+  }
+}
 /**
  * Abstract type entry handler.
  *
@@ -18,9 +35,9 @@ trait EnHandler[T] extends Handler[En[T]] {
 
   def put(el: En[T])(implicit dba: Dba): Res[En[T]] = dba.put((el.fid, el.id), pickle(el)).right.map { _ => el }
   def get(k: String)(implicit dba: Dba): Res[En[T]] = dba.get(k).right.map(unpickle)
-  def get(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = get((fid, id))
+  final def get(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = get((fid, id))
   def delete(k: String)(implicit dba: Dba): Res[En[T]] = dba.delete(k).right.map(unpickle)
-  def delete(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = delete((fid, id))
+  final def delete(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = delete((fid, id))
 
   /**
    * Adds the entry to the container specified as id.
@@ -76,7 +93,7 @@ trait EnHandler[T] extends Handler[En[T]] {
         val none: Res[En[T]] = Left(Dbe(msg = "done"))
         def next: (Res[En[T]]) => Res[En[T]] = _.right.map { _.prev.fold(none)({ id => get(fid, id) }) }.joinRight
         (from map { _.id } orElse top).map { eid => (fid, eid) }.map { start =>
-          List.iterate(get(start), count map {x => x min size} getOrElse size)(next).sequenceU
+          List.iterate(get(start), count map { x => x min size } getOrElse size)(next).sequenceU
         }.getOrElse(Right(List()))
     })
 }
