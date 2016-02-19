@@ -13,16 +13,14 @@ trait Handler[T] {
   def pickle(e:T):Array[Byte]
   def unpickle(a:Array[Byte]):T
 
-  // todo: consider to be private methods
-  def put(el:T)(implicit dba:Dba):Res[T]
-  def get(k:String)(implicit dba:Dba):Res[T]
-  def delete(k:String)(implicit dba:Dba):Res[T]
+  private[handle] def put(el:T)(implicit dba:Dba):Res[T]
+  private[handle] def get(k:String)(implicit dba:Dba):Res[T]
+  private[handle] def delete(k:String)(implicit dba:Dba):Res[T]
 
   // container/iterator API
   def add(el:T)(implicit dba:Dba):Res[T]
   def remove(el:T)(implicit dba:Dba):Res[T]
   def entries(fid:String,from:Option[T],count:Option[Int])(implicit dba:Dba):Res[List[T]]
-  def entries(fid:String)(implicit dba:Dba):Res[List[T]] = entries(fid,None,None)
 }
 
 object Handler {
@@ -33,7 +31,7 @@ object Handler {
    */
   implicit object feedHandler extends FdHandler
   // Workaround impossibility to use static pickler for first time in code
-  private object hackyEnHandler extends EnHandler[String]{
+  private object hackPickling {
     import scala.pickling._,Defaults._,binary._
     def pickle(e:En[String]) = e.pickle.value
     def unpickle(a:Array[Byte]) = a.unpickle[En[String]]

@@ -35,39 +35,11 @@ class HandleSpec(_system:ActorSystem) extends TestKit(_system)
 
   import scalaz._,Scalaz._
 
-  import Schema._
-
   ignore should "-" in {
     val f1 = Fd("f1")
     val e1 = En("f1","e1",None,None,"d1")
 
     import scalaz._,Scalaz._,Tags._
-
-    val m = Message(e1)
-    val r1:Either[Err, Message] = kvs.add(m)
-    println(s"put Message $r1")
-
-    val m1 = Metrics(e1)
-    val r2:Either[Err, Metrics] = kvs.add(m1)
-
-    println(s"put Message $r2")
-
-    val a = kvs.get[Metrics]("f1.e1")
-    println(s"get Metric $a")
-    val a1 = kvs.get[Metrics]("e1")
-    println(s"get Metric $a1")
-
-    val b = kvs.get[En[String]]("f1.e1")
-    println(s"get En[String] $b")
-
-    val c = kvs.get[Message]("f1.e1")
-    println(s"get Message $c")
-
-    val c2 = kvs.get[Message]("e1")
-    println(s"get Message $c2")
-
-    kvs.delete[En[String]]("f1.e1")
-    kvs.delete[En[String]]("e1")
 
 //    println(s"After put: ${r1}")
 
@@ -272,6 +244,5 @@ class HandleSpec(_system:ActorSystem) extends TestKit(_system)
     println(s"add user: $r1")
 
     kvs.remove[En[Feeds]](u1)
-    kvs.delete[Fd]("users")
   }
 }

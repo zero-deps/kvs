@@ -13,11 +13,11 @@ object EnHandler {
     def pickle(e: En[A]): Array[Byte] = h.pickle(en_A_to_En_S(e))
     def unpickle(a: Array[Byte]): En[A] = en_S_to_En_A(h.unpickle(a))
     
-    private val en_A_to_En_S: PartialFunction[En[A], En[S]] = {
+    private val en_A_to_En_S: En[A]=>En[S] = {
       case En(fid,id,prev,next,data) => En[S](fid,id,prev,next,f(data))
     }
     
-     private val en_S_to_En_A: PartialFunction[En[S], En[A]] = {
+    private val en_S_to_En_A: En[S]=>En[A] = {
       case En(fid,id,prev,next,data) => En[A](fid,id,prev,next,g(data))
     }
   }
@@ -31,7 +31,7 @@ trait EnHandler[T] extends Handler[En[T]] {
   import Handler._
   val fh = implicitly[Handler[Fd]]
 
-  private implicit def tuple2ToId(fid_id: (String, String)) = s"${fid_id._1}.${fid_id._2}"
+  private implicit def tuple2ToId(fid_id: (String, String)):String = s"${fid_id._1}.${fid_id._2}"
 
   def put(el: En[T])(implicit dba: Dba): Res[En[T]] = dba.put((el.fid, el.id), pickle(el)).right.map { _ => el }
   def get(k: String)(implicit dba: Dba): Res[En[T]] = dba.get(k).right.map(unpickle)
@@ -94,6 +94,6 @@ trait EnHandler[T] extends Handler[En[T]] {
         def next: (Res[En[T]]) => Res[En[T]] = _.right.map { _.prev.fold(none)({ id => get(fid, id) }) }.joinRight
         (from map { _.id } orElse top).map { eid => (fid, eid) }.map { start =>
           List.iterate(get(start), count map { x => x min size } getOrElse size)(next).sequenceU
-        }.getOrElse(Right(List()))
+        }.getOrElse(Right(Nil))
     })
 }
