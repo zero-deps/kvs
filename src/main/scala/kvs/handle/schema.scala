@@ -24,8 +24,8 @@ object SocialSchema {
 
 
   implicit object enFeedsHandler extends EnHandler[Feeds]{
-    def pickle(e:En[Feeds]) = e.asInstanceOf[En[List[Fid]]].pickle.value
-    def unpickle(a:Array[Byte]) = a.unpickle[En[List[Fid]]]
+    def pickle(e:En[Feeds]) = e.pickle.value
+    def unpickle(a:Array[Byte]) = a.unpickle[En[Feeds]]
   }
 
   def en2u(e:En[Feeds]):User = User(e) 
