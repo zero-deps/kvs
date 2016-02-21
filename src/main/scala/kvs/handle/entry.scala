@@ -33,11 +33,11 @@ trait EnHandler[T] extends Handler[En[T]] {
 
   private implicit def tuple2ToId(fid_id: (String, String)):String = s"${fid_id._1}.${fid_id._2}"
 
-  def put(el: En[T])(implicit dba: Dba): Res[En[T]] = dba.put((el.fid, el.id), pickle(el)).right.map { _ => el }
-  def get(k: String)(implicit dba: Dba): Res[En[T]] = dba.get(k).right.map(unpickle)
-  final def get(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = get((fid, id))
-  def delete(k: String)(implicit dba: Dba): Res[En[T]] = dba.delete(k).right.map(unpickle)
-  final def delete(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = delete((fid, id))
+  private[handle] def put(el: En[T])(implicit dba: Dba): Res[En[T]] = dba.put((el.fid, el.id), pickle(el)).right.map { _ => el }
+  private[handle] def get(k: String)(implicit dba: Dba): Res[En[T]] = dba.get(k).right.map(unpickle)
+  private[handle] def get(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = get((fid, id))
+  private[handle] def delete(k: String)(implicit dba: Dba): Res[En[T]] = dba.delete(k).right.map(unpickle)
+  private[handle] def delete(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = delete((fid, id))
 
   /**
    * Adds the entry to the container specified as id.

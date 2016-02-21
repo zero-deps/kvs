@@ -26,18 +26,9 @@ trait Handler[T] {
 object Handler {
   def apply[T](implicit h:Handler[T]) = h
 
-  /**
-   * The basic feed/entry handlers with scala-pickling serialization
-   */
   implicit object feedHandler extends FdHandler
-  // Workaround impossibility to use static pickler for first time in code
-  private object hackPickling {
-    import scala.pickling._,Defaults._,binary._
-    def pickle(e:En[String]) = e.pickle.value
-    def unpickle(a:Array[Byte]) = a.unpickle[En[String]]
-  }
   implicit object strEnHandler extends EnHandler[String]{
-    import scala.pickling._,Defaults._,binary._,static._
+    import scala.pickling._,Defaults._,binary._//,static._
     def pickle(e:En[String]) = e.pickle.value
     def unpickle(a:Array[Byte]) = a.unpickle[En[String]]
   }
@@ -61,9 +52,9 @@ object Handler {
     def pickle(e: A): Array[Byte] = h.pickle(f(e))
     def unpickle(a: Array[Byte]): A = g(h.unpickle(a))
 
-    def put(el:A)(implicit dba:Dba):Res[A] = h.put(f(el)).right.map(g)
-    def get(k:String)(implicit dba:Dba):Res[A] = h.get(key(k)).right.map(g)
-    def delete(k:String)(implicit dba:Dba):Res[A] = h.delete(key(k)).right.map(g)
+    private[handle] def put(el:A)(implicit dba:Dba):Res[A] = h.put(f(el)).right.map(g)
+    private[handle] def get(k:String)(implicit dba:Dba):Res[A] = h.get(key(k)).right.map(g)
+    private[handle] def delete(k:String)(implicit dba:Dba):Res[A] = h.delete(key(k)).right.map(g)
 
     def add(el:A)(implicit dba:Dba):Res[A] = h.add(f(el)).right.map(g)
     def remove(el:A)(implicit dba:Dba):Res[A] = h.remove(f(el)).right.map(g)
@@ -73,5 +64,4 @@ object Handler {
     def by[C,D](f:C=>D)(g:D=>C)(key:String => String) = this
     def toOpt = Functor[Option].lift(f)
   }
-
 }
