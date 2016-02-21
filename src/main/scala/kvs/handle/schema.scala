@@ -6,6 +6,35 @@ import scalaz._, Scalaz._, Tags._
 import scala.pickling._, binary._, Defaults._
 
 /**
+  * Schema is the set of entry markers and specific tagged handlers.
+  */
+object Schema {
+
+  trait Msg
+
+  type Message = En[String] @@ Msg
+
+  implicit def Message(a: En[String]): En[String] @@ Msg  = Tag[En[String], Msg](a)
+
+  implicit object msgHandler extends Handler[Message]{
+    val enh = implicitly[Handler[En[String]]]
+    import mws.kvs.store.Dba
+
+    def get(k: String)(implicit dba: Dba): Either[Err,Message] = enh.get(k).right.map(Message(_))
+    def put(el: Message)(implicit dba: Dba): Either[Err,Message] = enh.put(Tag.unwrap(el)).right.map(Message(_))
+    def delete(k: String)(implicit dba: Dba): Either[Err,Message] = enh.delete(k).right.map(Message(_))
+
+    def add(el: Message)(implicit dba: Dba): Either[Err,Message] = enh.add(Tag.unwrap(el)).right.map(Message(_))
+    def remove(el: Message)(implicit dba: Dba): Either[Err,Message] =  enh.remove(Tag.unwrap(el)).right.map(Message(_))
+    def entries(fid: String,from: Option[Message],count: Option[Int])(implicit dba: Dba): Either[Err,List[Message]] =
+      enh.entries(fid,from.map(Tag.unwrap(_)),count).right.map(_.map(Message(_)))
+
+    def pickle(e: Message): Array[Byte] = enh.pickle(Tag.unwrap(e))
+    def unpickle(a: Array[Byte]): Message = Message(enh.unpickle(a))
+  }
+}
+
+/**
  * Social schema
  * 
  * todo: mark Id's with tags string/long
