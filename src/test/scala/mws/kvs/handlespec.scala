@@ -5,7 +5,6 @@ import com.typesafe.config._
 
 import org.scalatest._, matchers._, concurrent._, ScalaFutures._
 import akka.testkit._, TestEvent._
-import org.scalactic._
 
 import store._, handle._
 import scala.language.{higherKinds,postfixOps,implicitConversions}
@@ -20,7 +19,7 @@ class HandleSpec(_system:ActorSystem) extends TestKit(_system)
   with Matchers
   with BeforeAndAfterAll {
 
-  import scala.pickling._, Defaults._, binary._
+  import scala.pickling._, Defaults._, binary._, static._
 
   def this() = this(ActorSystem("handle", ConfigFactory.load))
 
