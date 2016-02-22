@@ -11,7 +11,7 @@ object Build extends sbt.Build{
       libraryDependencies ++= Seq(
         "org.scalaz" %% "scalaz-core" % "7.1.1",
         "org.scala-lang.modules" %% "scala-pickling" % "0.10.1",
-        ("com.playtech.mws" %% "rng" % "1.0-99-g4c53565").exclude("org.scalatest", "scalatest_2.11"),
+        ("com.playtech.mws" %% "rng" % "1.0-121-g1d316b4").exclude("org.scalatest", "scalatest_2.11"),
         "junit" % "junit" % "4.12" % "test",
         "org.scalatest" %% "scalatest" % "2.2.4" % Test,
         "com.typesafe.akka" %% "akka-testkit" % "2.3.14" % Test
@@ -26,14 +26,17 @@ object Build extends sbt.Build{
   lazy val buildSettings = Seq(
     organization := "com.playtech.mws",
     description := "Abstract Scala Types Key-Value Storage",
-    version := org.eclipse.jgit.api.Git.open(file(".")).log().setMaxCount(1).call().iterator.next.getName.take(7),
+    version := org.eclipse.jgit.api.Git.open(file(".")).describe().call(),
     scalaVersion := "2.11.7")
 
   override lazy val settings = super.settings ++ buildSettings ++ resolverSettings ++ Seq(
     shellPrompt := (Project.extract(_).currentProject.id + " > "))
 
   lazy val resolverSettings = Seq(
-    resolvers += Resolver.mavenLocal
+    resolvers ++= Seq(
+      Resolver.mavenLocal,
+      "MWS Releases Resolver" at "http://ua-mws-nexus01.ee.playtech.corp/nexus/content/repositories/releases/"
+    )
   )
 
   lazy val publishSettings = Seq(
