@@ -20,14 +20,14 @@ object Schema {
     val enh = implicitly[Handler[En[String]]]
     import mws.kvs.store.Dba
 
-    private[handle] def get(k: String)(implicit dba: Dba): Either[Err,Message] = enh.get(k).right.map(Message)
-    private[handle] def put(el: Message)(implicit dba: Dba): Either[Err,Message] = enh.put(Tag.unwrap(el)).right.map(Message)
-    private[handle] def delete(k: String)(implicit dba: Dba): Either[Err,Message] = enh.delete(k).right.map(Message)
+    def get(k: String)(implicit dba: Dba): Either[Err,Message] = enh.get(k).right.map(Message)
+    def put(el: Message)(implicit dba: Dba): Either[Err,Message] = enh.put(Tag.unwrap(el)).right.map(Message)
+    def delete(k: String)(implicit dba: Dba): Either[Err,Message] = enh.delete(k).right.map(Message)
 
     def add(el: Message)(implicit dba: Dba): Either[Err,Message] = enh.add(Tag.unwrap(el)).right.map(Message)
     def remove(el: Message)(implicit dba: Dba): Either[Err,Message] =  enh.remove(Tag.unwrap(el)).right.map(Message)
     def entries(fid: String,from: Option[Message],count: Option[Int])(implicit dba: Dba): Either[Err,List[Message]] =
-      enh.entries(fid,from.map(Tag.unwrap),count).right.map(_.map(Message))
+      enh.entries(fid,from.map(Tag.unwrap(_)),count).right.map(_.map(Message))
 
     def pickle(e: Message): Array[Byte] = enh.pickle(Tag.unwrap(e))
     def unpickle(a: Array[Byte]): Message = Message(enh.unpickle(a))
