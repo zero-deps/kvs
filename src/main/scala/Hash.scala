@@ -26,6 +26,7 @@ case class RegisterBucket(bid: String) extends RingMessage
 case object Ready
 case object Init
 case object Dump
+case object DumpReady
 
 class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with ActorLogging {
   import context.system
@@ -88,8 +89,9 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
       )}
     case Ready => sender() ! true
     case Dump => 
-    context.become(readApi) // readonly untill end of dump
-    system.actorOf(Props(classOf[DumpWorker], buckets)) ! Dump
+        context.become(readApi) // readonly untill end of dump
+        system.actorOf(Props(classOf[DumpWorker], buckets)) ! Dump
+    case DumpReady => context.become(ready)
   }
 
   def writeApi: Receive = {

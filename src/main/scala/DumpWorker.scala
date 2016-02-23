@@ -22,7 +22,9 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList]) extends FSM[FsmStat
     when(ReadyCollect){
         case Event(Dump, data ) => 
             data.current match {
-                case `bucketsNum` => stop()
+                case `bucketsNum` => 
+                    
+                    stop()
                 case b =>  
                     buckets(b).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(b), _ ! BucketGet(b))}
                     goto(Collecting) using(DumpData(b, buckets(b), Nil))
