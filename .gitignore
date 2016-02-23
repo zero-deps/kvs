@@ -8,3 +8,4 @@ project/project
 src/main/java
 /.history
 store_usage_data
+.DS_Store
