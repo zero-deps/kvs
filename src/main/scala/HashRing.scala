@@ -33,8 +33,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
 
   val leveldbOptions = new Options().createIfMissing(true)
   def leveldbReadOptions = new ReadOptions().verifyChecksums(config.getBoolean("checksum"))
-  val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
-  val leveldbDir = new File(config.getString("dir"))
+  val leveldbDir = new File(config.getString("dir"))  
   var leveldb = leveldbFactory.open(leveldbDir, if (nativeLeveldb) leveldbOptions else leveldbOptions.compressionType(CompressionType.NONE))
 
   def leveldbFactory =

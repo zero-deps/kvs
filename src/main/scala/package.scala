@@ -57,4 +57,18 @@ package object rng {
         (Some(correct), l.filterNot(age(_)._1 == age(correct)._1))
     }
   }
+
+  @tailrec
+  def mergeBucketData(l: List[Data], merged: List[Data]): List[Data] = l match {
+    case h :: t =>
+      merged.find(_.key == h.key) match {
+        case Some(d) if h.vc == d.vc && h.lastModified > d.lastModified =>
+          mergeBucketData(t, h :: merged.filterNot(_.key == h.key))
+        case Some(d) if h.vc > d.vc =>
+          mergeBucketData(t, h :: merged.filterNot(_.key == h.key))
+        case None => mergeBucketData(t, h :: merged)
+        case _ => mergeBucketData(t, merged)
+      }
+    case Nil => merged
+  }
 }

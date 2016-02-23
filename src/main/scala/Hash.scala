@@ -87,6 +87,9 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
         _ ! m, _ ! m
       )}
     case Ready => sender() ! true
+    case Dump => 
+    context.become(readApi) // readonly untill end of dump
+    system.actorOf(Props(classOf[DumpWorker], buckets)) ! Dump
   }
 
   def writeApi: Receive = {
@@ -257,21 +260,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     bucketsDataF map {
       case  bdata: List[GetBucketResp] if bdata.isEmpty || bdata.forall(_.l == Nil) =>
       case  bdata: List[GetBucketResp] => localWStore ! BucketPut(
-        mergeData((List.empty[Data] /: bdata )((acc, resp) => resp.l.getOrElse(Nil) ::: acc), Nil))
+        mergeBucketData((List.empty[Data] /: bdata )((acc, resp) => resp.l.getOrElse(Nil) ::: acc), Nil))
     }
-  }
-
-  @tailrec
-  final def mergeData(l: List[Data], merged: List[Data]): List[Data] = l match {
-    case h :: t =>
-      merged.find(_.key == h.key) match {
-        case Some(d) if h.vc == d.vc && h.lastModified > d.lastModified =>
-          mergeData(t, h :: merged.filterNot(_.key == h.key))
-        case Some(d) if h.vc > d.vc =>
-          mergeData(t, h :: merged.filterNot(_.key == h.key))
-        case None => mergeData(t, h :: merged)
-        case _ => mergeData(t, merged)
-      }
-    case Nil => merged
   }
 }
