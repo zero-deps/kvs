@@ -29,6 +29,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   def get[H:Handler](k:String):Either[Err,H] = dba.get(k).right.map(implicitly[Handler[H]].unpickle)
   def delete[H:Handler](k:String):Either[Err,H] = dba.delete(k).right.map(implicitly[Handler[H]].unpickle)
 
+  def put[Fd:Handler](fd:Fd):Either[Err,Fd] = implicitly[Handler[Fd]].put(fd)
   def add[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].add(el)
   def remove[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].remove(el)
   def entries[H:Handler](fid:String):Either[Err,List[H]] = entries(fid,None,None)
