@@ -46,11 +46,6 @@ class HandleSpec(_system:ActorSystem) extends TestKit(_system)
     val r1:Either[Err, Message] = kvs.add(m)
     println(s"put Message $r1")
 
-    val m1 = Metrics(e1)
-    val r2:Either[Err, Metrics] = kvs.add(m1)
-
-    println(s"put Message $r2")
-
     val b = kvs.get[En[String]]("f1.e1")
     println(s"get En[String] $b")
 

@@ -25,11 +25,10 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
     sys.addShutdownHook(jmx.unregisterMBean())
   }
 
-  def put[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].put(el)
-  def get[H:Handler](k:String):Either[Err,H] = implicitly[Handler[H]].get(k)
-  def get[H:EnHandler](fid:String,id:String):Either[Err,En[H]] = implicitly[EnHandler[H]].get(fid, id)
-  def delete[H:Handler](key:String):Either[Err,H] = implicitly[Handler[H]].delete(key)
-  def delete[H: EnHandler](fid:String,id:String):Either[Err,En[H]] = implicitly[EnHandler[H]].delete(fid, id)
+  def put[H:Handler](k:String,el:H):Either[Err,H] = dba.put(k,implicitly[Handler[H]].pickle(el)).right.map(_=>el)
+  def get[H:Handler](k:String):Either[Err,H] = dba.get(k).right.map(implicitly[Handler[H]].unpickle)
+  def delete[H:Handler](k:String):Either[Err,H] = dba.delete(k).right.map(implicitly[Handler[H]].unpickle)
+
   def add[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].add(el)
   def remove[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].remove(el)
   def entries[H:Handler](fid:String):Either[Err,List[H]] = entries(fid,None,None)
