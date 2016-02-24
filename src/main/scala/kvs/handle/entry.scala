@@ -31,7 +31,7 @@ trait EnHandler[T] extends Handler[En[T]] {
   import Handler._
   val fh = implicitly[Handler[Fd]]
 
-  private implicit def tuple2ToId(fid_id:(String,String)):String = s"${fid_id._1}.${fid_id._2}"
+  private implicit def tuple2ToId(fid:(String,String)):String = s"${fid._1}.${fid._2}"
 
   def put(el: En[T])(implicit dba: Dba): Res[En[T]] = dba.put((el.fid, el.id), pickle(el)).right.map { _ => el }
   def get(k: String)(implicit dba: Dba): Res[En[T]] = dba.get(k).right.map(unpickle)
