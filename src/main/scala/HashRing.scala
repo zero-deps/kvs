@@ -85,6 +85,8 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   def add(fid:String, v: Value) = {
     (hash ? Add(fid,v)).mapTo[Int]
   }
+
+  def dump(): Unit = hash ! Dump
   
   def isReady: Future[Boolean] = (hash ? Ready).mapTo[Boolean]
 }

@@ -26,7 +26,7 @@ case class RegisterBucket(bid: String) extends RingMessage
 case object Ready
 case object Init
 case object Dump
-case object DumpReady
+case class DumpComplete(path: String)
 
 class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with ActorLogging {
   import context.system
@@ -89,9 +89,12 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
       )}
     case Ready => sender() ! true
     case Dump => 
+        log.info("START DUMP")
         context.become(readApi) // readonly untill end of dump
-        system.actorOf(Props(classOf[DumpWorker], buckets)) ! Dump
-    case DumpReady => context.become(ready)
+        system.actorOf(Props(classOf[DumpWorker], buckets, local)) ! Dump
+    case DumpComplete(path) => 
+        log.info(s"dump in file $path")
+        context.become(ready)
   }
 
   def writeApi: Receive = {
