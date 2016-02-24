@@ -131,7 +131,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       expectMsg(GetResp(Some(List(data2))))
 
       readStore ! BucketGet(1)
-      expectMsgType[GetBucketResp] should equal(GetBucketResp(b,List(data, data2)))
+      expectMsgType[GetBucketResp] should equal(GetBucketResp(1,Some(List(data, data2))))
 
       get_delete_get(data)
       get_delete_get(data2)     
