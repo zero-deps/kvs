@@ -13,19 +13,23 @@ trait Handler[T] {
   def pickle(e:T):Array[Byte]
   def unpickle(a:Array[Byte]):T
 
-  private[handle] def put(el:T)(implicit dba:Dba):Res[T]
-  private[handle] def get(k:String)(implicit dba:Dba):Res[T]
-  private[handle] def delete(k:String)(implicit dba:Dba):Res[T]
+  def put(el:T)(implicit dba:Dba):Res[T]
+  def get(k:String)(implicit dba:Dba):Res[T]
+  def delete(k:String)(implicit dba:Dba):Res[T]
 
   // container/iterator API
   def add(el:T)(implicit dba:Dba):Res[T]
   def remove(el:T)(implicit dba:Dba):Res[T]
   def entries(fid:String,from:Option[T],count:Option[Int])(implicit dba:Dba):Res[List[T]]
+  def entries(fid:String)(implicit dba:Dba):Res[List[T]] = entries(fid,None,None)
 }
 
 object Handler {
   def apply[T](implicit h:Handler[T]) = h
 
+  /**
+   * The basic feed/entry handlers with scala-pickling serialization
+   */
   implicit object feedHandler extends FdHandler
   implicit object strEnHandler extends EnHandler[String]{
     import scala.pickling._,Defaults._,binary._//,static._
@@ -52,9 +56,9 @@ object Handler {
     def pickle(e: A): Array[Byte] = h.pickle(f(e))
     def unpickle(a: Array[Byte]): A = g(h.unpickle(a))
 
-    private[handle] def put(el:A)(implicit dba:Dba):Res[A] = h.put(f(el)).right.map(g)
-    private[handle] def get(k:String)(implicit dba:Dba):Res[A] = h.get(key(k)).right.map(g)
-    private[handle] def delete(k:String)(implicit dba:Dba):Res[A] = h.delete(key(k)).right.map(g)
+    def put(el:A)(implicit dba:Dba):Res[A] = h.put(f(el)).right.map(g)
+    def get(k:String)(implicit dba:Dba):Res[A] = h.get(key(k)).right.map(g)
+    def delete(k:String)(implicit dba:Dba):Res[A] = h.delete(key(k)).right.map(g)
 
     def add(el:A)(implicit dba:Dba):Res[A] = h.add(f(el)).right.map(g)
     def remove(el:A)(implicit dba:Dba):Res[A] = h.remove(f(el)).right.map(g)

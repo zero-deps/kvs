@@ -9,7 +9,7 @@ object Build extends sbt.Build{
     base = file("."),
     settings = defaultSettings ++ publishSettings ++ Seq(
       libraryDependencies ++= Seq(
-        "org.scalaz" %% "scalaz-core" % "7.1.1",
+        "org.scalaz" %% "scalaz-core" % "7.2.0",
         "org.scala-lang.modules" %% "scala-pickling" % "0.10.1",
         ("com.playtech.mws" %% "rng" % "1.0-121-g1d316b4").exclude("org.scalatest", "scalatest_2.11"),
         "junit" % "junit" % "4.12" % "test",
