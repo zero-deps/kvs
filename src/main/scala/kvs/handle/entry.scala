@@ -12,11 +12,11 @@ object EnHandler {
   def by[A, S](f: A => S)(g: S => A)(implicit h: EnHandler[S]): EnHandler[A] = new EnHandler[A] {
     def pickle(e: En[A]): Array[Byte] = h.pickle(en_A_to_En_S(e))
     def unpickle(a: Array[Byte]): En[A] = en_S_to_En_A(h.unpickle(a))
-    
+
     private val en_A_to_En_S: En[A]=>En[S] = {
       case En(fid,id,prev,next,data) => En[S](fid,id,prev,next,f(data))
     }
-    
+
     private val en_S_to_En_A: En[S]=>En[A] = {
       case En(fid,id,prev,next,data) => En[A](fid,id,prev,next,g(data))
     }

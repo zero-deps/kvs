@@ -57,7 +57,7 @@ object SocialSchema {
     def unpickle(a:Array[Byte]) = a.unpickle[En[Feeds]]
   }
 
-  def en2u(e:En[Feeds]):User = User(e) 
+  def en2u(e:En[Feeds]):User = User(e)
   def u2en(s:User):En[Feeds] = Tag.unwrap(s)
 
   implicit val usrHandler:Handler[User] = Handler.by[User,En[Feeds]](u2en)(en2u)(identity(_))
