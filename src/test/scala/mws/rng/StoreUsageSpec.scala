@@ -12,7 +12,7 @@ import org.iq80.leveldb.impl.Iq80DBFactory
 import org.iq80.leveldb.{CompressionType, WriteOptions, ReadOptions, Options}
 import org.iq80.leveldb.util.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import stores._
+import mws.rng.store._
 
 import scala.concurrent.duration.Duration
 
@@ -131,7 +131,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       expectMsg(GetResp(Some(List(data2))))
 
       readStore ! BucketGet(1)
-      expectMsgType[List[Data]].toSet[Data] should be(Set(data, data2))
+      expectMsgType[GetBucketResp] should equal(GetBucketResp(b,List(data, data2)))
 
       get_delete_get(data)
       get_delete_get(data2)     

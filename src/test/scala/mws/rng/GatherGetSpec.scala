@@ -7,7 +7,7 @@ import akka.testkit.{TestProbe, TestFSMRef}
 import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import stores.{GetResp, StorePut}
+import mws.rng.store.{GetResp, StorePut}
 import scala.concurrent.duration.Duration
 
 
