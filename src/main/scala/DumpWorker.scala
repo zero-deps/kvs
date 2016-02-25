@@ -2,7 +2,7 @@ package mws.rng
 
 import akka.cluster.VectorClock
 import akka.actor.{FSM, Props, ActorLogging}
-import mws.rng.store.{BucketGet, GetBucketResp, WriteStore, BucketPut, PutSavingEntity}
+import mws.rng.store._
 import akka.util.ByteString
 import java.util.Calendar
 import scala.collection.SortedMap
@@ -67,4 +67,31 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
     }
 
     initialize()
+}
+
+class LoadDumpWorker(path: String) extends FSM[FsmState, Option[Key]] with ActorLogging {
+    val leveldbFactory = org.iq80.leveldb.impl.Iq80DBFactory.factory
+    val dumpDb = leveldbFactory.open(new File(path), new Options().createIfMissing(true))
+    val store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
+    val stores = SelectionMemorize(context.system)
+    startWith(ReadyCollect, None)
+
+    when(ReadyCollect){
+        case Event(LoadDump, state) => 
+            store ! GetSavingEntity("head_of_keys")
+            goto(Collecting) using(None)
+    }
+
+    when(Collecting){
+        case Event(SavingEntity(k,v,nextKey), _) =>
+                stores.get(self.path.address, "ring_hash").fold(_ ! Put(k,v), _ ! Put(k,v))
+                nextKey match {
+                    case None => 
+                        dumpDb.close()
+                        stop()
+                    case Some(key) =>  
+                        store ! GetSavingEntity(key)
+                        stay() using(Some(key))
+                }
+    }
 }

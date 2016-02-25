@@ -6,8 +6,10 @@ import akka.actor.{Actor, ActorLogging}
 import akka.serialization.SerializationExtension
 import mws.rng._
 import org.iq80.leveldb._
+import akka.util.ByteString
 
 case class GetBucketResp(b:Bucket,l: Option[List[Data]])
+case class SavingEntity(k: Key, v:Value, nextKey: Option[Key])
 
 class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
   val serialization = SerializationExtension(context.system)
@@ -31,6 +33,12 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
         case Some(feed) => sender() ! feed.slice(start.getOrElse(0), end.getOrElse(feed.size))
         case None => sender() ! Nil
       }
+    case GetSavingEntity(k) => 
+      val e = fromBytesList(leveldb.get(bytes(k)), classOf[(Value, Option[Key])]) match {
+        case None => SavingEntity(k, ByteString("dymmy"), None)
+        case Some((v,nextKey)) => SavingEntity(k, v, nextKey)
+      }
+      sender ! e
     case _ =>    
   }
 

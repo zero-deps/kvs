@@ -18,6 +18,7 @@ case class BucketDelete(b:Bucket)
 case class BucketGet(b:Bucket)
 case class GetResp(d: Option[List[Data]])
 case class PutSavingEntity(k:Key,v:(Value, Option[Key]))
+case class GetSavingEntity(k: Key)
 
 case class FeedAppend(fid:String, v:Value,  version: VectorClock)
 sealed trait PutStatus

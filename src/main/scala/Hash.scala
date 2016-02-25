@@ -105,7 +105,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
       _ ! msg, _ ! msg
     ))
     case Ready => sender() ! true
-    case LoadDump(dumpPath) => 
+    case m@LoadDump(dumpPath) => system.actorOf(Props(classOf[LoadDumpWorker], dumpPath)) ! m
   }
 
   def notReadyApi: Receive =  {
