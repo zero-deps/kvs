@@ -17,6 +17,7 @@ case class BucketPut(data: List[Data])
 case class BucketDelete(b:Bucket)
 case class BucketGet(b:Bucket)
 case class GetResp(d: Option[List[Data]])
+case class PutSavingEntity(k:Key,v:(Value, Option[Key]))
 
 case class FeedAppend(fid:String, v:Value,  version: VectorClock)
 sealed trait PutStatus
@@ -47,6 +48,11 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
 
   def receive: Receive = {
     case StorePut(data) => sender ! doPut(data)
+    case PutSavingEntity(k:Key,v:(Value, Option[Key])) => {
+      withBatch(batch => {
+      batch.put(bytes(k), bytes(v))
+      })
+    }
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
     case BucketPut(data) => sender ! doBucketPut(data)

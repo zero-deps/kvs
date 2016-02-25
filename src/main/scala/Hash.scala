@@ -26,6 +26,7 @@ case class RegisterBucket(bid: String) extends RingMessage
 case object Ready
 case object Init
 case object Dump
+case class LoadDump(dumpPath:String)
 case class DumpComplete(path: String)
 
 class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with ActorLogging {
@@ -104,6 +105,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
       _ ! msg, _ ! msg
     ))
     case Ready => sender() ! true
+    case LoadDump(dumpPath) => 
   }
 
   def notReadyApi: Receive =  {
