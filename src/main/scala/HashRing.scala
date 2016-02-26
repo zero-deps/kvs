@@ -87,6 +87,8 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   }
 
   def dump(): Unit = hash ! Dump
+
+  def load(dumpPath: String) = hash ! LoadDump(dumpPath)
   
   def isReady: Future[Boolean] = (hash ? Ready).mapTo[Boolean]
 }

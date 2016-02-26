@@ -29,7 +29,6 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
 
     when(Collecting){ 
         case Event(GetBucketResp(b,data), state) => // TODO add timeout if any node is not responding.
-            //log.info(s"receive b=$b, data = ${data}")
             remove(if(sender().path.address.hasLocalScope) local else sender().path.address, state.prefList) match {
                 case Nil => 
                     val lastKey = mergeBucketData((data :: state.collected).flatten.foldLeft(List.empty[Data])((acc, l) => l ::: acc), Nil) match {
@@ -40,7 +39,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
                     b+1 match {
                         case `maxBucket` => 
                             stores.get(self.path.address, "ring_hash").fold(_ ! DumpComplete(filePath), _ ! DumpComplete(filePath))
-                            log.debug(s"Dump complete, sending path to hash, lastKey = $lastKey")
+                            log.info(s"Dump complete, sending path to hash, lastKey = $lastKey")
                             dumpStore ! PutSavingEntity("head_of_keys", (ByteString("dummy"), lastKey))
                             db.close
                             stop()
@@ -63,6 +62,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
         case Nil => prevKey
         case h::t => 
             dumpStore ! PutSavingEntity(h.key, (h.value, prevKey))
+            log.info(s"${h.key}, (${h.value}  -> ${prevKey})")
             linkKeysInDb(t,Some(h.key))
     }
 
@@ -77,20 +77,23 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[Key]] with Actor
     startWith(ReadyCollect, None)
 
     when(ReadyCollect){
-        case Event(LoadDump, state) => 
+        case Event(LoadDump(str), state) => 
             store ! GetSavingEntity("head_of_keys")
             goto(Collecting) using(None)
     }
 
     when(Collecting){
         case Event(SavingEntity(k,v,nextKey), _) =>
+                log.info(s"saving state $k -> $v, nextKey = $nextKey")
                 stores.get(self.path.address, "ring_hash").fold(_ ! Put(k,v), _ ! Put(k,v))
                 nextKey match {
                     case None => 
                         dumpDb.close()
+                        log.info("load is completed ")
                         stop()
                     case Some(key) =>  
                         store ! GetSavingEntity(key)
+
                         stay() using(Some(key))
                 }
     }
