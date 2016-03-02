@@ -7,13 +7,14 @@ import akka.util.ByteString
 import java.util.Calendar
 import scala.collection.SortedMap
 import java.io.File
+import java.text.SimpleDateFormat
 import org.iq80.leveldb._
 
 case class DumpData(current: Bucket, prefList: PreferenceList, collected: List[Option[List[Data]]], lastKey: Option[Key])
 
 class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extends FSM[FsmState, DumpData] with ActorLogging{
     val leveldbFactory = org.iq80.leveldb.impl.Iq80DBFactory.factory
-    val timestamp = Calendar.getInstance().getTime().toString.replaceAll(" ", "")
+    val timestamp = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss").format(Calendar.getInstance().getTime())
     val filePath = s"rng_dump_$timestamp"
     val db = leveldbFactory.open(new File(filePath), new Options().createIfMissing(true))
     val dumpStore = context.actorOf(Props(classOf[WriteStore], db))
@@ -42,6 +43,8 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
                             log.info(s"Dump complete, sending path to hash, lastKey = $lastKey")
                             dumpStore ! PutSavingEntity("head_of_keys", (ByteString("dummy"), lastKey))
                             db.close
+                            import mws.rng.arch.Archiver._
+                            zip(filePath)
                             stop()
                         case nextBucket => 
                             buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(nextBucket), _ ! BucketGet(nextBucket))}
@@ -71,7 +74,10 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
 
 class LoadDumpWorker(path: String) extends FSM[FsmState, Option[Key]] with ActorLogging {
     val leveldbFactory = org.iq80.leveldb.impl.Iq80DBFactory.factory
-    val dumpDb = leveldbFactory.open(new File(path), new Options().createIfMissing(true))
+    import mws.rng.arch.Archiver._
+    val extraxtedDir = path.dropRight(".zip".length)
+    unZipIt(path, extraxtedDir)
+    val dumpDb = leveldbFactory.open(new File(extraxtedDir), new Options().createIfMissing(true))
     val store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
     val stores = SelectionMemorize(context.system)
     startWith(ReadyCollect, None)
