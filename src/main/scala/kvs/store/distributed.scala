@@ -42,5 +42,9 @@ class Ring(system: ExtendedActorSystem) extends Dba {
     case err@ Left(msg) => err
   }
 
+  override def save(): Unit = rng.dump()
+
+  override def load(path: String): Unit = rng.load(path)
+
   override def close(): Unit = println("okay")
 }

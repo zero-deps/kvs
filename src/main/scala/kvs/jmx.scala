@@ -16,6 +16,8 @@ import handle._,store._
  */
 trait KvsMBean {
   def all(feed:String):String
+ // def save(): Unit
+  //def load(path: String): String
 }
 class KvsJmx(kvs:Kvs, log: LoggingAdapter) {
   private val server = ManagementFactory.getPlatformMBeanServer

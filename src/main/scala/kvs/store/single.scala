@@ -66,6 +66,8 @@ class Leveldb(system: ExtendedActorSystem) extends Dba {
     case Left(l) => Left(l)
   }
 
+  def save(): Unit = ()
+  def load(path: String): Unit = ()
   def close(): Unit = Try(leveldb.close())
   def isReady: Future[Boolean] = Future.successful(true)
 }
@@ -94,6 +96,11 @@ class Memory(system: ExtendedActorSystem) extends Dba {
     value => log.debug(s"[memory][delete] $key -> $value"); storage.remove(key); value
   }
   def close():Unit = ()
+
+  def save(): Unit = ()
+
+  def load(path: String): Unit = ()
+
   import scala.concurrent.Future
   def isReady:Future[Boolean] = Future.successful(true)
 }

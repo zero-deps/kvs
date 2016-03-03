@@ -35,6 +35,8 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   def entries[H:Handler](fid:String):Either[Err,List[H]] = entries(fid,None,None)
   def entries[H:Handler](fid:String,from:Option[H],count:Option[Int]):Either[Err,List[H]] = implicitly[Handler[H]].entries(fid,from,count)
 
+  def save(): Unit = dba.save()
+  def load(dumpPath: String) = dba.load(dumpPath)
   import scala.concurrent.Future
   def isReady:Future[Boolean] = dba.isReady
   def close():Unit = dba.close()

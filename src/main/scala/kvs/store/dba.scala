@@ -11,6 +11,8 @@ trait Dba {
   def put(key:String,value:V):Either[Err,V]
   def get(key:String)        :Either[Err,V]
   def delete(key:String)     :Either[Err,V]
+  def save(): Unit
+  def load(path: String): Unit
   def close():Unit
   def isReady:Future[Boolean]
 }

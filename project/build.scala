@@ -11,7 +11,7 @@ object Build extends sbt.Build{
       libraryDependencies ++= Seq(
         "org.scalaz" %% "scalaz-core" % "7.2.0",
         "org.scala-lang.modules" %% "scala-pickling" % "0.10.1",
-        "com.playtech.mws" %% "rng" % "1.0-129-g32a44a5",
+        "com.playtech.mws" %% "rng" % "1.0-145-ge5c256f",
         "junit" % "junit" % "4.12" % Test,
         "org.scalatest" %% "scalatest" % "2.2.4" % Test,
         "com.typesafe.akka" %% "akka-testkit" % "2.3.14" % Test
