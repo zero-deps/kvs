@@ -1,4 +1,4 @@
-package mws.kvs
+package kvs
 
 import sbt._
 import sbt.Keys._

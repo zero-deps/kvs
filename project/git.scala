@@ -1,4 +1,4 @@
-package mws.kvs
+package kvs
 
 import sbt._
 import Keys._
@@ -41,7 +41,10 @@ object Git extends AutoPlugin {
         case cl: java.net.URLClassLoader =>
         val cp = cl.getURLs map (_.getFile) mkString ":"
         val baos = new java.io.ByteArrayOutputStream
-        val code = Fork.java(None, Seq("-classpath", cp, "org.eclipse.jgit.pgm.Main") ++ args, Some(dir), CustomOutput(baos))
+        val code = (new Fork("java",None))(ForkOptions(
+          outputStrategy=Some(CustomOutput(baos)),
+          workingDirectory=Some(dir)
+        ),Seq("-classpath", cp, "org.eclipse.jgit.pgm.Main") ++ args)
         val result = baos.toString
         s.log.info(result)
         code

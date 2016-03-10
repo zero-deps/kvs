@@ -1,7 +1,7 @@
 package mws.kvs
+package handle
 
-import handle._
-import mws.kvs.store.Dba
+import store._
 
 trait ElHandler[T] extends Handler[T] {
 
