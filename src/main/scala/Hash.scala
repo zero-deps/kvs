@@ -92,7 +92,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     case Dump => 
         log.info("START DUMP")
         context.become(readApi) // readonly untill end of dump
-        system.actorOf(Props(classOf[DumpWorker], buckets, local)) ! Dump
+        system.actorOf(Props(classOf[DumpWorker], buckets, local)).tell(Dump, sender)
     case DumpComplete(path) => 
         log.info(s"dump in file $path")
         context.become(ready)

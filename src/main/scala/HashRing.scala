@@ -32,7 +32,6 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   val nativeLeveldb = config.getBoolean("native")
 
   val leveldbOptions = new Options().createIfMissing(true)
-  def leveldbReadOptions = new ReadOptions().verifyChecksums(config.getBoolean("checksum"))
   val leveldbDir = new File(config.getString("dir"))  
   var leveldb = leveldbFactory.open(leveldbDir, if (nativeLeveldb) leveldbOptions else leveldbOptions.compressionType(CompressionType.NONE))
 
@@ -86,9 +85,9 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     (hash ? Add(fid,v)).mapTo[Int]
   }
 
-  def dump(): Unit = hash ! Dump
+  def dump(): Future[String] = (hash ? Dump).mapTo[String]
 
-  def load(dumpPath: String) = hash ! LoadDump(dumpPath)
+  def load(dumpPath: String): Unit = hash ! LoadDump(dumpPath)
   
   def isReady: Future[Boolean] = (hash ? Ready).mapTo[Boolean]
 }

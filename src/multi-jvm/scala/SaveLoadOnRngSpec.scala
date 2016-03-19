@@ -12,14 +12,13 @@ import org.iq80.leveldb.util.FileUtils
 import java.io.File
 import scala.concurrent.duration._
 
-
 object LoadSaveConfig extends MultiNodeConfig {
 	val common_config = ConfigFactory.parseString("""
-		|akka.actor.provider = "akka.cluster.ClusterActorRefProvider"
+		  |akka.actor.provider = "akka.cluster.ClusterActorRefProvider"
 	    |akka.remote.log-remote-lifecycle-events = off
 	    |akka.log-dead-letters = off
 	    |akka.loglevel = "INFO"
-		|akka.stdout-logLevel= "INFO"
+		  |akka.stdout-logLevel= "INFO"
 	    |akka.log-dead-letters-during-shutdown = off
 	    |akka.testconductor.barrier-timeout = 20s
 	    |akka.cluster.log-info = on
@@ -28,8 +27,8 @@ object LoadSaveConfig extends MultiNodeConfig {
 	    |akka.cluster.failure-detector.threshold = 8
 	    |akka.cluster.metrics.collector-class = akka.cluster.JmxMetricsCollector
 	    |ring.buckets = 32
-		|ring.virtual-nodes = 8
-        |ring.quorum = [2,2,1]""".stripMargin) 
+		  |ring.virtual-nodes = 8
+      |ring.quorum = [2,2,1]""".stripMargin)
 
 	commonConfig(common_config)
 	val n1 = role("n1_for_save")
@@ -37,10 +36,13 @@ object LoadSaveConfig extends MultiNodeConfig {
 	val n3 = role("n3_for_load")
 	val n4 = role("n4_for_load")	
 
-	nodeConfig(n1)(ConfigFactory.parseString( """|ring.leveldb.dir=data1""".stripMargin))
+	var dump_file_location: Option[String] = None
+
+	  nodeConfig(n1)(ConfigFactory.parseString( """|ring.leveldb.dir=data1""".stripMargin))
   	nodeConfig(n2)(ConfigFactory.parseString( """|ring.leveldb.dir=data2""".stripMargin))
   	nodeConfig(n3)(ConfigFactory.parseString( """|ring.leveldb.dir=data3""".stripMargin))
   	nodeConfig(n4)(ConfigFactory.parseString( """|ring.leveldb.dir=data4""".stripMargin))
+
 }
 
 class LoadSaveSpecMultiJvmNode1 extends LoadSaveSpec
@@ -49,21 +51,22 @@ class LoadSaveSpecMultiJvmNode3 extends LoadSaveSpec
 class LoadSaveSpecMultiJvmNode4 extends LoadSaveSpec
 
 class LoadSaveSpec extends STMultiNodeSpecTraits(LoadSaveConfig) {
+	
 	import LoadSaveConfig._
+  import DumpFileUtils._
 	"Save then Load Spec" must {
 		Cluster(system).subscribe(testActor, classOf[MemberUp])
 		expectMsgClass(classOf[CurrentClusterState])
-
 
 		"populate n1 n2 nodes with data" in {
 			runOn(n1,n2) {
 				Cluster(system).join(node(n1).address)
 				 awaitCond(Cluster(system).state.members.size == 2)
-				 awaitCond(Await.result(HashRing(system).isReady, 3.second))
+				 awaitCond(Await.result(HashRing(system).isReady, 10.second))
 				 
 				 (1 to 100).foreach{ v => 
 				 	HashRing(system).put(s"$v", ByteString(s"$v"))
-				 	awaitCond(Await.result(HashRing(system).get(s"$v"), 3.second) ==  Some(ByteString(s"$v")), 3.second)
+				 	awaitCond(Await.result(HashRing(system).get(s"$v"), 5.second) ==  Some(ByteString(s"$v")), 5.second)
 				 }
 			}
 			enterBarrier("first_nodes_populated_with_data")	
@@ -71,7 +74,9 @@ class LoadSaveSpec extends STMultiNodeSpecTraits(LoadSaveConfig) {
 
 		"dump data on first node" in {
 			runOn(n1) {
-				HashRing(system).dump()
+				dump_file_location = Some(Await.result(HashRing(system).dump(), 10.seconds))
+				println(s"$dump_file_location file location")
+        assert(dump_file_location == findDumpFile)
 
 			}
 			enterBarrier("all_waiting_for_dump")	
@@ -81,20 +86,25 @@ class LoadSaveSpec extends STMultiNodeSpecTraits(LoadSaveConfig) {
 			runOn(n3,n4){
 				Cluster(system).join(node(n3).address)
 				awaitCond(Cluster(system).state.members.size == 2)
-				awaitCond(Await.result(HashRing(system).isReady, 3.second))
+				awaitCond(Await.result(HashRing(system).isReady, 10.second))
 			}
 			enterBarrier("second_cluster_initialised")	
 		}
 
 		"load data and check" in {
 			runOn(n3){
-				HashRing(system).load("rng_dump_2016.03.15-16.03.28.zip") // tmp hack. 
-				Thread.sleep(5000)
+
+				findDumpFile match {
+					case None => fail("dump not ready")
+					case Some(file_location) => 
+						println(s"$file_location  - dump file")
+						HashRing(system).load(file_location)
+				}
 			}
 			runOn(n3,n4){
 				(1 to 100).foreach{ v => 
 				 	HashRing(system).put(s"$v", ByteString(s"$v"))
-				 	awaitCond(Await.result(HashRing(system).get(s"$v"), 3.second) ==  Some(ByteString(s"$v")), 3.second)
+				 	awaitCond(Await.result(HashRing(system).get(s"$v"), 5.second) ==  Some(ByteString(s"$v")), 5.second)
 				 }
 			}
 		}
@@ -107,11 +117,33 @@ class LoadSaveSpec extends STMultiNodeSpecTraits(LoadSaveConfig) {
 
 class STMultiNodeSpecTraits(c: MultiNodeConfig) extends MultiNodeSpec(c) with MultiNodeSpecCallbacks with Matchers 
 									with WordSpecLike with BeforeAndAfterAll {
+  import DumpFileUtils._
 
 	override def initialParticipants = roles.size										
-	override def beforeAll() = multiNodeSpecBeforeAll()
+	override def beforeAll() = {
+    multiNodeSpecBeforeAll()
+    allDumpStaff.foreach{f=> FileUtils.deleteRecursively(f)}
+  }
+
 	override def afterAll() = {
 		multiNodeSpecAfterAll()
 		(1 to 4).foreach{n => FileUtils.deleteRecursively(new File(s"./data$n"))}
+    allDumpStaff.foreach{f=> FileUtils.deleteRecursively(f)}
 	}
+}
+
+/*
+  * Utils for find dump file. Returned value of HashRing.dump() method cannot be used in multi-jvm tests because memory
+  *  is not shared accross test JVMs. Test also check whether founded file exactly the same file we got in HashRing.dump()
+   */
+object DumpFileUtils{
+  def findDumpFile: Option[String] = {
+    val currentDir = new File("./")
+    currentDir.list().find(file => file.startsWith("rng_dump") && file.endsWith(".zip"))
+  }
+
+  def allDumpStaff: Array[File] = {
+    val currentDir = new File("./")
+    currentDir.listFiles().filter(file => file.getName.contains("rng_dump"))
+  }
 }
