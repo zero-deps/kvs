@@ -16,7 +16,6 @@ object Leveldb {
   implicit def toErr(e:DBException):Err = Dbe(msg=e.getMessage)
   implicit def toErr(e:NullPointerException):Err = Dbe(msg=e.getMessage)
 
-  val not_found:Err = Dbe(msg="not_found")
 
   def apply(system: ExtendedActorSystem):Dba = new Leveldb(system)
 }
@@ -52,7 +51,7 @@ class Leveldb(system: ExtendedActorSystem) extends Dba {
   def get(key:String) : Either[Err,Array[Byte]] = try {
     Option(leveldb.get(key)) match {
       case Some(v) => Right(v)
-      case None => Left(not_found)
+      case None => Left(Dbe(msg=s"not_found key $key"))
     }
   } catch {case t:DBException => Left(t)}
 
@@ -73,13 +72,10 @@ class Leveldb(system: ExtendedActorSystem) extends Dba {
 }
 
 object Memory {
-  val not_found:Err = Dbe(msg="not_found")
-
   def apply(system: ExtendedActorSystem): Dba = new Memory(system)
 }
 class Memory(system: ExtendedActorSystem) extends Dba {
   import system.log
-  import Memory.not_found
   import scala.collection.concurrent.TrieMap
   val storage = TrieMap[String, Array[Byte]]()
 
@@ -90,7 +86,7 @@ class Memory(system: ExtendedActorSystem) extends Dba {
   }
   def get(key:String):Either[Err,Array[Byte]] = storage.get(key) match {
     case Some(value) => log.debug(s"[memory][get] $key -> $value"); Right(value)
-    case None => log.debug(s"[memory][get] $key -> $not_found"); Left(not_found)
+    case None => log.debug(s"[memory][get] $key -> not_found key $key"); Left( Dbe(msg= s"not_found key $key"))
   }
   def delete(key:String):Either[Err,Array[Byte]] = get(key).right.map {
     value => log.debug(s"[memory][delete] $key -> $value"); storage.remove(key); value

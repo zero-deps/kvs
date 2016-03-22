@@ -47,7 +47,7 @@ trait EnHandler[T] extends Handler[En[T]] {
    */
   def add(el: En[T])(implicit dba: Dba): Res[En[T]] = {
     fh.get(el.fid).left.map {
-      case Dbe("error", "not_found") => fh.put(new Fd(el.fid, None, 0))
+      case Dbe("error", _) => fh.put(new Fd(el.fid, None, 0))
     }.joinLeft.right.map { feed: Fd =>
       get(el.fid, el.id).fold(_ =>
         put(el.copy(prev = feed.top)).right.map { _ =>
@@ -73,16 +73,14 @@ trait EnHandler[T] extends Handler[En[T]] {
         case Right(r) => r match {
             //case top element of feed is removed
           case En(fid, _, prev, None, _) =>
-            prev map {get(_).right.map { n => put(n.copy(next = None)) }}
-
+            prev map { x => get((fid,x)).right.map { n => put(n.copy(next = None)) }}
             fh.get(fid).right.map { feed =>
                 fh.put(feed.copy(top = prev,count = feed.count - 1))
             }.joinRight.right.map { _ => el }
           //other cases
           case En(fid, _, prev, Some(next), _) =>
-             prev map {get(_).right.map { p => put(p.copy(next = Some(next))) }}
-             get(next).right.map { n => put(n.copy(prev = prev)) }
-
+             prev map { x => get((fid,x)).right.map { p => put(p.copy(next = Some(next))) }}
+             get((fid,next)).right.map { n => put(n.copy(prev = prev)) }
             fh.get(fid).right.map {
               (feed: Fd) =>
               fh.put(feed.copy(count = feed.count - 1))

@@ -8,7 +8,7 @@ class MemoryTest extends FreeSpecLike with Matchers with EitherValues {
   "Memory DBA should" - {
     val m: Dba = Memory(null)
     "be empty at creation" in {
-      m.get("k1").left.value should be (not_found)
+      m.get("k1").left.value should be (s"not_found key k1")
     }
     "save successfully value" in {
       m.put("k1", "v1".getBytes).right.value should be ("v1".getBytes)

@@ -10,7 +10,6 @@ import scala.concurrent.{Await, Future}
 import com.typesafe.config.Config
 
 object Ring {
-  val not_found:Err = Dbe(msg="not_found")
   def apply(system: ExtendedActorSystem): Dba = new Ring(system)
 }
 
@@ -31,7 +30,7 @@ class Ring(system: ExtendedActorSystem) extends Dba {
 
   override def get(key: String): Either[Err, V] = Await.result(rng.get(key),d) match {
     case Some(v) => Right(v.toArray)
-    case None => Left(not_found)
+    case None => Left( Dbe(msg=s"not_found key $key"))
   }
 
   override def delete(key: String): Either[Err, V] = get(key) match {

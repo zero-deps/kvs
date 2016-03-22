@@ -46,7 +46,7 @@ object EnHandlerTest {
 		  }
     """
 
-  val config = ConfigFactory.parseString(memConf)
+  val config = ConfigFactory.parseString(rngConf)
   val FID = new scala.util.Random().nextString(6)
   type EnType = En[FeedEntry]
 }
@@ -131,7 +131,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
     "should not remove unexisting entry from feed" in {
       val deleted = kvs.remove(e5).left.get
 
-      (deleted.name, deleted.msg) shouldBe("error", "not_found")
+      (deleted.name, deleted.msg) shouldBe("error", s"not_found key ${e5.fid}.${e5.id}")  //Dbe(error,not_found key 우籁차ᮔঔ✓.5)
     }
 
     "should remove entry(2) from feed" in {
