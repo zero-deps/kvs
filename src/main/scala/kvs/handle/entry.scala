@@ -64,20 +64,30 @@ trait EnHandler[T] extends Handler[En[T]] {
   /**
    * Remove the entry from the container specified as id.
    * todo: check failure cases
+    * next is ignored
    */
   def remove(el: En[T])(implicit dba: Dba): Res[En[T]] = {
     get(el.fid, el.id).right.map { _ =>
-      delete(el.fid, el.id).fold(
-        l => Left(l),
-        r => r match {
-          case En(fid, _, prev, next, _) =>
-            prev map { get(_).right.map { p => put(p.copy(next = next)) } }
-            next map { get(_).right.map { n => put(n.copy(prev = prev)) } }
+      delete(el.fid, el.id) match {
+        case Left(l) => Left(l)
+        case Right(r) => r match {
+            //case top element of feed is removed
+          case En(fid, _, prev, None, _) =>
+            prev map {get(_).right.map { n => put(n.copy(next = None)) }}
 
             fh.get(fid).right.map { feed =>
-              fh.put(feed.copy(top = prev, count = feed.count - 1))
+                fh.put(feed.copy(top = prev,count = feed.count - 1))
             }.joinRight.right.map { _ => el }
-        })
+          //other cases
+          case En(fid, _, prev, Some(next), _) =>
+             prev map {get(_).right.map { p => put(p.copy(next = Some(next))) }}
+             get(next).right.map { n => put(n.copy(prev = prev)) }
+
+            fh.get(fid).right.map {
+              (feed: Fd) =>
+              fh.put(feed.copy(count = feed.count - 1))
+            }.joinRight.right.map { _ => el }
+        }}
     }.joinRight
   }
 
@@ -92,8 +102,10 @@ trait EnHandler[T] extends Handler[En[T]] {
       case Fd(`fid`, top, size) =>
         val none: Res[En[T]] = Left(Dbe(msg = "done"))
         def next: (Res[En[T]]) => Res[En[T]] = _.right.map { _.prev.fold(none)({ id => get(fid, id) }) }.joinRight
-        (from map { _.id } orElse top).map { eid => (fid, eid) }.map { start =>
-          List.iterate(get(start), count map { x => x min size } getOrElse size)(next).sequenceU
+
+        (from map { _.id } orElse top).map { eid => (fid, eid) }.map { //determine start entry
+          start =>
+          List.iterate(get(start), count map { x => x min size } getOrElse size)(next).sequenceU //iterate through list
         }.getOrElse(Right(Nil))
     })
 }

@@ -32,6 +32,18 @@ object Schema {
     def pickle(e: Message): Array[Byte] = enh.pickle(Tag.unwrap(e))
     def unpickle(a: Array[Byte]): Message = Message(enh.unpickle(a))
   }
+
+
+  case class FeedEntry(string: String,
+                       twoDimVector: Vector[Seq[(String, String)]],
+                       anotherVector: Vector[String])
+
+  implicit object tEnHandler extends EnHandler[FeedEntry] {
+    import scala.pickling._, Defaults._, binary._, static._, shareNothing._
+    def pickle(e: En[FeedEntry]) = e.pickle.value
+    def unpickle(a: Array[Byte]) = a.unpickle[En[FeedEntry]]
+  }
+
 }
 
 /**

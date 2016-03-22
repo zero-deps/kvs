@@ -3,73 +3,171 @@ package handle
 
 import akka.actor.ActorSystem
 import com.typesafe.config._
-import mws.kvs.store.Memory
+import mws.kvs.handle.Schema._
 import org.scalatest._, matchers._, concurrent._, ScalaFutures._
 import akka.testkit._, TestEvent._
 import org.scalactic._
 
+import scala.concurrent.Await
+
 object EnHandlerTest {
-  val configString = """
-     kvs {
-		  store="mws.kvs.store.Memory"
-		 }
+
+  val rngConf =
+    """
+      akka {
+        actor {
+          provider = "akka.cluster.ClusterActorRefProvider"
+        }
+        remote {
+          log-remote-lifecycle-events = off
+          netty.tcp {
+            hostname = "127.0.0.1"
+            port = 2551
+          }
+        }
+        cluster {
+          seed-nodes = [
+            "akka.tcp://Test@127.0.0.1:2551"]
+
+        }
+
+        test.default-timeout=10000
+      }
+
+
+      kvs {
+		    store="mws.kvs.store.Ring"
+		  }
+    """
+  val memConf =
+    """
+      kvs {
+		    store="mws.kvs.store.Memory"
+		  }
     """
 
-  val config = ConfigFactory.parseString(configString)
-  val FID = "testfeed"
-  type EnType = En[String]
+  val config = ConfigFactory.parseString(memConf)
+  val FID = new scala.util.Random().nextString(6)
+  type EnType = En[FeedEntry]
 }
 
-class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config)) with FreeSpecLike with Matchers with EitherValues {
+class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
+  with FreeSpecLike
+  with Matchers
+  with EitherValues
+  with DefaultTimeout
+  with ImplicitSender
+  with BeforeAndAfterAll {
+
   import EnHandlerTest._
   import Handler._
 
+
   val kvs = Kvs(system)
-  val entry1 = En[String](FID, "111111", data = "value1")
-  val entry2 = En[String](FID, "111112", data = "value2")
+
+  def entry(n: Int) = En[FeedEntry](FID, s"$n", data = FeedEntry(s"string$n", Vector.fill(n,n)((s"string$n",s"string$n")), Vector.fill(n)(s"string$n") ))
+
+  val e1 = entry(1)
+  val e2 = entry(2)
+  val e3 = entry(3)
+  val e5 = entry(5)
+
+
+
+  override def afterAll = {
+    kvs.close()
+    TestKit.shutdownActorSystem(system)
+  }
+
+  override def beforeAll = {
+    Await.ready(kvs.onReady(), timeout.duration)
+  }
+
 
   "Feed should" - {
     "be empty at creation" in {
       kvs.entries[EnType](FID).left.get.name shouldBe "error"
     }
 
-    "should save value1" in {
-      val saved = kvs.add(entry1).right.get
-      (saved.fid, saved.id, saved.data) shouldBe (entry1.fid, entry1.id, entry1.data)
+    "should save e1 " in {
+      val saved = kvs.add(e1).right.get
+      (saved.fid, saved.id, saved.data) shouldBe(e1.fid, e1.id, e1.data)
     }
 
-    "should save value2" in {
-      val saved = kvs.add(entry2).right.get
-      (saved.fid, saved.id, saved.data) shouldBe (entry2.fid, entry2.id, entry2.data)
+    "should save e2" in {
+      val saved = kvs.add(e2).right.get
+      (saved.fid, saved.id, saved.data) shouldBe(e2.fid, e2.id, e2.data)
     }
 
-    "should get two values from feed" in {
+    "should get e1 and e2 from feed" in {
       val entries = kvs.entries[EnType](FID)
 
       entries.right.get.size shouldBe 2
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe (entry2.fid, entry2.id, entry2.data)
-      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe (entry1.fid, entry1.id, entry1.data)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e2.fid, e2.id, e2.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e1.fid, e1.id, e1.data)
     }
 
-    "should remove value2 from feed" in {
-      val deleted = kvs.remove(entry2).right.get
-
-      (deleted.fid, deleted.id, deleted.data) shouldBe (entry2.fid, entry2.id, entry2.data)
+    "should save entry(3)" in {
+      val saved = kvs.add(e3).right.get
+      (saved.fid, saved.id, saved.data) shouldBe(e3.fid, e3.id, e3.data)
     }
 
-    "should get one value from feed" in {
+    "should not save entry(2) again" in {
+      val saved = kvs.add(e2).left.get
+      (saved.name, saved.msg) shouldBe("error", s"entry 2 exist in $FID")
+    }
+
+    "should get 3 values from feed" in {
+      val entries = kvs.entries[EnType](FID)
+
+      entries.right.get.size shouldBe 3
+
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, e3.id, e3.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, e2.id, e2.data)
+      (entries.right.get(2).fid, entries.right.get(2).id, entries.right.get(2).data) shouldBe(e1.fid, e1.id, e1.data)
+    }
+
+    "should not remove unexisting entry from feed" in {
+      val deleted = kvs.remove(e5).left.get
+
+      (deleted.name, deleted.msg) shouldBe("error", "not_found")
+    }
+
+    "should remove entry(2) from feed" in {
+      val deleted = kvs.remove(e2).right.get
+
+      (deleted.fid, deleted.id, deleted.data) shouldBe(e2.fid, e2.id, e2.data)
+    }
+
+    "should get 2 values from feed" in {
+      val entries = kvs.entries[EnType](FID)
+
+      entries.right.get.size shouldBe 2
+
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, e3.id, e3.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e1.fid, e1.id, e1.data)
+    }
+
+    "should remove entry(1) from feed" in {
+      val deleted = kvs.remove(e1).right.get
+
+      (deleted.fid, deleted.id, deleted.data) shouldBe(e1.fid, e1.id, e1.data)
+    }
+
+
+    "should get 1 values from feed" in {
       val entries = kvs.entries[EnType](FID)
 
       entries.right.get.size shouldBe 1
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe (entry1.fid, entry1.id, entry1.data)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, e3.id, e3.data)
     }
 
-    "should remove value1 from feed" in {
-      val deleted = kvs.remove(entry1).right.get
+    "should remove entry(3) from feed" in {
+      val deleted = kvs.remove(e3).right.get
 
-      (deleted.fid, deleted.id, deleted.data) shouldBe (entry1.fid, entry1.id, entry1.data)
+      (deleted.fid, deleted.id, deleted.data) shouldBe(e3.fid, e3.id, e3.data)
     }
 
     "should be empty" in {
@@ -77,3 +175,4 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config)) w
     }
   }
 }
+
