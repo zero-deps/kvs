@@ -29,7 +29,7 @@ class HandleSpec(_system:ActorSystem) extends TestKit(_system)
   override def afterAll = {kvs.close;TestKit.shutdownActorSystem(system)}
 
   "kvs" should "have the configured and ready" in {
-    whenReady(kvs.isReady){r => r should be (true)}
+    whenReady(kvs.onReady()){r => r shouldBe (true)}
   }
 
   import scalaz._,Scalaz._
