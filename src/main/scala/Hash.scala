@@ -67,8 +67,8 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
 
   override def receive: Receive = preparing
 
-  def ready = readApi orElse writeApi orElse receiveCl
-  def preparing = notReadyApi orElse receiveCl
+  def ready = readApi orElse writeApi orElse receiveClusterEvent
+  def preparing = notReadyApi orElse receiveClusterEvent
 
   def readApi: Receive = {
     case Get(k) => doGet(k, sender())
@@ -159,7 +159,7 @@ class Hash(localWStore: ActorRef, localRStore: ActorRef) extends Actor with Acto
     deleteF.map(statuses => system.actorSelection("/user/ring_gatherer") ! GatherDel(statuses, client))
   }
 
-  def receiveCl: Receive = {
+  def receiveClusterEvent: Receive = {
     case MemberUp(member) =>
       processedNodes = processedNodes + member
       (1 to vNodesNum).foreach(vnode => {
