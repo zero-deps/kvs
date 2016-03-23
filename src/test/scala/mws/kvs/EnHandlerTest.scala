@@ -65,7 +65,8 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
 
   val kvs = Kvs(system)
 
-  def entry(n: Int) = En[FeedEntry](FID, s"$n", data = FeedEntry(s"string$n", Vector.fill(n,n)((s"string$n",s"string$n")), Vector.fill(n)(s"string$n") ))
+  val mod = 50
+  def entry(n: Int) = En[FeedEntry](FID, s"$n", data = FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n") ))
 
   val e1 = entry(1)
   val e2 = entry(2)
@@ -172,6 +173,31 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
 
     "should be empty" in {
       kvs.entries[EnType](FID).right.get shouldBe empty
+    }
+
+
+    "should not create stack overflow" in {
+      val limit = 100
+
+      Stream.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
+        val toadd= entry(n)
+        val added = kvs.add(toadd).right.get
+        (added.fid, added.id, added.data) shouldBe (toadd.fid, toadd.id, toadd.data)
+      }
+
+
+      Stream.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
+
+        val toremove= entry(n)
+        val removed = kvs.remove(toremove).right.get
+
+        (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, toremove.id, toremove.data)
+
+        val entries = kvs.entries[EnType](FID)
+
+        entries.right.get.size shouldBe (limit - n)
+      }
+
     }
   }
 }
