@@ -21,7 +21,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
     val dumpStore = context.actorOf(Props(classOf[WriteStore], db))
     val stores = SelectionMemorize(context.system)
     val maxBucket = context.system.settings.config.getInt("ring.buckets")
-    startWith(ReadyCollect, DumpData(0, Nil, Nil, None, None))
+    startWith(ReadyCollect, DumpData(0, Set.empty[Node], Nil, None, None))
     
     when(ReadyCollect){
         case Event(Dump, state ) => 
@@ -31,36 +31,30 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
 
     when(Collecting){ 
         case Event(GetBucketResp(b,data), state) => // TODO add timeout if any node is not responding.
-            remove(if(sender().path.address.hasLocalScope) local else sender().path.address, state.prefList) match {
-                case Nil => 
-                    val lastKey = mergeBucketData((data :: state.collected).flatten.foldLeft(List.empty[Data])((acc, l) => l ::: acc), Nil) match {
-                        case Nil => state.lastKey
-                        case listData =>  linkKeysInDb(listData, state.lastKey)
+            val pList = state.prefList - (if(sender().path.address.hasLocalScope) local else sender().path.address) 
+            if(pList.isEmpty) {
+              val lastKey = mergeBucketData((data :: state.collected).flatten.foldLeft(List.empty[Data])((acc, l) => l ::: acc), Nil) match {
+                case Nil => state.lastKey
+                case listData =>  linkKeysInDb(listData, state.lastKey)
+              }
+                b+1 match {
+                    case `maxBucket` => 
+                        stores.get(self.path.address, "ring_hash").fold(_ ! DumpComplete(filePath), _ ! DumpComplete(filePath))
+                        log.info(s"Dump complete, sending path to hash, lastKey = $lastKey")
+                        dumpStore ! PutSavingEntity("head_of_keys", (ByteString("dummy"), lastKey))
+                        dumpStore ! PoisonPill //TODO stop after processing last msg
+                        import mws.rng.arch.Archiver._
+                        zip(filePath)
+                        state.client.map{_ ! s"$filePath.zip"}
+                        stop()
+                    case nextBucket => 
+                        buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(nextBucket), _ ! BucketGet(nextBucket))}
+                        stay() using(DumpData(nextBucket, buckets(nextBucket), Nil, lastKey, state.client))
                     }
-
-                    b+1 match {
-                        case `maxBucket` => 
-                            stores.get(self.path.address, "ring_hash").fold(_ ! DumpComplete(filePath), _ ! DumpComplete(filePath))
-                            log.info(s"Dump complete, sending path to hash, lastKey = $lastKey")
-                            dumpStore ! PutSavingEntity("head_of_keys", (ByteString("dummy"), lastKey))
-                            dumpStore ! PoisonPill //TODO stop after processing last msg
-                            import mws.rng.arch.Archiver._
-                            zip(filePath)
-                            state.client.map{_ ! s"$filePath.zip"}
-                            stop()
-                        case nextBucket => 
-                            buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(nextBucket), _ ! BucketGet(nextBucket))}
-                            stay() using(DumpData(nextBucket, buckets(nextBucket), Nil, lastKey, state.client))
-                    }
-                case l => 
-                    stay() using(DumpData(state.current ,l , data :: state.collected, state.lastKey, state.client))
-            } 
-    }
-
-    def remove(n: Node, l: List[Node]): List[Node] = l match {
-        case Nil => Nil
-        case h :: t if h == n => t
-        case h :: t => h :: remove(n,t) 
+                }
+                else
+                stay() using(DumpData(state.current ,pList , data :: state.collected, state.lastKey, state.client))
+            
     }
 
     def linkKeysInDb(ldata: List[Data], prevKey: Option[Key]): Option[Key] = ldata match{

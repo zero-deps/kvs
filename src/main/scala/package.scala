@@ -17,10 +17,7 @@ package object rng {
   type FeedBucket = Bucket
   type Age = (VectorClock, Long)
 
-  type PreferenceList = List[Node]
-  type ReplicaKey = Option[Int]
-
-  type SynchReplica = (Bucket, ReplicaKey, ReplicaKey)
+  type PreferenceList = Set[Node] // TODO change to Set
   
   //TODO try lm from VectorClock.versions: TreeMap[VectorClock.Node, Long]
   case class Data(key: Key, bucket: Bucket, lastModified: Long, vc: VectorClock, value: Value)
