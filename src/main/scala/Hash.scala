@@ -71,18 +71,14 @@ class Hash extends FSM[HashRngState, HashRngData] with ActorLogging {
   }
 
   when(Empty){
-    case Event(MemberUp(member), data) => {
+    case Event(MemberUp(member), data) =>
       val next = joinNodeToRing(member, data)
-      goto(next._1) using(next._2)
-    }
+      goto(next._1) using next._2
 
-    case Event(MemberRemoved(member,prevState), data) => {
-      processedNodes = processedNodes - member
-      log.info(s"[ring_hash]Removing $member from ring")
-      val hashes = (1 to vNodesNum).map(v => hashing.hash(member.address.hostPort + v))
-      vNodes = vNodes.filterNot(vn => hashes.contains(vn._1))
-      synchNodes(bucketsToUpdate(member.address))
-    }
+    case Event(MemberRemoved(member,prevState), data) =>
+      val next = removeNodeFromRing(member, data)
+      goto(next._1) using next._2
+
   }
 
   override def postStop(): Unit = cluster.unsubscribe(self)
@@ -180,48 +176,61 @@ class Hash extends FSM[HashRngState, HashRngData] with ActorLogging {
   def joinNodeToRing(member: Member, data: HashRngData): (HashRngState, HashRngData) = {
       val newvNodes: Map[Bucket, Address] = (1 to vNodesNum).map(vnode => {
         hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
-      val moved = bucketsToUpdate(bucketsNum - 1, if (data.nodes.size == 0) 1 else data.vNodes.size,data.nodes.size +1, data)
+      val updvNodes = data.vNodes ++ newvNodes
+      val nodes = data.nodes + member
+      val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
       synchNodes(moved)
-      log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${data.nodes.size +1}")
-      (state(data.nodes.size+1), HashRngData(data.nodes + member, data.buckets++moved, data.vNodes ++ newvNodes, data.feedNodes))
+      val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes , data.feedNodes)
+      log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}")
+      (state(updData.nodes.size), updData)
+  }
+
+  def removeNodeFromRing(member: Member, data: HashRngData) : (HashRngState, HashRngData) = {
+    log.info(s"[ring_hash]Removing $member from ring")
+      val unusedvNodes: Map[Bucket, Address] = (1 to vNodesNum).map(vnode => {
+      hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
+      val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
+      val nodes = data.nodes + member
+      val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
+      val updData: HashRngData = HashRngData(data.nodes + member, data.buckets++moved, updvNodes, data.feedNodes)
+      synchNodes(moved)
+      (state(updData.nodes.size), updData)
   }
 
   def state(nodes : Int): HashRngState = nodes match {
     case 0 => Empty
     case n if n >= Seq(R,W).max => Effective
-    case n if  n < W && n >= r => Readonly
+    case n if  n < W && n >= R => Readonly
     case lessThenWR => WeakReadonly
   }
 
-  @tailrec
-  final def bucketsToUpdate(bucket: Bucket, max: Int, nodesCount: Int, data: HashRngData,
-    changedPrefList: SortedMap[Bucket, PreferenceList] = SortedMap.empty[Bucket, PreferenceList]): SortedMap[Bucket, PreferenceList] = bucket match {
-    case -1 => changedPrefList
-    case bucket: Int =>
-      val prefList = findBucketNodes(bucket * hashing.bucketRange, max, nodesCount, data)
-      data.buckets(bucket) match {
-        case `prefList` => // TODO may be Set ? List matching...
-          bucketsToUpdate(bucket - 1, max, nodesCount, data, changedPrefList)
-        case outdatedNodes =>
-          bucketsToUpdate(bucket - 1, max, nodesCount, data, changedPrefList + (bucket -> prefList))
-      }
-  }
+  //TODO 1-1024 or 0-1023
+  def bucketsToUpdate(bucket: Bucket, nodesNumber: Int, vNodes: SortedMap[Bucket, Address],
+                      buckets: SortedMap[Bucket, PreferenceList]): SortedMap[Bucket, PreferenceList] = {
+    (1 to bucket).foldLeft(SortedMap.empty[Bucket, PreferenceList])((acc, b) => {
+       val prefList = findBucketNodes(bucket * hashing.bucketRange, if (nodesNumber == 0) 1 else vNodes.size, vNodes, nodesNumber)
+      buckets(b) match {
+      case `prefList` => acc
+      case changed => acc + (b -> changed)
+    }})
+  }    
 
   @tailrec
-  final def findBucketNodes(bucketRange: Int, maxSearch: Int, nodesAvailable: Int, data: HashRngData, 
-    nodes: PreferenceList = Set.empty[Node]): PreferenceList = maxSearch match {
+  final def findBucketNodes(bucketRange: Int, maxSearch: Int, vNodes: SortedMap[Bucket, Address],
+                            nodesNumber: Int, nodes: PreferenceList = Set.empty[Node]): PreferenceList =
+  maxSearch match {
     case 0 => nodes
     case _ =>
-      val it = data.vNodes.keysIteratorFrom(bucketRange)
-      val hashedNode = if (it.hasNext) it.next() else data.vNodes.firstKey
-      val node = data.vNodes(hashedNode)
-      val prefList = if (nodes.contains(node)) nodes else nodes + node
+        val it = vNodes.keysIteratorFrom(bucketRange)
+        val hashedNode = if (it.hasNext) it.next() else vNodes.firstKey
+        val node = vNodes(hashedNode)
+        val prefList = if (nodes.contains(node)) nodes else nodes + node
 
-      prefList.size match {
-        case `N` => prefList
-        case `nodesAvailable` => prefList
-        case _ => findBucketNodes(hashedNode + 1, maxSearch - 1,nodesAvailable, data, prefList)
-      }
+        prefList.size match {
+          case `N` => prefList
+          case `nodesNumber` => prefList
+          case _ => findBucketNodes(hashedNode + 1, maxSearch - 1, vNodes, nodesNumber, prefList)
+        }
   }
 
   /*def nodesForKey(k: Key): PreferenceList = buckets.get(hashing.findBucket(k)) match {
