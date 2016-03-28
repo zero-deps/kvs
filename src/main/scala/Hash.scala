@@ -140,57 +140,6 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
   }
 
-
- /* def ready = readApi orElse writeApi orElse receiveClusterEvent
-  def preparing = notReadyApi orElse receiveClusterEvent
-
-  def readApi: Receive = {
-    case Get(k) => doGet(k, sender())
-    case msg: Traverse => feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
-      _ ! msg, _ ! msg
-    ))
-   case m: RegisterBucket =>
-      log.info(s"[hash] register bucket ${m.bid}")
-      if(feedNodes(m.bid).isEmpty)
-        feedNodes = feedNodes + (m.bid -> nodesForKey(m.bid))
-
-      feedNodes(m.bid).headOption foreach {
-        case n if n == local =>
-          log.info(s"[hash] spawn guard for ${m.bid}")
-          system.actorOf(Props(classOf[BucketGuard], nodesForKey(m.bid)),s"${m.bid}-guard")
-          sender() ! "ok"
-        case n => actorsMem.get(n,"hash").fold( // head is guard
-        _ ! m, _ ! m
-      )}
-    case Ready => sender() ! true
-    case Dump =>
-        log.info("START DUMP")
-        context.become(readApi) // readonly untill end of dump
-        system.actorOf(Props(classOf[DumpWorker], buckets, local)).tell(Dump, sender)
-    case DumpComplete(path) =>
-        log.info(s"dump in file $path")
-        context.become(ready)
-
-  }
-
-  def writeApi: Receive = {
-    case Put(k, v) => doPut(k, v, sender())
-    case Delete(k) => doDelete(k, sender())
-    case msg: Add => feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
-      _ ! msg, _ ! msg
-    ))
-    case Ready => sender() ! true
-    case m@LoadDump(dumpPath) => system.actorOf(Props(classOf[LoadDumpWorker], dumpPath)) ! m
-  }
-
-  def notReadyApi: Receive =  {
-    case Ready => sender ! false
-    case msg:RingMessage => log.info(s"ignoring $msg because ring is not ready")
-  }
-
-*/
-
-
  def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
   import context.dispatcher
  val nodes = nodesForKey(k, data)
