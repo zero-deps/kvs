@@ -5,7 +5,7 @@ import akka.cluster.VectorClock
 import mws.rng.store.{GetResp, Saved, PutStatus, StorePut}
 import scala.concurrent.duration._
 
-case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: List[Node])
+case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
 
 object GatherPutFSM{
   def props(client: ActorRef, t: Int, actorsMem: SelectionMemorize, putInfo: PutInfo) = Props(
@@ -55,7 +55,7 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
       stop()
   }
 
-  def mapInPut(nodes: List[Node], d: Data) = {
+  def mapInPut(nodes: Set[Node], d: Data) = {
     val storeList = nodes.map(stores.get(_, "ring_write_store"))
       storeList.foreach(ref =>
       ref.fold(_.tell(StorePut(d), self),

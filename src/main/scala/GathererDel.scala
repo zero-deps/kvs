@@ -6,7 +6,7 @@ import akka.actor._
 import akka.util.Timeout
 
 sealed class Gather
-case class GatherDel(statuses: List[String], client: ActorRef) extends Gather
+case class GatherDel(statuses: Set[String], client: ActorRef) extends Gather
 
 class GathererDel extends Actor with ActorLogging {
   import context.system
