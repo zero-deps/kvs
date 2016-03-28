@@ -30,18 +30,20 @@ case object Dump
 case class LoadDump(dumpPath:String)
 case class DumpComplete(path: String)
 
-sealed trait HashRngState
-case object Empty extends HashRngState
-case object WeakReadonly extends HashRngState
-case object Readonly extends HashRngState
-case object Effective extends HashRngState
+sealed trait QuorumState
+case object Unsatisfied extends QuorumState
+case object Readonly extends QuorumState
+case object Effective extends QuorumState
+//  WriteOnly and WeakReadonly are currently ignored because rng is always readonly
+case object WriteOnly extends QuorumState
+case object WeakReadonly extends QuorumState
 
 case class HashRngData(nodes: Set[Member],
                   buckets: SortedMap[Bucket, PreferenceList],
                   vNodes: SortedMap[Bucket, Address],
                   feedNodes: SortedMap[FeedId, PreferenceList])
 
-class Hash extends FSM[HashRngState, HashRngData] with ActorLogging {
+class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
   implicit val timeout = Timeout(5.second)
 
@@ -63,14 +65,14 @@ class Hash extends FSM[HashRngState, HashRngData] with ActorLogging {
   val hashing = HashingExtension(system)
   val actorsMem = SelectionMemorize(system)
 
-  startWith(Empty, HashRngData(Set.empty[Member], SortedMap.empty[Bucket, PreferenceList],
+  startWith(Unsatisfied, HashRngData(Set.empty[Member], SortedMap.empty[Bucket, PreferenceList],
                                  SortedMap.empty[Bucket, Address],SortedMap.empty[FeedId, PreferenceList]))
-  
+
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
   }
 
-  when(Empty){
+  when(Unsatisfied){
     case Event(MemberUp(member), data) =>
       val next = joinNodeToRing(member, data)
       goto(next._1) using next._2
@@ -78,7 +80,6 @@ class Hash extends FSM[HashRngState, HashRngData] with ActorLogging {
     case Event(MemberRemoved(member,prevState), data) =>
       val next = removeNodeFromRing(member, data)
       goto(next._1) using next._2
-
   }
 
   override def postStop(): Unit = cluster.unsubscribe(self)
@@ -90,7 +91,7 @@ class Hash extends FSM[HashRngState, HashRngData] with ActorLogging {
     case Get(k) => doGet(k, sender())
     case msg: Traverse => feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
       _ ! msg, _ ! msg
-    )) 
+    ))
    case m: RegisterBucket =>
       log.info(s"[hash] register bucket ${m.bid}")
       if(feedNodes(m.bid).isEmpty)
@@ -105,14 +106,14 @@ class Hash extends FSM[HashRngState, HashRngData] with ActorLogging {
         _ ! m, _ ! m
       )}
     case Ready => sender() ! true
-    case Dump => 
+    case Dump =>
         log.info("START DUMP")
         context.become(readApi) // readonly untill end of dump
         system.actorOf(Props(classOf[DumpWorker], buckets, local)).tell(Dump, sender)
-    case DumpComplete(path) => 
+    case DumpComplete(path) =>
         log.info(s"dump in file $path")
         context.become(ready)
-        
+
   }
 
   def writeApi: Receive = {
@@ -172,8 +173,8 @@ class Hash extends FSM[HashRngState, HashRngData] with ActorLogging {
     val unreachableMembers = cluster.state.unreachable.map(m => m.address)
     l filterNot (node => unreachableMembers contains node)
   }
-  
-  def joinNodeToRing(member: Member, data: HashRngData): (HashRngState, HashRngData) = {
+
+  def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
       val newvNodes: Map[Bucket, Address] = (1 to vNodesNum).map(vnode => {
         hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
       val updvNodes = data.vNodes ++ newvNodes
@@ -185,7 +186,7 @@ class Hash extends FSM[HashRngState, HashRngData] with ActorLogging {
       (state(updData.nodes.size), updData)
   }
 
-  def removeNodeFromRing(member: Member, data: HashRngData) : (HashRngState, HashRngData) = {
+  def removeNodeFromRing(member: Member, data: HashRngData) : (QuorumState, HashRngData) = {
     log.info(s"[ring_hash]Removing $member from ring")
       val unusedvNodes: Map[Bucket, Address] = (1 to vNodesNum).map(vnode => {
       hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
@@ -197,11 +198,10 @@ class Hash extends FSM[HashRngState, HashRngData] with ActorLogging {
       (state(updData.nodes.size), updData)
   }
 
-  def state(nodes : Int): HashRngState = nodes match {
-    case 0 => Empty
+  def state(nodes : Int): QuorumState = nodes match {
+    case 0 => Unsatisfied
     case n if n >= Seq(R,W).max => Effective
     case n if  n < W && n >= R => Readonly
-    case lessThenWR => WeakReadonly
   }
 
   //TODO 1-1024 or 0-1023
