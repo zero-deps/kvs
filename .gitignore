@@ -1,5 +1,6 @@
 .idea
 .git
+.sc
 *.orig
 target
 data*
