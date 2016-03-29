@@ -27,7 +27,7 @@ class BucketGuard(bid: String, nodes: List[Node]) extends FSM[GuardState,GuardDa
 }
 
 //workers
-case class WorkerData(msg: Option[RingMessage], versions: List[(Node, Option[VectorClock])], nodes: List[Node],
+case class WorkerData(msg: Option[APIMessage], versions: List[(Node, Option[VectorClock])], nodes: List[Node],
                       client: Option[ActorRef], updated: List[Node])
 
 sealed trait FeedWorkerState

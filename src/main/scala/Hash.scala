@@ -13,23 +13,22 @@ import scala.concurrent.Future
 import scala.collection.JavaConversions._
 import scala.collection.breakOut
 
-sealed class RingMessage
+sealed class APIMessage
 //kvs
-case class Put(k: Key, v: Value) extends RingMessage
-case class Get(k: Key) extends RingMessage
-case class Delete(k: Key) extends RingMessage
-case object Dump
-case class LoadDump(dumpPath:String)
-case class DumpComplete(path: String)
-case object LoadDumpComplete
+case class Put(k: Key, v: Value) extends APIMessage
+case class Get(k: Key) extends APIMessage
+case class Delete(k: Key) extends APIMessage
+case object Dump extends APIMessage
+case class LoadDump(dumpPath:String) extends APIMessage
+case class DumpComplete(path: String) extends APIMessage
+case object LoadDumpComplete extends APIMessage
 //feed
-case class Add(bid: String, v: Value) extends RingMessage
-case class Traverse(bid: String, start: Option[Int], end: Option[Int]) extends RingMessage
-case class Remove(nb: String, v: Value) extends RingMessage
-case class RegisterBucket(bid: String) extends RingMessage
+case class Add(bid: String, v: Value) extends APIMessage
+case class Traverse(bid: String, start: Option[Int], end: Option[Int]) extends APIMessage
+case class Remove(nb: String, v: Value) extends APIMessage
+case class RegisterBucket(bid: String) extends APIMessage
 //utilities
 case object Ready
-case object Init
 case class ChangeState(s: QuorumState)
 
 sealed trait QuorumState
@@ -230,13 +229,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   def state(nodes : Int): QuorumState = nodes match {
     case 0 => Unsatisfied
     case n if n >= Seq(R,W).max => Effective
-    case n if  n < W && n >= R => Readonly
+    case _ => Readonly
   }
 
   //TODO 1-1024 or 0-1023
   def bucketsToUpdate(bucket: Bucket, nodesNumber: Int, vNodes: SortedMap[Bucket, Address],
                       buckets: SortedMap[Bucket, PreferenceList]): SortedMap[Bucket, PreferenceList] = {
-    (1 to bucket).foldLeft(SortedMap.empty[Bucket, PreferenceList])((acc, b) => {
+    (0 to bucket -1).foldLeft(SortedMap.empty[Bucket, PreferenceList])((acc, b) => {
        val prefList = findBucketNodes(bucket * hashing.bucketRange, if (nodesNumber == 0) 1 else vNodes.size, vNodes, nodesNumber)
       buckets(b) match {
       case `prefList` => acc
