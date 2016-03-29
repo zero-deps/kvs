@@ -74,31 +74,27 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   override def postStop(): Unit = cluster.unsubscribe(self)
 
   when(Unsatisfied){
-    case Event(Ready, data) =>
-      sender() ! false
-      stay() using data
+    case Event(ignored: Any, _) =>
+      log.debug(s"ignored msg $ignored")
+      stay()
   }
 
   when(Readonly){
     case Event(Get(k), data) =>
       doGet(k, sender(), data)
       stay() using data
-    case Event(Ready, data) =>
-      sender() ! true
-      stay() using data
-    case Event(Dump, data) =>
-      system.actorOf(Props(classOf[DumpWorker], data.buckets, local)).tell(Dump, sender)
-      stay()
     case Event(DumpComplete, data) =>
       goto(state(data.nodes.size))
+    case Event(msg:Traverse, data) =>
+      data.feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
+        _ ! msg, _ ! msg
+      ))
+      stay()
   }
 
   when(Effective){
     case Event(Get(k), data) =>
       doGet(k, sender(), data)
-      stay() using data
-    case Event(Ready, data) =>
-      sender() ! true
       stay() using data
     case Event(Put(k,v), data) =>
       doPut(k,v,sender(),data)
@@ -135,9 +131,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(MemberRemoved(member, prevState), data) =>
       val next = removeNodeFromRing(member, data)
       goto(next._1) using next._2
-    case Event(ignored: Any, _) =>
-      log.debug(s"ignored msg $ignored")
-      stay()
+    case Event(Ready, data) =>
+      sender() ! false
+      stay() using data
   }
 
  def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
