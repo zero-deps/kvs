@@ -94,6 +94,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         _ ! msg, _ ! msg
       ))
       stay()
+    case Event(LoadDumpComplete, data) =>
+      goto(state(data.nodes.size))
   }
 
   when(Effective){
@@ -112,6 +114,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       goto(Readonly)
     case Event(LoadDump(dumpPath), data) =>
       system.actorOf(Props(classOf[LoadDumpWorker], dumpPath)) ! LoadDump(dumpPath)
+      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
       goto(Readonly)
     case Event(RegisterBucket(bid), data) =>
       val feedNodes = registerNambedBucket(bid, data)

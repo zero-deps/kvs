@@ -92,6 +92,7 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[Key]] with Actor
                     case None => 
                         dumpDb.close()
                         log.info("load is completed ")
+                        context.actorSelection("/user/ring_hash") ! LoadDumpComplete
                         stop()
                     case Some(key) =>  
                         store ! GetSavingEntity(key)
