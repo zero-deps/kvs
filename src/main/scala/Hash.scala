@@ -41,7 +41,7 @@ case object WeakReadonly extends QuorumState
 case class HashRngData(nodes: Set[Node],
                   buckets: SortedMap[Bucket, PreferenceList],
                   vNodes: SortedMap[Bucket, Address],
-                  feedNodes: SortedMap[FeedId, PreferenceList])
+                  feedNodes: SortedMap[NamedBucketId, PreferenceList])
 // TODO available/not avaiable nodes
 class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
@@ -66,7 +66,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   val actorsMem = SelectionMemorize(system)
 
   startWith(Unsatisfied, HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList],
-                                 SortedMap.empty[Bucket, Address],SortedMap.empty[FeedId, PreferenceList]))
+                                 SortedMap.empty[Bucket, Address],SortedMap.empty[NamedBucketId, PreferenceList]))
 
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
@@ -182,7 +182,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     l filterNot (node => unreachableMembers contains node)
   }
 
-  def registerNambedBucket(bid: String, data: HashRngData): SortedMap[FeedId,PreferenceList] = {
+  def registerNambedBucket(bid: String, data: HashRngData): SortedMap[NamedBucketId,PreferenceList] = {
     log.info(s"[hash] register bucket $bid")
     val updFeedNodes = data.feedNodes + (bid -> nodesForKey(bid, data))
     updFeedNodes(bid).headOption foreach {

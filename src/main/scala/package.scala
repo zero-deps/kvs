@@ -13,7 +13,7 @@ package object rng {
   type Node = Address
   type Key = String
   type Value = ByteString
-  type FeedId = String
+  type NamedBucketId = String
   type FeedBucket = Bucket
   type Age = (VectorClock, Long)
 
