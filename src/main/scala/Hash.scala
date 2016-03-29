@@ -18,6 +18,10 @@ sealed class RingMessage
 case class Put(k: Key, v: Value) extends RingMessage
 case class Get(k: Key) extends RingMessage
 case class Delete(k: Key) extends RingMessage
+case object Dump
+case class LoadDump(dumpPath:String)
+case class DumpComplete(path: String)
+case object LoadDumpComplete
 //feed
 case class Add(bid: String, v: Value) extends RingMessage
 case class Traverse(bid: String, start: Option[Int], end: Option[Int]) extends RingMessage
@@ -26,9 +30,7 @@ case class RegisterBucket(bid: String) extends RingMessage
 //utilities
 case object Ready
 case object Init
-case object Dump
-case class LoadDump(dumpPath:String)
-case class DumpComplete(path: String)
+case class ChangeState(s: QuorumState)
 
 sealed trait QuorumState
 case object Unsatisfied extends QuorumState
@@ -74,8 +76,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   override def postStop(): Unit = cluster.unsubscribe(self)
 
   when(Unsatisfied){
-    case Event(ignored: Any, _) =>
-      log.debug(s"ignored msg $ignored")
+    case Event(ignoring: Any, _) =>
+      log.debug(s"Not enough nodes to process : $ignoring")
       stay()
   }
 
@@ -84,7 +86,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       doGet(k, sender(), data)
       stay() using data
     case Event(DumpComplete, data) =>
-      goto(state(data.nodes.size))
+      val new_state = state(data.nodes.size)
+      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(new_state), _ ! ChangeState(new_state)))
+      goto(new_state)
     case Event(msg:Traverse, data) =>
       data.feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
         _ ! msg, _ ! msg
@@ -104,10 +108,11 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay() using data
     case Event(Dump, data) =>
       system.actorOf(Props(classOf[DumpWorker], data.buckets, local)).tell(Dump, sender)
+      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
       goto(Readonly)
     case Event(LoadDump(dumpPath), data) =>
       system.actorOf(Props(classOf[LoadDumpWorker], dumpPath)) ! LoadDump(dumpPath)
-      stay()
+      goto(Readonly)
     case Event(RegisterBucket(bid), data) =>
       val feedNodes = registerNambedBucket(bid, data)
       stay() using HashRngData(data.nodes, data.buckets, data.vNodes, feedNodes)
@@ -134,6 +139,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Ready, data) =>
       sender() ! false
       stay() using data
+    case Event(ChangeState(s), data) =>
+      if(state(data.nodes.size) == Unsatisfied) stay() else goto(s)
   }
 
  def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
