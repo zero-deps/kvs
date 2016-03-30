@@ -44,7 +44,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   private val gather = system.actorOf(Props[GathererDel].withDeploy(Deploy.local), name="ring_gatherer")
   private val readStore = system.actorOf(
     FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
-  private val hash = system.actorOf(Props(classOf[Hash], store, readStore).withDeploy(Deploy.local), name = "ring_hash")
+  private val hash = system.actorOf(Props(classOf[Hash]).withDeploy(Deploy.local), name = "ring_hash")
 
   
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {

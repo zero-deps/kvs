@@ -71,12 +71,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
+    log.info("[hash] subscribed to cluster messages")
   }
   override def postStop(): Unit = cluster.unsubscribe(self)
 
   when(Unsatisfied){
-    case Event(ignoring: Any, _) =>
-      log.debug(s"Not enough nodes to process : $ignoring")
+    case Event(ignoring: APIMessage, _) =>
+      log.info(s"Not enough nodes to process : $ignoring")
       stay()
   }
 
@@ -98,6 +99,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   when(Effective){
+    case Event(Ready, data) =>
+      sender() ! true
+      stay()
     case Event(Get(k), data) =>
       doGet(k, sender(), data)
       stay() using data
@@ -134,13 +138,14 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   whenUnhandled {
     case Event(MemberUp(member), data) =>
       val next = joinNodeToRing(member, data)
+      log.info(s"[hash] MemberUp $member, next state= ${next._1}")
       goto(next._1) using next._2
     case Event(MemberRemoved(member, prevState), data) =>
       val next = removeNodeFromRing(member, data)
       goto(next._1) using next._2
     case Event(Ready, data) =>
       sender() ! false
-      stay() using data
+      stay()
     case Event(ChangeState(s), data) =>
       if(state(data.nodes.size) == Unsatisfied) stay() else goto(s)
   }
@@ -232,14 +237,14 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case _ => Readonly
   }
 
-  //TODO 1-1024 or 0-1023
   def bucketsToUpdate(bucket: Bucket, nodesNumber: Int, vNodes: SortedMap[Bucket, Address],
                       buckets: SortedMap[Bucket, PreferenceList]): SortedMap[Bucket, PreferenceList] = {
     (0 to bucket -1).foldLeft(SortedMap.empty[Bucket, PreferenceList])((acc, b) => {
        val prefList = findBucketNodes(bucket * hashing.bucketRange, if (nodesNumber == 0) 1 else vNodes.size, vNodes, nodesNumber)
-      buckets(b) match {
-      case `prefList` => acc
-      case changed => acc + (b -> changed)
+      buckets.get(b) match {
+      case None => acc + (b -> prefList)
+      case Some(`prefList`) => acc
+      case Some(changed) => acc + (b -> changed)
     }})
   }    
 
