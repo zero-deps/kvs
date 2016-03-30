@@ -62,7 +62,7 @@ class RingSpecMultiJvmApiNode3 extends RingApiNodeSpec
 
 object RingApiNodeSpec {}
 
-abstract class RingApiNodeSpec extends MultiNodeSpec(RingSpecConfig)
+class RingApiNodeSpec extends MultiNodeSpec(RingSpecConfig)
 with WordSpecLike
 with Matchers
 with BeforeAndAfterAll
@@ -93,11 +93,11 @@ with ImplicitSender {
 
       awaitCond(cluster.state.members.size == 3)
       // join ring
-      testConductor.enter("join-entire-cluster")
+      enterBarrier("join-entire-cluster")
       runOn(node1, node2, node3) {
         awaitCond(Await.result(HashRing(system).isReady, 3.second))
       }
-      testConductor.enter("join-ring")
+      enterBarrier("join-ring")
       runOn(node1) {
         log.info(s"PUT on node 1 ")
         awaitCond(Await.result(HashRing(system).put("key", bstr("val")), 5.seconds) == AckSuccess)

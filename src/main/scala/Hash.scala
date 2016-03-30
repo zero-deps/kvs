@@ -41,7 +41,7 @@ case object WeakReadonly extends QuorumState
 
 case class HashRngData(nodes: Set[Node],
                   buckets: SortedMap[Bucket, PreferenceList],
-                  vNodes: SortedMap[Bucket, Address],
+                  vNodes: SortedMap[Bucket, Node],
                   feedNodes: SortedMap[NamedBucketId, PreferenceList])
 // TODO available/not avaiable nodes
 class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
@@ -84,7 +84,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   when(Readonly){
     case Event(Get(k), data) =>
       doGet(k, sender(), data)
-      stay() using data
+      stay()
     case Event(DumpComplete, data) =>
       val new_state = state(data.nodes.size)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(new_state), _ ! ChangeState(new_state)))
@@ -99,18 +99,18 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   when(Effective){
-    case Event(Ready, data) =>
+    case Event(Ready, _) =>
       sender() ! true
       stay()
     case Event(Get(k), data) =>
       doGet(k, sender(), data)
-      stay() using data
+      stay()
     case Event(Put(k,v), data) =>
       doPut(k,v,sender(),data)
-      stay() using data
+      stay()
     case Event(Delete(k), data) =>
       doDelete(k,sender(),data)
-      stay() using data
+      stay()
     case Event(Dump, data) =>
       system.actorOf(Props(classOf[DumpWorker], data.buckets, local)).tell(Dump, sender)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
@@ -215,6 +215,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
       synchNodes(moved)
       val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes , data.feedNodes)
+      val ss = moved.foldLeft(Set.empty[Node])((acc,vn) => acc ++ vn._2)
+      
       log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}")
       (state(updData.nodes.size), updData)
   }
@@ -239,12 +241,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def bucketsToUpdate(bucket: Bucket, nodesNumber: Int, vNodes: SortedMap[Bucket, Address],
                       buckets: SortedMap[Bucket, PreferenceList]): SortedMap[Bucket, PreferenceList] = {
-    (0 to bucket -1).foldLeft(SortedMap.empty[Bucket, PreferenceList])((acc, b) => {
+    (0 to bucket).foldLeft(SortedMap.empty[Bucket, PreferenceList])((acc, b) => {
        val prefList = findBucketNodes(bucket * hashing.bucketRange, if (nodesNumber == 0) 1 else vNodes.size, vNodes, nodesNumber)
+      
       buckets.get(b) match {
       case None => acc + (b -> prefList)
       case Some(`prefList`) => acc
-      case Some(changed) => acc + (b -> changed)
+      case _ => acc + (b -> prefList)
     }})
   }    
 
@@ -258,7 +261,6 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         val hashedNode = if (it.hasNext) it.next() else vNodes.firstKey
         val node = vNodes(hashedNode)
         val prefList = if (nodes.contains(node)) nodes else nodes + node
-
         prefList.size match {
           case `N` => prefList
           case `nodesNumber` => prefList
