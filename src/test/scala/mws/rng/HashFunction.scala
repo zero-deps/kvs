@@ -1,4 +1,4 @@
-package mws
+package mws.rng
 
 import java.nio.ByteBuffer
 import java.security.MessageDigest
@@ -14,7 +14,7 @@ object HashFunctionTest {
 }
 
 class HashFunctionTest extends FlatSpec with Matchers{
-  import mws.HashFunctionTest._
+  import mws.rng.HashFunctionTest._
 
   "quorter hash" should "containts the first byte" in {
     println(s"The test ${node.hostPort}")

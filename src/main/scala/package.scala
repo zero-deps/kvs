@@ -16,8 +16,7 @@ package object rng {
   type NamedBucketId = String
   type FeedBucket = Bucket
   type Age = (VectorClock, Long)
-
-  type PreferenceList = Set[Node] // TODO change to Set
+  type PreferenceList = Set[Node]
   
   //TODO try lm from VectorClock.versions: TreeMap[VectorClock.Node, Long]
   case class Data(key: Key, bucket: Bucket, lastModified: Long, vc: VectorClock, value: Value)
@@ -35,7 +34,7 @@ package object rng {
   case object OpsTimeout
 
   /* returns (actual data, list of outdated nodes) */
-  def order[E](l: List[E], age: E => (VectorClock, Long)): (Option[E], List[E]) = {
+  def order[E](l: List[E], age: E => Age): (Option[E], List[E]) = {
     @tailrec
     def itr(l: List[E], newest: E): E = l match {
       case Nil => newest

@@ -14,21 +14,20 @@ import scala.concurrent.duration._
 
 object LoadSaveConfig extends MultiNodeConfig {
 	val common_config = ConfigFactory.parseString("""
-		  |akka.actor.provider = "akka.cluster.ClusterActorRefProvider"
+		|akka.actor.provider = "akka.cluster.ClusterActorRefProvider"
 	    |akka.remote.log-remote-lifecycle-events = off
-	    |akka.log-dead-letters = off
 	    |akka.loglevel = "INFO"
-		  |akka.stdout-logLevel= "INFO"
+		|akka.stdout-logLevel= "INFO"
 	    |akka.log-dead-letters-during-shutdown = off
-	    |akka.testconductor.barrier-timeout = 20s
+	    |akka.testconductor.barrier-timeout = 40s
 	    |akka.cluster.log-info = on
 	    |akka.test.timefactor = 4
 	    |akka.actor.debug.receive = off
 	    |akka.cluster.failure-detector.threshold = 8
 	    |akka.cluster.metrics.collector-class = akka.cluster.JmxMetricsCollector
 	    |ring.buckets = 32
-		  |ring.virtual-nodes = 8
-      |ring.quorum = [2,2,1]""".stripMargin)
+		|ring.virtual-nodes = 8
+     	|ring.quorum = [2,2,1]""".stripMargin)
 
 	commonConfig(common_config)
 	val n1 = role("n1_for_save")
@@ -38,7 +37,7 @@ object LoadSaveConfig extends MultiNodeConfig {
 
 	var dump_file_location: Option[String] = None
 
-	  nodeConfig(n1)(ConfigFactory.parseString( """|ring.leveldb.dir=data1""".stripMargin))
+	nodeConfig(n1)(ConfigFactory.parseString( """|ring.leveldb.dir=data1""".stripMargin))
   	nodeConfig(n2)(ConfigFactory.parseString( """|ring.leveldb.dir=data2""".stripMargin))
   	nodeConfig(n3)(ConfigFactory.parseString( """|ring.leveldb.dir=data3""".stripMargin))
   	nodeConfig(n4)(ConfigFactory.parseString( """|ring.leveldb.dir=data4""".stripMargin))
@@ -64,36 +63,41 @@ class LoadSaveSpec extends STMultiNodeSpecTraits(LoadSaveConfig) {
 				 awaitCond(Cluster(system).state.members.size == 2)
 				 awaitCond(Await.result(HashRing(system).isReady, 10.second))
 				 
-				 (1 to 100).foreach{ v => 
+			}
+			enterBarrier("n1 n2 are ready")
+			runOn(n1){
+				 (1 to 2).foreach{ v =>
 				 	HashRing(system).put(s"$v", ByteString(s"$v"))
 				 	awaitCond(Await.result(HashRing(system).get(s"$v"), 5.second) ==  Some(ByteString(s"$v")), 5.second)
 				 }
 			}
-			enterBarrier("first_nodes_populated_with_data")	
-		}
-
-		"dump data on first node" in {
+			
+			runOn(n2){	
+			(3 to 4).foreach{ v =>
+				HashRing(system).put(s"$v", ByteString(s"$v"))
+				awaitCond(Await.result(HashRing(system).get(s"$v"), 5.second) ==  Some(ByteString(s"$v")), 5.second)}
+			}
+			enterBarrier("n1 n2 are filled with data")
+		
 			runOn(n1) {
 				dump_file_location = Some(Await.result(HashRing(system).dump(), 10.seconds))
 				println(s"$dump_file_location file location")
-        assert(dump_file_location == findDumpFile)
-
+        		assert(dump_file_location == findDumpFile)
+        		enterBarrier("all_waiting_for_dump")	
 			}
-			enterBarrier("all_waiting_for_dump")	
-		}
 
-		"join n3 n4 in ring " in {
+
+			runOn(n2){
+				enterBarrier("all_waiting_for_dump")
+			}
 			runOn(n3,n4){
-				Cluster(system).join(node(n3).address)
-				awaitCond(Cluster(system).state.members.size == 2)
-				awaitCond(Await.result(HashRing(system).isReady, 10.second))
+				enterBarrier("all_waiting_for_dump")
+				 Cluster(system).join(node(n3).address)
+				 awaitCond(Cluster(system).state.members.size == 2)
+				 awaitCond(Await.result(HashRing(system).isReady, 10.second))
 			}
-			enterBarrier("second_cluster_initialised")	
-		}
 
-		"load data and check" in {
 			runOn(n3){
-
 				findDumpFile match {
 					case None => fail("dump not ready")
 					case Some(file_location) => 
@@ -101,17 +105,21 @@ class LoadSaveSpec extends STMultiNodeSpecTraits(LoadSaveConfig) {
 						HashRing(system).load(file_location)
 				}
 			}
+
 			runOn(n3,n4){
-				(1 to 100).foreach{ v => 
-				 	HashRing(system).put(s"$v", ByteString(s"$v"))
-				 	awaitCond(Await.result(HashRing(system).get(s"$v"), 5.second) ==  Some(ByteString(s"$v")), 5.second)
+
+				//awaitCond(Await.result(HashRing(system).isReady, 20.second)) // wait for load finish
+				Thread.sleep(5000)
+				println(s"#####READY#########")
+				(1 to 4).foreach{ v =>
+				 	val result: Option[Value] = Await.result(HashRing(system).get(s"$v"), 5.second)
+					println(s"***********  $result")
+					awaitCond(result ==  Some(ByteString(s"$v")), 5.second)
 				 }
 			}
-		}
-
-		"finish tests" in {
 			enterBarrier("FIN")
 		}
+
 	}
 }
 

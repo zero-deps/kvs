@@ -1,4 +1,4 @@
-package kai
+package mws.rng
 
 import java.io.File
 import java.util.concurrent.TimeUnit

@@ -71,13 +71,12 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
-    log.info("[hash] subscribed to cluster messages")
   }
   override def postStop(): Unit = cluster.unsubscribe(self)
 
   when(Unsatisfied){
     case Event(ignoring: APIMessage, _) =>
-      log.info(s"Not enough nodes to process : $ignoring")
+      log.info(s"Not enough nodes to process  ${cluster.state}: $ignoring")
       stay()
   }
 
@@ -85,7 +84,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Get(k), data) =>
       doGet(k, sender(), data)
       stay()
-    case Event(DumpComplete, data) =>
+    case Event(DumpComplete(path), data) =>
       val new_state = state(data.nodes.size)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(new_state), _ ! ChangeState(new_state)))
       goto(new_state)
@@ -96,6 +95,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
     case Event(LoadDumpComplete, data) =>
       goto(state(data.nodes.size))
+    case Event(Ready, _) => sender() ! false
+      stay()
   }
 
   when(Effective){
@@ -117,8 +118,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       goto(Readonly)
     case Event(LoadDump(dumpPath), data) =>
       system.actorOf(Props(classOf[LoadDumpWorker], dumpPath)) ! LoadDump(dumpPath)
-      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
-      goto(Readonly)
+      //data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
+      //goto(Readonly)
+      stay()
     case Event(RegisterBucket(bid), data) =>
       val feedNodes = registerNambedBucket(bid, data)
       stay() using HashRngData(data.nodes, data.buckets, data.vNodes, feedNodes)
@@ -138,7 +140,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   whenUnhandled {
     case Event(MemberUp(member), data) =>
       val next = joinNodeToRing(member, data)
-      log.info(s"[hash] MemberUp $member, next state= ${next._1}")
+      //log.info(s"[hash] MemberUp $member, next state= ${next._1}")
       goto(next._1) using next._2
     case Event(MemberRemoved(member, prevState), data) =>
       val next = removeNodeFromRing(member, data)
@@ -160,7 +162,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
  def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
    val bucket = hashing findBucket k
    val nodes = nodesForKey(k, data)
-   log.debug(s"[hash][put] put $k -> $v on $nodes")
+   log.info(s"[hash][put] put $k -> $v on $nodes")
    if (nodes.size >= W) {
      val info: PutInfo = PutInfo(k, v, N, W, bucket, local, data.nodes)
      val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
@@ -217,7 +219,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes , data.feedNodes)
       val ss = moved.foldLeft(Set.empty[Node])((acc,vn) => acc ++ vn._2)
       
-      log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}")
+      log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
       (state(updData.nodes.size), updData)
   }
 
