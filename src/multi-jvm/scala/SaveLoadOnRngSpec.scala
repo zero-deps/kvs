@@ -66,14 +66,14 @@ class LoadSaveSpec extends STMultiNodeSpecTraits(LoadSaveConfig) {
 			}
 			enterBarrier("n1 n2 are ready")
 			runOn(n1){
-				 (1 to 2).foreach{ v =>
+				 (1 to 50).foreach{ v =>
 				 	HashRing(system).put(s"$v", ByteString(s"$v"))
 				 	awaitCond(Await.result(HashRing(system).get(s"$v"), 5.second) ==  Some(ByteString(s"$v")), 5.second)
 				 }
 			}
 			
 			runOn(n2){	
-			(3 to 4).foreach{ v =>
+			(51 to 100).foreach{ v =>
 				HashRing(system).put(s"$v", ByteString(s"$v"))
 				awaitCond(Await.result(HashRing(system).get(s"$v"), 5.second) ==  Some(ByteString(s"$v")), 5.second)}
 			}
@@ -111,7 +111,7 @@ class LoadSaveSpec extends STMultiNodeSpecTraits(LoadSaveConfig) {
 				//awaitCond(Await.result(HashRing(system).isReady, 20.second)) // wait for load finish
 				Thread.sleep(5000)
 				println(s"#####READY#########")
-				(1 to 4).foreach{ v =>
+				(1 to 100).foreach{ v =>
 				 	val result: Option[Value] = Await.result(HashRing(system).get(s"$v"), 5.second)
 					println(s"***********  $result")
 					awaitCond(result ==  Some(ByteString(s"$v")), 5.second)

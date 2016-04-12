@@ -86,8 +86,8 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[Key]] with Actor
 
     when(Collecting){
         case Event(SavingEntity(k,v,nextKey), _) =>
-                log.info(s"saving state $k -> $v, nextKey = $nextKey")
-                stores.get(self.path.address, "ring_hash").fold(_ ! Put(k,v), _ ! Put(k,v))
+                log.debug(s"saving state $k -> $v, nextKey = $nextKey")
+                stores.get(self.path.address, "ring_hash").fold(_ ! InternalPut(k,v), _ ! InternalPut(k,v))
                 nextKey match {
                     case None => 
                         dumpDb.close()

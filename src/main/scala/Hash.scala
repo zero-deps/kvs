@@ -30,6 +30,7 @@ case class RegisterBucket(bid: String) extends APIMessage
 //utilities
 case object Ready
 case class ChangeState(s: QuorumState)
+case class InternalPut(k: Key, v: Value)
 
 sealed trait QuorumState
 case object Unsatisfied extends QuorumState
@@ -94,7 +95,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       ))
       stay()
     case Event(LoadDumpComplete, data) =>
-      goto(state(data.nodes.size))
+      val s = state(data.nodes.size)
+      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(s), _ ! ChangeState(s)))
+      goto(s)
     case Event(Ready, _) => sender() ! false
       stay()
   }
@@ -118,8 +121,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       goto(Readonly)
     case Event(LoadDump(dumpPath), data) =>
       system.actorOf(Props(classOf[LoadDumpWorker], dumpPath)) ! LoadDump(dumpPath)
-      //data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
-      //goto(Readonly)
+      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
+      goto(Readonly)
       stay()
     case Event(RegisterBucket(bid), data) =>
       val feedNodes = registerNambedBucket(bid, data)
@@ -150,6 +153,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
     case Event(ChangeState(s), data) =>
       if(state(data.nodes.size) == Unsatisfied) stay() else goto(s)
+    case Event(InternalPut(k, v), data) =>
+      doPut(k, v, self, data)
+      stay()
   }
 
  def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
@@ -162,7 +168,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
  def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
    val bucket = hashing findBucket k
    val nodes = nodesForKey(k, data)
-   log.info(s"[hash][put] put $k -> $v on $nodes")
+   log.debug(s"[hash][put] put $k -> $v on $nodes")
    if (nodes.size >= W) {
      val info: PutInfo = PutInfo(k, v, N, W, bucket, local, data.nodes)
      val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
