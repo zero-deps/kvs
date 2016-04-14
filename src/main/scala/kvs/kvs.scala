@@ -37,29 +37,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
 
   def save(): Unit = dba.save()
   def load(dumpPath: String) = dba.load(dumpPath)
-
   import scala.concurrent.Future
-  def onReady[T](body: =>T):Future[T] = {
-    import scala.language.postfixOps
-    import scala.concurrent.Promise
-    import scala.concurrent.duration._
-    import system.dispatcher
-    import system.log
-    val p = Promise[T]()
-    def loop():Unit =
-      system.scheduler.scheduleOnce(1 second){
-        dba.isReady.map{
-          case true =>
-            log.info("KVS is ready")
-            p success body
-          case false =>
-            log.info("KVS isn't ready yet...")
-            loop()
-        }
-      }
-    loop()
-    p.future
-  }
-
+  def isReady:Future[Boolean] = dba.isReady
   def close():Unit = dba.close()
 }
