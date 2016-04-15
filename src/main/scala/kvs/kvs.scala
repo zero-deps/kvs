@@ -1,6 +1,8 @@
 package mws.kvs
 
-import akka.actor.{ExtensionKey,Extension,ExtendedActorSystem}
+import akka.actor.{ExtendedActorSystem, Extension, ExtensionKey}
+
+import scala.util.Success
 
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionKey[Kvs] {
@@ -37,7 +39,29 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
 
   def save(): Unit = dba.save()
   def load(dumpPath: String) = dba.load(dumpPath)
+
   import scala.concurrent.Future
-  def isReady:Future[Boolean] = dba.isReady
+  def onReady[T](body: =>T):Future[T] = {
+    import scala.language.postfixOps
+    import scala.concurrent.Promise
+    import scala.concurrent.duration._
+    import system.dispatcher
+    import system.log
+    val p = Promise[T]()
+    def loop():Unit =
+      system.scheduler.scheduleOnce(1 second){
+        dba.isReady onComplete {
+          case Success(true) =>
+            log.info("KVS is ready")
+            p success body
+          case _ =>
+            log.info("KVS isn't ready yet...")
+            loop()
+        }
+      }
+    loop()
+    p.future
+  }
+
   def close():Unit = dba.close()
 }
