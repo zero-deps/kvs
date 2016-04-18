@@ -10,7 +10,7 @@ object Build extends sbt.Build{
     settings = defaultSettings ++ publishSettings ++ Seq(
       libraryDependencies ++= Seq(
         "org.scalaz" %% "scalaz-core" % "7.2.0",
-        "org.scala-lang.modules" %% "scala-pickling" % "0.10.1",
+        "org.scala-lang.modules" %% "scala-pickling" % "0.11.0-M1",
         "com.playtech.mws" %% "rng" % "1.0-145-ge5c256f",
         "junit" % "junit" % "4.12" % Test,
         "org.scalatest" %% "scalatest" % "2.2.4" % Test,
@@ -27,7 +27,7 @@ object Build extends sbt.Build{
     organization := "com.playtech.mws",
     description := "Abstract Scala Types Key-Value Storage",
     version := org.eclipse.jgit.api.Git.open(file(".")).describe().call(),
-    scalaVersion := "2.11.7")
+    scalaVersion := "2.11.8")
 
   override lazy val settings = super.settings ++ buildSettings ++ resolverSettings ++ Seq(
     shellPrompt := (Project.extract(_).currentProject.id + " > "))
