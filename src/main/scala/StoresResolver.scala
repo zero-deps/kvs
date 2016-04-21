@@ -45,9 +45,10 @@ class Monitor(storage: ActorRefStorage) extends Actor {
       val fullPath = RootActorPath(node) / "user" / path
       context.system.actorSelection(fullPath) ! Identify(node)
     case ActorIdentity(n, Some(ref)) if n.isInstanceOf[Node] =>
+      context.watch(ref)
       storage.put((n.asInstanceOf[Node], ref.path.name), ref)
-    case Watch(actor) => context.watch(actor)
-    case Terminated(actor) => storage.remove((actor.path.address, actor.path.name))
+    case Terminated(actor) => 
+      storage.remove((actor.path.address, actor.path.name))
     case _ =>
   }
 }

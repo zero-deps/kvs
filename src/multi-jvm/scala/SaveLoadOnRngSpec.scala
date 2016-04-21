@@ -113,7 +113,6 @@ class LoadSaveSpec extends STMultiNodeSpecTraits(LoadSaveConfig) {
 				println(s"#####READY#########")
 				(1 to 100).foreach{ v =>
 				 	val result: Option[Value] = Await.result(HashRing(system).get(s"$v"), 5.second)
-					println(s"***********  $result")
 					awaitCond(result ==  Some(ByteString(s"$v")), 5.second)
 				 }
 			}
