@@ -5,9 +5,9 @@ import sbt._
 object Dependencies {
 
   object Versions {
-    val scalaVersion = "2.11.6"
+    val scalaVersion = "2.11.8"
     val scalaTestVersion = "2.2.1"
-    val akkaVersion = "2.3.14"
+    val akkaVersion = "2.3.15"
   }
 
   object Compile {
@@ -28,24 +28,17 @@ object Dependencies {
     val levelDBNative = "org.fusesource.leveldbjni"   % "leveldbjni-all"  % "1.8"         // New BSD
     val protobuf      = "com.google.protobuf"         % "protobuf-java"   % "2.5.0"       // New BSD
 
-
-    // Test
-
     object Test {
       val scalatest     = "org.scalatest"     %% "scalatest"    % "2.1.5" % "test"
       val scalautils    = "org.scalautils"    %% "scalautils"   % "2.1.5" % "test"
       val testkit       = "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
       val multinodekit  = "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion % "test"
-      //val remotetest    = "com.typesafe.akka" %% "akka-remote-tests" % akkaVersion % "test"
       val specs2        = "org.specs2" %% "specs2" % "2.3.12" % "test"
-      //val junit         = "junit" % "junit" % "4.10" % "test"
-
       val metrics         = "com.codahale.metrics" % "metrics-core" % "3.0.1" % "test" // ApacheV2
       val metricsJvm      = "com.codahale.metrics" % "metrics-jvm"  % "3.0.1" % "test" // ApacheV2
       val latencyUtils    = "org.latencyutils"     % "LatencyUtils" % "1.0.3" % "test" // Free BSD
       val hdrHistogram    = "org.hdrhistogram"     % "HdrHistogram" % "1.1.4" % "test" // CC0
       val metricsAll      = Seq(metrics, metricsJvm, latencyUtils, hdrHistogram)
-
     }
   }
 
