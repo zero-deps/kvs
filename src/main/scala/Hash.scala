@@ -77,7 +77,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   when(Unsatisfied){
     case Event(ignoring: APIMessage, _) =>
-      log.info(s"Not enough nodes to process  ${cluster.state}: $ignoring")
+      log.debug(s"Not enough nodes to process  ${cluster.state}: $ignoring")
       stay()
   }
 
@@ -168,7 +168,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
  def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
    val bucket = hashing findBucket k
    val nodes = nodesForKey(k, data)
-   log.debug(s"[hash][put] put $k -> $v on $nodes")
+   log.debug(s"[hash][put] put $k -> (value lenght)= ${v.size} on $nodes")
    if (nodes.size >= W) {
      val info: PutInfo = PutInfo(k, v, N, W, bucket, local, data.nodes)
      val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
