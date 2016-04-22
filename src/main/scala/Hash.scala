@@ -143,7 +143,6 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   whenUnhandled {
     case Event(MemberUp(member), data) =>
       val next = joinNodeToRing(member, data)
-      //log.info(s"[hash] MemberUp $member, next state= ${next._1}")
       goto(next._1) using next._2
     case Event(MemberRemoved(member, prevState), data) =>
       val next = removeNodeFromRing(member, data)
@@ -167,7 +166,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 }
  def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
    val bucket = hashing findBucket k
-   val nodes = nodesForKey(k, data)
+   val nodes = availableNodesFrom(nodesForKey(k, data))
    log.debug(s"[hash][put] put $k -> (value lenght)= ${v.size} on $nodes")
    if (nodes.size >= W) {
      val info: PutInfo = PutInfo(k, v, N, W, bucket, local, data.nodes)
@@ -181,7 +180,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
  }
 
  def doGet(key: Key, client: ActorRef, data: HashRngData) : Unit = {
-   val fromNodes = nodesForKey(key, data)
+   val fromNodes = availableNodesFrom(nodesForKey(key, data))
    if (fromNodes.nonEmpty) {
      log.debug(s"[hash][get] k = $key from $fromNodes")
      val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, key))
@@ -195,7 +194,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
    }
  }
 
-  def availableNodesFrom(l: List[Node]): List[Node] = {
+  def availableNodesFrom(l: Set[Node]): Set[Node] = {
     val unreachableMembers = cluster.state.unreachable.map(m => m.address)
     l filterNot (node => unreachableMembers contains node)
   }
@@ -223,14 +222,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
       synchNodes(moved)
       val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes , data.feedNodes)
-      val ss = moved.foldLeft(Set.empty[Node])((acc,vn) => acc ++ vn._2)
       
       log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
       (state(updData.nodes.size), updData)
   }
 
   def removeNodeFromRing(member: Member, data: HashRngData) : (QuorumState, HashRngData) = {
-    log.info(s"[ring_hash]Removing $member from ring")
+      log.info(s"[ring_hash]Removing $member from ring")
       val unusedvNodes: Map[Bucket, Address] = (1 to vNodesNum).map(vnode => {
       hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
       val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
@@ -288,16 +286,19 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def updateBucket(bucket: Bucket, nodes: PreferenceList): Unit = {
     import context.dispatcher
+    
     val storesOnNodes = nodes.map { actorsMem.get(_, "ring_readonly_store")}
-    val bucketsDataF = Future.traverse(storesOnNodes)(n => n.fold(
+    val bucketsDataF: Future[Set[GetBucketResp]] = Future.traverse(storesOnNodes)(n => n.fold(
       _ ? BucketGet(bucket),
-      _ ? BucketGet(bucket))).mapTo[List[GetBucketResp]]
+      _ ? BucketGet(bucket))).mapTo[Set[GetBucketResp]]
 
     bucketsDataF map {
-      case  bdata: List[GetBucketResp] if bdata.isEmpty || bdata.forall(_.l == Nil) =>
-      case  bdata: List[GetBucketResp] => 
+      case  bdata: Set[GetBucketResp] if bdata.isEmpty  =>
+      case  bdata: Set[GetBucketResp] if (true /: bdata)((acc, resp) => acc && resp.l.getOrElse(Nil).isEmpty) =>
+      case  bdata: Set[GetBucketResp] =>
         val put = mergeBucketData((List.empty[Data] /: bdata )((acc, resp) => resp.l.getOrElse(Nil) ::: acc), Nil)
         actorsMem.get(local, "ring_write_store").fold( _ ! BucketPut(put), _ ! BucketPut(put))
+      case _ =>
     }
   }
 
