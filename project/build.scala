@@ -20,8 +20,9 @@ object Build extends sbt.Build{
   )
 
   lazy val defaultSettings = Defaults.coreDefaultSettings ++ Seq(
-    fork := true,
-    scalacOptions ++= Seq("-feature", "-deprecation"))
+    scalacOptions in Compile ++= Seq("-feature", "-deprecation", "-target:jvm-1.7"),
+    javacOptions in Compile ++= Seq("-source", "1.7", "-target", "1.7")
+  )
 
   lazy val buildSettings = Seq(
     organization := "com.playtech.mws",
