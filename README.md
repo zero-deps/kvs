@@ -1,5 +1,5 @@
 # Abstract scala type database.
-
+ 
 Key Value Storage.
 
 # Backend
