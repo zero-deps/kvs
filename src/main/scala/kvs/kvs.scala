@@ -48,14 +48,22 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
     import system.dispatcher
     import system.log
     val p = Promise[T]()
+    var count = 0
     def loop():Unit =
       system.scheduler.scheduleOnce(1 second){
         dba.isReady onComplete {
           case Success(true) =>
-            log.info("KVS is ready")
-            p success body
+            if (count > 4) {
+              log.info("KVS is ready")
+              p success body
+            } else {
+              log.info(s"KVS isn't ready yet, count $count...")
+              count = count + 1
+              loop()
+            }
           case _ =>
             log.info("KVS isn't ready yet...")
+            count = 0
             loop()
         }
       }
