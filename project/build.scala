@@ -3,15 +3,30 @@ package kvs
 import sbt._
 import sbt.Keys._
 
+object Versions {
+  val scala = "2.11.8"
+  val scalaz = "7.2.0"
+  val pickling = "0.11.0-M1"
+  val rng = "1.0-169-gabc6042"
+}
+
 object Build extends sbt.Build{
   lazy val root = Project(
     id = "kvs",
     base = file("."),
-    settings = defaultSettings ++ publishSettings ++ Seq(
+    settings = Defaults.coreDefaultSettings ++ publishSettings ++ Seq(
+      scalacOptions in Compile ++= Seq("-feature", "-deprecation", "-target:jvm-1.7"),
+      javacOptions in Compile ++= Seq("-source", "1.7", "-target", "1.7"),
+      dependencyOverrides ++= Set(
+        "org.scala-lang" % "scala-compiler" % Versions.scala,
+        "org.scala-lang" % "scala-reflect" % Versions.scala,
+        "org.scala-lang" % "scala-library" % Versions.scala
+      ),
       libraryDependencies ++= Seq(
-        "org.scalaz" %% "scalaz-core" % "7.2.0",
-        "org.scala-lang.modules" %% "scala-pickling" % "0.11.0-M1",
-        "com.playtech.mws" %% "rng" % "1.0-169-gabc6042",
+        "org.scalaz" %% "scalaz-core" % Versions.scalaz,
+        ("org.scala-lang.modules" %% "scala-pickling" % Versions.pickling).
+          exclude("org.scala-lang.modules","scala-parser-combinators_2.11"),
+        "com.playtech.mws" %% "rng" % Versions.rng,
         "junit" % "junit" % "4.12" % Test,
         "org.scalatest" %% "scalatest" % "2.2.4" % Test,
         "com.typesafe.akka" %% "akka-testkit" % "2.3.14" % Test
@@ -19,16 +34,12 @@ object Build extends sbt.Build{
     )
   )
 
-  lazy val defaultSettings = Defaults.coreDefaultSettings ++ Seq(
-    scalacOptions in Compile ++= Seq("-feature", "-deprecation", "-target:jvm-1.7"),
-    javacOptions in Compile ++= Seq("-source", "1.7", "-target", "1.7")
-  )
-
   lazy val buildSettings = Seq(
     organization := "com.playtech.mws",
     description := "Abstract Scala Types Key-Value Storage",
     version := org.eclipse.jgit.api.Git.open(file(".")).describe().call(),
-    scalaVersion := "2.11.8")
+    scalaVersion := Versions.scala
+  )
 
   override lazy val settings = super.settings ++ buildSettings ++ resolverSettings ++ Seq(
     shellPrompt := (Project.extract(_).currentProject.id + " > "))

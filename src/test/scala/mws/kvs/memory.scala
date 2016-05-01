@@ -1,30 +1,40 @@
 package mws.kvs
 package store
 
-import org.scalatest.{FreeSpecLike,Matchers,EitherValues}
+import com.typesafe.config._
+import org.scalatest._
+import akka.actor.ActorSystem
+import akka.testkit._
 import Memory._
 
-class MemoryTest extends FreeSpecLike with Matchers with EitherValues {
+class MemoryTest extends FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
+  val system = ActorSystem("Test", ConfigFactory.load)
+
   "Memory DBA should" - {
-    val m: Dba = Memory(null)
+    val kvs = Kvs(system)
     "be empty at creation" in {
-      m.get("k1").left.value should be (s"not_found key k1")
+      kvs.get[String]("k1").left.value should be (Dbe(msg=s"not_found key k1"))
     }
     "save successfully value" in {
-      m.put("k1", "v1".getBytes).right.value should be ("v1".getBytes)
+      kvs.put[String]("k1", "v1").right.value should be ("v1")
     }
     "retrieve saved value" in {
-      m.get("k1").right.value should be ("v1".getBytes)
+      kvs.get[String]("k1").right.value should be ("v1")
     }
     "replace value" in {
-      m.put("k1", "v2".getBytes) should be ('right)
-      m.get("k1").right.value should be ("v2".getBytes)
+      kvs.put[String]("k1", "v2") should be ('right)
+      kvs.get[String]("k1").right.value should be ("v2")
     }
     "delete value" in {
-      m.delete("k1").right.value should be ("v2".getBytes)
+      kvs.delete[String]("k1").right.value should be ("v2")
     }
     "and value is unavailable" in {
-      m.get("k1") should be ('left)
+      kvs.get[String]("k1") should be ('left)
     }
+  }
+
+  override def afterAll():Unit = {
+    system.shutdown()
+    system.awaitTermination()
   }
 }

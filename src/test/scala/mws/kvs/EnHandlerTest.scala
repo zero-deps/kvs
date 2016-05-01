@@ -11,42 +11,7 @@ import org.scalactic._
 import scala.concurrent.Await
 
 object EnHandlerTest {
-
-  val rngConf =
-    """
-      akka {
-        actor {
-          provider = "akka.cluster.ClusterActorRefProvider"
-        }
-        remote {
-          log-remote-lifecycle-events = off
-          netty.tcp {
-            hostname = "127.0.0.1"
-            port = 2551
-          }
-        }
-        cluster {
-          seed-nodes = [
-            "akka.tcp://Test@127.0.0.1:2551"]
-
-        }
-
-        test.default-timeout=10000
-      }
-
-
-      kvs {
-		    store="mws.kvs.store.Ring"
-		  }
-    """
-  val memConf =
-    """
-      kvs {
-		    store="mws.kvs.store.Memory"
-		  }
-    """
-
-  val config = ConfigFactory.parseString(rngConf)
+  val config = ConfigFactory.load
   val FID = new scala.util.Random().nextString(6)
   type EnType = En[FeedEntry]
 }
@@ -62,7 +27,6 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
   import EnHandlerTest._
   import Handler._
 
-
   val kvs = Kvs(system)
 
   val mod = 50
@@ -73,17 +37,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
   val e3 = entry(3)
   val e5 = entry(5)
 
-
-
   override def afterAll = {
-    kvs.close()
     TestKit.shutdownActorSystem(system)
   }
-
-  override def beforeAll = {
-    Await.ready(kvs.onReady(), timeout.duration)
-  }
-
 
   "Feed should" - {
     "be empty at creation" in {

@@ -2,6 +2,7 @@ package mws.kvs
 package store
 
 import java.util.concurrent.TimeUnit
+import scala.util._
 import akka.actor.ExtendedActorSystem
 import akka.util.ByteString
 import mws.rng.{HashRing, AckSuccess, Ack}
@@ -20,30 +21,35 @@ class Ring(system: ExtendedActorSystem) extends Dba {
 
   val d = Duration(5, TimeUnit.SECONDS)
 
-  override def put(key: String, value: V): Either[Err, V] = {
-    Await.result(rng.put(key, ByteString(value)), d) match {
-      case AckSuccess => Right(value)
-      case not_success: Ack => Left(Dbe(msg = not_success.toString))
+  def put(key: String, value: V): Either[Err, V] =
+    Try(Await.result(rng.put(key,ByteString(value)),d)) match {
+      case Success(AckSuccess) => Right(value)
+      case Success(not_success: Ack) => Left(Dbe(msg=not_success.toString))
+      case Failure(ex) => Left(Dbe(msg=ex.getMessage))
     }
-  }
-  override def isReady: Future[Boolean] = rng.isReady
 
-  override def get(key: String): Either[Err, V] = Await.result(rng.get(key),d) match {
-    case Some(v) => Right(v.toArray)
-    case None => Left( Dbe(msg=s"not_found key $key"))
-  }
+  def isReady: Future[Boolean] = rng.isReady
 
-  override def delete(key: String): Either[Err, V] = get(key) match {
-    case value@ Right(v) => Await.result(rng.delete(key),d) match {
-      case AckSuccess => value
-      case not_success => Left(Dbe(msg = not_success.toString))
+  def get(key: String): Either[Err, V] =
+    Try(Await.result(rng.get(key),d)) match {
+      case Success(Some(v)) => Right(v.toArray)
+      case Success(None) => Left(Dbe(msg=s"not_found key $key"))
+      case Failure(ex) => Left(Dbe(msg=ex.getMessage))
     }
-    case err@ Left(msg) => err
-  }
 
-  override def save(): Unit = rng.dump()
+  def delete(key: String): Either[Err, V] =
+    get(key).fold(
+      l => Left(l),
+      r => Try(Await.result(rng.delete(key),d)) match {
+        case Success(AckSuccess) => Right(r)
+        case Success(not_success) => Left(Dbe(msg=not_success.toString))
+        case Failure(ex) => Left(Dbe(msg=ex.getMessage))
+      }
+    )
 
-  override def load(path: String): Unit = rng.load(path)
+  def save(): Unit = rng.dump()
 
-  override def close(): Unit = println("okay")
+  def load(path: String): Unit = rng.load(path)
+
+  def close(): Unit = ()
 }
