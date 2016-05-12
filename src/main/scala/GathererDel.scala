@@ -19,11 +19,10 @@ class GathererDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, S
 
   when(Collecting){
     case Event("ok", nodesLeft) =>
-      log.info(s"[del] from $prefList , receive response from ${sender.path.address}")
       nodesLeft - addrs(sender()) match {
-        case enought if enought.size == W =>
+        case enough if prefList.size - enough.size == W => // W nodes removed key
           client ! AckSuccess
-          goto(Sent) using(enought)
+          goto(Sent) using(enough)
         case less => stay using(less)
       }
       
@@ -46,5 +45,6 @@ class GathererDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, S
   }
 
   def addrs(s: ActorRef) = (if(s.path.address.hasLocalScope) local else s.path.address) 
+  
   initialize()
 }
