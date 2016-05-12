@@ -157,14 +157,15 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
   }
 
- def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
-  import context.dispatcher
- val nodes = nodesForKey(k, data)
- val deleteF = Future.traverse(nodes)(n =>
-  (system.actorSelection(RootActorPath(n) / "user" / "ring_write_store") ? StoreDelete(k)).mapTo[String])
-  deleteF.map(statuses => system.actorSelection("/user/ring_gatherer") ! GatherDel(statuses, client))
+def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
+  val nodes = nodesForKey(k, data)
+  val gather = system.actorOf(Props(classOf[GathererDel], nodes, client))
+  val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
+  log.debug(s"[hash][del] k=$k from $stores")
+  stores.foreach(s => s.fold(_.tell(StoreDelete(k), gather), _.tell(StoreDelete(k), gather)))
 }
- def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
+
+def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
    val bucket = hashing findBucket k
    val nodes = availableNodesFrom(nodesForKey(k, data))
    log.debug(s"[hash][put] put $k -> (value lenght)= ${v.size} on $nodes")
