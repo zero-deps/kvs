@@ -57,7 +57,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
               log.info("KVS is ready")
               p success body
             } else {
-              log.info(s"KVS isn't ready yet, count $count...")
+              log.info(s"KVS isn't ready yet...")
               count = count + 1
               loop()
             }
