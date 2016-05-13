@@ -92,7 +92,6 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     withBatch(batch => {
       batch.put(bytes(data.bucket), bytes(save))
     })
-    log.debug(s"[store][put] k-> ${data.key} , v (size) -> ${save.size}")
     updated._1
   }
 

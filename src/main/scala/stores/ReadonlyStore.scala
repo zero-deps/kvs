@@ -47,10 +47,7 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
     fromBytesList(leveldb.get(bytes(bucket)), classOf[List[Data]]) match {
       case Some(l) =>
         val sameKey: List[Data] = l.filter(d => d.key.equals(key))
-        if (sameKey.isEmpty) None else {
-          log.debug(s"[store][get] key = $key, v = ${sameKey.size}")
-          Some(sameKey)
-        }
+        if (sameKey.isEmpty) None else  Some(sameKey)
       case None => None
     }
   }

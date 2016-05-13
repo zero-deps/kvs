@@ -161,21 +161,18 @@ def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
   val nodes = nodesForKey(k, data)
   val gather = system.actorOf(Props(classOf[GathererDel], nodes, client))
   val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
-  log.debug(s"[hash][del] k=$k from $stores")
   stores.foreach(s => s.fold(_.tell(StoreDelete(k), gather), _.tell(StoreDelete(k), gather)))
 }
 
 def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
    val bucket = hashing findBucket k
    val nodes = availableNodesFrom(nodesForKey(k, data))
-   log.debug(s"[hash][put] put $k -> (value lenght)= ${v.size} on $nodes")
    if (nodes.size >= W) {
      val info: PutInfo = PutInfo(k, v, N, W, bucket, local, data.nodes)
      val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
      val node = nodes.find( _ == local).getOrElse(nodes.head)
      actorsMem.get(node, "ring_readonly_store").fold( _.tell(StoreGet(k), gather), _.tell(StoreGet(k), gather))
    } else {
-     log.debug(s"[hash][put] put - quorum failed")
      client ! AckQuorumFailed
    }
  }
@@ -183,14 +180,12 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
  def doGet(key: Key, client: ActorRef, data: HashRngData) : Unit = {
    val fromNodes = availableNodesFrom(nodesForKey(key, data))
    if (fromNodes.nonEmpty) {
-     log.debug(s"[hash][get] k = $key from $fromNodes")
      val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, key))
      val stores = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
      stores foreach (store => store.fold(
        _.tell(StoreGet(key), gather),
        _.tell(StoreGet(key), gather)))
    } else {
-     log.debug(s"[hash][get] k = $key no nodes to get")
      client ! None
    }
  }
