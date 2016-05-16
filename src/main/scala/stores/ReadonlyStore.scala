@@ -26,7 +26,9 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
   }
 
   override def receive: Receive = {
-    case StoreGet(key) => sender ! GetResp(doGet(key))
+    case StoreGet(key) =>
+      val result = fromBytesList(leveldb.get(bytes(s"${hashing.findBucket(key)}:$key")), classOf[List[Data]])
+      sender ! GetResp(result)
     case BucketGet(b) => sender ! GetBucketResp(b,fromBytesList(leveldb.get(bytes(b)),classOf[List[Data]]))
     case Traverse(fid, start, end) =>
       fromBytesList(leveldb.get(bytes(fid)), classOf[List[Value]]) match {
@@ -42,13 +44,4 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
     case _ =>    
   }
 
-  def doGet(key:Key): Option[List[Data]] = {
-    val bucket = hashing findBucket key
-    fromBytesList(leveldb.get(bytes(bucket)), classOf[List[Data]]) match {
-      case Some(l) =>
-        val sameKey: List[Data] = l.filter(d => d.key.equals(key))
-        if (sameKey.isEmpty) None else  Some(sameKey)
-      case None => None
-    }
-  }
 }

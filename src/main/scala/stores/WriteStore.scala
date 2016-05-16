@@ -76,41 +76,31 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   }
 
   def doPut(data: Data): PutStatus = {
-    val dividedLookup = divideByKey(data.key, fromBytesList(leveldb.get(bytes(data.bucket)), classOf[List[Data]]).getOrElse(Nil))
+    val keyData = fromBytesList(leveldb.get(bytes(s"${data.bucket}${data.key}")), classOf[List[Data]])
 
-    val updated: (PutStatus, List[Data]) = dividedLookup._1 match {
-      case Nil => (Saved, List(data))
-      case list if list.size == 1 & older(list.head.vc, data.vc) =>
-        (Saved, List(data.copy(vc = list.head.vc.merge(data.vc))))
-      case list if list forall (d => older(d.vc, data.vc)) =>
+    val updated: (PutStatus, List[Data]) = keyData match {
+      case None => (Saved, List(data))
+      case Some(list) if list.size == 1 & descendant(list.head.vc, data.vc) => (Saved, List(data))
+      case Some(list) if list forall (d => descendant(d.vc, data.vc)) =>
         val newVC = (list map (_.vc)).foldLeft(data.vc)((sum, i) => sum.merge(i))
         (Saved, List(data.copy(vc = newVC)))
-      case brokenData => (Conflict(brokenData), data :: brokenData)
+      case Some(brokenData) => (Conflict(brokenData), data :: brokenData)
     }
+    val keysInBucket = fromBytesList(leveldb.get(bytes(data.bucket)), classOf[List[Key]]).getOrElse(Nil)
 
-    val save: List[Data] = updated._2 ::: dividedLookup._2
     withBatch(batch => {
-      batch.put(bytes(data.bucket), bytes(save))
+      if(!keysInBucket.contains(data.key)) batch.put(bytes(data.bucket), bytes(data.key :: keysInBucket))
+      batch.put(bytes(data.bucket), bytes(updated._2))
     })
     updated._1
   }
 
-  def divideByKey(k: Key, data: List[Data]): (List[Data], List[Data]) = {
-    @tailrec
-    def divide(allData: List[Data], my: List[Data], others: List[Data]): (List[Data], List[Data]) = allData match {
-      case Nil => (my, others)
-      case h :: t if h.key == k => divide(t, h :: my, others)
-      case h :: t if h.key != k => divide(t, my, h :: others)
-    }
-    divide(data, Nil, Nil)
-  }
-
   def doDelete(key: Key): String = {
     val b = hashing.findBucket(key)
-    val lookup = fromBytesList(leveldb.get(bytes(b)), classOf[List[Data]]).getOrElse(Nil)
-
+    val keys = fromBytesList(leveldb.get(bytes(b)), classOf[List[Key]])
     withBatch(batch => {
-      batch.put(bytes(b), bytes(lookup.filterNot(d => d.key.equals(key))))
+      batch.delete(bytes(s"$b:$key"))
+      batch.put(bytes(b), bytes(keys.filterNot(_ == key)))
     })
     "ok"
   }
@@ -126,6 +116,6 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     }
   }
 
- def older(who: VectorClock, than: VectorClock) = !(who <> than) && (who < than || who == than)
+ def descendant(old: VectorClock, candidat: VectorClock) = !(old <> candidat) && (old < candidat || old == candidat)
 }
 
