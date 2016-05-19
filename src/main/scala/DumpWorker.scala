@@ -25,7 +25,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
     
     when(ReadyCollect){
         case Event(Dump, state ) => 
-            buckets(state.current).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(state.current), _ ! BucketGet(state.current))}
+            buckets(state.current).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketKeys(state.current), _ ! BucketKeys(state.current))}
             goto(Collecting) using(DumpData(state.current, buckets(state.current), Nil, None, Some(sender())))
     }
 
@@ -48,7 +48,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
                         state.client.map{_ ! s"$filePath.zip"}
                         stop()
                     case nextBucket => 
-                        buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(nextBucket), _ ! BucketGet(nextBucket))}
+                        buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketKeys(nextBucket), _ ! BucketKeys(nextBucket))}
                         stay() using(DumpData(nextBucket, buckets(nextBucket), Nil, lastKey, state.client))
                     }
                 }

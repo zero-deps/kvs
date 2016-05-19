@@ -1,23 +1,36 @@
 package mws.rng
 
-import akka.actor.{Props, ActorRef, FSM}
+import akka.actor.{ActorLogging, Props, ActorRef, FSM}
 import akka.cluster.Cluster
 import mws.rng.store.{GetBucketResp, BucketPut}
 import scala.collection.SortedMap
 import scala.concurrent.duration._
 
 /** Sequentially update buckets.*/
-class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends FSM[FsmState, SortedMap[Bucket, PreferenceList]]{
-  startWith(Collecting, buckets)
+class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends FSM[FsmState, SortedMap[Bucket, PreferenceList]]
+  with ActorLogging{
+  val actorMem = SelectionMemorize(context.system)
+  startWith(ReadyCollect, buckets)
+
+  when(ReadyCollect){
+    case Event("go-repl", data) =>
+      log.info(s"Replication is started")
+      val replica = data.head
+      actorMem.get
+      context.system.actorOf(Props(classOf[ReplicationWorker], replica._1, replica._2))
+      goto(Collecting) using data
+  }
 
   when(Collecting){
-    case Event(b: Bucket, data) =>
+    case Event(b: Bucket | s:String, data) =>
       data - b match {
         case empty if empty.isEmpty =>
-          context.parent  ! "replication complete"
+          log.info(s"Replication is finished")
           stop()
         case syncBuckets =>
           val replica = syncBuckets.head
+          replica.map(node => actorMem.get("ring_readonly_store", n)).fold(
+            _ ! BucketGet(replica._1), _ ! BucketGet(replica._1))  
           context.system.actorOf(Props(classOf[ReplicationWorker], replica._1, replica._2))
           stay() using syncBuckets
       }
@@ -25,7 +38,7 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
 }
 
 case class ReplKeys(b:Bucket, prefList: PreferenceList, info: List[Option[List[Data]]])
-class ReplicationWorker(bucket:Bucket,preferenceList: PreferenceList) extends FSM[FsmState, ReplKeys]{
+class ReplicationWorker(bucket:Bucket,preferenceList: PreferenceList) extends FSM[FsmState, ReplKeys] with ActorLogging {
   val local = Cluster(context.system).selfAddress
   val actorMem = SelectionMemorize(context.system)
 

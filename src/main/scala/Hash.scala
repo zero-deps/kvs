@@ -216,6 +216,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
       val updvNodes = data.vNodes ++ newvNodes
       val nodes = data.nodes + member.address
       val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
+      log.info(s"WILL UPDATE ${moved.size} buckets")
       synchNodes(moved)
       val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes , data.feedNodes)
       
@@ -230,9 +231,16 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
       val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
       val nodes = data.nodes + member.address
       val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
+      log.info(s"WILL UPDATE ${moved.size} buckets")
       val updData: HashRngData = HashRngData(data.nodes + member.address, data.buckets++moved, updvNodes, data.feedNodes)
       synchNodes(moved)
       (state(updData.nodes.size), updData)
+  }
+
+  def synchNodes(buckets: SortedMap[Bucket, PreferenceList]): Unit = {
+    val repl = buckets.foldLeft(SortedMap.empty[Bucket,PreferenceList])((acc, b_prefList) =>
+      if(b_prefList._2.contains(local)) acc+ (b_prefList._1 ->  b_prefList._2.filterNot(_ == local)) else acc)
+    system.actorOf(Props(classOf[ReplicationSupervisor], repl)) ! "go-repl"
   }
 
   def state(nodes : Int): QuorumState = nodes match {
@@ -273,29 +281,6 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
   def nodesForKey(k: Key, data: HashRngData): PreferenceList = data.buckets.get(hashing.findBucket(k)) match {
     case None => Set.empty[Node]
     case Some(nods) => nods
-  }
-
-  def synchNodes(buckets: SortedMap[Bucket, PreferenceList]): Unit = {
-  buckets.foreach{bdata => 
-    if(bdata._2.contains(local)) updateBucket(bdata._1, bdata._2.filterNot(_ == local))}
-  }
-
-  def updateBucket(bucket: Bucket, nodes: PreferenceList): Unit = {
-    import context.dispatcher
-    
-    val storesOnNodes = nodes.map { actorsMem.get(_, "ring_readonly_store")}
-    val bucketsDataF: Future[Set[GetBucketResp]] = Future.traverse(storesOnNodes)(n => n.fold(
-      _ ? BucketGet(bucket),
-      _ ? BucketGet(bucket))).mapTo[Set[GetBucketResp]]
-
-    bucketsDataF map {
-      case  bdata: Set[GetBucketResp] if bdata.isEmpty  =>
-      case  bdata: Set[GetBucketResp] if (true /: bdata)((acc, resp) => acc && resp.l.getOrElse(Nil).isEmpty) =>
-      case  bdata: Set[GetBucketResp] =>
-        val put = mergeBucketData((List.empty[Data] /: bdata )((acc, resp) => resp.l.getOrElse(Nil) ::: acc), Nil)
-        actorsMem.get(local, "ring_write_store").fold( _ ! BucketPut(put), _ ! BucketPut(put))
-      case _ =>
-    }
   }
 
   initialize()

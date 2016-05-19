@@ -1,8 +1,6 @@
 package mws.rng
 
-import java.util.concurrent.TimeUnit
 import akka.actor._
-import akka.util.Timeout
 import akka.cluster.Cluster
 import scala.concurrent.duration._
 
@@ -44,7 +42,7 @@ class GathererDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, S
     case Event(OpsTimeout, nodesLeft) => stop()
   }
 
-  def addrs(s: ActorRef) = (if(s.path.address.hasLocalScope) local else s.path.address) 
+  def addrs(s: ActorRef) = if(s.path.address.hasLocalScope) local else s.path.address
   
   initialize()
 }
