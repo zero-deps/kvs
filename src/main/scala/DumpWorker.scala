@@ -10,7 +10,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import org.iq80.leveldb._
 
-case class DumpData(current: Bucket, prefList: PreferenceList, collected: List[Option[List[Data]]],
+case class DumpData(current: Bucket, prefList: PreferenceList, collected: List[List[Data]],
             lastKey: Option[Key], client: Option[ActorRef])
 
 class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extends FSM[FsmState, DumpData] with ActorLogging{
@@ -25,7 +25,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
     
     when(ReadyCollect){
         case Event(Dump, state ) => 
-            buckets(state.current).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketKeys(state.current), _ ! BucketKeys(state.current))}
+            buckets(state.current).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(state.current), _ ! BucketGet(state.current))}
             goto(Collecting) using(DumpData(state.current, buckets(state.current), Nil, None, Some(sender())))
     }
 
@@ -33,7 +33,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
         case Event(GetBucketResp(b,data), state) => // TODO add timeout if any node is not responding.
             val pList = state.prefList - (if(sender().path.address.hasLocalScope) local else sender().path.address) 
             if(pList.isEmpty) {
-              val lastKey = mergeBucketData((data :: state.collected).flatten.foldLeft(List.empty[Data])((acc, l) => l ::: acc), Nil) match {
+              val lastKey = mergeBucketData((data :: state.collected).foldLeft(List.empty[Data])((acc, l) => l ::: acc), Nil) match {
                 case Nil => state.lastKey
                 case listData =>  linkKeysInDb(listData, state.lastKey)
               }
@@ -48,7 +48,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
                         state.client.map{_ ! s"$filePath.zip"}
                         stop()
                     case nextBucket => 
-                        buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketKeys(nextBucket), _ ! BucketKeys(nextBucket))}
+                        buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(nextBucket), _ ! BucketGet(nextBucket))}
                         stay() using(DumpData(nextBucket, buckets(nextBucket), Nil, lastKey, state.client))
                     }
                 }

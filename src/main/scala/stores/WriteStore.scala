@@ -56,7 +56,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     }
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
-    case BucketPut(data) => sender ! doBucketPut(data)
+    case BucketPut(data) => data.map{doPut(_)}
     case FeedAppend(fid,v,version) =>
       val fidBytes= bytes(fid)
       val feed = fromBytesList(leveldb.get(fidBytes), classOf[List[Value]]).getOrElse(Nil)
@@ -66,13 +66,6 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
       })
       sender() ! feed.size
     case unhandled => log.warning(s"[store]unhandled message: $unhandled")
-  }
-
-  def doBucketPut(data: List[Data]): String = {
-    data.headOption.map(elem => withBatch(batch => {
-      batch.put(bytes(elem.bucket), bytes(data))
-    }))
-    "ok"
   }
 
   def doPut(data: Data): PutStatus = {

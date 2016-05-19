@@ -8,7 +8,7 @@ import mws.rng._
 import org.iq80.leveldb._
 import akka.util.ByteString
 
-case class GetBucketResp(b:Bucket,l: Option[List[Data]])
+case class GetBucketResp(b:Bucket,l: List[Data])
 case class SavingEntity(k: Key, v:Value, nextKey: Option[Key])
 
 class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
@@ -31,8 +31,8 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
       sender ! GetResp(result)
     case BucketGet(b) => 
       val keys = fromBytesList(leveldb.get(bytes(s"$b:keys")),classOf[List[Key]])
-      val data= keys.folLeft(List.empty[Data])((acc, key) => 
-        fromBytesList(leveldb.get(bytes(s"$b:$key"), classOf[List[Data]) ::: acc ))
+      val data= keys.foldLeft(List.empty[Data])((acc, key) => 
+      fromBytesList(leveldb.get(bytes(s"$b:$key")), classOf[List[Data]]).getOrElse(Nil) ::: acc )
       sender ! GetBucketResp(b, data)
     case Traverse(fid, start, end) =>
       fromBytesList(leveldb.get(bytes(fid)), classOf[List[Value]]) match {
