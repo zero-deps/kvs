@@ -29,7 +29,11 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
     case StoreGet(key) =>
       val result = fromBytesList(leveldb.get(bytes(s"${hashing.findBucket(key)}:$key")), classOf[List[Data]])
       sender ! GetResp(result)
-    case BucketGet(b) => sender ! GetBucketResp(b,fromBytesList(leveldb.get(bytes(b)),classOf[List[Data]]))
+    case BucketGet(b) => 
+      val keys = fromBytesList(leveldb.get(bytes(s"$b:keys")),classOf[List[Key]])
+      val data= keys.folLeft(List.empty[Data])((acc, key) => 
+        fromBytesList(leveldb.get(bytes(s"$b:$key"), classOf[List[Data]) ::: acc ))
+      sender ! GetBucketResp(b, data)
     case Traverse(fid, start, end) =>
       fromBytesList(leveldb.get(bytes(fid)), classOf[List[Value]]) match {
         case Some(feed) => sender() ! feed.slice(start.getOrElse(0), end.getOrElse(feed.size))
