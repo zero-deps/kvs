@@ -48,7 +48,8 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   }
 
   def receive: Receive = {
-    case StorePut(data) => sender ! doPut(data)
+    case StorePut(data) => 
+      sender ! doPut(data)
     case PutSavingEntity(k:Key,v:(Value, Option[Key])) => {
       withBatch(batch => {
       batch.put(bytes(k), bytes(v))
@@ -69,7 +70,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   }
 
   def doPut(data: Data): PutStatus = {
-    val keyData = fromBytesList(leveldb.get(bytes(s"${data.bucket}${data.key}")), classOf[List[Data]])
+    val keyData = fromBytesList(leveldb.get(bytes(s"${data.bucket}:key:${data.key}")), classOf[List[Data]])
 
     val updated: (PutStatus, List[Data]) = keyData match {
       case None => (Saved, List(data))
@@ -79,20 +80,19 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
         (Saved, List(data.copy(vc = newVC)))
       case Some(brokenData) => (Conflict(brokenData), data :: brokenData)
     }
-    val keysInBucket = fromBytesList(leveldb.get(bytes(data.bucket)), classOf[List[Key]]).getOrElse(Nil)
-
+    val keysInBucket = fromBytesList(leveldb.get(bytes(s"${data.bucket}:keys")), classOf[List[Key]]).getOrElse(Nil)
     withBatch(batch => {
-      if(!keysInBucket.contains(data.key)) batch.put(bytes(data.bucket), bytes(data.key :: keysInBucket))
-      batch.put(bytes(data.bucket), bytes(updated._2))
+      if(!keysInBucket.contains(data.key)) batch.put(bytes(s"${data.bucket}:keys"), bytes(data.key :: keysInBucket))
+      batch.put(bytes(s"${data.bucket}:key:${data.key}"), bytes(updated._2))
     })
     updated._1
   }
 
   def doDelete(key: Key): String = {
     val b = hashing.findBucket(key)
-    val keys = fromBytesList(leveldb.get(bytes(b)), classOf[List[Key]])
+    val keys = fromBytesList(leveldb.get(bytes(s"$b:keys")), classOf[List[Key]])
     withBatch(batch => {
-      batch.delete(bytes(s"$b:$key"))
+      batch.delete(bytes(s"$b:key:$key"))
       batch.put(bytes(b), bytes(keys.filterNot(_ == key)))
     })
     "ok"

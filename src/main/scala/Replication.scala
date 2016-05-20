@@ -43,7 +43,7 @@ class ReplicationWorker(bucket:Bucket,preferenceList: PreferenceList) extends FS
   val local = Cluster(context.system).selfAddress
   val actorMem = SelectionMemorize(context.system)
 
-  setTimer("send_by_timeout", OpsTimeout, context.system.settings.config.getInt("rng.gather-timeout").seconds)
+  setTimer("send_by_timeout", OpsTimeout, context.system.settings.config.getInt("ring.gather-timeout").seconds)
   startWith(Collecting, ReplKeys(bucket, preferenceList, Nil))
 
   when(Collecting){

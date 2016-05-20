@@ -26,7 +26,7 @@ object StoreUsageSpec {
     """ ring.leveldb {
       |fsync=false
       |checksum = false
-      |buckets = 1
+      |buckets = 2
       |}
     """.stripMargin
 }
@@ -39,9 +39,8 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
   val writeStore = system.actorOf(Props(new WriteStore(leveldb)))
   val readStore = system.actorOf(Props(new ReadonlyStore(leveldb)))
   
-  // those keys has hash correcponds to b=1 for   buckets=4 conf.
   val data: Data = new Data("_$3key1", 1, 777, new VectorClock(), ByteString( "value"))
-  val data2: Data = new Data("tasbis0", 1, 777, new VectorClock(), ByteString( "some val"))
+  val data2: Data = new Data("key_2_", 1, 777, new VectorClock(), ByteString( "some val"))
 
   "Store " must {
 
@@ -116,8 +115,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
 
     "save data if bucket contains another key" in {
       writeStore ! BucketPut(List(data2))
-      expectMsgType[String] should equal("ok")
-
+      Thread.sleep(200)
       readStore ! StoreGet(data2.key)
       expectMsgType[GetResp] should equal(GetResp(Some(List(data2))))
 
@@ -131,10 +129,13 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       expectMsg(GetResp(Some(List(data2))))
 
       readStore ! BucketGet(1)
-      expectMsgType[GetBucketResp] should equal(GetBucketResp(1,Some(List(data, data2))))
+      expectMsgType[GetBucketResp] should equal(GetBucketResp(data.bucket, List(data2, data)))
 
       get_delete_get(data)
-      get_delete_get(data2)     
+      get_delete_get(data2)  
+
+      readStore ! BucketGet(1)  
+      expectMsgType[GetBucketResp] should equal(GetBucketResp(data.bucket, Nil))
     }
   }
 
