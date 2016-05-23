@@ -23,31 +23,38 @@ object StoreUsageSpec {
   val leveldbDir = new File("store_spec")
   var leveldb = Iq80DBFactory.factory.open(leveldbDir, leveldbOptions.compressionType(CompressionType.NONE))
   val conf =
-    """ ring.leveldb {
-      |fsync=false
-      |checksum = false
-      |buckets = 2
-      |}
+    """
+    |ring.buckets = 10
+    |ring.hashLength = 32
     """.stripMargin
 }
 
-class StoreUsageSpec extends TestKit(ActorSystem("RingSystemTest", ConfigFactory.parseString(StoreUsageSpec.conf)))
+class StoreUsageSpec extends TestKit(ActorSystem("RingSystemTest", ConfigFactory.parseString(StoreUsageSpec.conf).
+  withFallback(ConfigFactory.load())))
 with DefaultTimeout with ImplicitSender
 with WordSpecLike with Matchers with BeforeAndAfterAll {
   import StoreUsageSpec._
 
+  val d = Duration(3, TimeUnit.SECONDS)
   val writeStore = system.actorOf(Props(new WriteStore(leveldb)))
   val readStore = system.actorOf(Props(new ReadonlyStore(leveldb)))
+  val hashing = HashingExtension(system)
   
-  val data: Data = new Data("_$3key1", 1, 777, new VectorClock(), ByteString( "value"))
-  val data2: Data = new Data("key_2_", 1, 777, new VectorClock(), ByteString( "some val"))
-
+  val data: Data = new Data("key1", hashing.findBucket("313fdy1"), 777, new VectorClock(), ByteString( "value"))
+  
   "Store " must {
 
-    "provide crud" in {
+    s"provide crud for $data " in {
       writeStore ! StorePut(data)
       expectMsg(Saved)
+
+      readStore ! BucketKeys(data.bucket)
+      expectMsg(List(data.key))
+
       get_delete_get(data)
+        
+      readStore ! BucketKeys(data.bucket)
+      expectMsg(Nil)
       
       readStore ! StoreGet("not_exists")
       expectMsg(GetResp(None))
@@ -85,7 +92,7 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
       expectMsgType[PutStatus] should equal(Saved)
 
       writeStore ! StorePut(data.copy(vc = vc2))
-      expectMsgType[PutStatus] should equal(Conflict(List(data.copy(vc = vc1))))
+      expectMsgType[Conflict].broken.map{_.vc}.toSet should be eq(Set(vc1, vc2))
 
       readStore ! StoreGet(data.key)
       receiveOne(Duration(3, TimeUnit.SECONDS)) match {
@@ -114,28 +121,44 @@ with WordSpecLike with Matchers with BeforeAndAfterAll {
     }
 
     "save data if bucket contains another key" in {
-      writeStore ! BucketPut(List(data2))
-      Thread.sleep(200)
-      readStore ! StoreGet(data2.key)
-      expectMsgType[GetResp] should equal(GetResp(Some(List(data2))))
 
-      writeStore ! StorePut(data)
+      Thread.sleep(200)
+      val d1 = new Data("k_1", hashing.findBucket("k_1"), 777, new VectorClock(), ByteString("value"))
+      val d2 = new Data("k2", hashing.findBucket("k2"), 1231, new VectorClock(), ByteString("value2"))
+      assert(hashing.findBucket(d1.key) == hashing.findBucket(d2.key))
+
+      writeStore ! BucketPut(List(d1))
+      Thread.sleep(200)
+      readStore ! StoreGet(d1.key)
+      expectMsgType[GetResp] should equal(GetResp(Some(List(d1))))
+
+      readStore ! BucketKeys(d1.bucket)
+      expectMsg(List(d1.key))
+
+      writeStore ! StorePut(d2)
       expectMsg(Saved)
 
-      readStore ! StoreGet(data.key)
-      expectMsg(GetResp(Some(List(data))))
+      readStore ! BucketKeys(d1.bucket)
+      expectMsg(List(d2.key, d1.key))
 
-      readStore ! StoreGet(data2.key)
-      expectMsg(GetResp(Some(List(data2))))
+      readStore ! StoreGet(d2.key)
+      expectMsg(GetResp(Some(List(d2))))
 
-      readStore ! BucketGet(1)
-      expectMsgType[GetBucketResp] should equal(GetBucketResp(data.bucket, List(data2, data)))
+      readStore ! StoreGet(d1.key)
+      expectMsg(GetResp(Some(List(d1))))
 
-      get_delete_get(data)
-      get_delete_get(data2)  
+      readStore ! BucketGet(d1.bucket)
+      expectMsgType[GetBucketResp] should equal(GetBucketResp(d1.bucket, List(d1, d2)))
 
-      readStore ! BucketGet(1)  
-      expectMsgType[GetBucketResp] should equal(GetBucketResp(data.bucket, Nil))
+      get_delete_get(d1)
+      readStore ! BucketKeys(d1.bucket)
+      expectMsg(List(d2.key))
+      get_delete_get(d2)  
+      readStore ! BucketKeys(d1.bucket)
+      expectMsg(Nil)
+
+      readStore ! BucketGet(d2.bucket)  
+      expectMsgType[GetBucketResp] should equal(GetBucketResp(d1.bucket, Nil))
     }
   }
 

@@ -8,7 +8,7 @@ class HashingImpl(config: Config) extends  Extension{
   val hashLen = config.getInt("hashLength")
   val bucketsNum = config.getInt("buckets")
   val bucketRange = (math.pow(2, hashLen) / bucketsNum).ceil.toInt
-
+  
   def hash(word: String):Int = {
     implicit val digester = MessageDigest.getInstance("MD5")
     digester update word.getBytes("UTF-8")

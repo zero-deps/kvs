@@ -14,11 +14,11 @@ case class StoreGet(key:Key)
 case class StorePut(data:Data)
 case class StoreDelete(key:Key)
 case class BucketPut(data: List[Data])
-case class BucketDelete(b:Bucket)
 case class BucketGet(b:Bucket)
 case class GetResp(d: Option[List[Data]])
 case class PutSavingEntity(k:Key,v:(Value, Option[Key]))
 case class GetSavingEntity(k: Key)
+case class BucketKeys(b: Bucket)
 
 case class FeedAppend(fid:String, v:Value,  version: VectorClock)
 sealed trait PutStatus
@@ -56,7 +56,6 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
       })
     }
     case StoreDelete(data) => sender ! doDelete(data)
-    case BucketDelete(b) => leveldb.delete(bytes(b), leveldbWriteOptions)
     case BucketPut(data) => data.map{doPut(_)}
     case FeedAppend(fid,v,version) =>
       val fidBytes= bytes(fid)
@@ -78,7 +77,9 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
       case Some(list) if list forall (d => descendant(d.vc, data.vc)) =>
         val newVC = (list map (_.vc)).foldLeft(data.vc)((sum, i) => sum.merge(i))
         (Saved, List(data.copy(vc = newVC)))
-      case Some(brokenData) => (Conflict(brokenData), data :: brokenData)
+      case Some(brokenData) => 
+        val broken = data :: brokenData
+        (Conflict(broken), broken)
     }
     val keysInBucket = fromBytesList(leveldb.get(bytes(s"${data.bucket}:keys")), classOf[List[Key]]).getOrElse(Nil)
     withBatch(batch => {
@@ -91,9 +92,12 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   def doDelete(key: Key): String = {
     val b = hashing.findBucket(key)
     val keys = fromBytesList(leveldb.get(bytes(s"$b:keys")), classOf[List[Key]])
+    log.info(s"k = $keys")
+    val newKeys = keys.getOrElse(Nil).filterNot(_ == key)
+    log.info(s"new keys = $newKeys")
     withBatch(batch => {
       batch.delete(bytes(s"$b:key:$key"))
-      batch.put(bytes(b), bytes(keys.filterNot(_ == key)))
+      batch.put(bytes(s"$b:keys"), bytes(newKeys))
     })
     "ok"
   }
