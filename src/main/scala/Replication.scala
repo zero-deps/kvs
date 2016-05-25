@@ -15,11 +15,14 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
   when(ReadyCollect){
     case Event("go-repl", data) =>
       log.info(s"Replication is started")
-      val replica = data.head
-      replica._2.map(node => actorMem.get(node, "ring_readonly_store").fold(
-            _ ! BucketGet(replica._1), _ ! BucketGet(replica._1)))  
-      context.system.actorOf(Props(classOf[ReplicationWorker], replica._1, replica._2))
-      goto(Collecting) using data
+      data.headOption match {
+        case None => stop()
+        case Some(replica) => 
+          replica._2.map(node => actorMem.get(node, "ring_readonly_store").fold(
+                _ ! BucketGet(replica._1), _ ! BucketGet(replica._1)))  
+          context.system.actorOf(Props(classOf[ReplicationWorker], replica._1, replica._2))
+          goto(Collecting) using data
+      }
   }
 
   when(Collecting){
