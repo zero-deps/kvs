@@ -211,14 +211,13 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
   }
 
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
-      val newvNodes: Map[Bucket, Address] = (1 to vNodesNum).map(vnode => {
+      val newvNodes: Map[VNode, Address] = (1 to vNodesNum).map(vnode => {
         hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
       val updvNodes = data.vNodes ++ newvNodes
       val nodes = data.nodes + member.address
       val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
-      log.info(s"WILL UPDATE ${moved.size} buckets")
       synchNodes(moved)
-      val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes , data.feedNodes)
+      val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes, data.feedNodes)
       
       log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
       (state(updData.nodes.size), updData)
@@ -226,7 +225,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
 
   def removeNodeFromRing(member: Member, data: HashRngData) : (QuorumState, HashRngData) = {
       log.info(s"[ring_hash]Removing $member from ring")
-      val unusedvNodes: Map[Bucket, Address] = (1 to vNodesNum).map(vnode => {
+      val unusedvNodes: Map[VNode, Address] = (1 to vNodesNum).map(vnode => {
       hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
       val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
       val nodes = data.nodes + member.address
@@ -249,11 +248,10 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
     case _ => Readonly
   }
 
-  def bucketsToUpdate(bucket: Bucket, nodesNumber: Int, vNodes: SortedMap[Bucket, Address],
+  def bucketsToUpdate(maxBucket: Bucket, nodesNumber: Int, vNodes: SortedMap[Bucket, Address],
                       buckets: SortedMap[Bucket, PreferenceList]): SortedMap[Bucket, PreferenceList] = {
-    (0 to bucket).foldLeft(SortedMap.empty[Bucket, PreferenceList])((acc, b) => {
-       val prefList = findBucketNodes(bucket * hashing.bucketRange, if (nodesNumber == 0) 1 else vNodes.size, vNodes, nodesNumber)
-      
+    (0 to maxBucket).foldLeft(SortedMap.empty[Bucket, PreferenceList])((acc, b) => {
+       val prefList = findBucketNodes(b * hashing.bucketRange, vNodes.size, vNodes, nodesNumber)
       buckets.get(b) match {
       case None => acc + (b -> prefList)
       case Some(`prefList`) => acc
