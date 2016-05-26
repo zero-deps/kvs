@@ -61,7 +61,6 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
         case Nil => prevKey
         case h::t => 
             dumpStore ! PutSavingEntity(h.key, (h.value, prevKey))
-            log.info(s"${h.key}, (${h.value}  -> ${prevKey})")
             linkKeysInDb(t,Some(h.key))
     }
 

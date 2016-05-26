@@ -18,9 +18,10 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
       data.headOption match {
         case None => stop()
         case Some(replica) => 
+          val worker = context.actorOf(Props(classOf[ReplicationWorker], replica._1, replica._2))
           replica._2.map(node => actorMem.get(node, "ring_readonly_store").fold(
-                _ ! BucketGet(replica._1), _ ! BucketGet(replica._1)))  
-          context.system.actorOf(Props(classOf[ReplicationWorker], replica._1, replica._2))
+                _.tell(BucketGet(replica._1),worker), _.tell(BucketGet(replica._1), worker)))  
+          
           goto(Collecting) using data
       }
   }
@@ -33,9 +34,9 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
           stop()
         case syncBuckets =>
           val replica = syncBuckets.head
+          val worker = context.actorOf(Props(classOf[ReplicationWorker], replica._1, replica._2))
           replica._2.map(node => actorMem.get(node, "ring_readonly_store").fold(
-            _ ! BucketGet(replica._1), _ ! BucketGet(replica._1)))  
-          context.system.actorOf(Props(classOf[ReplicationWorker], replica._1, replica._2))
+            _.tell(BucketGet(replica._1),worker) , _.tell(BucketGet(replica._1), worker)))
           stay() using syncBuckets
       }
   }
@@ -56,7 +57,7 @@ class ReplicationWorker(bucket:Bucket,preferenceList: PreferenceList) extends FS
           val all = data.info.foldLeft(l)((acc, list) => list :::  acc )
           val merged = mergeBucketData(all, Nil)
           actorMem.get(local, "ring_write_store").fold(_ ! BucketPut(merged), _ ! BucketPut(merged))
-          context.parent ! bucket
+          context.parent ! b
           stop()
         case nodes => stay() using ReplKeys(bucket, nodes, l :: data.info)
       }
