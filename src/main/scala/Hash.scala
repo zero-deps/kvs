@@ -107,20 +107,23 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       sender() ! true
       stay()
     case Event(Get(k), data) =>
-      doGet(k, sender(), data)
+      val s = sender()
+      doGet(k,s , data)
       stay()
     case Event(Put(k,v), data) =>
-      doPut(k,v,sender(),data)
+    val s = sender()
+      doPut(k,v,s,data)
       stay()
     case Event(Delete(k), data) =>
-      doDelete(k,sender(),data)
+      val s = sender()
+      doDelete(k,s,data)
       stay()
     case Event(Dump, data) =>
-      system.actorOf(Props(classOf[DumpWorker], data.buckets, local)).tell(Dump, sender)
+      system.actorOf(Props(classOf[DumpWorker], data.buckets, local), s"dump_wrkr-${System.currentTimeMillis}").tell(Dump, sender)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
       goto(Readonly)
     case Event(LoadDump(dumpPath), data) =>
-      system.actorOf(Props(classOf[LoadDumpWorker], dumpPath)) ! LoadDump(dumpPath)
+      system.actorOf(Props(classOf[LoadDumpWorker], dumpPath), s"load_wrkr-${System.currentTimeMillis}") ! LoadDump(dumpPath)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
       goto(Readonly)
       stay()
@@ -239,7 +242,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
   def synchNodes(buckets: SortedMap[Bucket, PreferenceList]): Unit = {
     val repl = buckets.foldLeft(SortedMap.empty[Bucket,PreferenceList])((acc, b_prefList) =>
       if(b_prefList._2.contains(local)) acc+ (b_prefList._1 ->  b_prefList._2.filterNot(_ == local)) else acc)
-    system.actorOf(Props(classOf[ReplicationSupervisor], repl)) ! "go-repl"
+    context.actorOf(Props(classOf[ReplicationSupervisor], repl), s"repl-${System.currentTimeMillis()}") ! "go-repl"
   }
 
   def state(nodes : Int): QuorumState = nodes match {
