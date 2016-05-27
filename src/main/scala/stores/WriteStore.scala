@@ -7,7 +7,6 @@ import akka.cluster.VectorClock
 import akka.serialization.SerializationExtension
 import mws.rng._
 import org.iq80.leveldb._
-
 import scala.annotation.tailrec
 
 case class StoreGet(key:Key)
@@ -21,7 +20,7 @@ case class GetSavingEntity(k: Key)
 case class BucketKeys(b: Bucket)
 
 case class FeedAppend(fid:String, v:Value,  version: VectorClock)
-sealed trait PutStatus
+sealed trait PutStatus  
 case object Saved extends PutStatus
 case class Conflict(broken: List[Data]) extends PutStatus
 
@@ -42,7 +41,17 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     case None => None
   }
 
-  override def postStop() = {
+  override def preStart(): Unit = {
+    // old style to new layout bucket -> List[Data] to bucket:key
+    val buckets = context.system.settings.config.getInt("ring.buckets")
+    (0 to buckets).map(b => {
+      fromBytesList(bytes(b), classOf[List[Data]]).map(_.groupBy(_.bucket).map(_._2.headOption.map(doPut(_))))
+      leveldb.delete(bytes(b))})
+
+    //validate
+  }
+
+  override def postStop(): Unit = {
     leveldb.close()
     super.postStop()
   }
@@ -70,7 +79,6 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
 
   def doPut(data: Data): PutStatus = {
     val keyData = fromBytesList(leveldb.get(bytes(s"${data.bucket}:key:${data.key}")), classOf[List[Data]])
-
     val updated: (PutStatus, List[Data]) = keyData match {
       case None => (Saved, List(data))
       case Some(list) if list.size == 1 & descendant(list.head.vc, data.vc) => (Saved, List(data))
@@ -92,9 +100,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   def doDelete(key: Key): String = {
     val b = hashing.findBucket(key)
     val keys = fromBytesList(leveldb.get(bytes(s"$b:keys")), classOf[List[Key]])
-    log.info(s"k = $keys")
     val newKeys = keys.getOrElse(Nil).filterNot(_ == key)
-    log.info(s"new keys = $newKeys")
     withBatch(batch => {
       batch.delete(bytes(s"$b:key:$key"))
       batch.put(bytes(s"$b:keys"), bytes(newKeys))
