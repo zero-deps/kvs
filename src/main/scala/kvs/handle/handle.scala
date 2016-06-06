@@ -36,7 +36,7 @@ object Handler {
     def unpickle(a:Array[Byte]) = new String(a,"UTF-8")
   }
   implicit object strEnHandler extends EnHandler[String]{
-    import scala.pickling._,Defaults._,binary._//,static._
+    import scala.pickling._,Defaults._,binary._,static._
     def pickle(e:En[String]) = e.pickle.value
     def unpickle(a:Array[Byte]) = a.unpickle[En[String]]
   }
