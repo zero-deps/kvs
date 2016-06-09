@@ -7,7 +7,6 @@ import akka.cluster.VectorClock
 import akka.serialization.SerializationExtension
 import mws.rng._
 import org.iq80.leveldb._
-import scala.annotation.tailrec
 
 case class StoreGet(key:Key)
 case class StorePut(data:Data)
@@ -44,11 +43,16 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   override def preStart(): Unit = {
     // old style to new layout bucket -> List[Data] to bucket:key
     val buckets = context.system.settings.config.getInt("ring.buckets")
-    (0 to buckets).map(b => {
-      fromBytesList(bytes(b), classOf[List[Data]]).map(_.groupBy(_.bucket).map(_._2.headOption.map(doPut(_))))
-      leveldb.delete(bytes(b))})
-
-    //validate
+    (0 to buckets).foreach(b => {
+      val binfo = fromBytesList(leveldb.get(bytes(b)), classOf[List[Data]])
+      binfo.map(_.groupBy(_.bucket)) match {
+        case None =>
+        case Some(m) => m.foreach { case (buk, list) =>
+          list map doPut
+          leveldb.delete(bytes(buk))
+        }
+      }
+    })
   }
 
   override def postStop(): Unit = {
@@ -59,13 +63,10 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   def receive: Receive = {
     case StorePut(data) => 
       sender ! doPut(data)
-    case PutSavingEntity(k:Key,v:(Value, Option[Key])) => {
-      withBatch(batch => {
-      batch.put(bytes(k), bytes(v))
-      })
-    }
+    case PutSavingEntity(k:Key,v:(Value, Option[Key])) =>
+      withBatch(batch => { batch.put(bytes(k), bytes(v)) })
     case StoreDelete(data) => sender ! doDelete(data)
-    case BucketPut(data) => data.map{doPut(_)}
+    case BucketPut(data) => data map doPut
     case FeedAppend(fid,v,version) =>
       val fidBytes= bytes(fid)
       val feed = fromBytesList(leveldb.get(fidBytes), classOf[List[Value]]).getOrElse(Nil)
@@ -79,6 +80,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
 
   def doPut(data: Data): PutStatus = {
     val keyData = fromBytesList(leveldb.get(bytes(s"${data.bucket}:key:${data.key}")), classOf[List[Data]])
+
     val updated: (PutStatus, List[Data]) = keyData match {
       case None => (Saved, List(data))
       case Some(list) if list.size == 1 & descendant(list.head.vc, data.vc) => (Saved, List(data))
@@ -89,7 +91,9 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
         val broken = data :: brokenData
         (Conflict(broken), broken)
     }
+    
     val keysInBucket = fromBytesList(leveldb.get(bytes(s"${data.bucket}:keys")), classOf[List[Key]]).getOrElse(Nil)
+
     withBatch(batch => {
       if(!keysInBucket.contains(data.key)) batch.put(bytes(s"${data.bucket}:keys"), bytes(data.key :: keysInBucket))
       batch.put(bytes(s"${data.bucket}:key:${data.key}"), bytes(updated._2))
@@ -101,6 +105,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
     val b = hashing.findBucket(key)
     val keys = fromBytesList(leveldb.get(bytes(s"$b:keys")), classOf[List[Key]])
     val newKeys = keys.getOrElse(Nil).filterNot(_ == key)
+
     withBatch(batch => {
       batch.delete(bytes(s"$b:key:$key"))
       batch.put(bytes(s"$b:keys"), bytes(newKeys))
