@@ -22,11 +22,6 @@ case object Dump extends APIMessage
 case class LoadDump(dumpPath:String) extends APIMessage
 case class DumpComplete(path: String) extends APIMessage
 case object LoadDumpComplete extends APIMessage
-//feed
-case class Add(bid: String, v: Value) extends APIMessage
-case class Traverse(bid: String, start: Option[Int], end: Option[Int]) extends APIMessage
-case class Remove(nb: String, v: Value) extends APIMessage
-case class RegisterBucket(bid: String) extends APIMessage
 //utilities
 case object Ready
 case class ChangeState(s: QuorumState)
@@ -42,8 +37,7 @@ case object WeakReadonly extends QuorumState
 
 case class HashRngData(nodes: Set[Node],
                   buckets: SortedMap[Bucket, PreferenceList],
-                  vNodes: SortedMap[Bucket, Node],
-                  feedNodes: SortedMap[NamedBucketId, PreferenceList])
+                  vNodes: SortedMap[Bucket, Node])
 // TODO available/not avaiable nodes
 class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
@@ -68,7 +62,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   val actorsMem = SelectionMemorize(system)
 
   startWith(Unsatisfied, HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList],
-                                 SortedMap.empty[Bucket, Address],SortedMap.empty[NamedBucketId, PreferenceList]))
+                                 SortedMap.empty[Bucket, Address]))
 
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
@@ -89,11 +83,6 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       val new_state = state(data.nodes.size)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(new_state), _ ! ChangeState(new_state)))
       goto(new_state)
-    case Event(msg:Traverse, data) =>
-      data.feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
-        _ ! msg, _ ! msg
-      ))
-      stay()
     case Event(LoadDumpComplete, data) =>
       val s = state(data.nodes.size)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(s), _ ! ChangeState(s)))
@@ -127,19 +116,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
       goto(Readonly)
       stay()
-    case Event(RegisterBucket(bid), data) =>
-      val feedNodes = registerNambedBucket(bid, data)
-      stay() using HashRngData(data.nodes, data.buckets, data.vNodes, feedNodes)
-    case Event(msg:Traverse, data) =>
-      data.feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
-        _ ! msg, _ ! msg
-      ))
-      stay()
-    case Event(msg:Add, data) =>
-      data.feedNodes(msg.bid).headOption foreach(n => actorsMem.get(n,s"${msg.bid}-guard").fold(
-        _ ! msg, _ ! msg
-      ))
-      stay()
+
   }
 
   /* COMMON FOR ALL STATES*/
@@ -198,21 +175,6 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
     l filterNot (node => unreachableMembers contains node)
   }
 
-  def registerNambedBucket(bid: String, data: HashRngData): SortedMap[NamedBucketId,PreferenceList] = {
-    log.info(s"[hash] register bucket $bid")
-    val updFeedNodes = data.feedNodes + (bid -> nodesForKey(bid, data))
-    updFeedNodes(bid).headOption foreach {
-      case n if n == local =>
-        log.info(s"[hash] spawn guard for $bid")
-        system.actorOf(Props(classOf[BucketGuard], nodesForKey(bid, data), s"$bid-guard"))
-        sender() ! "ok"
-      case n => actorsMem.get(n, "hash").fold(// head is guard
-        _ ! RegisterBucket(bid), _ ! RegisterBucket(bid)
-      )
-    }
-    updFeedNodes
-  }
-
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
       val newvNodes: Map[VNode, Address] = (1 to vNodesNum).map(vnode => {
         hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
@@ -220,7 +182,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
       val nodes = data.nodes + member.address
       val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
       synchNodes(moved)
-      val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes, data.feedNodes)
+      val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes)
       
       log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
       (state(updData.nodes.size), updData)
@@ -234,7 +196,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
       val nodes = data.nodes + member.address
       val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
       log.info(s"WILL UPDATE ${moved.size} buckets")
-      val updData: HashRngData = HashRngData(data.nodes + member.address, data.buckets++moved, updvNodes, data.feedNodes)
+      val updData: HashRngData = HashRngData(data.nodes + member.address, data.buckets++moved, updvNodes)
       synchNodes(moved)
       (state(updData.nodes.size), updData)
   }
