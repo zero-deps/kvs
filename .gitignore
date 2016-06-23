@@ -1,12 +1,8 @@
 .idea
-.git
 .sc
 *.orig
-target
 data*
-project/target
-project/project
-src/main/java
+target/
 /.history
 store_usage_data
 .DS_Store

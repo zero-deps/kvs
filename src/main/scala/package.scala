@@ -8,6 +8,11 @@ import mws.rng.store.PutStatus
 import scala.annotation.tailrec
 
 package object rng {
+  sealed trait Ack
+  case object AckSuccess extends Ack
+  case object AckQuorumFailed extends Ack
+  case object AckTimeoutFailed extends Ack
+
   type Bucket = Int
   type VNode = Int
   type Node = Address
@@ -17,11 +22,11 @@ package object rng {
   type FeedBucket = Bucket
   type Age = (VectorClock, Long)
   type PreferenceList = Set[Node]
-  
+
   //TODO try lm from VectorClock.versions: TreeMap[VectorClock.Node, Long]
   case class Data(key: Key, bucket: Bucket, lastModified: Long, vc: VectorClock, value: Value)
   case class Feed(fid: Key, lastModified: Long, vc: VectorClock, value: List[Value])
-  
+
   //FSM
   sealed trait FsmState
   case object ReadyCollect extends FsmState

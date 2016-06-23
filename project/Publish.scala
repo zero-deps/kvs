@@ -13,6 +13,6 @@ object Publish {
     publishMavenStyle := true,
     pomIncludeRepository := (_ => false),
     publishLocal <<= publishM2,
-    isSnapshot := !Settings.isRelease
+    isSnapshot := true
   )
 }

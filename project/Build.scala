@@ -13,17 +13,17 @@ import sbtprotobuf.{ProtobufPlugin => PB}
 object Build extends sbt.Build {
 
   lazy val buildSettings = Seq(
-    organization := Settings.organization,
-    description := Settings.description,
-    version := Settings.version,
-    scalaVersion := Settings.scalaVersion
+    organization := "com.playtech.mws",
+    description := "MWS Ring",
+    version := org.eclipse.jgit.api.Git.open(file(".")).describe().call(),
+    scalaVersion := Dependencies.Versions.scala
   )
 
   lazy val root = Project(
     id = "rng",
     base = file("."),
     settings = SbtMultiJvm.multiJvmSettings ++ PB.protobufSettings ++ Publish.settings ++Seq(
-      libraryDependencies ++= Dependencies.akka,
+      libraryDependencies ++= Dependencies.rng,
       mainClass in Compile := Some("mws.rng.RingApp"),
       Keys.fork in run := true,
       isSnapshot := true,
@@ -58,7 +58,7 @@ object Build extends sbt.Build {
     Seq(shellPrompt := { s => Project.extract(s).currentProject.id + " > " })
 
   lazy val defaultSettings = Seq(
-    scalacOptions in Compile ++= Seq("-encoding", "UTF-8", "-target:jvm-1.7", "-deprecation", "-feature", 
+    scalacOptions in Compile ++= Seq("-encoding", "UTF-8", "-target:jvm-1.7", "-deprecation", "-feature",
       "-unchecked", "-Xlog-reflective-calls", "-Xlint", "-Yclosure-elim", "-Yinline", "-Xverify", "-language:postfixOps"),
     javacOptions in compile ++= Seq("-encoding", "UTF-8", "-source", "1.7", "-target", "1.7", "-Xlint:unchecked", "-Xlint:deprecation"),
     incOptions := incOptions.value.withNameHashing(true)
