@@ -34,12 +34,9 @@ object Schema {
   }
 
 
-  case class FeedEntry(string: String,
-                       twoDimVector: Vector[Seq[(String, String)]],
-                       anotherVector: Vector[String])
+  final case class FeedEntry(string: String, twoDimVector: Vector[Seq[(String, String)]], anotherVector: Vector[String])
 
   implicit object tEnHandler extends EnHandler[FeedEntry] {
-    import scala.pickling._, Defaults._, binary._, static._, shareNothing._
     def pickle(e: En[FeedEntry]) = e.pickle.value
     def unpickle(a: Array[Byte]) = a.unpickle[En[FeedEntry]]
   }
@@ -48,7 +45,7 @@ object Schema {
 
 /**
  * Social schema
- * 
+ *
  * todo: mark Id's with tags string/long
  */
 object SocialSchema {
@@ -102,7 +99,7 @@ object GamesSchema {
     def unpickle(a:Array[Byte]) = a.unpickle[En[Game]]
   }
 
-  def en2f(e:En[Game]):Favorite = Favorite(e) 
+  def en2f(e:En[Game]):Favorite = Favorite(e)
   def f2en(f:Favorite):En[Game] = Tag.unwrap(f)
   implicit val favHandler:Handler[Favorite] = Handler.by[Favorite,En[Game]](f2en)(en2f)(identity(_))
 
