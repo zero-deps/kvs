@@ -8,11 +8,6 @@ import mws.rng.store.PutStatus
 import scala.annotation.tailrec
 
 package object rng {
-  sealed trait Ack
-  case object AckSuccess extends Ack
-  case object AckQuorumFailed extends Ack
-  case object AckTimeoutFailed extends Ack
-
   type Bucket = Int
   type VNode = Int
   type Node = Address
