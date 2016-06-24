@@ -8,7 +8,7 @@ import scala.language.postfixOps
  * Feed type handler.
  */
 trait FdHandler extends Handler[Fd] {
-  import scala.pickling._,Defaults._,binary._
+  import scala.pickling._,Defaults._,binary._,static._
   def pickle(e:Fd): Array[Byte] = e.pickle.value
   def unpickle(a:Array[Byte]):Fd = a.unpickle[Fd]
 
