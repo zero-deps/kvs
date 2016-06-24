@@ -14,11 +14,11 @@ object EnHandler {
     def unpickle(a: Array[Byte]): En[A] = en_S_to_En_A(h.unpickle(a))
 
     private val en_A_to_En_S: En[A]=>En[S] = {
-      case En(fid,id,prev,next,data) => En[S](fid,id,prev,next,f(data))
+      case En(fid,id,prev,next,data) => En[S](fid,id,prev,next,data map f)
     }
 
     private val en_S_to_En_A: En[S]=>En[A] = {
-      case En(fid,id,prev,next,data) => En[A](fid,id,prev,next,g(data))
+      case En(fid,id,prev,next,data) => En[A](fid,id,prev,next,data map g)
     }
   }
 }
@@ -67,26 +67,24 @@ trait EnHandler[T] extends Handler[En[T]] {
     * next is ignored
    */
   def remove(el: En[T])(implicit dba: Dba): Res[En[T]] = {
-    get(el.fid, el.id).right.map { _ =>
-      delete(el.fid, el.id) match {
-        case Left(l) => Left(l)
-        case Right(r) => r match {
-            //case top element of feed is removed
-          case En(fid, _, prev, None, _) =>
-            prev map { x => get((fid,x)).right.map { n => put(n.copy(next = None)) }}
-            fh.get(fid).right.map { feed =>
-                fh.put(feed.copy(top = prev,count = feed.count - 1))
-            }.joinRight.right.map { _ => el }
-          //other cases
-          case En(fid, _, prev, Some(next), _) =>
-             prev map { x => get((fid,x)).right.map { p => put(p.copy(next = Some(next))) }}
-             get((fid,next)).right.map { n => put(n.copy(prev = prev)) }
-            fh.get(fid).right.map {
-              (feed: Fd) =>
-              fh.put(feed.copy(count = feed.count - 1))
-            }.joinRight.right.map { _ => el }
-        }}
-    }.joinRight
+    delete(el.fid, el.id) match {
+      case Left(l) => Left(l)
+      case Right(r) => r match {
+          //case top element of feed is removed
+        case En(fid, _, prev, None, _) =>
+          prev map { x => get((fid,x)).right.map { n => put(n.copy(next = None)) }}
+          fh.get(fid).right.map { feed =>
+              fh.put(feed.copy(top = prev,count = feed.count - 1))
+          }.joinRight.right.map { _ => r }
+        //other cases
+        case En(fid, _, prev, Some(next), _) =>
+           prev map { x => get((fid,x)).right.map { p => put(p.copy(next = Some(next))) }}
+           get((fid,next)).right.map { n => put(n.copy(prev = prev)) }
+          fh.get(fid).right.map {
+            (feed: Fd) =>
+            fh.put(feed.copy(count = feed.count - 1))
+          }.joinRight.right.map { _ => r }
+      }}
   }
 
   /**

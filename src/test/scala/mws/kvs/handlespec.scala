@@ -34,7 +34,7 @@ class HandleSpec(_system:ActorSystem) extends TestKit(_system)
 
   ignore should "-" in {
     val f1 = Fd("f1")
-    val e1 = En("f1","e1",None,None,"d1")
+    val e1 = En("f1","e1","d1")
 
     import scalaz._,Scalaz._,Tags._
 
@@ -251,7 +251,7 @@ class HandleSpec(_system:ActorSystem) extends TestKit(_system)
     import SocialSchema._
 
     val feeds:Feeds = List(Left("favs"),Left("posts"))
-    val u1 = En("users","u1",None,None,feeds)
+    val u1 = En("users","u1",feeds)
 
     val r1 = kvs.add(u1)
     println(s"add user: $r1")

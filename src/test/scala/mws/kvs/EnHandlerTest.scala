@@ -30,7 +30,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
   val kvs = Kvs(system)
 
   val mod = 50
-  def entry(n: Int) = En[FeedEntry](FID, s"$n", data = FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n") ))
+  def entry(n: Int) = En(FID,s"$n", FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
 
   val e1 = entry(1)
   val e2 = entry(2)
@@ -92,8 +92,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
     }
 
     "should remove entry(2) from feed" in {
-      val deleted = kvs.remove(e2).right.get
 
+      val res= kvs.remove(En[FeedEntry](e2.fid, e2.id))
+      val deleted = res.right.get
       (deleted.fid, deleted.id, deleted.data) shouldBe(e2.fid, e2.id, e2.data)
     }
 

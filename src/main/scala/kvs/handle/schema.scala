@@ -3,7 +3,7 @@ package handle
 
 import scala.language.{higherKinds,implicitConversions}
 import scalaz._, Scalaz._, Tags._
-import scala.pickling._, binary._, Defaults._
+import scala.pickling._, binary._, Defaults._, static._
 
 /**
   * Schema is the set of entry markers and specific tagged handlers.
@@ -14,7 +14,7 @@ object Schema {
 
   type Message = En[String] @@ Msg
 
-  implicit def Message(a: En[String]): En[String] @@ Msg  = Tag[En[String], Msg](a)
+  implicit def Message(a: En[String]): En[String] @@ Msg = Tag[En[String], Msg](a)
 
   implicit object msgHandler extends Handler[Message]{
     val enh = implicitly[Handler[En[String]]]
@@ -33,12 +33,11 @@ object Schema {
     def unpickle(a: Array[Byte]): Message = Message(enh.unpickle(a))
   }
 
-
-  final case class FeedEntry(string: String, twoDimVector: Vector[Seq[(String, String)]], anotherVector: Vector[String])
+  final case class FeedEntry(string: String, twoDimVector: Vector[Vector[(String, String)]], anotherVector: Vector[String])
 
   implicit object tEnHandler extends EnHandler[FeedEntry] {
-    def pickle(e: En[FeedEntry]) = e.pickle.value
-    def unpickle(a: Array[Byte]) = a.unpickle[En[FeedEntry]]
+    def pickle(e: En[FeedEntry]): Array[Byte] = e.pickle.value
+    def unpickle(a: Array[Byte]): En[FeedEntry] = a.unpickle[En[FeedEntry]]
   }
 
 }
@@ -84,13 +83,13 @@ object SocialSchema {
 object GamesSchema {
   val usrFeeds = List(Left("favorite"), Left("recent"))
 
-  case class Game(id:String,title:String,body:String)
+  final case class Game(id:String,title:String,body:String)
 
-  trait Fav
+  sealed trait Fav
   type Favorite = En[Game] @@ Fav
   implicit def Favorite(g:En[Game]):En[Game] @@ Fav = Tag[En[Game], Fav](g)
 
-  trait Rct
+  sealed trait Rct
   type Recent = En[Game] @@ Rct
   implicit def Recent(g:En[Game]):En[Game] @@ Rct = Tag[En[Game], Rct](g)
 
