@@ -32,7 +32,7 @@ object Build extends sbt.Build {
       javacOptions in compile ++= Seq("-encoding", "UTF-8", "-source", "1.7", "-target", "1.7"),
 
       publishTo := Some("MWS Releases" at "http://ua-mws-nexus01.ee.playtech.corp/nexus/content/repositories/releases"),
-      credentials += Credentials("MWS Nexus", "ua-mws-nexus01.ee.playtech.corp", "wpl-deployer", "aG1reeshie"),
+      credentials += Credentials("Sonatype Nexus Repository Manager", "ua-mws-nexus01.ee.playtech.corp", "wpl-deployer", "aG1reeshie"),
       publishArtifact := true,
       publishArtifact in Compile := true,
       publishArtifact in Test := false,
