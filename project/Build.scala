@@ -8,7 +8,6 @@ import com.typesafe.sbt.packager.docker._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import sbt.Keys._
 import sbt._
-import sbtprotobuf.{ProtobufPlugin => PB}
 
 object Build extends sbt.Build {
 
@@ -22,12 +21,26 @@ object Build extends sbt.Build {
   lazy val root = Project(
     id = "rng",
     base = file("."),
-    settings = SbtMultiJvm.multiJvmSettings ++ PB.protobufSettings ++ Publish.settings ++Seq(
+    settings = Seq(
       libraryDependencies ++= Dependencies.rng,
+
       mainClass in Compile := Some("mws.rng.RingApp"),
       Keys.fork in run := true,
-      isSnapshot := true,
+
       compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
+      scalacOptions in Compile ++= Seq("-encoding", "UTF-8", "-target:jvm-1.7", "-deprecation", "-feature"),
+      javacOptions in compile ++= Seq("-encoding", "UTF-8", "-source", "1.7", "-target", "1.7"),
+
+      publishTo := Some("MWS Releases" at "http://ua-mws-nexus01.ee.playtech.corp/nexus/content/repositories/releases"),
+      credentials += Credentials("MWS Nexus", "ua-mws-nexus01.ee.playtech.corp", "wpl-deployer", "aG1reeshie"),
+      publishArtifact := true,
+      publishArtifact in Compile := true,
+      publishArtifact in Test := false,
+      publishMavenStyle := true,
+      pomIncludeRepository := (_ => false),
+      publishLocal <<= publishM2,
+      isSnapshot := true,
+
       parallelExecution in Test := false,
       executeTests in Test <<= (executeTests in Test, executeTests in MultiJvm) map {
         case (testResults, multiNodeResults)  =>
@@ -41,7 +54,7 @@ object Build extends sbt.Build {
             testResults.summaries ++ multiNodeResults.summaries)
       },
 
-        mappings in Docker <+= (defaultLinuxInstallLocation in Docker, sourceDirectory) map { (path,src) =>
+      mappings in Docker <+= (defaultLinuxInstallLocation in Docker, sourceDirectory) map { (path,src) =>
         val conf = src / "main" / "resources" / "docker.conf"
         conf -> s"$path/conf/application.conf"
       },
@@ -49,18 +62,11 @@ object Build extends sbt.Build {
       dockerEntrypoint in Docker := Seq("sh", "-c",
           "KAI_IP=`/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{print $1}'` bin/rng $*"),
       dockerRepository := Some("playtech")
-    )
+    ) ++ SbtMultiJvm.multiJvmSettings
   ).configs(MultiJvm)
    .enablePlugins(AkkaAppPackaging, DockerPlugin)
 
   override lazy val settings = super.settings ++
     buildSettings ++
     Seq(shellPrompt := { s => Project.extract(s).currentProject.id + " > " })
-
-  lazy val defaultSettings = Seq(
-    scalacOptions in Compile ++= Seq("-encoding", "UTF-8", "-target:jvm-1.7", "-deprecation", "-feature",
-      "-unchecked", "-Xlog-reflective-calls", "-Xlint", "-Yclosure-elim", "-Yinline", "-Xverify", "-language:postfixOps"),
-    javacOptions in compile ++= Seq("-encoding", "UTF-8", "-source", "1.7", "-target", "1.7", "-Xlint:unchecked", "-Xlint:deprecation"),
-    incOptions := incOptions.value.withNameHashing(true)
-  )
 }

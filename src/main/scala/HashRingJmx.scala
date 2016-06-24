@@ -2,10 +2,11 @@ package mws.rng
 
 import java.lang.management.ManagementFactory
 import javax.management.{InstanceAlreadyExistsException, InstanceNotFoundException, ObjectName, StandardMBean}
-import akka.event.LoggingAdapter
-import akka.util.{ByteString, Timeout}
+import scala.language.postfixOps
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import akka.event.LoggingAdapter
+import akka.util.{ByteString, Timeout}
 
 /** JMX cient */
 trait HashRingMBean {
