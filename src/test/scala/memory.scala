@@ -11,7 +11,7 @@ class MemoryTest extends FreeSpecLike with Matchers with EitherValues with Befor
   "Memory DBA should" - {
     val kvs = Kvs(system)
     "be empty at creation" in {
-      kvs.get[String]("k1").left.value should be (Dbe(msg=s"not_found key k1"))
+      kvs.get[String]("k1").left.value should be (s"not_found key k1")
     }
     "save successfully value" in {
       kvs.put[String]("k1", "v1").right.value should be ("v1")

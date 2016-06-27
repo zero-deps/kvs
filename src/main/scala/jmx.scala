@@ -2,14 +2,11 @@ package mws.kvs
 
 import java.lang.management.ManagementFactory
 import javax.management.{InstanceAlreadyExistsException, InstanceNotFoundException, ObjectName, StandardMBean}
-
 import akka.event.LoggingAdapter
-import akka.util.{ByteString, Timeout}
-import scala.concurrent.Await
+import akka.util.Timeout
 import scala.concurrent.duration._
 import scala.language.postfixOps
-
-import handle._,store._
+import handle._
 
 /**
  * Kvs management access.
@@ -31,7 +28,7 @@ class KvsJmx(kvs:Kvs, log: LoggingAdapter) {
         log.info(s"kvs.all($feed)")
         kvs.entries[En[String]](feed,None,None) match {
           case Right(list) => list.mkString(",\n")
-          case Left(dbe) => dbe.msg
+          case Left(dbe) => dbe
         }
       }
     }

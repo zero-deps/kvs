@@ -44,7 +44,7 @@ class EnHandlerTest extends TestKit(ActorSystem())
 
   "Feed should" - {
     "be empty at creation" in {
-      kvs.entries[EnType](fid).left.get.name shouldBe "error"
+      kvs.entries[EnType](fid) should be ('left)
     }
 
     "should save e1 " in {
@@ -72,8 +72,7 @@ class EnHandlerTest extends TestKit(ActorSystem())
     }
 
     "should not save entry(2) again" in {
-      val saved = kvs.add(e2).left.get
-      (saved.name, saved.msg) shouldBe("error", s"entry 2 exist in $fid")
+      kvs.add(e2).left.value should be (s"entry 2 exist in $fid")
     }
 
     "should get 3 values from feed" in {
@@ -87,9 +86,7 @@ class EnHandlerTest extends TestKit(ActorSystem())
     }
 
     "should not remove unexisting entry from feed" in {
-      val deleted = kvs.remove(e5).left.get
-
-      (deleted.name, deleted.msg) shouldBe("error", s"not_found key ${e5.fid}.${e5.id}")  //Dbe(error,not_found key 우籁차ᮔঔ✓.5)
+      kvs.remove(e5).left.value should be (s"not_found key ${e5.fid}.${e5.id}")
     }
 
     "should remove entry(2) from feed without prev/next/data" in {
@@ -151,8 +148,6 @@ class EnHandlerTest extends TestKit(ActorSystem())
 
         entries.right.get.size shouldBe (limit - n)
       }
-
     }
   }
 }
-

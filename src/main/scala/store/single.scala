@@ -13,8 +13,8 @@ import akka.actor.ExtendedActorSystem
 object Leveldb {
   implicit def toBytes(value: String): Array[Byte] = bytes(value)
   implicit def fromBytes(value: Array[Byte]): String = asString(value)
-  implicit def toErr(e:DBException):Err = Dbe(msg=e.getMessage)
-  implicit def toErr(e:NullPointerException):Err = Dbe(msg=e.getMessage)
+  implicit def toErr(e:DBException):Err = e.getMessage
+  implicit def toErr(e:NullPointerException):Err = e.getMessage
 
 
   def apply(system: ExtendedActorSystem):Dba = new Leveldb(system)
@@ -51,7 +51,7 @@ class Leveldb(system: ExtendedActorSystem) extends Dba {
   def get(key:String) : Either[Err,Array[Byte]] = try {
     Option(leveldb.get(key)) match {
       case Some(v) => Right(v)
-      case None => Left(Dbe(msg=s"not_found key $key"))
+      case None => Left(s"not_found key $key")
     }
   } catch {case t:DBException => Left(t)}
 
@@ -86,7 +86,7 @@ class Memory(system: ExtendedActorSystem) extends Dba {
   }
   def get(key:String):Either[Err,Array[Byte]] = storage.get(key) match {
     case Some(value) => log.debug(s"[memory][get] $key -> $value"); Right(value)
-    case None => log.debug(s"[memory][get] $key -> not_found key $key"); Left( Dbe(msg= s"not_found key $key"))
+    case None => log.debug(s"[memory][get] $key -> not_found key $key"); Left(s"not_found key $key")
   }
   def delete(key:String):Either[Err,Array[Byte]] = get(key).right.map {
     value => log.debug(s"[memory][delete] $key -> $value"); storage.remove(key); value

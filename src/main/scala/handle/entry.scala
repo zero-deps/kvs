@@ -45,8 +45,7 @@ trait EnHandler[T] extends Handler[En[T]] {
    */
   def add(el: En[T])(implicit dba: Dba): Res[En[T]] = {
     fh.get(el.fid).left.map {
-      // create feed if it doesn't exist
-      case Dbe("error", _) => fh.put(Fd(el.fid))
+      _ => fh.put(Fd(el.fid)) // create feed if it doesn't exist
     }.joinLeft.right.map{ fd: Fd =>
       // id of entry must be unique
       get(el.fid,el.id).fold(
@@ -72,7 +71,7 @@ trait EnHandler[T] extends Handler[En[T]] {
                 }.joinRight).joinRight
             }
           }.joinRight,
-        r => Left(Dbe("error", s"entry ${el.id} exist in ${el.fid}"))
+        r => Left(s"entry ${el.id} exist in ${el.fid}")
       )
     }.joinRight
   }
