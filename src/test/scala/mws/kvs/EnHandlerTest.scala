@@ -14,6 +14,14 @@ object EnHandlerTest {
   val config = ConfigFactory.load
   val FID = new scala.util.Random().nextString(6)
   type EnType = En[FeedEntry]
+
+  final case class FeedEntry(string: String, twoDimVector: Vector[Vector[(String, String)]], anotherVector: Vector[String])
+
+  implicit object FeedEntryEnHandler extends EnHandler[FeedEntry] {
+    import scala.pickling._,Defaults._,binary._//,static._,shareNothing._
+    def pickle(e: En[FeedEntry]): Array[Byte] = e.pickle.value
+    def unpickle(a: Array[Byte]): En[FeedEntry] = a.unpickle[En[FeedEntry]]
+  }
 }
 
 class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
@@ -30,7 +38,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
   val kvs = Kvs(system)
 
   val mod = 50
-  def entry(n: Int) = En(FID,s"$n", FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
+  def entry(n: Int) = En(FID,s"$n",FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
 
   val e1 = entry(1)
   val e2 = entry(2)
@@ -91,10 +99,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
       (deleted.name, deleted.msg) shouldBe("error", s"not_found key ${e5.fid}.${e5.id}")  //Dbe(error,not_found key 우籁차ᮔঔ✓.5)
     }
 
-    "should remove entry(2) from feed" in {
+    "should remove entry(2) from feed without data" in {
+      val deleted = kvs.remove(En[FeedEntry](e2.fid,e2.id)).right.get
 
-      val res= kvs.remove(En[FeedEntry](e2.fid, e2.id))
-      val deleted = res.right.get
       (deleted.fid, deleted.id, deleted.data) shouldBe(e2.fid, e2.id, e2.data)
     }
 

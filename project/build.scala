@@ -15,7 +15,7 @@ object Build extends sbt.Build{
     id = "kvs",
     base = file("."),
     settings = Defaults.coreDefaultSettings ++ publishSettings ++ Seq(
-      scalacOptions in Compile ++= Seq("-feature", "-deprecation", "-target:jvm-1.7"),
+      scalacOptions in Compile ++= Seq("-feature", "-deprecation", "-target:jvm-1.7"/*, "-Xlog-implicits"*/),
       javacOptions in Compile ++= Seq("-source", "1.7", "-target", "1.7"),
       libraryDependencies ++= Seq(
         "org.scalaz" %% "scalaz-core" % Versions.scalaz,

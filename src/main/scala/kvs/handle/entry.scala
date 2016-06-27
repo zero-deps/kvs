@@ -14,11 +14,11 @@ object EnHandler {
     def unpickle(a: Array[Byte]): En[A] = en_S_to_En_A(h.unpickle(a))
 
     private val en_A_to_En_S: En[A]=>En[S] = {
-      case En(fid,id,prev,next,data) => En[S](fid,id,prev,next,data map f)
+      case En(fid,id,prev,next,data) => En[S](fid,id,prev,next,f(data))
     }
 
     private val en_S_to_En_A: En[S]=>En[A] = {
-      case En(fid,id,prev,next,data) => En[A](fid,id,prev,next,data map g)
+      case En(fid,id,prev,next,data) => En[A](fid,id,prev,next,g(data))
     }
   }
 }
@@ -70,7 +70,7 @@ trait EnHandler[T] extends Handler[En[T]] {
     delete(el.fid, el.id) match {
       case Left(l) => Left(l)
       case Right(r) => r match {
-          //case top element of feed is removed
+        //case top element of feed is removed
         case En(fid, _, prev, None, _) =>
           prev map { x => get((fid,x)).right.map { n => put(n.copy(next = None)) }}
           fh.get(fid).right.map { feed =>
