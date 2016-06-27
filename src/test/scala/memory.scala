@@ -4,8 +4,6 @@ package store
 import com.typesafe.config._
 import org.scalatest._
 import akka.actor.ActorSystem
-import akka.testkit._
-import Memory._
 
 class MemoryTest extends FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
   val system = ActorSystem("Test", ConfigFactory.load)
