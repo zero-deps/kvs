@@ -1,10 +1,8 @@
 package mws.kvs
 package handle
 
-import store._
-import scala.language.implicitConversions
-import scala.language.postfixOps
 import scala.annotation.tailrec
+import store._
 
 object EnHandler {
   /**
@@ -32,13 +30,14 @@ trait EnHandler[T] extends Handler[En[T]] {
   import Handler._
   val fh = implicitly[Handler[Fd]]
 
-  private implicit def tuple2ToStr(tpl:(String,String)):String = s"${tpl._1}.${tpl._2}"
+  def join_fid_and_id(tpl:(String,String)):String = s"${tpl._1}.${tpl._2}"
 
-  def put(el: En[T])(implicit dba: Dba): Res[En[T]] = dba.put((el.fid, el.id), pickle(el)).right.map { _ => el }
-  def get(k: String)(implicit dba: Dba): Res[En[T]] = dba.get(k).right.map(unpickle)
-  final def get(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = get((fid, id))
-  def delete(k: String)(implicit dba: Dba): Res[En[T]] = dba.delete(k).right.map(unpickle)
-  final def delete(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = delete((fid, id))
+  def put(el:En[T])(implicit dba:Dba):Res[En[T]] = dba.put(join_fid_and_id(el.fid,el.id),pickle(el)).right.map(_=>el)
+  def get(k:String)(implicit dba:Dba):Res[En[T]] = dba.get(k).right.map(unpickle)
+  def delete(k:String)(implicit dba:Dba):Res[En[T]] = dba.delete(k).right.map(unpickle)
+
+  def get(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = get(join_fid_and_id(fid,id))
+  def delete(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = delete(join_fid_and_id(fid,id))
 
   /**
    * Adds the entry to the container
@@ -59,7 +58,7 @@ trait EnHandler[T] extends Handler[En[T]] {
                 // set next pointer for old top
                 get(el.fid, old_top).right.map(old_top => put(old_top.copy(next=Some(el.id))).right.map{_ =>
                   // update feed's top and count
-                  fh.put(fd.copy(top = Some(el.id), count = fd.count + 1)) match {
+                  fh.put(fd.copy(top=Some(el.id))) match {
                     case Right(_) => Right(added)
                     case Left(err) => Left(err)
                   }
@@ -67,7 +66,7 @@ trait EnHandler[T] extends Handler[En[T]] {
               case None =>
                 // feed is empty
                 // update feed's top and count
-                fh.put(fd.copy(top = Some(el.id), count = fd.count + 1)) match {
+                fh.put(fd.copy(top=Some(el.id))) match {
                   case Right(_) => Right(added)
                   case Left(err) => Left(err)
                 }
@@ -95,17 +94,13 @@ trait EnHandler[T] extends Handler[En[T]] {
     def `change prev pointer of 'next'`(el:En[T]):Res[En[T]] = el.next match {
       case Some(next) =>
         get(el.fid,next).right.map(next=>put(next.copy(prev=el.prev)).right.map{_ =>
-          `change count`(el)
+          `delete entry`(el)
         }.joinRight).joinRight
       case None =>
-        `change top and count`(el)
+        `change top`(el)
     }
-    def `change top and count`(el:En[T]):Res[En[T]] =
-      fh.get(el.fid).right.map(fd=>fh.put(fd.copy(top=el.prev,count=fd.count-1)).right.map{_ =>
-        `delete entry`(el)
-      }.joinRight).joinRight
-    def `change count`(el:En[T]):Res[En[T]] =
-      fh.get(el.fid).right.map(fd=>fh.put(fd.copy(count=fd.count-1)).right.map{_ =>
+    def `change top`(el:En[T]):Res[En[T]] =
+      fh.get(el.fid).right.map(fd=>fh.put(fd.copy(top=el.prev)).right.map{_ =>
         `delete entry`(el)
       }.joinRight).joinRight
     def `delete entry`(el:En[T]):Res[En[T]] = delete(el.fid,el.id)
@@ -118,11 +113,11 @@ trait EnHandler[T] extends Handler[En[T]] {
    * @param from if specified then return entries after this entry
    */
   def entries(fid:String,from:Option[En[T]],count:Option[Int])(implicit dba:Dba):Res[List[En[T]]] =
-    fh.get(fid).right.map{ case Fd(`fid`, top, size) =>
+    fh.get(fid).right.map{ fd =>
       val none: Res[En[T]] = Left(Dbe(msg = "done"))
       def prev_res: (Res[En[T]]) => Res[En[T]] = _.right.map(_.prev.fold(none)(prev=>get(fid,prev))).joinRight
       val start:Option[String] = from match {
-        case None => top
+        case None => fd.top
         case Some(from) => from.prev
       }
       @tailrec def loop(acc:List[En[T]],id:String):Res[List[En[T]]] = count match {
