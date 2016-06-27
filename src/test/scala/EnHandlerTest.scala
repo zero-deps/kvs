@@ -2,29 +2,23 @@ package mws.kvs
 package handle
 
 import akka.actor.ActorSystem
-import com.typesafe.config._
-import mws.kvs.handle.Schema._
-import org.scalatest._, matchers._, concurrent._, ScalaFutures._
-import akka.testkit._, TestEvent._
-import org.scalactic._
-
-import scala.concurrent.Await
+import akka.testkit._
+import org.scalatest._
 
 object EnHandlerTest {
-  val config = ConfigFactory.load
-  val FID = new scala.util.Random().nextString(6)
+  val fid = "fid"
   type EnType = En[FeedEntry]
 
-  final case class FeedEntry(string: String, twoDimVector: Vector[Vector[(String, String)]], anotherVector: Vector[String])
+  final case class FeedEntry(string:String,twoDimVector:Vector[Vector[(String,String)]],anotherVector:Vector[String])
 
   implicit object FeedEntryEnHandler extends EnHandler[FeedEntry] {
-    import scala.pickling._,Defaults._,binary._//,static._,shareNothing._
+    import scala.pickling._,Defaults._,binary._,static._,shareNothing._
     def pickle(e: En[FeedEntry]): Array[Byte] = e.pickle.value
     def unpickle(a: Array[Byte]): En[FeedEntry] = a.unpickle[En[FeedEntry]]
   }
 }
 
-class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
+class EnHandlerTest extends TestKit(ActorSystem())
   with FreeSpecLike
   with Matchers
   with EitherValues
@@ -33,12 +27,11 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
   with BeforeAndAfterAll {
 
   import EnHandlerTest._
-  import Handler._
 
   val kvs = Kvs(system)
 
   val mod = 50
-  def entry(n: Int) = En(FID,s"$n",FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
+  def entry(n:Int):EnType = En(fid,s"$n",FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
 
   val e1 = entry(1)
   val e2 = entry(2)
@@ -51,7 +44,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
 
   "Feed should" - {
     "be empty at creation" in {
-      kvs.entries[EnType](FID).left.get.name shouldBe "error"
+      kvs.entries[EnType](fid).left.get.name shouldBe "error"
     }
 
     "should save e1 " in {
@@ -65,7 +58,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
     }
 
     "should get e1 and e2 from feed" in {
-      val entries = kvs.entries[EnType](FID)
+      val entries = kvs.entries[EnType](fid)
 
       entries.right.get.size shouldBe 2
 
@@ -80,11 +73,11 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
 
     "should not save entry(2) again" in {
       val saved = kvs.add(e2).left.get
-      (saved.name, saved.msg) shouldBe("error", s"entry 2 exist in $FID")
+      (saved.name, saved.msg) shouldBe("error", s"entry 2 exist in $fid")
     }
 
     "should get 3 values from feed" in {
-      val entries = kvs.entries[EnType](FID)
+      val entries = kvs.entries[EnType](fid)
 
       entries.right.get.size shouldBe 3
 
@@ -106,7 +99,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
     }
 
     "should get 2 values from feed" in {
-      val entries = kvs.entries[EnType](FID)
+      val entries = kvs.entries[EnType](fid)
 
       entries.right.get.size shouldBe 2
 
@@ -120,9 +113,8 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
       (deleted.fid, deleted.id, deleted.data) shouldBe(e1.fid, e1.id, e1.data)
     }
 
-
     "should get 1 values from feed" in {
-      val entries = kvs.entries[EnType](FID)
+      val entries = kvs.entries[EnType](fid)
 
       entries.right.get.size shouldBe 1
 
@@ -136,9 +128,8 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
     }
 
     "should be empty" in {
-      kvs.entries[EnType](FID).right.get shouldBe empty
+      kvs.entries[EnType](fid).right.get shouldBe empty
     }
-
 
     "should not create stack overflow" in {
       val limit = 100
@@ -149,7 +140,6 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
         (added.fid, added.id, added.data) shouldBe (toadd.fid, toadd.id, toadd.data)
       }
 
-
       Stream.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
 
         val toremove= entry(n)
@@ -157,7 +147,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
 
         (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, toremove.id, toremove.data)
 
-        val entries = kvs.entries[EnType](FID)
+        val entries = kvs.entries[EnType](fid)
 
         entries.right.get.size shouldBe (limit - n)
       }

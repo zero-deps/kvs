@@ -254,7 +254,7 @@ class HandleSpec(_system:ActorSystem) extends TestKit(_system)
     val u1 = En("users","u1",feeds)
 
     val r1 = kvs.add(u1)
-    println(s"add user: $r1")
+//    println(s"add user: $r1")
 
     kvs.remove[En[Feeds]](u1)
     kvs.delete[Fd]("users")

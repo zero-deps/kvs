@@ -54,22 +54,22 @@ trait EnHandler[T] extends Handler[En[T]] {
           // add new entry with prev pointer
           put(el.copy(prev=fd.top)).right.map { added =>
             fd.top match {
-              case Some(old_top) =>
+              case `empty` =>
+                // feed is empty
+                // update feed's top
+                fh.put(fd.copy(top=el.id)) match {
+                  case Right(_) => Right(added)
+                  case Left(err) => Left(err)
+                }
+              case old_top =>
                 // set next pointer for old top
-                get(el.fid, old_top).right.map(old_top => put(old_top.copy(next=Some(el.id))).right.map{_ =>
-                  // update feed's top and count
-                  fh.put(fd.copy(top=Some(el.id))) match {
+                get(el.fid, old_top).right.map(old_top => put(old_top.copy(next=el.id)).right.map{_ =>
+                  // update feed's top
+                  fh.put(fd.copy(top=el.id)) match {
                     case Right(_) => Right(added)
                     case Left(err) => Left(err)
                   }
                 }.joinRight).joinRight
-              case None =>
-                // feed is empty
-                // update feed's top and count
-                fh.put(fd.copy(top=Some(el.id))) match {
-                  case Right(_) => Right(added)
-                  case Left(err) => Left(err)
-                }
             }
           }.joinRight,
         r => Left(Dbe("error", s"entry ${el.id} exist in ${el.fid}"))
@@ -84,20 +84,20 @@ trait EnHandler[T] extends Handler[En[T]] {
    */
   def remove(el: En[T])(implicit dba: Dba): Res[En[T]] = {
     def `change next pointer of 'prev'`(el:En[T]):Res[En[T]] = el.prev match {
-      case Some(prev) =>
+      case `empty` =>
+        `change prev pointer of 'next'`(el)
+      case prev =>
         get(el.fid,prev).right.map(prev=>put(prev.copy(next=el.next)).right.map{_ =>
           `change prev pointer of 'next'`(el)
         }.joinRight).joinRight
-      case None =>
-        `change prev pointer of 'next'`(el)
     }
     def `change prev pointer of 'next'`(el:En[T]):Res[En[T]] = el.next match {
-      case Some(next) =>
+      case `empty` =>
+        `change top`(el)
+      case next =>
         get(el.fid,next).right.map(next=>put(next.copy(prev=el.prev)).right.map{_ =>
           `delete entry`(el)
         }.joinRight).joinRight
-      case None =>
-        `change top`(el)
     }
     def `change top`(el:En[T]):Res[En[T]] =
       fh.get(el.fid).right.map(fd=>fh.put(fd.copy(top=el.prev)).right.map{_ =>
@@ -114,23 +114,23 @@ trait EnHandler[T] extends Handler[En[T]] {
    */
   def entries(fid:String,from:Option[En[T]],count:Option[Int])(implicit dba:Dba):Res[List[En[T]]] =
     fh.get(fid).right.map{ fd =>
-      val none: Res[En[T]] = Left(Dbe(msg = "done"))
-      def prev_res: (Res[En[T]]) => Res[En[T]] = _.right.map(_.prev.fold(none)(prev=>get(fid,prev))).joinRight
-      val start:Option[String] = from match {
+      def prev_res: (Res[En[T]]) => Res[En[T]] = _.right.map(x=>get(fid,x.prev)).joinRight
+      val start:String = from match {
         case None => fd.top
         case Some(from) => from.prev
       }
-      @tailrec def loop(acc:List[En[T]],id:String):Res[List[En[T]]] = count match {
+      @tailrec def iterate(acc:List[En[T]],id:String):Res[List[En[T]]] = count match {
         case Some(count) if count == acc.length => Right(acc) // limit results
         case _ =>
           get(fid,id) match {
             case Right(en) => en.prev match {
-              case Some(prev) => loop(en::acc,prev)
-              case None => Right(en::acc)
+              case `empty` => Right(en::acc)
+              case prev => iterate(en::acc,prev)
             }
             case Left(err) => Left(err) // in case of error discard acc
           }
         }
-      start.map(start => loop(Nil,start)).getOrElse(Right(Nil))
+      if (start == empty) Right(Nil)
+      else iterate(acc=Nil,id=start)
     }.joinRight
 }
