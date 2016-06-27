@@ -57,15 +57,15 @@ object SocialSchema {
 object GamesSchema {
   val usrFeeds = List(Left("favorite"), Left("recent"))
 
-  final case class Game(id:String,title:String,body:String)
+  type Game = Vector[(String,String)]
 
   sealed trait Fav
   type Favorite = En[Game] @@ Fav
   implicit def Favorite(g:En[Game]):En[Game] @@ Fav = Tag[En[Game], Fav](g)
 
-  sealed trait Rct
-  type Recent = En[Game] @@ Rct
-  implicit def Recent(g:En[Game]):En[Game] @@ Rct = Tag[En[Game], Rct](g)
+  sealed trait Rec
+  type Recent = En[Game] @@ Rec
+  implicit def Recent(g:En[Game]):En[Game] @@ Rec = Tag[En[Game], Rec](g)
 
   implicit object gameHandler extends EnHandler[Game]{
     def pickle(e:En[Game]) = e.pickle.value

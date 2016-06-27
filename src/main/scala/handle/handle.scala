@@ -47,11 +47,6 @@ object Handler {
     def pickle(e:En[(String,String,String)]): Array[Byte] = e.pickle.value
     def unpickle(a: Array[Byte]): En[(String,String,String)] = a.unpickle[En[(String,String,String)]]
   }
-  implicit object VectorTuple2StringEnhandler extends EnHandler[Vector[(String,String)]]{
-    import scala.pickling._,Defaults._,binary._,static._
-    def pickle(e:En[Vector[(String,String)]]):Array[Byte] = e.pickle.value
-    def unpickle(a:Array[Byte]):En[Vector[(String,String)]] = a.unpickle[En[Vector[(String,String)]]]
-  }
 
   import scalaz._,Scalaz._
 
