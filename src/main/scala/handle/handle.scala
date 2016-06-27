@@ -1,9 +1,8 @@
 package mws.kvs
 package handle
 
-import store._
-
 import scala.language.postfixOps
+import store._
 
 /**
  * KVS Handler for specific type T.
@@ -27,14 +26,14 @@ trait Handler[T] {
 object Handler {
   def apply[T](implicit h:Handler[T]) = h
 
-  /**
-   * The basic feed/entry handlers with scala-pickling serialization
-   */
   implicit object feedHandler extends FdHandler
   implicit object strHandler extends ElHandler[String]{
     def pickle(e:String) = e.getBytes("UTF-8")
     def unpickle(a:Array[Byte]) = new String(a,"UTF-8")
   }
+  /**
+   * The basic feed/entry handlers with scala-pickling serialization
+   */
   implicit object strEnHandler extends EnHandler[String]{
     import scala.pickling._,Defaults._,binary._,static._
     def pickle(e:En[String]) = e.pickle.value
@@ -49,6 +48,11 @@ object Handler {
     import scala.pickling._,Defaults._,binary._,static._
     def pickle(e:En[(String,String,String)]): Array[Byte] = e.pickle.value
     def unpickle(a: Array[Byte]): En[(String,String,String)] = a.unpickle[En[(String,String,String)]]
+  }
+  implicit object VectorTuple2StringEnhandler extends EnHandler[Vector[(String,String)]]{
+    import scala.pickling._,Defaults._,binary._,static._
+    def pickle(e:En[Vector[(String,String)]]):Array[Byte] = e.pickle.value
+    def unpickle(a:Array[Byte]):En[Vector[(String,String)]] = a.unpickle[En[Vector[(String,String)]]]
   }
 
   import scalaz._,Scalaz._
