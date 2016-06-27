@@ -6,7 +6,7 @@ import store._
 
 object EnHandler {
   /**
-   * Given EnHandler S create the EnHandler for A from conversion functions.
+   * Given EnHandler S create the EnHandler for A from conversion functions
    */
   def by[A, S](f: A => S)(g: S => A)(implicit h: EnHandler[S]): EnHandler[A] = new EnHandler[A] {
     def pickle(e: En[A]): Array[Byte] = h.pickle(en_A_to_En_S(e))
@@ -21,23 +21,19 @@ object EnHandler {
     }
   }
 }
+
 /**
- * Abstract type entry handler.
- *
- * Since we don't know the exact type the pickler/unpickler still needs to be provided explicitly.
+ * Abstract type entry handler
+ * Since we don't know the exact type the pickler/unpickler still needs to be provided explicitly
  */
 trait EnHandler[T] extends Handler[En[T]] {
   import Handler._
-  val fh = implicitly[Handler[Fd]]
+  val fh = implicitly[FdHandler]
 
-  def join_fid_and_id(tpl:(String,String)):String = s"${tpl._1}.${tpl._2}"
-
-  def put(el:En[T])(implicit dba:Dba):Res[En[T]] = dba.put(join_fid_and_id(el.fid,el.id),pickle(el)).right.map(_=>el)
-  def get(k:String)(implicit dba:Dba):Res[En[T]] = dba.get(k).right.map(unpickle)
-  def delete(k:String)(implicit dba:Dba):Res[En[T]] = dba.delete(k).right.map(unpickle)
-
-  def get(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = get(join_fid_and_id(fid,id))
-  def delete(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = delete(join_fid_and_id(fid,id))
+  def key(fid:String,id:String):String = s"$fid.$id"
+  def put(el:En[T])(implicit dba:Dba):Res[En[T]] = dba.put(key(el.fid,el.id),pickle(el)).right.map(_=>el)
+  def get(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = dba.get(key(fid,id)).right.map(unpickle)
+  def delete(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = dba.delete(key(fid,id)).right.map(unpickle)
 
   /**
    * Adds the entry to the container

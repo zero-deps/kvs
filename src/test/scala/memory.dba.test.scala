@@ -1,14 +1,14 @@
 package mws.kvs
 package store
 
-import com.typesafe.config._
 import org.scalatest._
 import akka.actor.ActorSystem
 
 class MemoryTest extends FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
-  val system = ActorSystem("Test", ConfigFactory.load)
+  val system = ActorSystem()
 
   "Memory DBA should" - {
+    import handle.Handler._
     val kvs = Kvs(system)
     "be empty at creation" in {
       kvs.get[String]("k1").left.value should be (s"not_found key k1")

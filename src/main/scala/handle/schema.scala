@@ -9,20 +9,13 @@ import scala.pickling._, binary._, Defaults._, static._
   * Schema is the set of entry markers and specific tagged handlers.
   */
 object Schema {
-
-  trait Msg
-
+  sealed trait Msg
   type Message = En[String] @@ Msg
-
   implicit def Message(a: En[String]): En[String] @@ Msg = Tag[En[String], Msg](a)
 
   implicit object msgHandler extends Handler[Message]{
     val enh = implicitly[Handler[En[String]]]
     import mws.kvs.store.Dba
-
-    def get(k: String)(implicit dba: Dba): Either[Err,Message] = enh.get(k).right.map(Message)
-    def put(el: Message)(implicit dba: Dba): Either[Err,Message] = enh.put(Tag.unwrap(el)).right.map(Message)
-    def delete(k: String)(implicit dba: Dba): Either[Err,Message] = enh.delete(k).right.map(Message)
 
     def add(el: Message)(implicit dba: Dba): Either[Err,Message] = enh.add(Tag.unwrap(el)).right.map(Message)
     def remove(el: Message)(implicit dba: Dba): Either[Err,Message] =  enh.remove(Tag.unwrap(el)).right.map(Message)
@@ -36,10 +29,9 @@ object Schema {
 
 /**
  * Social schema
- *
- * todo: mark Id's with tags string/long
  */
 object SocialSchema {
+  // use tags?
   type FeedName = String
   type FeedId = String
   type Feeds = Vector[Either[FeedName,Tuple2[FeedName,FeedId]]]

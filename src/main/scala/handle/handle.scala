@@ -4,33 +4,31 @@ package handle
 import scala.language.postfixOps
 import store._
 
+trait Pickler[T] {
+  def pickle(e:T):Array[Byte]
+  def unpickle(a:Array[Byte]):T
+}
+
 /**
  * KVS Handler for specific type T.
  * object Handler holds implicit default handlers.
  */
-trait Handler[T] {
-  def pickle(e:T):Array[Byte]
-  def unpickle(a:Array[Byte]):T
-
-  def put(el:T)(implicit dba:Dba):Res[T]
-  def get(k:String)(implicit dba:Dba):Res[T]
-  def delete(k:String)(implicit dba:Dba):Res[T]
-
-  // container/iterator API
+trait Handler[T] extends Pickler[T] {
   def add(el:T)(implicit dba:Dba):Res[T]
   def remove(el:T)(implicit dba:Dba):Res[T]
   def entries(fid:String,from:Option[T],count:Option[Int])(implicit dba:Dba):Res[List[T]]
-  def entries(fid:String)(implicit dba:Dba):Res[List[T]] = entries(fid,None,None)
 }
 
 object Handler {
   def apply[T](implicit h:Handler[T]) = h
 
-  implicit object feedHandler extends FdHandler
-  implicit object strHandler extends ElHandler[String]{
-    def pickle(e:String) = e.getBytes("UTF-8")
-    def unpickle(a:Array[Byte]) = new String(a,"UTF-8")
+  implicit object strHandler extends Pickler[String]{
+    def pickle(e:String):Array[Byte] = e.getBytes("UTF-8")
+    def unpickle(a:Array[Byte]):String = new String(a,"UTF-8")
   }
+
+  implicit object feedHandler extends FdHandler
+
   /**
    * The basic feed/entry handlers with scala-pickling serialization
    */
@@ -63,10 +61,6 @@ object Handler {
   def by[A,S](f:A => S)(g:S => A)(key:String=>String)(implicit h:Handler[S]):Handler[A] = new Handler[A] {
     def pickle(e: A): Array[Byte] = h.pickle(f(e))
     def unpickle(a: Array[Byte]): A = g(h.unpickle(a))
-
-    def put(el:A)(implicit dba:Dba):Res[A] = h.put(f(el)).right.map(g)
-    def get(k:String)(implicit dba:Dba):Res[A] = h.get(key(k)).right.map(g)
-    def delete(k:String)(implicit dba:Dba):Res[A] = h.delete(key(k)).right.map(g)
 
     def add(el:A)(implicit dba:Dba):Res[A] = h.add(f(el)).right.map(g)
     def remove(el:A)(implicit dba:Dba):Res[A] = h.remove(f(el)).right.map(g)
