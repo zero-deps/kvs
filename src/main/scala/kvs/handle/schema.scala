@@ -40,17 +40,13 @@ object Schema {
  * todo: mark Id's with tags string/long
  */
 object SocialSchema {
-  type Fid = Either[String,Tuple2[String,String]] // name or (name,id)
-  type Feeds = List[Fid]
+  type FeedName = String
+  type FeedId = String
+  type Feeds = Vector[Either[FeedName,Tuple2[FeedName,FeedId]]]
 
   trait Usr
   type User = En[Feeds] @@ Usr
   implicit def User(u:En[Feeds]):En[Feeds] @@ Usr = Tag[En[Feeds], Usr](u)
-
-  trait S
-  type Ss = En[String] @@ S
-  def Ss(s:En[String]):En[String] @@ S = Tag[En[String],S](s)
-
 
   implicit object enFeedsHandler extends EnHandler[Feeds]{
     def pickle(e:En[Feeds]) = e.pickle.value
@@ -61,12 +57,6 @@ object SocialSchema {
   def u2en(s:User):En[Feeds] = Tag.unwrap(s)
 
   implicit val usrHandler:Handler[User] = Handler.by[User,En[Feeds]](u2en)(en2u)(identity(_))
-
-  def en2s(e:En[String]):Ss = Ss(e)
-  def s2en(s:Ss):En[String] = Tag.unwrap(s)
-
-  implicit val sessionHandler:Handler[Ss] = Handler.by[Ss,En[String]](s2en)(en2s)(identity(_))
-
 }
 
 /**

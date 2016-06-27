@@ -34,8 +34,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   def put[Fd:Handler](fd:Fd):Either[Err,Fd] = implicitly[Handler[Fd]].put(fd)
   def add[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].add(el)
   def remove[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].remove(el)
-  def entries[H:Handler](fid:String):Either[Err,List[H]] = entries(fid,None,None)
-  def entries[H:Handler](fid:String,from:Option[H],count:Option[Int]):Either[Err,List[H]] = implicitly[Handler[H]].entries(fid,from,count)
+  def entries[H:Handler](fid:String,from:Option[H]=None,count:Option[Int]=None):Either[Err,List[H]] = implicitly[Handler[H]].entries(fid,from,count)
 
   def save(): Unit = dba.save()
   def load(dumpPath: String) = dba.load(dumpPath)

@@ -250,7 +250,7 @@ class HandleSpec(_system:ActorSystem) extends TestKit(_system)
   it should "wrap user operations" in {
     import SocialSchema._
 
-    val feeds:Feeds = List(Left("favs"),Left("posts"))
+    val feeds:Feeds = Vector(Left("favs"),Left("posts"))
     val u1 = En("users","u1",feeds)
 
     val r1 = kvs.add(u1)
