@@ -69,8 +69,8 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
 
       entries.right.get.size shouldBe 2
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e2.fid, e2.id, e2.data)
-      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e1.fid, e1.id, e1.data)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, e1.id, e1.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, e2.id, e2.data)
     }
 
     "should save entry(3)" in {
@@ -88,9 +88,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
 
       entries.right.get.size shouldBe 3
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, e3.id, e3.data)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, e1.id, e1.data)
       (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, e2.id, e2.data)
-      (entries.right.get(2).fid, entries.right.get(2).id, entries.right.get(2).data) shouldBe(e1.fid, e1.id, e1.data)
+      (entries.right.get(2).fid, entries.right.get(2).id, entries.right.get(2).data) shouldBe(e3.fid, e3.id, e3.data)
     }
 
     "should not remove unexisting entry from feed" in {
@@ -99,7 +99,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
       (deleted.name, deleted.msg) shouldBe("error", s"not_found key ${e5.fid}.${e5.id}")  //Dbe(error,not_found key 우籁차ᮔঔ✓.5)
     }
 
-    "should remove entry(2) from feed without data" in {
+    "should remove entry(2) from feed without prev/next/data" in {
       val deleted = kvs.remove(En[FeedEntry](e2.fid,e2.id)).right.get
 
       (deleted.fid, deleted.id, deleted.data) shouldBe(e2.fid, e2.id, e2.data)
@@ -110,8 +110,8 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", EnHandlerTest.config))
 
       entries.right.get.size shouldBe 2
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, e3.id, e3.data)
-      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e1.fid, e1.id, e1.data)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, e1.id, e1.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e3.fid, e3.id, e3.data)
     }
 
     "should remove entry(1) from feed" in {

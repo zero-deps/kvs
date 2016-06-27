@@ -4,6 +4,7 @@ package handle
 import store._
 import scala.language.implicitConversions
 import scala.language.postfixOps
+import scala.annotation.tailrec
 
 object EnHandler {
   /**
@@ -31,7 +32,7 @@ trait EnHandler[T] extends Handler[En[T]] {
   import Handler._
   val fh = implicitly[Handler[Fd]]
 
-  private implicit def tuple2ToId(fid:(String,String)):String = s"${fid._1}.${fid._2}"
+  private implicit def tuple2ToStr(tpl:(String,String)):String = s"${tpl._1}.${tpl._2}"
 
   def put(el: En[T])(implicit dba: Dba): Res[En[T]] = dba.put((el.fid, el.id), pickle(el)).right.map { _ => el }
   def get(k: String)(implicit dba: Dba): Res[En[T]] = dba.get(k).right.map(unpickle)
@@ -40,68 +41,100 @@ trait EnHandler[T] extends Handler[En[T]] {
   final def delete(fid: String, id: String)(implicit dba: Dba): Res[En[T]] = delete((fid, id))
 
   /**
-   * Adds the entry to the container specified as id.
-   * Creates the container with specified id if its absent.
-   *
-   * todo: merge top/el update error cases. top update failures now skipped
+   * Adds the entry to the container
+   * Creates the container if it's absent
    */
   def add(el: En[T])(implicit dba: Dba): Res[En[T]] = {
     fh.get(el.fid).left.map {
-      case Dbe("error", _) => fh.put(new Fd(el.fid, None, 0))
-    }.joinLeft.right.map { feed: Fd =>
-      get(el.fid, el.id).fold(_ =>
-        put(el.copy(prev = feed.top)).right.map { _ =>
-          //update top
-          feed.top.map { id => get(el.fid, id).right.map { a => put(a.copy(next = Some(el.id))) }.joinRight }
-          //update el
-          fh.put(feed.copy(top = Some(el.id), count = feed.count + 1)).
-            fold(l => Left(l), r => Right(el.copy(prev = feed.top)))
-        }.joinRight.swap,
-        _ => Right(Dbe("error", s"entry ${el.id} exist in ${el.fid}"))).swap
+      // create feed if it doesn't exist
+      case Dbe("error", _) => fh.put(Fd(el.fid))
+    }.joinLeft.right.map{ fd: Fd =>
+      // id of entry must be unique
+      get(el.fid,el.id).fold(
+        l =>
+          // add new entry with prev pointer
+          put(el.copy(prev=fd.top)).right.map { added =>
+            fd.top match {
+              case Some(old_top) =>
+                // set next pointer for old top
+                get(el.fid, old_top).right.map(old_top => put(old_top.copy(next=Some(el.id))).right.map{_ =>
+                  // update feed's top and count
+                  fh.put(fd.copy(top = Some(el.id), count = fd.count + 1)) match {
+                    case Right(_) => Right(added)
+                    case Left(err) => Left(err)
+                  }
+                }.joinRight).joinRight
+              case None =>
+                // feed is empty
+                // update feed's top and count
+                fh.put(fd.copy(top = Some(el.id), count = fd.count + 1)) match {
+                  case Right(_) => Right(added)
+                  case Left(err) => Left(err)
+                }
+            }
+          }.joinRight,
+        r => Left(Dbe("error", s"entry ${el.id} exist in ${el.fid}"))
+      )
     }.joinRight
   }
 
   /**
-   * Remove the entry from the container specified as id.
-   * todo: check failure cases
-    * next is ignored
+   * Remove the entry from the container specified
+   * @param el entry to remove (prev/next/data is ignored)
+   * @returns deleted entry (with data)
    */
   def remove(el: En[T])(implicit dba: Dba): Res[En[T]] = {
-    delete(el.fid, el.id) match {
-      case Left(l) => Left(l)
-      case Right(r) => r match {
-        //case top element of feed is removed
-        case En(fid, _, prev, None, _) =>
-          prev map { x => get((fid,x)).right.map { n => put(n.copy(next = None)) }}
-          fh.get(fid).right.map { feed =>
-              fh.put(feed.copy(top = prev,count = feed.count - 1))
-          }.joinRight.right.map { _ => r }
-        //other cases
-        case En(fid, _, prev, Some(next), _) =>
-           prev map { x => get((fid,x)).right.map { p => put(p.copy(next = Some(next))) }}
-           get((fid,next)).right.map { n => put(n.copy(prev = prev)) }
-          fh.get(fid).right.map {
-            (feed: Fd) =>
-            fh.put(feed.copy(count = feed.count - 1))
-          }.joinRight.right.map { _ => r }
-      }}
+    def `change next pointer of 'prev'`(el:En[T]):Res[En[T]] = el.prev match {
+      case Some(prev) =>
+        get(el.fid,prev).right.map(prev=>put(prev.copy(next=el.next)).right.map{_ =>
+          `change prev pointer of 'next'`(el)
+        }.joinRight).joinRight
+      case None =>
+        `change prev pointer of 'next'`(el)
+    }
+    def `change prev pointer of 'next'`(el:En[T]):Res[En[T]] = el.next match {
+      case Some(next) =>
+        get(el.fid,next).right.map(next=>put(next.copy(prev=el.prev)).right.map{_ =>
+          `change count`(el)
+        }.joinRight).joinRight
+      case None =>
+        `change top and count`(el)
+    }
+    def `change top and count`(el:En[T]):Res[En[T]] =
+      fh.get(el.fid).right.map(fd=>fh.put(fd.copy(top=el.prev,count=fd.count-1)).right.map{_ =>
+        `delete entry`(el)
+      }.joinRight).joinRight
+    def `change count`(el:En[T]):Res[En[T]] =
+      fh.get(el.fid).right.map(fd=>fh.put(fd.copy(count=fd.count-1)).right.map{_ =>
+        `delete entry`(el)
+      }.joinRight).joinRight
+    def `delete entry`(el:En[T]):Res[En[T]] = delete(el.fid,el.id)
+    // entry must exist
+    get(el.fid,el.id).right.map(`change next pointer of 'prev'`).joinRight
   }
 
   /**
    * Iterate through container and return the list of entry with specified size.
    */
-  import scalaz._, Scalaz._
-
-  def entries(fid: String, from: Option[En[T]], count: Option[Int])(implicit dba: Dba): Res[List[En[T]]] = fh.get(fid).fold(
-    l => Left(Dbe("error", s"$fid $l")),
-    r => r match {
-      case Fd(`fid`, top, size) =>
-        val none: Res[En[T]] = Left(Dbe(msg = "done"))
-        def next: (Res[En[T]]) => Res[En[T]] = _.right.map { _.prev.fold(none)({ id => get(fid, id) }) }.joinRight
-
-        (from map { _.id } orElse top).map { eid => (fid, eid) }.map { //determine start entry
-          start =>
-          List.iterate(get(start), count map { x => x min size } getOrElse size)(next).sequenceU //iterate through list
-        }.getOrElse(Right(Nil))
-    })
+  def entries(fid:String,from:Option[En[T]],count:Option[Int])(implicit dba:Dba):Res[List[En[T]]] =
+    fh.get(fid).right.map{ case Fd(`fid`, top, size) =>
+      val none: Res[En[T]] = Left(Dbe(msg = "done"))
+      def prev_res: (Res[En[T]]) => Res[En[T]] = _.right.map(_.prev.fold(none)(prev=>get(fid,prev))).joinRight
+      val start:Option[String] = from match {
+        case None => top
+        case Some(from) => from.prev
+      }
+      @tailrec def loop(acc:List[En[T]],id:String):Res[List[En[T]]] = count match {
+        case Some(count) if count == acc.length => Right(acc) // limit results
+        case _ =>
+          get(fid,id) match {
+            case Right(en) => en.prev match {
+              case Some(prev) => loop(en::acc,prev)
+              case None => Right(en::acc)
+            }
+            case Left(err) => Left(err) // in case of error discard acc
+          }
+        }
+      start.map(start => loop(Nil,start)).getOrElse(Right(Nil))
+    }.joinRight
 }
