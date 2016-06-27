@@ -36,9 +36,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
   val e3 = entry(3)
   val e5 = entry(5)
 
-  override def afterAll = {
-    TestKit.shutdownActorSystem(system)
-  }
+  override def afterAll = TestKit.shutdownActorSystem(system)
 
   "Feed should" - {
     "be empty at creation" in {

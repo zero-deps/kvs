@@ -1,7 +1,6 @@
 package mws.kvs
 package handle
 
-import scala.language.postfixOps
 import store._
 
 trait FdHandler extends Pickler[Fd] {

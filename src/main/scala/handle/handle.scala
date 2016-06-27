@@ -22,7 +22,7 @@ trait Handler[T] extends Pickler[T] {
 object Handler {
   def apply[T](implicit h:Handler[T]) = h
 
-  implicit object strHandler extends Pickler[String]{
+  implicit object strHandler extends ElHandler[String]{
     def pickle(e:String):Array[Byte] = e.getBytes("UTF-8")
     def unpickle(a:Array[Byte]):String = new String(a,"UTF-8")
   }
