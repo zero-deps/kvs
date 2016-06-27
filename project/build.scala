@@ -10,13 +10,14 @@ object Versions {
   val rng = "1.0-191-g0ab4047"
 }
 
-object Build extends sbt.Build{
+object Build extends sbt.Build {
   lazy val root = Project(
     id = "kvs",
     base = file("."),
     settings = Defaults.coreDefaultSettings ++ publishSettings ++ Seq(
-      scalacOptions in Compile ++= Seq("-feature", "-deprecation", "-target:jvm-1.7"/*, "-Xlog-implicits"*/),
+      scalacOptions in Compile ++= Seq("-feature", "-deprecation", "-target:jvm-1.7"),
       javacOptions in Compile ++= Seq("-source", "1.7", "-target", "1.7"),
+      fork in Test := true,
       libraryDependencies ++= Seq(
         "org.scalaz" %% "scalaz-core" % Versions.scalaz,
 

@@ -40,7 +40,7 @@ trait EnHandler[T] extends Handler[En[T]] {
    * Creates the container if it's absent
    */
   def add(el: En[T])(implicit dba: Dba): Res[En[T]] = {
-    fh.get(el.fid).left.map {
+    fh.get(Fd(el.fid)).left.map {
       _ => fh.put(Fd(el.fid)) // create feed if it doesn't exist
     }.joinLeft.right.map{ fd: Fd =>
       // id of entry must be unique
@@ -95,7 +95,7 @@ trait EnHandler[T] extends Handler[En[T]] {
         }.joinRight).joinRight
     }
     def `change top`(el:En[T]):Res[En[T]] =
-      fh.get(el.fid).right.map(fd=>fh.put(fd.copy(top=el.prev)).right.map{_ =>
+      fh.get(Fd(el.fid)).right.map(fd=>fh.put(fd.copy(top=el.prev)).right.map{_ =>
         `delete entry`(el)
       }.joinRight).joinRight
     def `delete entry`(el:En[T]):Res[En[T]] = delete(el.fid,el.id)
@@ -108,7 +108,7 @@ trait EnHandler[T] extends Handler[En[T]] {
    * @param from if specified then return entries after this entry
    */
   def entries(fid:String,from:Option[En[T]],count:Option[Int])(implicit dba:Dba):Res[List[En[T]]] =
-    fh.get(fid).right.map{ fd =>
+    fh.get(Fd(fid)).right.map{ fd =>
       def prev_res: (Res[En[T]]) => Res[En[T]] = _.right.map(x=>get(fid,x.prev)).joinRight
       val start:String = from match {
         case None => fd.top

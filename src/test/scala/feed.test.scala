@@ -1,6 +1,8 @@
 package mws.kvs
 package handle
 
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 import akka.actor.ActorSystem
 import akka.testkit._
 import org.scalatest._
@@ -18,17 +20,13 @@ object EnHandlerTest {
   }
 }
 
-class EnHandlerTest extends TestKit(ActorSystem())
-  with FreeSpecLike
-  with Matchers
-  with EitherValues
-  with DefaultTimeout
-  with ImplicitSender
-  with BeforeAndAfterAll {
+class EnHandlerTest extends TestKit(ActorSystem("Test"))
+  with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
   import EnHandlerTest._
 
   val kvs = Kvs(system)
+  Await.ready(kvs.onReady{},Duration("1 min"))
 
   val mod = 50
   def entry(n:Int):EnType = En(fid,s"$n",FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
@@ -148,6 +146,13 @@ class EnHandlerTest extends TestKit(ActorSystem())
 
         entries.right.get.size shouldBe (limit - n)
       }
+    }
+
+    "feed should be empty at the end test" in {
+      kvs.entries[EnType](fid).right.value.length should be (0)
+      import Handler._
+      kvs.delete(Fd(fid))
+      kvs.entries[EnType](fid) should be ('left)
     }
   }
 }

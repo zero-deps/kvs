@@ -26,11 +26,14 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
     sys.addShutdownHook(jmx.unregisterMBean())
   }
 
+  //todo: create elhandler extends pickler
   def put[A:Pickler](k:String,el:A):Either[Err,A] = dba.put(k,implicitly[Pickler[A]].pickle(el)).right.map(_=>el)
   def get[A:Pickler](k:String):Either[Err,A] = dba.get(k).right.map(implicitly[Pickler[A]].unpickle)
   def delete[A:Pickler](k:String):Either[Err,A] = dba.delete(k).right.map(implicitly[Pickler[A]].unpickle)
 
-  def put(fd:Fd):Either[Err,Fd] = implicitly[FdHandler].put(fd)
+  def put(fd:Fd)(implicit fh:FdHandler):Either[Err,Fd] = fh.put(fd)
+  def get(fd:Fd)(implicit fh:FdHandler):Either[Err,Fd] = fh.get(fd)
+  def delete(fd:Fd)(implicit fh:FdHandler):Either[Err,Fd] = fh.delete(fd)
 
   def add[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].add(el)
   def remove[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].remove(el)
