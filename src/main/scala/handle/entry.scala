@@ -115,6 +115,7 @@ trait EnHandler[T] extends Handler[En[T]] {
 
   /**
    * Iterate through container and return the list of entry with specified size.
+   * @param from if specified then return entries after this entry
    */
   def entries(fid:String,from:Option[En[T]],count:Option[Int])(implicit dba:Dba):Res[List[En[T]]] =
     fh.get(fid).right.map{ case Fd(`fid`, top, size) =>
