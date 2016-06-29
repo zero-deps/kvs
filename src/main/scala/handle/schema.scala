@@ -55,7 +55,7 @@ object SocialSchema {
  * User Games schema
  */
 object GamesSchema {
-  val usrFeeds = List(Left("favorite"), Left("recent"))
+  val usrFeeds = Vector(Left("favorite"), Left("recent"))
 
   type Game = Vector[(String,String)]
 

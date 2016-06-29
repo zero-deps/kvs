@@ -75,7 +75,7 @@ trait EnHandler[T] extends Handler[En[T]] {
   /**
    * Remove the entry from the container specified
    * @param el entry to remove (prev/next/data is ignored)
-   * @returns deleted entry (with data)
+   * @return deleted entry (with data)
    */
   def remove(el: En[T])(implicit dba: Dba): Res[En[T]] = {
     def `change next pointer of 'prev'`(el:En[T]):Res[En[T]] = el.prev match {

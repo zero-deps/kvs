@@ -22,11 +22,6 @@ trait Handler[T] extends Pickler[T] {
 object Handler {
   def apply[T](implicit h:Handler[T]) = h
 
-  implicit object strHandler extends ElHandler[String]{
-    def pickle(e:String):Array[Byte] = e.getBytes("UTF-8")
-    def unpickle(a:Array[Byte]):String = new String(a,"UTF-8")
-  }
-
   implicit object feedHandler extends FdHandler
 
   /**
@@ -62,7 +57,6 @@ object Handler {
     def entries(fid:String,from:Option[A],count:Option[Int])(implicit dba:Dba):Res[List[A]] =
       h.entries(fid,toOpt(from),count).right.map { _ map g }
 
-    def by[C,D](f:C=>D)(g:D=>C)(key:String => String) = this
-    def toOpt = Functor[Option].lift(f)
+    private def toOpt = Functor[Option].lift(f)
   }
 }

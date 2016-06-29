@@ -8,7 +8,7 @@ object Versions {
   val scalaz = "7.2.2"
   val pickling = "0.11.0-M2"
   val akka = "2.3.15"
-  val rng = "1.0-191-g0ab4047"
+  val rng = "1.0-192-g37b1870"
 }
 
 object Build extends sbt.Build {
