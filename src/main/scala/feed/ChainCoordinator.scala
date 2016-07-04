@@ -7,8 +7,8 @@ import mws.rng.{Node, HashingExtension, Value}
 
 import scala.collection.immutable.SortedMap
 
-case class Add(fid: String, v: Value)
-case class Traverse(fid: String, start: Option[Int], end: Option[Int])
+case class Add(fid: FID, v: Value)
+case class Traverse(fid: String, start: Option[String], count: Option[Int])
 case class Remove(nb: String, v: Value)
 case class RegisterFeed(fid: String)
 
@@ -36,8 +36,8 @@ class ChainCoordinator extends FSM[CRState, CoordinatorData]{
       stay()
     case Event(MemberRemoved, data) =>
       stay()
-    case Event(add@Add, data) =>
-      fchains.get(add.fid) match 
+    case Event(add@Add(fid,_), data) =>
+      data.fchains.get(fid) match
       { 
         case None => sender() ! Right("invalid_fid")
         case Some(ch) =>  ch.head.tell(add, sender())
