@@ -5,7 +5,9 @@ import java.nio.ByteBuffer
 import akka.actor.{ActorLogging, ActorRef, FSM}
 import akka.serialization.SerializationExtension
 import mws.rng._
-import org.iq80.leveldb.{WriteBatch, DB}
+import org.iq80.leveldb.{DB, WriteBatch}
+
+import scala.annotation.tailrec
 
 
 trait ChainData{
@@ -33,7 +35,7 @@ object ChainServer{
  * - weak consistency -> read from local node instead of tail.
  */
 class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging{
-  import  ChainServer._
+  import ChainServer._
   startWith(Regular, Blank(s))
 
   val serialization = SerializationExtension(context.system)
@@ -110,8 +112,24 @@ class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging{
       // TODO notify client(synch)
       stay()
 
-    case Event(Traverse(fid, s, e), data) =>
+    case Event(Traverse(fid, start, count), data) =>
+      val client = sender()
+      val start = start match {
+        case None => fromBytesList(store.get(s"$fid:info"), classOf[EntryMeta]).fold("tail")(_._1)
+        case Some(id) => id
+      }
+      // client ! resp
       stay()
+  }
+
+  @tailrec
+  def iterDB(id: String, count: Option[Long], acc: Seq[Value]): Seq[Value] = (id, count) match {
+    case (veryTailIndex, _) => acc
+    case (id, 0L) => acc
+    case (id, countIttr) => fromBytesList(store.get(bytes(id)),classOf[Entry]) match{
+      case None => acc
+      case Some(e) => iterDB(e._3, countIttr -1, e._2 :: acc)
+    }
   }
 
   whenUnhandled{

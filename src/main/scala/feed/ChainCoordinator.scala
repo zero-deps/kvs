@@ -7,10 +7,6 @@ import mws.rng.{Node, HashingExtension, Value}
 
 import scala.collection.immutable.SortedMap
 
-case class Add(fid: FID, v: Value)
-case class Traverse(fid: String, start: Option[String], count: Option[Int])
-case class Remove(nb: String, v: Value)
-case class RegisterFeed(fid: String)
 
 trait CRState
 case object Running extends CRState

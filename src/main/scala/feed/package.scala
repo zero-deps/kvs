@@ -11,4 +11,10 @@ package object feed{
   type Chain = Seq[ActorRef]
 
   def id(fid: String,i:Long) = s"$fid:$i"
+
+  //API
+  case class Add(fid: FID, v: Value)
+  case class Traverse(fid: String, start: Option[String], count: Option[Int])
+  case class Remove(fid: String, id: String)
+
 }
