@@ -1,42 +1,39 @@
 package feed
 
 import java.nio.ByteBuffer
-
 import akka.actor.{ActorLogging, ActorRef, FSM}
 import akka.serialization.SerializationExtension
 import mws.rng._
 import org.iq80.leveldb.{DB, WriteBatch}
-
 import scala.annotation.tailrec
 
-
-trait ChainData{
-  val store: DB
-}
-case class ChainInfo(prev: ActorRef, next: ActorRef, store: DB) extends ChainData
-case class HeadChain(next: ActorRef, store: DB) extends ChainData
-case class TailChain(prev: ActorRef, store: DB) extends ChainData
-case class Blank(store: DB) extends ChainData
+trait ChainData
+case class ChainInfo(prev: ActorRef, next: ActorRef) extends ChainData
+case class HeadChain(next: ActorRef) extends ChainData
+case class TailChain(prev: ActorRef) extends ChainData
+case object Blank extends ChainData
 
 trait Role
 case object Head extends Role
 case object Tail extends Role
 case object Regular extends Role
 
-object ChainServer{
+object ChainServer {
   val veryHeadIndex = "hd"
   val veryTailIndex = "tl"
 
   //TODO send byte_arrays instead of objects
   case class AddReplica(meta: (String, EntryMeta), prev: Option[(String, Entry)], v: (String, Entry))
 }
+
 /*
- * TODO
+ * TODO :
  * - weak consistency -> read from local node instead of tail.
  */
-class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging{
+class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging {
   import ChainServer._
-  startWith(Regular, Blank(s))
+
+  startWith(Regular, Blank)
 
   val serialization = SerializationExtension(context.system)
 
@@ -45,16 +42,16 @@ class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging{
     case anyRef: AnyRef => serialization.serialize(anyRef).get
   }
 
-  def fromBytesList[T](arr: Array[Byte], clazz : Class[T]): Option[T] = Option(arr) match {
+  def fromBytesList[T](arr: Array[Byte], clazz: Class[T]): Option[T] = Option(arr) match {
     case Some(a) => Some(serialization.deserialize(a, clazz).get)
     case None => None
   }
 
-  def withBatch[R](store: DB,body: WriteBatch ⇒ R): R = {
-    val batch = store.createWriteBatch()
+  def withBatch[R](body: WriteBatch ⇒ R): R = {
+    val batch = s.createWriteBatch()
     try {
       val r = body(batch)
-      store.write(batch)
+      s.write(batch)
       r
     } finally {
       batch.close()
@@ -62,9 +59,9 @@ class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging{
   }
 
   when(Head) {
-    case Event(Add(fid, v), HeadChain(next, store)) =>
+    case Event(Add(fid, v), HeadChain(next)) =>
       //updated feed info + last tail id
-      val meta: Option[EntryMeta] = fromBytesList(store.get(bytes(s"$fid:info")), classOf[EntryMeta])
+      val meta: Option[EntryMeta] = fromBytesList(s.get(bytes(s"$fid:info")), classOf[EntryMeta])
       val updMeta: EntryMeta = meta match {
         case None => (id(fid, 0), id(fid, 0), 0)
         case Some(m) => m.copy(_2 = id(fid, m._3 + 1), _3 = m._3 + 1)
@@ -79,7 +76,7 @@ class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging{
       }
       val entry = (prevInx, v, veryTailIndex)
 
-      withBatch(store, batch => {
+      withBatch(batch => {
         //upd prev entry if present
         prevEntry.map(p => batch.put(bytes(p._1), bytes(p._2)))
         //meta upd with new tail and id_counter
@@ -92,8 +89,8 @@ class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging{
   }
 
   when(Regular) {
-    case Event(msg@AddReplica(meta, prev, value), ChainInfo(prevChain, next, store)) =>
-      withBatch(store, batch => {
+    case Event(msg@AddReplica(meta, prev, value), ChainInfo(prevChain, next)) =>
+      withBatch(batch => {
         batch.put(bytes(meta._1), bytes(meta._2))
         prev.map(p => batch.put(bytes(p._1), bytes(p._2)))
         batch.put(bytes(value._1), bytes(value._2))
@@ -103,40 +100,41 @@ class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging{
   }
 
   when(Tail) {
-    case Event(msg@AddReplica(meta, prev, value), TailChain(prevChain,  store)) =>
-      withBatch(store, batch => {
+    case Event(msg@AddReplica(meta, prev, value), TailChain(prevChain)) =>
+      withBatch(batch => {
         batch.put(bytes(meta._1), bytes(meta._2))
         prev.map(p => batch.put(bytes(p._1), bytes(p._2)))
         batch.put(bytes(value._1), bytes(value._2))
       })
+      log.info(s"[feed]tail_add $msg")
       // TODO notify client(synch)
       stay()
 
-    case Event(Traverse(fid, start, count), data) =>
+    case Event(t@Traverse(fid, start, count), TailChain(prev, store)) =>
       val client = sender()
-      val start = start match {
-        case None => fromBytesList(store.get(s"$fid:info"), classOf[EntryMeta]).fold("tail")(_._1)
+      val startIndx = start match {
+        case None => fromBytesList(s.get(bytes(s"$fid:info")), classOf[EntryMeta]).fold("tail")(_._1)
         case Some(id) => id
       }
-      // client ! resp
+      val rez: List[Value] = iterDB(startIndx, count, List.empty[Value])
+      log.info(s"[feed]$t -> $rez")
+      client ! rez
       stay()
   }
 
   @tailrec
-  def iterDB(id: String, count: Option[Long], acc: Seq[Value]): Seq[Value] = (id, count) match {
-    case (veryTailIndex, _) => acc
-    case (id, 0L) => acc
-    case (id, countIttr) => fromBytesList(store.get(bytes(id)),classOf[Entry]) match{
+  private def iterDB(id: String, count: Option[Int], acc: List[Value]): List[Value] = (id, count) match {
+    case (`veryTailIndex`, _) => acc
+    case (_, Some(0)) => acc
+    case (someId, Some(countIttr)) => fromBytesList(s.get(bytes(someId)), classOf[Entry]) match {
       case None => acc
-      case Some(e) => iterDB(e._3, countIttr -1, e._2 :: acc)
+      case Some(e) => iterDB(e._3, Some(countIttr - 1), e._2 :: acc)
     }
   }
 
-  whenUnhandled{
-    case Event(m,_) =>
+  whenUnhandled {
+    case Event(m, _) =>
       log.info(s"$m ignoring") // TODO REMOVE, only for debuging
       stay()
   }
-
 }
-
