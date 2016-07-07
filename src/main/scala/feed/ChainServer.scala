@@ -110,7 +110,7 @@ class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging {
       // TODO notify client(synch)
       stay()
 
-    case Event(t@Traverse(fid, start, count), TailChain(prev, store)) =>
+    case Event(t@Traverse(fid, start, count), TailChain(prev)) =>
       val client = sender()
       val startIndx = start match {
         case None => fromBytesList(s.get(bytes(s"$fid:info")), classOf[EntryMeta]).fold("tail")(_._1)
