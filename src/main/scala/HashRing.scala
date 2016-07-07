@@ -72,18 +72,6 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     (hash ? Delete(k)).mapTo[Ack]
   }
 
-  def regNamedBucket(bid: String): Unit = {
-    Await.ready(hash ? RegisterBucket(bid), timeout.duration)
-  }
-
-  def travers(fid:String, start: Option[Int], end: Option[Int]):Future[List[Value]] = {
-    (hash ? Traverse(fid, start, end)).mapTo[List[Value]]
-  }
-
-  def add(fid:String, v: Value) = {
-    (hash ? Add(fid,v)).mapTo[Int]
-  }
-
   def dump(): Future[String] = (hash ? Dump).mapTo[String]
 
   def load(dumpPath: String): Unit = hash ! LoadDump(dumpPath)

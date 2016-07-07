@@ -3,7 +3,7 @@ package feed
 import akka.actor.{FSM, ActorLogging}
 import akka.cluster.ClusterEvent.{MemberRemoved, MemberUp}
 import akka.cluster.{ClusterEvent, Cluster}
-import mws.rng.{Node, HashingExtension, Value}
+import mws.rng.{VNode, Node, HashingExtension, Value}
 import scala.collection.immutable.SortedMap
 
 
@@ -29,9 +29,9 @@ class ChainCoordinator extends FSM[CRState, CoordinatorData] with ActorLogging{
   when(Running){
     case Event(MemberUp(m), data) =>
       log.info(s"[feed], $m added to chain servers")
-      // val newvNodes: Map[VNode, Node] = (1 to vNodesNum).map(vnode => {
-      //   hashing.hash(m.address.hostPort + vnode) -> m.address})(breakOut)
-      // val updvNodes = data.vNodes ++ newvNodes
+       val newvNodes: Map[VNode, Node] = (1 to vnode).map(vnode => {
+         hashing.hash(m.address.hostPort + vnode) -> m.address})(breakOut)
+       val updvNodes = data.vNodes ++ newvNodes
 
       stay() 
     case Event(MemberRemoved, data) =>
