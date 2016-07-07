@@ -1,6 +1,9 @@
 package mws.kvs
 
-import scala.util.Success
+import scala.util._
+import scala.concurrent._
+import scala.concurrent.duration._
+import scala.language.postfixOps
 import akka.actor.{ExtendedActorSystem,Extension,ExtensionKey}
 
 /** Akka Extension to interact with KVS storage as built into Akka */
@@ -21,7 +24,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
     List(classOf[ExtendedActorSystem]->system)).get
 
   if (cfg.getBoolean("akka.cluster.jmx.enabled")) {
-    val jmx = new KvsJmx(this,system.log)
+    val jmx = new KvsJmx(this,system)
     jmx.createMBean()
     sys.addShutdownHook(jmx.unregisterMBean())
   }
@@ -38,10 +41,11 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   def remove[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].remove(el)
   def entries[H:Handler](fid:String,from:Option[H]=None,count:Option[Int]=None):Either[Err,List[H]] = implicitly[Handler[H]].entries(fid,from,count)
 
-  def save(): Unit = dba.save()
-  def load(dumpPath: String) = dba.load(dumpPath)
+  val dump_timeout = 1 hour
+  def save():Option[String] = Try(Await.result(dba.save(),dump_timeout)).toOption
+  def load(path:String):Option[Any] = Try(Await.result(dba.load(path),dump_timeout)).toOption
+  def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Option[Any] = Try(Await.result(dba.iterate(path,foreach),dump_timeout)).toOption
 
-  import scala.concurrent.Future
   def onReady[T](body: =>T):Future[T] = {
     import scala.language.postfixOps
     import scala.concurrent.Promise
@@ -54,6 +58,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
       system.scheduler.scheduleOnce(1 second){
         dba.isReady onComplete {
           case Success(true) =>
+            // make sure that dba is ready 5 times in the row
             if (count > 4) {
               log.info("KVS is ready")
               p success body

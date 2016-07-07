@@ -10,6 +10,10 @@ trait ElHandler[T] extends Pickler[T] {
 }
 
 object ElHandler {
+  implicit object bytesHandler extends ElHandler[Array[Byte]]{
+    def pickle(e:Array[Byte]):Array[Byte] = e
+    def unpickle(a:Array[Byte]):Array[Byte] = a
+  }
   implicit object strHandler extends ElHandler[String]{
     def pickle(e:String):Array[Byte] = e.getBytes("UTF-8")
     def unpickle(a:Array[Byte]):String = new String(a,"UTF-8")

@@ -44,9 +44,9 @@ class Ring(system: ExtendedActorSystem) extends Dba {
       }
     )
 
-  def save(): Unit = rng.dump()
-
-  def load(path: String): Unit = rng.load(path)
+  def save():Future[String] = rng.dump()
+  def load(path:String):Future[Any] = rng.load(path)
+  def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Future[Any] = rng.iterate(path,foreach)
 
   def close(): Unit = ()
 }
