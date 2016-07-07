@@ -3,13 +3,13 @@ package mws.rng
 import java.io.File
 
 import akka.cluster.Cluster
-import akka.cluster.ClusterEvent.{CurrentClusterState, MemberExited, MemberRemoved, MemberUp}
 import akka.remote.testkit.{MultiNodeConfig, MultiNodeSpec}
 import akka.testkit.ImplicitSender
 import akka.util.{ByteString, Timeout}
 import com.typesafe.config.ConfigFactory
 import org.iq80.leveldb.util.FileUtils
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+import scala.language.postfixOps
 import scala.concurrent.Await
 import scala.concurrent.duration._
 

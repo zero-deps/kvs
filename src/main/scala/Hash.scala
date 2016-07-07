@@ -3,13 +3,11 @@ package mws.rng
 import akka.actor._
 import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
-import akka.pattern.ask
 import akka.util.Timeout
 import mws.rng.store._
 import scala.annotation.tailrec
 import scala.collection.SortedMap
 import scala.concurrent.duration._
-import scala.concurrent.Future
 import scala.collection.JavaConversions._
 import scala.collection.breakOut
 
@@ -20,8 +18,8 @@ case class Get(k: Key) extends APIMessage
 case class Delete(k: Key) extends APIMessage
 case object Dump extends APIMessage
 case class LoadDump(dumpPath:String) extends APIMessage
-case class DumpComplete(path: String) extends APIMessage
-case object LoadDumpComplete extends APIMessage
+case class IterateDump(dumpPath:String,foreach:(String,Array[Byte])=>Unit) extends APIMessage
+case object RestoreState extends APIMessage
 //utilities
 case object Ready
 case class ChangeState(s: QuorumState)
@@ -79,15 +77,12 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Get(k), data) =>
       doGet(k, sender(), data)
       stay()
-    case Event(DumpComplete(path), data) =>
-      val new_state = state(data.nodes.size)
-      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(new_state), _ ! ChangeState(new_state)))
-      goto(new_state)
-    case Event(LoadDumpComplete, data) =>
+    case Event(RestoreState, data) =>
       val s = state(data.nodes.size)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(s), _ ! ChangeState(s)))
       goto(s)
-    case Event(Ready, _) => sender() ! false
+    case Event(Ready, _) =>
+      sender() ! false
       stay()
   }
 
@@ -108,13 +103,15 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       doDelete(k,s,data)
       stay()
     case Event(Dump, data) =>
-      system.actorOf(Props(classOf[DumpWorker], data.buckets, local), s"dump_wrkr-${System.currentTimeMillis}").tell(Dump, sender)
+      system.actorOf(DumpWorker.props(data.buckets, local), s"dump_wrkr-${System.currentTimeMillis}").forward(Dump)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
       goto(Readonly)
     case Event(LoadDump(dumpPath), data) =>
-      system.actorOf(Props(classOf[LoadDumpWorker], dumpPath), s"load_wrkr-${System.currentTimeMillis}") ! LoadDump(dumpPath)
+      system.actorOf(LoadDumpWorker.props(dumpPath), s"load_wrkr-${System.currentTimeMillis}").forward(LoadDump(dumpPath))
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
       goto(Readonly)
+    case Event(IterateDump(dumpPath, foreach), data) =>
+      system.actorOf(IterateDumpWorker.props(dumpPath,foreach), s"iter_wrkr-${System.currentTimeMillis}").forward(IterateDump(dumpPath,foreach))
       stay()
 
   }
@@ -183,7 +180,6 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
       val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
       synchNodes(moved)
       val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes)
-      
       log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
       (state(updData.nodes.size), updData)
   }
@@ -222,7 +218,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
       case Some(`prefList`) => acc
       case _ => acc + (b -> prefList)
     }})
-  }    
+  }
 
   @tailrec
   final def findBucketNodes(bucketRange: Int, maxSearch: Int, vNodes: SortedMap[Bucket, Address],
