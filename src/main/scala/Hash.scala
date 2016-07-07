@@ -180,7 +180,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
         hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
       val updvNodes = data.vNodes ++ newvNodes
       val nodes = data.nodes + member.address
-      val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
+      val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
       synchNodes(moved)
       val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes)
       
@@ -194,7 +194,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
       hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
       val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
       val nodes = data.nodes + member.address
-      val moved = bucketsToUpdate(bucketsNum - 1, nodes.size, updvNodes, data.buckets)
+      val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
       log.info(s"WILL UPDATE ${moved.size} buckets")
       val updData: HashRngData = HashRngData(data.nodes + member.address, data.buckets++moved, updvNodes)
       synchNodes(moved)
@@ -216,30 +216,13 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
   def bucketsToUpdate(maxBucket: Bucket, nodesNumber: Int, vNodes: SortedMap[Bucket, Address],
                       buckets: SortedMap[Bucket, PreferenceList]): SortedMap[Bucket, PreferenceList] = {
     (0 to maxBucket).foldLeft(SortedMap.empty[Bucket, PreferenceList])((acc, b) => {
-       val prefList = findBucketNodes(b * hashing.bucketRange, vNodes.size, vNodes, nodesNumber)
+       val prefList = hashing.findNodes(b * hashing.bucketRange, vNodes, nodesNumber)
       buckets.get(b) match {
       case None => acc + (b -> prefList)
       case Some(`prefList`) => acc
       case _ => acc + (b -> prefList)
     }})
   }    
-
-  @tailrec
-  final def findBucketNodes(bucketRange: Int, maxSearch: Int, vNodes: SortedMap[Bucket, Address],
-                            nodesNumber: Int, nodes: PreferenceList = Set.empty[Node]): PreferenceList =
-  maxSearch match {
-    case 0 => nodes
-    case _ =>
-        val it = vNodes.keysIteratorFrom(bucketRange)
-        val hashedNode = if (it.hasNext) it.next() else vNodes.firstKey
-        val node = vNodes(hashedNode)
-        val prefList = if (nodes.contains(node)) nodes else nodes + node
-        prefList.size match {
-          case `N` => prefList
-          case `nodesNumber` => prefList
-          case _ => findBucketNodes(hashedNode + 1, maxSearch - 1, vNodes, nodesNumber, prefList)
-        }
-  }
 
   def nodesForKey(k: Key, data: HashRngData): PreferenceList = data.buckets.get(hashing.findBucket(k)) match {
     case None => Set.empty[Node]
