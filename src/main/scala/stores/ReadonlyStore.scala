@@ -36,11 +36,6 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
       sender ! GetBucketResp(b, data)
     case BucketKeys(b) => 
       sender ! fromBytesList(leveldb.get(bytes(s"$b:keys")),classOf[List[Key]]).getOrElse(Nil)
-    case Traverse(fid, start, end) =>
-      fromBytesList(leveldb.get(bytes(fid)), classOf[List[Value]]) match {
-        case Some(feed) => sender() ! feed.slice(start.getOrElse(0), end.getOrElse(feed.size))
-        case None => sender() ! Nil
-      }
     case GetSavingEntity(k) => 
       val e = fromBytesList(leveldb.get(bytes(k)), classOf[(Value, Option[Key])]) match {
         case None => SavingEntity(k, ByteString("dymmy"), None)

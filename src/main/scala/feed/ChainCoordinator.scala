@@ -5,6 +5,7 @@ import akka.cluster.ClusterEvent.{MemberRemoved, MemberUp}
 import akka.cluster.{ClusterEvent, Cluster}
 import mws.rng.{VNode, Node, HashingExtension, Value}
 import scala.collection.immutable.SortedMap
+import scala.collection.breakOut
 
 
 trait CRState

@@ -13,8 +13,6 @@ trait HashRingMBean {
   def get(key:String): String
   def put(key:String, data: String):String
   def delete(key:String):Unit
-  def add(fid: String, v: String) : Int
-  def travers(fid: String, start: Int, end: Int): List[Value]
 }
 
 private[mws] class HashRingJmx(ring:HashRing, log: LoggingAdapter) {
@@ -43,17 +41,6 @@ private[mws] class HashRingJmx(ring:HashRing, log: LoggingAdapter) {
       }
       def delete(key:String) = ring.delete(key)
 
-      override def travers(fid: String, start:Int, end: Int): List[Value] = {
-        Await.result(ring.travers(fid,
-          if(start > 0)Some(start) else None,
-        if(end > 0) Some(end) else None),timeout.duration) match {
-          case list => list
-        }
-      }
-
-      def add(fid: String, v: String): Int = {
-        Await.result(ring.add(fid, ByteString(v)), timeout.duration)
-      }
     }
 
     try {
