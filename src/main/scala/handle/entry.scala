@@ -25,6 +25,9 @@ object EnHandler {
 /**
  * Abstract type entry handler
  * Since we don't know the exact type the pickler/unpickler still needs to be provided explicitly
+ *
+ *               top -prev-> el -prev-> empty
+ * empty <-next- top <-next- el
  */
 trait EnHandler[T] extends Handler[En[T]] {
   import Handler._
@@ -38,6 +41,7 @@ trait EnHandler[T] extends Handler[En[T]] {
   /**
    * Adds the entry to the container
    * Creates the container if it's absent
+   * @param el entry to add (prev/next is ignored)
    */
   def add(el: En[T])(implicit dba: Dba): Res[En[T]] = {
     fh.get(Fd(el.fid)).left.map {
@@ -47,7 +51,7 @@ trait EnHandler[T] extends Handler[En[T]] {
       get(el.fid,el.id).fold(
         l =>
           // add new entry with prev pointer
-          put(el.copy(prev=fd.top)).right.map { added =>
+          put(el.copy(prev=fd.top,next=empty)).right.map { added =>
             fd.top match {
               case `empty` =>
                 // feed is empty
@@ -105,6 +109,7 @@ trait EnHandler[T] extends Handler[En[T]] {
 
   /**
    * Iterate through container and return the list of entry with specified size.
+   * List is inserted ordered (first added is first in list).
    * @param from if specified then return entries after this entry
    */
   def entries(fid:String,from:Option[En[T]],count:Option[Int])(implicit dba:Dba):Res[List[En[T]]] =
