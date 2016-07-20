@@ -23,22 +23,21 @@ class HashingImpl(config: Config) extends  Extension {
   def findBucket(key: Key): Bucket = (hash(key) / bucketRange).abs
 
 
-  def findNodes(hashKey: Int, vNodes: SortedMap[Bucket, Address], nodesNumber: Int) = {
+  def findNodes(hashKey: Int, vNodes: SortedMap[Bucket, Address], nodesNumber: Int): PreferenceList = {
     @tailrec
-    def findBucketNodes(hashK: Int, maxSearch: Int, nodes: PreferenceList): PreferenceList =
-    maxSearch match {
-      case 0 => nodes
-      case _ =>
-        val it = vNodes.keysIteratorFrom(hashKey)
-        val hashedNode = if (it.hasNext) it.next() else vNodes.firstKey
-        val node = vNodes(hashedNode)
-        val prefList = if (nodes.contains(node)) nodes else nodes + node
-        prefList.size match {
-          case `nodesNumber` => prefList
-          case _ => findBucketNodes(hashK + 1, maxSearch - 1,  prefList)
-        }
+    def findBucketNodes(hashK: Int, nodes: PreferenceList): PreferenceList = {
+
+      val it = vNodes.keysIteratorFrom(hashK)
+      val hashedNode = if (it.hasNext) it.next() else vNodes.firstKey
+      val node = vNodes(hashedNode)
+
+      val prefList = if (nodes.contains(node)) nodes else nodes + node
+      prefList.size match {
+        case `nodesNumber` => prefList
+        case _ => findBucketNodes(hashedNode + 1 , prefList)
+      }
     }
-    findBucketNodes(hashKey, vNodes.size, Set.empty[Node])
+    findBucketNodes(hashKey, Set.empty[Node])
   }
 }
 
