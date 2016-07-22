@@ -12,9 +12,9 @@ import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 
 object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
-  
+
   override def lookup = HashRing
-  
+
   override def createExtension(system: ExtendedActorSystem): HashRing = {
     new HashRing(system)
   }
@@ -29,10 +29,14 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   system.eventStream
   var jmx: Option[HashRingJmx] = None
   val config = system.settings.config.getConfig("ring.leveldb")
-  val nativeLeveldb = config.getBoolean("native")
+  val nativeLeveldb:Boolean = sys.props.get("os.name") match {
+    case Some(os) if os.startsWith("Windows") =>
+      log.info("Forcing usage of Java ported LevelDB for Windows OS"); false
+    case _ => config.getBoolean("native")
+  }
 
   val leveldbOptions = new Options().createIfMissing(true)
-  val leveldbDir = new File(config.getString("dir"))  
+  val leveldbDir = new File(config.getString("dir"))
   var leveldb = leveldbFactory.open(leveldbDir, if (nativeLeveldb) leveldbOptions else leveldbOptions.compressionType(CompressionType.NONE))
 
   def leveldbFactory =
@@ -40,12 +44,10 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     else org.iq80.leveldb.impl.Iq80DBFactory.factory
 
   // todo: create system/hashring superviser
-  private val store= system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_write_store")
-  private val readStore = system.actorOf(
-    FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
+  system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_write_store")
+  system.actorOf(FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
   private val hash = system.actorOf(Props(classOf[Hash]).withDeploy(Deploy.local), name = "ring_hash")
 
-  
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {
     val jmx = new HashRingJmx(this, log)
     jmx.createMBean()
@@ -53,7 +55,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   }
 
   system.registerOnTermination(shutdown())
-  
+
   private[mws] def shutdown():Unit= {
     jmx foreach {_.unregisterMBean}
     log.info("Hash ring down")
@@ -74,7 +76,9 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
 
   def dump(): Future[String] = (hash ? Dump).mapTo[String]
 
-  def load(dumpPath: String): Unit = hash ! LoadDump(dumpPath)
-  
+  def load(dumpPath: String): Future[Any] = hash ? LoadDump(dumpPath)
+
+  def iterate(dumpPath: String, foreach: (String,Array[Byte])=>Unit): Future[Any] = hash ? IterateDump(dumpPath,foreach)
+
   def isReady: Future[Boolean] = (hash ? Ready).mapTo[Boolean]
 }
