@@ -1,6 +1,6 @@
 package feed
 
-import akka.actor.{Address, FSM, ActorLogging}
+import akka.actor._
 import akka.cluster.ClusterEvent.{CurrentClusterState, MemberRemoved, MemberUp}
 import akka.cluster.{Member, ClusterEvent, Cluster}
 import mws.rng._
@@ -20,6 +20,7 @@ class ChainCoordinator extends FSM[ChainState, CoordinatorData] with ActorLoggin
   val hashing = HashingExtension(system)
   val chainSize = system.settings.config.getInt("ring.chain.length")
   val chainNumber = system.settings.config.getInt("ring.chain.number")
+  val selection = SelectionMemorize(system)
 
   val cluster = Cluster(system)
   val vnode = system.settings.config.getInt("ring.virtual-nodes")
@@ -35,6 +36,8 @@ class ChainCoordinator extends FSM[ChainState, CoordinatorData] with ActorLoggin
 
       val chains: Map[Int, PreferenceList] = (0 to chainNumber).foldLeft(Map.empty[Bucket, PreferenceList])((acc, chainID) =>
         acc + (chainID -> hashing.findNodes(chainID * hashing.chainRange , virtualNodes, state.members.size)))
+      //spawn chains servers for each chain ID
+      (0 to chainNumber).foreach(id => context.child(s"chain-server-$id").getOrElse(context.actorOf(Props(classOf[ChainServer]),s"chain-server-$id")))
 
       goto(Running) using CoordinatorData(virtualNodes, chains)
   }
@@ -53,10 +56,27 @@ class ChainCoordinator extends FSM[ChainState, CoordinatorData] with ActorLoggin
     case Event(MemberRemoved, data) =>
       stay()
     case Event(add@Add(fid,_), data) =>
-      data.chains.get(hashing.findChain(fid)) match
-      { 
-        case None => sender() ! Right("invalid_fid")
-        case Some(ch) =>  //ch.head.tell(add, sender())
+      log.info(s"[coordinator] add: $add")
+      val chainID = hashing.findChain(fid)
+      data.chains(chainID) match {
+        case chain if chain.head == self.path.address => context.child(s"chain-server-$chainID").foreach(_.tell(add, sender()))
+        case foreign => selection.get(foreign.head, "coordinator").fold(_.tell(add, sender()), _.tell(add, sender()))
+      }
+      stay()
+    case Event(rm@Remove(fid,_), data) =>
+      log.info(s"[coordinator] rm: $rm")
+      val chainID = hashing.findChain(fid)
+      data.chains(chainID) match {
+        case chain if chain.head == self.path.address => context.child(s"chain-server-$chainID").foreach(_.tell(rm, sender()))
+        case foreign => selection.get(foreign.head, "coordinator").fold(_.tell(rm, sender()), _.tell(rm, sender()))
+      }
+      stay()
+    case Event(t@Traverse(fid,_,_), data) =>
+      log.info(s"[coordinator] travers: $t")
+      val chainID = hashing.findChain(fid)
+      data.chains(chainID) match {
+        case chain if chain.last == self.path.address => context.child(s"chain-server-$chainID").foreach(_.tell(t, sender()))
+        case foreign => selection.get(foreign.head, "coordinator").fold(_.tell(t, sender()), _.tell(t, sender()))
       }
       stay()
   }
