@@ -1,25 +1,26 @@
 package feed
 
-import akka.actor.{FSM, ActorLogging}
-import akka.cluster.ClusterEvent.{MemberRemoved, MemberUp}
-import akka.cluster.{ClusterEvent, Cluster}
-import mws.rng.{VNode, Node, HashingExtension, Value}
-import scala.collection.immutable.SortedMap
-import scala.collection.breakOut
+import akka.actor.{Address, FSM, ActorLogging}
+import akka.cluster.ClusterEvent.{CurrentClusterState, MemberRemoved, MemberUp}
+import akka.cluster.{Member, ClusterEvent, Cluster}
+import mws.rng._
+import scala.collection.{SortedMap, breakOut}
 
+trait ChainState
+case object Startup extends ChainState
+case object Running extends ChainState
+case object Partitioning extends ChainState
+case class CoordinatorData(vNodes: SortedMap[Int, Node],
+                            chains: Map[Int, PreferenceList])
 
-trait CRState
-case object Running extends CRState
-case class CoordinatorData(
-      vNodes: SortedMap[Int, Node],
-      fchains: Map[FID, Chain])
-
-class ChainCoordinator extends FSM[CRState, CoordinatorData] with ActorLogging{
-  startWith(Running, CoordinatorData(SortedMap.empty[Int,Node], Map.empty[FID,Chain]))
+class ChainCoordinator extends FSM[ChainState, CoordinatorData] with ActorLogging{
+  startWith(Startup, CoordinatorData(SortedMap.empty[Int,Node], Map.empty[Int, PreferenceList]))
 
   val system = context.system
   val hashing = HashingExtension(system)
-  val chainSize = system.settings.config.getIntList("ring.quorum").get(0) //TODO new conf. prop.?
+  val chainSize = system.settings.config.getInt("ring.chain.length")
+  val chainNumber = system.settings.config.getInt("ring.chain.number")
+
   val cluster = Cluster(system)
   val vnode = system.settings.config.getInt("ring.virtual-nodes")
 
@@ -27,23 +28,42 @@ class ChainCoordinator extends FSM[CRState, CoordinatorData] with ActorLogging{
     cluster.subscribe(self, ClusterEvent.initialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
   }
 
-  when(Running){
-    case Event(MemberUp(m), data) =>
-      log.info(s"[feed], $m added to chain servers")
-       val newvNodes: Map[VNode, Node] = (1 to vnode).map(vnode => {
-         hashing.hash(m.address.hostPort + vnode) -> m.address})(breakOut)
-       val updvNodes = data.vNodes ++ newvNodes
+  when(Startup){
+    case Event(state:CurrentClusterState, _) =>
+      val virtualNodes: SortedMap[VNode, Node] = state.members.foldLeft(SortedMap.empty[VNode, Address])((acc, member) =>
+        acc ++ updateVirtualNodes(member))
 
-      stay() 
+      val chains: Map[Int, PreferenceList] = (0 to chainNumber).foldLeft(Map.empty[Bucket, PreferenceList])((acc, chainID) =>
+        acc + (chainID -> hashing.findNodes(chainID * hashing.chainRange , virtualNodes, state.members.size)))
+
+      goto(Running) using CoordinatorData(virtualNodes, chains)
+  }
+
+  when(Running){
+    case Event(MemberUp(m), CoordinatorData(vNodes, chains)) =>
+      log.info(s"[feed], $m added to chain servers")
+      val newvNodes= vNodes ++ updateVirtualNodes(m)
+
+      val chainUpdated = (0 to chainNumber).map(chainID => chainID -> hashing.findNodes(chainID * hashing.chainRange, newvNodes, chainSize))
+
+      val synch: Map[Int, PreferenceList] = (chainUpdated.toSet diff chains.toSet).toMap
+
+      stay() // using CoordinatorData(updvNodes, chainUpdated.map{case (fid, nodes) => fid -> nodes}.toMap)
+
     case Event(MemberRemoved, data) =>
       stay()
     case Event(add@Add(fid,_), data) =>
-      data.fchains.get(fid) match
+      data.chains.get(hashing.findChain(fid)) match
       { 
         case None => sender() ! Right("invalid_fid")
-        case Some(ch) =>  ch.head.tell(add, sender())
+        case Some(ch) =>  //ch.head.tell(add, sender())
       }
       stay()
   }
 
+  def updateVirtualNodes(m:Member): SortedMap[VNode, Address] = {
+    (1 to vnode).map(vnode => {
+      hashing.hash(m.address.hostPort + vnode) -> m.address
+    })(breakOut)
+  }
 }

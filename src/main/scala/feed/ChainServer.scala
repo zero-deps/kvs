@@ -53,6 +53,7 @@ class ChainServer(s: DB) extends FSM[Role, ChainData] with ActorLogging {
       val r = body(batch)
       s.write(batch)
       r
+
     } finally {
       batch.close()
     }

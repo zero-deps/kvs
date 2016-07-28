@@ -6,6 +6,7 @@ import akka.util.ByteString
 import mws.rng.store.PutStatus
 
 import scala.annotation.tailrec
+import scala.collection.SortedSet
 
 package object rng {
   type Bucket = Int
@@ -16,7 +17,7 @@ package object rng {
   type NamedBucketId = String
   type FeedBucket = Bucket
   type Age = (VectorClock, Long)
-  type PreferenceList = Set[Node]
+  type PreferenceList = SortedSet[Node]
 
   //TODO try lm from VectorClock.versions: TreeMap[VectorClock.Node, Long]
   case class Data(key: Key, bucket: Bucket, lastModified: Long, vc: VectorClock, value: Value)
