@@ -17,7 +17,7 @@ package object rng {
   type NamedBucketId = String
   type FeedBucket = Bucket
   type Age = (VectorClock, Long)
-  type PreferenceList = SortedSet[Node]
+  type PreferenceList = Set[Node]
 
   //TODO try lm from VectorClock.versions: TreeMap[VectorClock.Node, Long]
   case class Data(key: Key, bucket: Bucket, lastModified: Long, vc: VectorClock, value: Value)

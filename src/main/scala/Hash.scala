@@ -5,8 +5,7 @@ import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import akka.util.Timeout
 import mws.rng.store._
-import scala.annotation.tailrec
-import scala.collection.SortedMap
+import scala.collection.{SortedMap, SortedSet}
 import scala.concurrent.duration._
 import scala.collection.JavaConversions._
 import scala.collection.breakOut
@@ -220,8 +219,9 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
     }})
   }
 
+  implicit val ord = Ordering.by[Node, String](n => n.hostPort)
   def nodesForKey(k: Key, data: HashRngData): PreferenceList = data.buckets.get(hashing.findBucket(k)) match {
-    case None => Set.empty[Node]
+    case None => SortedSet.empty[Node]
     case Some(nods) => nods
   }
 

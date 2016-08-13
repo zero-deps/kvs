@@ -26,6 +26,7 @@ class HashingImpl(config: Config) extends  Extension {
   def findChain(key: Key): Bucket = (hash(key) / chainRange).abs
 
 
+
   def findNodes(hashKey: Int, vNodes: SortedMap[Bucket, Address], nodesNumber: Int): PreferenceList = {
     @tailrec
     def findBucketNodes(hashK: Int, nodes: PreferenceList): PreferenceList = {
@@ -40,7 +41,8 @@ class HashingImpl(config: Config) extends  Extension {
         case _ => findBucketNodes(hashedNode + 1 , prefList)
       }
     }
-    findBucketNodes(hashKey, SortedSet.empty[Node])
+
+    findBucketNodes(hashKey, Set.empty[Node])
   }
 }
 
