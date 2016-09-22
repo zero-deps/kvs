@@ -5,10 +5,12 @@ import sbt.Keys._
 
 object Versions {
   val scala = "2.11.8"
-  val scalaz = "7.2.2"
+  val scalaz = "7.2.6"
   val pickling = "0.11.0-M2"
-  val akka = "2.3.15"
+  val akka = "2.4.10-12-g84649db"
   val rng = "1.0-203-gdb31852"
+  val xml = "1.0.5"
+  val scalatest = "3.0.0"
 }
 
 object Build extends sbt.Build {
@@ -16,25 +18,21 @@ object Build extends sbt.Build {
     id = "kvs",
     base = file("."),
     settings = Defaults.coreDefaultSettings ++ publishSettings ++ Seq(
-      scalacOptions in Compile ++= Seq("-feature", "-deprecation", "-target:jvm-1.7"),
-      javacOptions in Compile ++= Seq("-source", "1.7", "-target", "1.7"),
+      scalacOptions in Compile ++= Seq("-feature","-deprecation"),
       fork in Test := true,
       libraryDependencies ++= Seq(
         "org.scalaz" %% "scalaz-core" % Versions.scalaz,
-
         ("org.scala-lang.modules" %% "scala-pickling" % Versions.pickling).
           exclude("org.scala-lang.modules","scala-parser-combinators_2.11").
           exclude("org.scala-lang","scala-compiler").
           exclude("org.scala-lang","scala-reflect"),
         ("org.scala-lang" % "scala-compiler" % Versions.scala).
           exclude("org.scala-lang.modules","scala-xml_2.11"),
-        "org.scala-lang.modules" %% "scala-xml" % "1.0.5",
-
-        "com.typesafe.akka" %% "akka-cluster" % Versions.akka % Provided,
+        "org.scala-lang.modules" %% "scala-xml" % Versions.xml,
+        "com.playtech.mws.akka" %% "akka-cluster" % Versions.akka,
         "com.playtech.mws" %% "rng" % Versions.rng,
-
-        "org.scalatest" %% "scalatest" % "2.2.6" % Test,
-        "com.typesafe.akka" %% "akka-testkit" % Versions.akka % Test
+        "org.scalatest" %% "scalatest" % Versions.scalatest % Test,
+        "com.playtech.mws.akka" %% "akka-testkit" % Versions.akka % Test
       )
     )
   )
@@ -52,13 +50,13 @@ object Build extends sbt.Build {
   lazy val resolverSettings = Seq(
     resolvers ++= Seq(
       Resolver.mavenLocal,
-      "MWS Releases Resolver" at "http://ua-mws-nexus01.ee.playtech.corp/nexus/content/repositories/releases/"
+      "releases resolver" at "http://nexus.mobile.playtechgaming.com/nexus/content/repositories/releases"
     )
   )
 
   lazy val publishSettings = Seq(
-    publishTo := Some("MWS Releases" at "http://ua-mws-nexus01.ee.playtech.corp/nexus/content/repositories/releases"),
-    credentials += Credentials("Sonatype Nexus Repository Manager", "ua-mws-nexus01.ee.playtech.corp", "wpl-deployer", "aG1reeshie"),
+    publishTo := Some("releases" at "http://nexus.mobile.playtechgaming.com/nexus/content/repositories/releases"),
+    credentials += Credentials("Sonatype Nexus Repository Manager","nexus.mobile.playtechgaming.com","wpl-deployer","aG1reeshie"),
     publishArtifact := true,
     publishArtifact in Compile := true,
     publishArtifact in Test := false,
