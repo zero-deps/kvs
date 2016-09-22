@@ -1,12 +1,12 @@
 package mws.rng
 
+import akka.cluster.Cluster
+import akka.cluster.ClusterEvent.{CurrentClusterState, MemberUp}
 import akka.remote.testkit.{MultiNodeSpec, MultiNodeSpecCallbacks, MultiNodeConfig}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import com.typesafe.config.ConfigFactory
-import akka.cluster.Cluster
 import akka.util.ByteString
-import akka.cluster.ClusterEvent.CurrentClusterState
-import akka.cluster.ClusterEvent.MemberUp
+
 import scala.concurrent.Await
 import org.iq80.leveldb.util.FileUtils
 import java.io.File
@@ -14,10 +14,10 @@ import scala.concurrent.duration._
 
 object LoadSaveConfig extends MultiNodeConfig {
 	val common_config = ConfigFactory.parseString("""
-		|akka.actor.provider = "akka.cluster.ClusterActorRefProvider"
+			|akka.actor.provider = "akka.cluster.ClusterActorRefProvider"
 	    |akka.remote.log-remote-lifecycle-events = off
 	    |akka.loglevel = "INFO"
-		|akka.stdout-logLevel= "INFO"
+			|akka.stdout-logLevel= "INFO"
 	    |akka.log-dead-letters-during-shutdown = off
 	    |akka.testconductor.barrier-timeout = 40s
 	    |akka.cluster.log-info = on
@@ -26,7 +26,7 @@ object LoadSaveConfig extends MultiNodeConfig {
 	    |akka.cluster.failure-detector.threshold = 8
 	    |akka.cluster.metrics.collector-class = akka.cluster.JmxMetricsCollector
 	    |ring.buckets = 32
-		|ring.virtual-nodes = 8
+			|ring.virtual-nodes = 8
      	|ring.quorum = [2,2,1]""".stripMargin)
 
 	commonConfig(common_config)
@@ -37,10 +37,22 @@ object LoadSaveConfig extends MultiNodeConfig {
 
 	var dump_file_location: Option[String] = None
 
-	nodeConfig(n1)(ConfigFactory.parseString( """|ring.leveldb.dir=data1""".stripMargin))
-  	nodeConfig(n2)(ConfigFactory.parseString( """|ring.leveldb.dir=data2""".stripMargin))
-  	nodeConfig(n3)(ConfigFactory.parseString( """|ring.leveldb.dir=data3""".stripMargin))
-  	nodeConfig(n4)(ConfigFactory.parseString( """|ring.leveldb.dir=data4""".stripMargin))
+		nodeConfig(n1)(ConfigFactory.parseString(
+  """|ring.leveldb.dir=data1
+    |akka.remote.netty.tcp.port = 2556
+  """.stripMargin))
+  	nodeConfig(n2)(ConfigFactory.parseString(
+    """|ring.leveldb.dir=data2
+      |akka.remote.netty.tcp.port = 2557
+    """.stripMargin))
+  	nodeConfig(n3)(ConfigFactory.parseString(
+    """|ring.leveldb.dir=data3
+      |akka.remote.netty.tcp.port = 2558
+    """.stripMargin))
+  	nodeConfig(n4)(ConfigFactory.parseString(
+    """|ring.leveldb.dir=data4
+      |akka.remote.netty.tcp.port = 2559
+    """.stripMargin))
 
 }
 

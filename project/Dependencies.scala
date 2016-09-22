@@ -6,11 +6,11 @@ object Dependencies {
 
   object Versions {
     val scala = "2.11.8"
-    val akka = "2.3.15"
+    val akka = "2.4.10"
   }
 
   object Compile {
-    val cluster = "com.typesafe.akka" %% "akka-cluster" % Versions.akka % Provided
+    val cluster = "com.typesafe.akka" %% "akka-cluster" % Versions.akka
 
     val levelDB       = "org.iq80.leveldb"            % "leveldb"         % "0.7"
     val levelDBNative = "org.fusesource.leveldbjni"   % "leveldbjni-all"  % "1.8"

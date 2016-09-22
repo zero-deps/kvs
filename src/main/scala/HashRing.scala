@@ -1,11 +1,13 @@
 package mws.rng
 
 import java.io.File
+import akka.actor.Actor.Receive
 import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.Timeout
+import feed.{Traverse, Add, ChainCoordinator}
 import org.iq80.leveldb._
 import mws.rng.store.{WriteStore, ReadonlyStore}
 import scala.concurrent.{Await, Future}
@@ -21,6 +23,15 @@ object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
   override def get(system: ActorSystem):HashRing  = super.get(system)
 }
 
+
+class WatchDog extends Actor with  ActorLogging{
+  override def receive: Receive = {
+    case ar: ActorRef =>
+      log.info(s"[WATCH   DOG =>>>>>>] start $ar")
+      context.watch(ar)
+    case Terminated(deadActor) => log.info(s"[WATCH   DOG =>>>>>>]  Terminated $deadActor")
+  }
+}
 class HashRing(val system:ExtendedActorSystem) extends Extension {
   implicit val timeout = Timeout(5.second)
   lazy val log = Logging(system, "hash-ring")
@@ -43,10 +54,11 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     if (nativeLeveldb) org.fusesource.leveldbjni.JniDBFactory.factory
     else org.iq80.leveldb.impl.Iq80DBFactory.factory
 
-  // todo: create system/hashring superviser
   system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
   private val hash = system.actorOf(Props(classOf[Hash]).withDeploy(Deploy.local), name = "ring_hash")
+  private val feedCoordinator = system.actorOf(Props(new ChainCoordinator(leveldb)), name = "coordinator")
+  system.actorOf(Props(classOf[WatchDog]),"watch_dog") ! feedCoordinator
 
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {
     val jmx = new HashRingJmx(this, log)
@@ -79,6 +91,15 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   def load(dumpPath: String): Future[Any] = hash ? LoadDump(dumpPath)
 
   def iterate(dumpPath: String, foreach: (String,Array[Byte])=>Unit): Future[Any] = hash ? IterateDump(dumpPath,foreach)
+
+  def add(fid: String, v: Value) = {
+    log.info(s"[api] add $fid , v = $v, send to $feedCoordinator")
+    feedCoordinator ! fid
+    feedCoordinator ? Add(fid,v)
+  }
+
+  def travers(fid: String, start: Option[String], count: Option[Int]): Future[Either[String,List[Value]]] =
+    (feedCoordinator ? Traverse(fid, start,count)).mapTo[Either[String, List[Value]]]
 
   def isReady: Future[Boolean] = (hash ? Ready).mapTo[Boolean]
 }

@@ -1,10 +1,11 @@
 package mws.rng
 
+
 import akka.actor._
 import mws.rng.store._
 import akka.util.ByteString
 import java.util.Calendar
-import scala.collection.SortedMap
+import scala.collection.{SortedSet, SortedMap}
 import java.io.File
 import java.text.SimpleDateFormat
 import org.iq80.leveldb._
@@ -16,6 +17,7 @@ object DumpWorker {
     def props(buckets: SortedMap[Bucket, PreferenceList], local: Node): Props = Props(new DumpWorker(buckets, local))
 }
 class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extends FSM[FsmState, DumpData] with ActorLogging {
+    implicit val ord = Ordering.by[Node, String](n => n.hostPort)
     val leveldbFactory = HashRing(context.system).leveldbFactory
     val timestamp = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss").format(Calendar.getInstance().getTime())
     val filePath = s"rng_dump_$timestamp"
@@ -23,7 +25,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
     val dumpStore = context.actorOf(Props(classOf[WriteStore], db))
     val stores = SelectionMemorize(context.system)
     val maxBucket = context.system.settings.config.getInt("ring.buckets")
-    startWith(ReadyCollect, DumpData(0, Set.empty[Node], Nil, None, None))
+    startWith(ReadyCollect, DumpData(0, SortedSet.empty[Node], Nil, None, None))
 
     when(ReadyCollect){
         case Event(Dump, state ) =>
