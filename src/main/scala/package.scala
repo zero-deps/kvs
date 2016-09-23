@@ -14,8 +14,6 @@ package object rng {
   type Node = Address
   type Key = String
   type Value = ByteString
-  type NamedBucketId = String
-  type FeedBucket = Bucket
   type Age = (VectorClock, Long)
   type PreferenceList = Set[Node]
 

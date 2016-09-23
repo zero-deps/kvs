@@ -67,14 +67,6 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
       withBatch(batch => { batch.put(bytes(k), bytes(v)) })
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketPut(data) => data map doPut
-    case FeedAppend(fid,v,version) =>
-      val fidBytes= bytes(fid)
-      val feed = fromBytesList(leveldb.get(fidBytes), classOf[List[Value]]).getOrElse(Nil)
-      withBatch(batch => {
-        batch.put(bytes(fidBytes), bytes(v :: feed))
-        batch.put(bytes(s"$fid:version"), bytes(version))
-      })
-      sender() ! feed.size
     case unhandled => log.warning(s"[store]unhandled message: $unhandled")
   }
 

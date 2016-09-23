@@ -6,7 +6,6 @@ import akka.event.Logging
 import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.Timeout
-import feed.{Traverse, Add, ChainCoordinator}
 import org.iq80.leveldb._
 import mws.rng.store.{WriteStore, ReadonlyStore}
 import scala.concurrent.Future
@@ -47,7 +46,6 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
   private val hash = system.actorOf(Props(classOf[Hash]).withDeploy(Deploy.local), name = "ring_hash")
-  private val feedCoordinator = system.actorOf(Props(new ChainCoordinator(leveldb)), name = "coordinator")
 
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {
     val jmx = new HashRingJmx(this, log)
@@ -58,7 +56,7 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   system.registerOnTermination(shutdown())
 
   private[mws] def shutdown():Unit= {
-    jmx foreach {_.unregisterMBean}
+    jmx foreach {_.unregisterMBean()}
     log.info("Hash ring down")
   }
 
@@ -66,29 +64,15 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
     (hash ? Get(key)).mapTo[Option[Value]]
   }
 
-  def put(k: String, v: Value): Future[Ack] = {
-    //TODO create timestamp here from cluster clock
-    (hash ? Put(k, v)).mapTo[Ack]
-  }
+  def put(k: String, v: Value): Future[Ack] = (hash ? Put(k, v)).mapTo[Ack]
 
-  def delete(k: String): Future[Ack] = {
-    (hash ? Delete(k)).mapTo[Ack]
-  }
+  def delete(k: String): Future[Ack] = (hash ? Delete(k)).mapTo[Ack]
 
   def dump(): Future[String] = (hash ? Dump).mapTo[String]
 
   def load(dumpPath: String): Future[Any] = hash ? LoadDump(dumpPath)
 
   def iterate(dumpPath: String, foreach: (String,Array[Byte])=>Unit): Future[Any] = hash ? IterateDump(dumpPath,foreach)
-
-  def add(fid: String, v: Value) = {
-    log.info(s"[api] add $fid , v = $v, send to $feedCoordinator")
-    feedCoordinator ! fid
-    feedCoordinator ? Add(fid,v)
-  }
-
-  def travers(fid: String, start: Option[String], count: Option[Int]): Future[Either[String,List[Value]]] =
-    (feedCoordinator ? Traverse(fid, start,count)).mapTo[Either[String, List[Value]]]
 
   def isReady: Future[Boolean] = (hash ? Ready).mapTo[Boolean]
 }
