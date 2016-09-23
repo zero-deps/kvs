@@ -39,7 +39,11 @@ private[mws] class HashRingJmx(ring:HashRing, log: LoggingAdapter) {
           case AckTimeoutFailed => "failed by timeout"
         }
       }
-      def delete(key:String) = ring.delete(key)
+      def delete(key:String) = {
+        Await.result(ring.delete(key),timeout.duration)match {
+          case res => log.info(s"del rez for k=$key is $res")
+        }
+      }
 
     }
 

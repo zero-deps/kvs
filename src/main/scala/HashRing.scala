@@ -1,7 +1,6 @@
 package mws.rng
 
 import java.io.File
-import akka.actor.Actor.Receive
 import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
@@ -10,7 +9,7 @@ import akka.util.Timeout
 import feed.{Traverse, Add, ChainCoordinator}
 import org.iq80.leveldb._
 import mws.rng.store.{WriteStore, ReadonlyStore}
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
@@ -23,15 +22,6 @@ object HashRing extends ExtensionId[HashRing] with ExtensionIdProvider{
   override def get(system: ActorSystem):HashRing  = super.get(system)
 }
 
-
-class WatchDog extends Actor with  ActorLogging{
-  override def receive: Receive = {
-    case ar: ActorRef =>
-      log.info(s"[WATCH   DOG =>>>>>>] start $ar")
-      context.watch(ar)
-    case Terminated(deadActor) => log.info(s"[WATCH   DOG =>>>>>>]  Terminated $deadActor")
-  }
-}
 class HashRing(val system:ExtendedActorSystem) extends Extension {
   implicit val timeout = Timeout(5.second)
   lazy val log = Logging(system, "hash-ring")
@@ -58,7 +48,6 @@ class HashRing(val system:ExtendedActorSystem) extends Extension {
   system.actorOf(FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
   private val hash = system.actorOf(Props(classOf[Hash]).withDeploy(Deploy.local), name = "ring_hash")
   private val feedCoordinator = system.actorOf(Props(new ChainCoordinator(leveldb)), name = "coordinator")
-  system.actorOf(Props(classOf[WatchDog]),"watch_dog") ! feedCoordinator
 
   if (clusterConfig.getBoolean("jmx.enabled")) jmx = {
     val jmx = new HashRingJmx(this, log)
