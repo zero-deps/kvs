@@ -1,0 +1,49 @@
+\subsection{JMX interfases }
+KVS application registers MBeans called Kvs and Ring. MBean is object that simlular to JavaBean that represent resourse
+that can be management using JMX techlology.
+The Java Management Extensions (JMX) technology is a part of Java Platform that gives abillity to manage aplication remotely.
+In order to connect to Kvs MBean you can use standart application as jconsole that provided with JDK and located in
+ $JDK_HOME/bin, or others  that complies to the JMX specification.
+
+
+\paragraph{KVS JMX interfase}
+\begin{Methods}
+
+\item [Read all feed as string]
+allStr(fid:String):String
+
+\item [Export all data]
+def save():String
+
+
+Current version of KVS using RNG application as backend layer. As far as RNG is distrebuted data store it's not possible
+to backup or migrate data form server to server only with copy-past dirrectory with persisted data. Even more any copy
+of RNG's data will has no any sense becase data in RNG storage is partitioned and particular node can be asquered only for
+defined range of keys in store, and in case
+
+RNG become readonly to keep consistency.
+
+\item [Load file]
+def load(path:String):Any
+
+During loading alse readonly. Data from loaded file has higher priority compare to already stored. KVS become readable
+and writeable when loading is finished.
+Quorum should be satisfied otherwise data iterated and ignored on write opperation. This condition can be checked by comparing
+ W property from quorum configuration and currently reachable nodes in cluster.
+ Important note that loading of file that was created on differ version of services can lead to broken data. It's caused
+  because RNG persist data in bytes so all entities that serilisated before saving goes throught serialisation-deserialisation.
+  That's why KVS not supported compatability between differ version of schema.
+
+\end
+
+
+\paragraph{RNG JMX interfase}
+\begin{Methods}
+\item
+def get(key:String): String
+\item
+  def put(key:String, data: String):String
+\item
+def delete(key:String):Unit
+\end
+
