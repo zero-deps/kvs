@@ -13,7 +13,7 @@ To reach fault tolerance and scalability ring resolve next problems:
           \item[Problems:]  Technique
           \item[Membership and failure detection: ]  reused akka's membership events that uses gossip for communication. FD also reused from akka.
           \item[Data partitioning:]   consistent hashing.
-          \item[High availability to wright:]   vector clocks.
+          \item[High availability to wright:]   vector clocks increase number of write opperation to merge data on read opperation.
           \item[Handling nodes failures:] gossip protocol.
 
 \end{description}
