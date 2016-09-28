@@ -8,7 +8,6 @@ object Versions {
   val scalaz = "7.2.6"
   val pickling = "0.11.0-M2"
   val akka = "2.4.10-12-g84649db"
-  val rng = "1.0-203-gdb31852"
   val xml = "1.0.5"
   val scalatest = "3.0.0"
 }
@@ -30,7 +29,6 @@ object Build extends sbt.Build {
           exclude("org.scala-lang.modules","scala-xml_2.11"),
         "org.scala-lang.modules" %% "scala-xml" % Versions.xml,
         "com.playtech.mws.akka" %% "akka-cluster" % Versions.akka,
-        "com.playtech.mws" %% "rng" % Versions.rng,
         "org.scalatest" %% "scalatest" % Versions.scalatest % Test,
         "com.playtech.mws.akka" %% "akka-testkit" % Versions.akka % Test
       )
