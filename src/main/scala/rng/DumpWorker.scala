@@ -2,6 +2,7 @@ package mws.rng
 
 
 import akka.actor._
+import mws.kvs.store.Ring
 import mws.rng.store._
 import akka.util.ByteString
 import java.util.Calendar
@@ -18,10 +19,10 @@ object DumpWorker {
 }
 class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extends FSM[FsmState, DumpData] with ActorLogging {
     implicit val ord = Ordering.by[Node, String](n => n.hostPort)
-    val leveldbFactory = HashRing(context.system).leveldbFactory
+
     val timestamp = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss").format(Calendar.getInstance().getTime())
     val filePath = s"rng_dump_$timestamp"
-    val db = leveldbFactory.open(new File(filePath), new Options().createIfMissing(true))
+    val db = Ring.openLeveldb(context.system, Some(filePath))
     val dumpStore = context.actorOf(Props(classOf[WriteStore], db))
     val stores = SelectionMemorize(context.system)
     val maxBucket = context.system.settings.config.getInt("ring.buckets")
@@ -76,11 +77,11 @@ object LoadDumpWorker {
     def props(path: String): Props = Props(new LoadDumpWorker(path))
 }
 class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
-    val leveldbFactory = HashRing(context.system).leveldbFactory
     import mws.rng.arch.Archiver._
     val extraxtedDir = path.dropRight(".zip".length)
     unZipIt(path, extraxtedDir)
-    val dumpDb = leveldbFactory.open(new File(extraxtedDir), new Options().createIfMissing(false))
+
+    val dumpDb = Ring.openLeveldb(context.system, Some(extraxtedDir))
     val store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
     val stores = SelectionMemorize(context.system)
     startWith(ReadyCollect, None)
@@ -113,11 +114,11 @@ object IterateDumpWorker {
     def props(path: String, foreach: (String,Array[Byte])=>Unit): Props = Props(new IterateDumpWorker(path,foreach))
 }
 class IterateDumpWorker(path: String, foreach: (String,Array[Byte])=>Unit) extends FSM[FsmState,Option[ActorRef]] with ActorLogging {
-    val leveldbFactory = HashRing(context.system).leveldbFactory
     import mws.rng.arch.Archiver._
     val extraxtedDir = path.dropRight(".zip".length)
+
     unZipIt(path, extraxtedDir)
-    val dumpDb = leveldbFactory.open(new File(extraxtedDir), new Options().createIfMissing(false))
+    val dumpDb = Ring.openLeveldb(context.system,Some(extraxtedDir))
     val store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
     val stores = SelectionMemorize(context.system)
     startWith(ReadyCollect, None)

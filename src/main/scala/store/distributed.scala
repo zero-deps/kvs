@@ -11,16 +11,31 @@ import org.iq80.leveldb.{CompressionType, Options}
 import akka.pattern.ask
 import scala.concurrent.duration._
 import scala.util._
-import akka.actor.{Deploy, Props, ExtendedActorSystem}
+import akka.actor.{ActorSystem, Deploy, Props}
 import akka.util.{Timeout, ByteString}
 import scala.concurrent.{Await, Future}
 import mws.rng._
 
 object Ring {
-  def apply(system: ExtendedActorSystem): Dba = new Ring(system)
+  def apply(system: ActorSystem): Dba = new Ring(system)
+
+  def openLeveldb(s: ActorSystem, path: Option[String]= None) = {
+    val config = s.settings.config.getConfig("ring.leveldb")
+    val nativeLeveldb: Boolean = sys.props.get("os.name") match {
+      case Some(os) if os.startsWith("Windows") => false //Forcing usage of Java ported LevelDB for Windows OS"
+      case _ => config.getBoolean("native")
+    }
+    val leveldbOptions = new Options().createIfMissing(true)
+    val leveldbDir = new File(path.getOrElse(config.getString("dir")))
+    val factory = if (nativeLeveldb) org.fusesource.leveldbjni.JniDBFactory.factory
+
+    else org.iq80.leveldb.impl.Iq80DBFactory.factory
+      factory.open(leveldbDir, if (nativeLeveldb) leveldbOptions else leveldbOptions.compressionType(CompressionType.NONE))
+  }
 }
 
-class Ring(system: ExtendedActorSystem) extends Dba {
+class Ring(system: ActorSystem) extends Dba {
+  import Ring._
   lazy val log = Logging(system, "hash-ring")
   implicit val timeout = Timeout(5.second)
   val d = Duration(5, TimeUnit.SECONDS)
@@ -28,20 +43,8 @@ class Ring(system: ExtendedActorSystem) extends Dba {
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
   system.eventStream
 
-  val config = system.settings.config.getConfig("ring.leveldb")
-  val nativeLeveldb:Boolean = sys.props.get("os.name") match {
-    case Some(os) if os.startsWith("Windows") =>
-      log.info("Forcing usage of Java ported LevelDB for Windows OS"); false
-    case _ => config.getBoolean("native")
-  }
+  var leveldb = openLeveldb(system)
 
-  val leveldbOptions = new Options().createIfMissing(true)
-  val leveldbDir = new File(config.getString("dir"))
-  var leveldb = leveldbFactory.open(leveldbDir, if (nativeLeveldb) leveldbOptions else leveldbOptions.compressionType(CompressionType.NONE))
-
-  def leveldbFactory =
-    if (nativeLeveldb) org.fusesource.leveldbjni.JniDBFactory.factory
-    else org.iq80.leveldb.impl.Iq80DBFactory.factory
   system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
 
