@@ -13,9 +13,8 @@ import scala.concurrent.duration._
 import scala.util._
 import akka.actor.{Deploy, Props, ExtendedActorSystem}
 import akka.util.{Timeout, ByteString}
-import mws.rng._
-
 import scala.concurrent.{Await, Future}
+import mws.rng._
 
 object Ring {
   def apply(system: ExtendedActorSystem): Dba = new Ring(system)

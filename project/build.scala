@@ -10,6 +10,8 @@ object Versions {
   val akka = "2.4.10-12-g84649db"
   val xml = "1.0.5"
   val scalatest = "3.0.0"
+  val levelDB = "0.7"
+  val levelDBNative = "1.8"
 }
 
 object Build extends sbt.Build {
@@ -29,6 +31,8 @@ object Build extends sbt.Build {
           exclude("org.scala-lang.modules","scala-xml_2.11"),
         "org.scala-lang.modules" %% "scala-xml" % Versions.xml,
         "com.playtech.mws.akka" %% "akka-cluster" % Versions.akka,
+        "org.iq80.leveldb" % "leveldb" % Versions.levelDB,
+        "org.fusesource.leveldbjni"   % "leveldbjni-all" % Versions.levelDBNative,
         "org.scalatest" %% "scalatest" % Versions.scalatest % Test,
         "com.playtech.mws.akka" %% "akka-testkit" % Versions.akka % Test
       )
