@@ -42,7 +42,10 @@ minimum number of nodes that must participate in a successful read operation. W 
 N is a preference list, the max number of nodes that can be participated in operation. Also quorum can configure balance of latency
 for read and write operation.
  In order to keep data strongly consistent configuration should obey rules:
- 1) R + W > N
- 2) W > V/2
+ \begin{lstlisting}[language=bash]
+  1) R + W > N
+  2) W > V/2
+ \end{lstlisting}
+
 
 

@@ -1,13 +1,13 @@
-\subsection{Datastore JMX interface}
+\section{Datastore JMX interface}
 KVS application registers MBeans called Kvs and Ring. MBean is object that simlular to JavaBean that represent resourse
 that can be management using JMX techlology.
 The Java Management Extensions (JMX) technology is a part of Java Platform that gives abillity to manage aplication remotely.
 In order to connect to Kvs MBean you can use standart application as jconsole that provided with JDK and located in
- $JDK_HOME/bin, or others  that complies to the JMX specification.
+\$JDK_HOME/bin, or others  that complies to the JMX specification.
 
 
 \paragraph{KVS JMX interfase}
-\begin{Methods}
+\begin{description}
 
 \item [Read all feed as string]
 allStr(fid:String):String
@@ -26,7 +26,7 @@ Use save method to merge data from all nodes. This method returns path to zip fi
 Kvs:save
 \end{lstlisting}
 
-Be aware that RNG become read only after save trigger in order to keep consistency. When archive will composed RNG become writable and
+Be aware that RNG become readonly after save trigger in order to keep consistency. When archive will composed RNG become writable and
 readable again.
 
 \item [Load file]
@@ -45,21 +45,21 @@ Be sure that quorum write configuration should be satisfied otherwise data will 
   because RNG persist data in bytes so all entities that serilisated before saving goes throught serialisation - deserialisation .
   That's why KVS not supported compatability between differ version of schema.
 
-\end
+\end{description}
 
 \paragraph{RNG JMX interfase}
 RNG JMX interface is not for production usage. As far as RNG is lowest level of application, it's not aware about data schema and works
 only with arrays of Byte. Those method can be used only if caller aware about data schema and keys composition.
 
-\begin{Methods}
+\begin{description}
 \item
 [Ring:get(key:String): String]
 Get value by key.
 \item
   [Ring:put(key:String, data: String):String]
-  This method has only value only for testing. Put value associated with key.
+  This method has value only for testing. Put value associated with key.
 \item
 [Ring:delete(key:String):Unit]
 Delete value associated with key.
-\end
+\end{description}
 
