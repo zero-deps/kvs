@@ -1,4 +1,4 @@
-\subsection{JMX interfases }
+\subsection{Datastore JMX interface}
 KVS application registers MBeans called Kvs and Ring. MBean is object that simlular to JavaBean that represent resourse
 that can be management using JMX techlology.
 The Java Management Extensions (JMX) technology is a part of Java Platform that gives abillity to manage aplication remotely.
@@ -15,37 +15,51 @@ allStr(fid:String):String
 Return string representation of all entities in spesified feed.
 
 \item [Export all data]
-def save():String
 
+Current version of KVS using RNG application as backend layer. As far as RNG is distributed data store it's not possible
+to backup or migrate data form server to server only with copy-past directory with persisted data. Even more any copy
+of RNG's data will has no any sense becase data in RNG storage is partitioned and particular node can be acquired only for
+defined range of keys in store (approximately equals N from quorum configuration divided by  number of reachable nodes).
+Use save method to merge data from all nodes. This method returns path to zip file with dump.
 
-Current version of KVS using RNG application as backend layer. As far as RNG is distrebuted data store it's not possible
-to backup or migrate data form server to server only with copy-past dirrectory with persisted data. Even more any copy
-of RNG's data will has no any sense becase data in RNG storage is partitioned and particular node can be asquered only for
-defined range of keys in store, and in case
+\begin{lstlisting}[language=bash]
+Kvs:save
+\end{lstlisting}
 
-RNG become readonly to keep consistency.
+Be aware that RNG become read only after save trigger in order to keep consistency. When archive will composed RNG become writable and
+readable again.
 
 \item [Load file]
-def load(path:String):Any
+Archive from save operation can be loaded to application with load method.
 
-During loading alse readonly. Data from loaded file has higher priority compare to already stored. KVS become readable
-and writeable when loading is finished.
-Quorum should be satisfied otherwise data iterated and ignored on write opperation. This condition can be checked by comparing
+\begin{lstlisting}[language=bash]
+Kvs:load(path)
+\end{lstlisting}
+
+
+After load opperation triggered, RNG state become readonly. Data from loaded file has higher priority compare to already stored.
+KVS become readable and writeable when loading is finished.
+Be sure that quorum write configuration should be satisfied otherwise data will be ignored on write opperation. This condition can be checked by comparing
  W property from quorum configuration and currently reachable nodes in cluster.
  Important note that loading of file that was created on differ version of services can lead to broken data. It's caused
-  because RNG persist data in bytes so all entities that serilisated before saving goes throught serialisation-deserialisation.
+  because RNG persist data in bytes so all entities that serilisated before saving goes throught serialisation - deserialisation .
   That's why KVS not supported compatability between differ version of schema.
 
 \end
 
-
 \paragraph{RNG JMX interfase}
+RNG JMX interface is not for production usage. As far as RNG is lowest level of application, it's not aware about data schema and works
+only with arrays of Byte. Those method can be used only if caller aware about data schema and keys composition.
+
 \begin{Methods}
 \item
-def get(key:String): String
+[Ring:get(key:String): String]
+Get value by key.
 \item
-  def put(key:String, data: String):String
+  [Ring:put(key:String, data: String):String]
+  This method has only value only for testing. Put value associated with key.
 \item
-def delete(key:String):Unit
+[Ring:delete(key:String):Unit]
+Delete value associated with key.
 \end
 
