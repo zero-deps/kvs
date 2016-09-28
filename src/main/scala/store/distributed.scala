@@ -3,17 +3,18 @@ package store
 
 import java.io.File
 import java.util.concurrent.TimeUnit
+
 import akka.event.Logging
 import akka.routing.FromConfig
 import mws.rng.store.{ReadonlyStore, WriteStore}
 import org.iq80.leveldb.{CompressionType, Options}
 import akka.pattern.ask
-
+import scala.concurrent.duration._
 import scala.util._
 import akka.actor.{Deploy, Props, ExtendedActorSystem}
-import akka.util.ByteString
+import akka.util.{Timeout, ByteString}
 import mws.rng._
-import scala.concurrent.duration.Duration
+
 import scala.concurrent.{Await, Future}
 
 object Ring {
@@ -22,6 +23,7 @@ object Ring {
 
 class Ring(system: ExtendedActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")
+  implicit val timeout = Timeout(5.second)
   val d = Duration(5, TimeUnit.SECONDS)
 
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
