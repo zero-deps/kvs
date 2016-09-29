@@ -2,49 +2,38 @@ package mws.rng
 
 import java.lang.management.ManagementFactory
 import javax.management.{InstanceAlreadyExistsException, InstanceNotFoundException, ObjectName, StandardMBean}
+import mws.kvs.store.Ring
 import scala.language.postfixOps
-import scala.concurrent.Await
-import scala.concurrent.duration._
 import akka.event.LoggingAdapter
-import akka.util.{ByteString, Timeout}
 
 /** JMX cient */
 trait HashRingMBean {
   def get(key:String): String
   def put(key:String, data: String):String
-  def delete(key:String):Unit
+  def delete(key:String):String
 }
 
-private[mws] class HashRingJmx(ring:HashRing, log: LoggingAdapter) {
+private[mws] class HashRingJmx(ring:Ring, log: LoggingAdapter) {
   private val server = ManagementFactory.getPlatformMBeanServer
   private val name = new ObjectName("akka:type=Store")
-  implicit val timeout = Timeout(3 seconds)
 
   def createMBean() = {
     val mbean = new StandardMBean(classOf[HashRingMBean]) with HashRingMBean {
 
-      def get(key: String) = {
-        val value = Await.result(ring.get(key), timeout.duration)
-        log.info(s"val for $key -> $value")
-        value match {
-          case Some(byteStr) => new String(byteStr.toArray)
-          case None => "not_present"
-        }
+      def get(key: String): String = ring.get(key) match {
+        case Right(byteStr) => new String(byteStr.toArray)
+        case _ => "not_present"
       }
 
-      def put(key: String, value: String): String = {
-        Await.result(ring.put(key, ByteString(value)),timeout.duration) match {
-          case AckSuccess => "ok"
-          case AckQuorumFailed => "quorum failed"
-          case AckTimeoutFailed => "failed by timeout"
-        }
-      }
-      def delete(key:String) = {
-        Await.result(ring.delete(key),timeout.duration)match {
-          case res => log.info(s"del rez for k=$key is $res")
-        }
+      def put(key: String, value: String): String = ring.put(key, value.getBytes) match {
+          case Right(_) => "ok"
+          case Left(e) => s"$e"
       }
 
+      def delete(key:String) = ring.delete(key)match {
+          case Right(_) => "ok"
+          case Left(e) => s"error: $e"
+      }
     }
 
     try {
