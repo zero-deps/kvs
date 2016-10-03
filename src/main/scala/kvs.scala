@@ -4,7 +4,7 @@ import scala.util._
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import akka.actor.{ExtendedActorSystem,Extension,ExtensionKey}
+import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionKey}
 
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionKey[Kvs] {
@@ -21,7 +21,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   val feeds = cfg.getStringList("kvs.feeds").toList
 
   implicit val dba = system.dynamicAccess.createInstanceFor[Dba](store,
-    List(classOf[ExtendedActorSystem]->system)).get
+    List(classOf[ActorSystem]->system)).get
 
   if (cfg.getBoolean("akka.cluster.jmx.enabled")) {
     val jmx = new KvsJmx(this,system)
