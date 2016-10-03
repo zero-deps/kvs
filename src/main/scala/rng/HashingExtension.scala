@@ -10,9 +10,8 @@ import scala.collection.{SortedSet, SortedMap}
 class HashingImpl(config: Config) extends  Extension {
   val hashLen = config.getInt("hashLength")
   val bucketsNum = config.getInt("buckets")
-  val chainNumber = config.getInt("chain.number")
   val bucketRange = (math.pow(2, hashLen) / bucketsNum).ceil.toInt
-  val chainRange =  (math.pow(2, hashLen) / chainNumber).ceil.toInt
+
 
   def hash(word: String): Int = {
     implicit val digester = MessageDigest.getInstance("MD5")
@@ -23,9 +22,6 @@ class HashingImpl(config: Config) extends  Extension {
   }
 
   def findBucket(key: Key): Bucket = (hash(key) / bucketRange).abs
-  def findChain(key: Key): Bucket = (hash(key) / chainRange).abs
-
-
 
   def findNodes(hashKey: Int, vNodes: SortedMap[Bucket, Address], nodesNumber: Int): PreferenceList = {
     @tailrec
