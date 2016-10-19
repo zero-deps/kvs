@@ -46,7 +46,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   def load(path:String):Option[Any] = Try(Await.result(dba.load(path),dump_timeout)).toOption
   def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Option[Any] = Try(Await.result(dba.iterate(path,foreach),dump_timeout)).toOption
 
-  def onReady[T](body: =>T):Future[T] = {
+  def onReady[T](body: =>Unit):Unit = {
     import scala.language.postfixOps
     import scala.concurrent.Promise
     import scala.concurrent.duration._
@@ -61,7 +61,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
             // make sure that dba is ready 5 times in the row
             if (count > 4) {
               log.info("KVS is ready")
-              p success body
+              body
             } else {
               log.info(s"KVS isn't ready yet...")
               count = count + 1
@@ -74,7 +74,6 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
         }
       }
     loop()
-    p.future
   }
 
   def close():Unit = dba.close()
