@@ -4,7 +4,7 @@ package handle
 import store._
 
 trait FdHandler extends Pickler[Fd] {
-  import scala.pickling._,Defaults._,binary._,static._
+  import scala.pickling._,Defaults._,binary._
   def pickle(e:Fd):Array[Byte] = e.pickle.value
   def unpickle(a:Array[Byte]):Fd = a.unpickle[Fd]
 

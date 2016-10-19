@@ -3,34 +3,25 @@ package store
 
 import java.io.File
 import java.util.concurrent.TimeUnit
-
-import akka.event.Logging
-import akka.routing.FromConfig
-import mws.rng.store.{ReadonlyStore, WriteStore}
-import org.iq80.leveldb.{CompressionType, Options}
-import akka.pattern.ask
+import scala.concurrent.{Await,Future}
 import scala.concurrent.duration._
 import scala.util._
-import akka.actor.{ActorSystem, Deploy, Props}
-import akka.util.{Timeout, ByteString}
-import scala.concurrent.{Await, Future}
+import akka.event.Logging
+import akka.routing.FromConfig
+import akka.pattern.ask
+import akka.actor.{ActorSystem,Deploy,Props}
+import akka.util.{Timeout,ByteString}
 import mws.rng._
+import mws.rng.store.{ReadonlyStore,WriteStore}
 
 object Ring {
   def apply(system: ActorSystem): Dba = new Ring(system)
 
   def openLeveldb(s: ActorSystem, path: Option[String]= None) = {
     val config = s.settings.config.getConfig("ring.leveldb")
-    val nativeLeveldb: Boolean = sys.props.get("os.name") match {
-      case Some(os) if os.startsWith("Windows") => false //Forcing usage of Java ported LevelDB for Windows OS"
-      case _ => config.getBoolean("native")
-    }
-    val leveldbOptions = new Options().createIfMissing(true)
     val leveldbDir = new File(path.getOrElse(config.getString("dir")))
-    val factory = if (nativeLeveldb) org.fusesource.leveldbjni.JniDBFactory.factory
-
-    else org.iq80.leveldb.impl.Iq80DBFactory.factory
-      factory.open(leveldbDir, if (nativeLeveldb) leveldbOptions else leveldbOptions.compressionType(CompressionType.NONE))
+    val leveldbOptions = new org.iq80.leveldb.Options().createIfMissing(true)
+    org.fusesource.leveldbjni.JniDBFactory.factory.open(leveldbDir,leveldbOptions)
   }
 }
 

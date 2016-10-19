@@ -14,7 +14,7 @@ object EnHandlerTest {
   final case class FeedEntry(string:String,twoDimVector:Vector[Vector[(String,String)]],anotherVector:Vector[String])
 
   implicit object FeedEntryEnHandler extends EnHandler[FeedEntry] {
-    import scala.pickling._,Defaults._,binary._,static._,shareNothing._
+    import scala.pickling._,Defaults._,binary._
     def pickle(e: En[FeedEntry]): Array[Byte] = e.pickle.value
     def unpickle(a: Array[Byte]): En[FeedEntry] = a.unpickle[En[FeedEntry]]
   }

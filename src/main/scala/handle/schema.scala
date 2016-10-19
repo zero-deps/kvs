@@ -3,7 +3,7 @@ package handle
 
 import scala.language.{higherKinds,implicitConversions}
 import scalaz._, Scalaz._, Tags._
-import scala.pickling._, binary._, Defaults._, static._
+import scala.pickling._, binary._, Defaults._
 
 /**
   * Schema is the set of entry markers and specific tagged handlers.

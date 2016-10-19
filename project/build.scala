@@ -4,14 +4,13 @@ import sbt._
 import sbt.Keys._
 
 object Versions {
-  val scala = "2.11.8"
+  val scala = "2.12.0-RC2"
   val scalaz = "7.2.6"
-  val pickling = "0.11.0-M2"
-  val akka = "2.4.10-12-g84649db"
+  val pickling = "0.11.0-M2-10-g979455a"
+  val akka = "2.4.11-19-g8520080"
   val xml = "1.0.5"
   val scalatest = "3.0.0"
-  val levelDB = "0.7"
-  val levelDBNative = "1.8"
+  val leveldb = "1.8"
 }
 
 object Build extends sbt.Build {
@@ -19,20 +18,15 @@ object Build extends sbt.Build {
     id = "kvs",
     base = file("."),
     settings = Defaults.coreDefaultSettings ++ publishSettings ++ Seq(
-      scalacOptions in Compile ++= Seq("-feature","-deprecation"),
+      scalacOptions in Compile ++= Seq("-feature","-deprecation"/*,"-Xlog-implicits"*/),
       fork in Test := true,
       libraryDependencies ++= Seq(
         "org.scalaz" %% "scalaz-core" % Versions.scalaz,
-        ("org.scala-lang.modules" %% "scala-pickling" % Versions.pickling).
-          exclude("org.scala-lang.modules","scala-parser-combinators_2.11").
-          exclude("org.scala-lang","scala-compiler").
-          exclude("org.scala-lang","scala-reflect"),
-        ("org.scala-lang" % "scala-compiler" % Versions.scala).
-          exclude("org.scala-lang.modules","scala-xml_2.11"),
+        "com.playtech.mws" %% "scala-pickling" % Versions.pickling,
+        "org.scala-lang" % "scala-compiler" % Versions.scala,
         "org.scala-lang.modules" %% "scala-xml" % Versions.xml,
         "com.playtech.mws.akka" %% "akka-cluster" % Versions.akka,
-        "org.iq80.leveldb" % "leveldb" % Versions.levelDB,
-        "org.fusesource.leveldbjni"   % "leveldbjni-all" % Versions.levelDBNative,
+        "org.fusesource.leveldbjni" % "leveldbjni-all" % Versions.leveldb,
         "org.scalatest" %% "scalatest" % Versions.scalatest % Test,
         "com.playtech.mws.akka" %% "akka-testkit" % Versions.akka % Test
       )

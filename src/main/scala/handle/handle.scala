@@ -28,17 +28,17 @@ object Handler {
    * The basic feed/entry handlers with scala-pickling serialization
    */
   implicit object strEnHandler extends EnHandler[String]{
-    import scala.pickling._,Defaults._,binary._,static._
+    import scala.pickling._,Defaults._,binary._
     def pickle(e:En[String]) = e.pickle.value
     def unpickle(a:Array[Byte]) = a.unpickle[En[String]]
   }
   implicit object strTuple2EnHandler extends EnHandler[(String,String)]{
-    import scala.pickling._,Defaults._,binary._,static._
+    import scala.pickling._,Defaults._,binary._
     def pickle(e:En[(String,String)]): Array[Byte] = e.pickle.value
     def unpickle(a: Array[Byte]): En[(String,String)] = a.unpickle[En[(String,String)]]
   }
   implicit object strTuple3Handler extends EnHandler[(String,String,String)]{
-    import scala.pickling._,Defaults._,binary._,static._
+    import scala.pickling._,Defaults._,binary._
     def pickle(e:En[(String,String,String)]): Array[Byte] = e.pickle.value
     def unpickle(a: Array[Byte]): En[(String,String,String)] = a.unpickle[En[(String,String,String)]]
   }
