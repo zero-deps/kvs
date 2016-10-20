@@ -7,8 +7,10 @@ import akka.util.Timeout
 import mws.rng.store._
 import scala.collection.{SortedMap, SortedSet}
 import scala.concurrent.duration._
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.collection.breakOut
+
+import com.typesafe.config.Config
 
 sealed class APIMessage
 //kvs
@@ -40,9 +42,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
   implicit val timeout = Timeout(5.second)
 
-  val config = system.settings.config.getConfig("ring")
+  val config:Config = system.settings.config.getConfig("ring")
   log.info(s"Ring configuration: ")
-  for (c <- config.entrySet()) {
+  for (c <- config.entrySet().asScala) {
     log.info(s"${c.getKey} = ${c.getValue.render()}")
   }
 

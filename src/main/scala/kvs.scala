@@ -12,13 +12,13 @@ object Kvs extends ExtensionKey[Kvs] {
   override def createExtension(system:ExtendedActorSystem):Kvs = new Kvs(system)
 }
 class Kvs(system:ExtendedActorSystem) extends Extension {
-  import scala.collection.JavaConversions._
+  import scala.collection.JavaConverters._
   import mws.kvs.store._
   import handle._
 
   val cfg = system.settings.config
   val store = cfg.getString("kvs.store")
-  val feeds = cfg.getStringList("kvs.feeds").toList
+  val feeds:List[String] = cfg.getStringList("kvs.feeds").asScala.toList
 
   implicit val dba = system.dynamicAccess.createInstanceFor[Dba](store,
     List(classOf[ActorSystem]->system)).get
