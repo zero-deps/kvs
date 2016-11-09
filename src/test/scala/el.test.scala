@@ -11,7 +11,7 @@ class ElHandlerTest extends TestKit(ActorSystem("Test"))
   with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
   val kvs = Kvs(system)
-  Await.ready(kvs.onReady{},Duration("1 min"))
+  //Await.ready(kvs.onReady{},Duration("1 min"))
 
   override def afterAll = TestKit.shutdownActorSystem(system)
 

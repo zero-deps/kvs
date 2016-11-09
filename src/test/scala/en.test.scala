@@ -26,7 +26,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
   import EnHandlerTest._
 
   val kvs = Kvs(system)
-  Await.ready(kvs.onReady{},Duration("1 min"))
+  //Await.ready(kvs.onReady{},Duration("1 min"))
 
   val mod = 50
   def entry(n:Int):EnType = En(fid,s"$n",FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))

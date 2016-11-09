@@ -13,11 +13,11 @@ object EnHandler {
     def unpickle(a: Array[Byte]): En[A] = en_S_to_En_A(h.unpickle(a))
 
     private val en_A_to_En_S: En[A]=>En[S] = {
-      case En(fid,id,prev,next,data) => En[S](fid,id,prev,next,f(data))
+      case En(fid,id,prev,data) => En[S](fid,id,prev,f(data))
     }
 
     private val en_S_to_En_A: En[S]=>En[A] = {
-      case En(fid,id,prev,next,data) => En[A](fid,id,prev,next,g(data))
+      case En(fid,id,prev,data) => En[A](fid,id,prev,g(data))
     }
   }
 }
@@ -27,7 +27,6 @@ object EnHandler {
  * Since we don't know the exact type the pickler/unpickler still needs to be provided explicitly
  *
  *               top -prev-> el -prev-> empty
- * empty <-next- top <-next- el
  */
 trait EnHandler[T] extends Handler[En[T]] {
   import Handler._
@@ -41,7 +40,7 @@ trait EnHandler[T] extends Handler[En[T]] {
   /**
    * Adds the entry to the container
    * Creates the container if it's absent
-   * @param el entry to add (prev/next is ignored)
+   * @param el entry to add (prev is ignored)
    */
   def add(el: En[T])(implicit dba: Dba): Res[En[T]] = {
     fh.get(Fd(el.fid)).left.map {
@@ -51,24 +50,11 @@ trait EnHandler[T] extends Handler[En[T]] {
       get(el.fid,el.id).fold(
         l =>
           // add new entry with prev pointer
-          put(el.copy(prev=fd.top,next=empty)).right.map { added =>
-            fd.top match {
-              case `empty` =>
-                // feed is empty
-                // update feed's top
-                fh.put(fd.copy(top=el.id)) match {
-                  case Right(_) => Right(added)
-                  case Left(err) => Left(err)
-                }
-              case old_top =>
-                // set next pointer for old top
-                get(el.fid, old_top).right.map(old_top => put(old_top.copy(next=el.id)).right.map{_ =>
-                  // update feed's top
-                  fh.put(fd.copy(top=el.id)) match {
-                    case Right(_) => Right(added)
-                    case Left(err) => Left(err)
-                  }
-                }.joinRight).joinRight
+          put(el.copy(prev=fd.top)).right.map { added =>
+            // update feed's top
+            fh.put(fd.copy(top=el.id)) match {
+              case Right(_) => Right(added)
+              case Left(err) => Left(err)
             }
           }.joinRight,
         r => Left(s"entry ${el.id} exist in ${el.fid}")
@@ -78,33 +64,19 @@ trait EnHandler[T] extends Handler[En[T]] {
 
   /**
    * Remove the entry from the container specified
-   * @param el entry to remove (prev/next/data is ignored)
+   * @param el entry to remove (prev/data is ignored)
    * @return deleted entry (with data)
    */
   def remove(el: En[T])(implicit dba: Dba): Res[En[T]] = {
-    def `change next pointer of 'prev'`(el:En[T]):Res[En[T]] = el.prev match {
-      case `empty` =>
-        `change prev pointer of 'next'`(el)
-      case prev =>
-        get(el.fid,prev).right.map(prev=>put(prev.copy(next=el.next)).right.map{_ =>
-          `change prev pointer of 'next'`(el)
-        }.joinRight).joinRight
-    }
-    def `change prev pointer of 'next'`(el:En[T]):Res[En[T]] = el.next match {
-      case `empty` =>
-        `change top`(el)
-      case next =>
-        get(el.fid,next).right.map(next=>put(next.copy(prev=el.prev)).right.map{_ =>
-          `delete entry`(el)
-        }.joinRight).joinRight
-    }
     def `change top`(el:En[T]):Res[En[T]] =
       fh.get(Fd(el.fid)).right.map(fd=>fh.put(fd.copy(top=el.prev)).right.map{_ =>
         `delete entry`(el)
       }.joinRight).joinRight
+
     def `delete entry`(el:En[T]):Res[En[T]] = delete(el.fid,el.id)
+
     // entry must exist
-    get(el.fid,el.id).right.map(`change next pointer of 'prev'`).joinRight
+    get(el.fid,el.id).right.map(`change top`).joinRight
   }
 
   /**
