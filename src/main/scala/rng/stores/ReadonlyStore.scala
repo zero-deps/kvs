@@ -29,7 +29,8 @@ class ReadonlyStore(leveldb: DB ) extends Actor with ActorLogging {
   override def receive: Receive = {
     case StoreGet(key) =>
       fromBytesList(leveldb.get(bytes(s"${hashing.findBucket(key)}:key:$key")), classOf[List[Data]]) match {
-        case Some(d) if d.size < MAX_VERSIONS => Some(d)
+        case None => GetResp(None)
+        case Some(d) if d.size < MAX_VERSIONS => GetResp(Some(d))
         case Some(d) => 
           log.warning(s"[store] To many versions(${d.size}) for key $key , cut to $MAX_VERSIONS")
           sender ! GetResp(Option(d.take(MAX_VERSIONS)))
