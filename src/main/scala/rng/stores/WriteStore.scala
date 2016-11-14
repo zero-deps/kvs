@@ -26,7 +26,6 @@ case class Conflict(broken: List[Data]) extends PutStatus
 class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   
   val config = context.system.settings.config.getConfig("ring.leveldb")
-  val MAX_VERSIONS = config.getInt("ring.concurrent-versions")
   val serialization = SerializationExtension(context.system)
   val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
   val hashing = HashingExtension(context.system)
@@ -81,8 +80,8 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
         val newVC = (list map (_.vc)).foldLeft(data.vc)((sum, i) => sum.merge(i))
         (Saved, List(data.copy(vc = newVC)))
       case Some(brokenData) => 
-        val broken = data :: brokenData.take(MAX_VERSIONS)
-        (Saved, List(data))
+        val broken = data :: brokenData
+        (Conflict(broken), broken)
     }
     
     val keysInBucket = fromBytesList(leveldb.get(bytes(s"${data.bucket}:keys")), classOf[List[Key]]).getOrElse(Nil)
@@ -97,14 +96,12 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   def doDelete(key: Key): String = {
     val b = hashing.findBucket(key)
     val keys = fromBytesList(leveldb.get(bytes(s"$b:keys")), classOf[List[Key]])
-    val newKeys = keys.map{_.filterNot(_ == key))
+    val newKeys = keys.getOrElse(Nil).filterNot(_ == key)
 
-    newKeys.map{
-      ks => {
-        batch.delete(bytes(s"$b:key:$key"))
-        batch.put(bytes(s"$b:keys"), bytes(ks))
-      }
-    }
+    withBatch(batch => {
+      batch.delete(bytes(s"$b:key:$key"))
+      batch.put(bytes(s"$b:keys"), bytes(newKeys))
+    })
     "ok"
   }
 
