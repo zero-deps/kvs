@@ -25,10 +25,20 @@ object Build extends sbt.Build {
         "com.playtech.mws" %% "scala-pickling" % Versions.pickling,
         "org.scala-lang" % "scala-compiler" % Versions.scala,
         "org.scala-lang.modules" %% "scala-xml" % Versions.xml,
-        "com.playtech.mws.akka" %% "akka-cluster" % Versions.akka,
         "org.fusesource.leveldbjni" % "leveldbjni-all" % Versions.leveldb,
         "org.scalatest" %% "scalatest" % Versions.scalatest % Test,
-        "com.playtech.mws.akka" %% "akka-testkit" % Versions.akka % Test
+        "com.playtech.mws.akka" %% "akka-actor"              % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-cluster"            % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-cluster-sharding"   % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-cluster-tools"      % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-distributed-data"   % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-multi-node-testkit" % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-protobuf"           % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-remote"             % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-slf4j"              % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-stream"             % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-stream-testkit"     % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-testkit"            % Versions.akka
       )
     )
   )
