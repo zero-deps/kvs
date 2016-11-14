@@ -26,7 +26,7 @@ case class Conflict(broken: List[Data]) extends PutStatus
 class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   
   val config = context.system.settings.config.getConfig("ring.leveldb")
-  val MAX_VERSIONS = context.system.settings.config.getConfig("ring.concurrent-versions")
+  val MAX_VERSIONS = config.getInt("ring.concurrent-versions")
   val serialization = SerializationExtension(context.system)
   val leveldbWriteOptions = new WriteOptions().sync(config.getBoolean("fsync")).snapshot(false)
   val hashing = HashingExtension(context.system)
