@@ -18,6 +18,9 @@ object Build extends sbt.Build {
     id = "kvs",
     base = file("."),
     settings = Defaults.coreDefaultSettings ++ publishSettings ++ Seq(
+      mainClass in (Compile,run) := Some("mws.kvs.Run"),
+      cancelable in Global := true,
+      fork in run := true,
       scalacOptions in Compile ++= Seq("-feature","-deprecation"/*,"-Xlog-implicits"*/),
       fork in Test := true,
       libraryDependencies ++= Seq(
