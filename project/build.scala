@@ -7,8 +7,8 @@ object Versions {
   val scala = "2.12.0"
   val scalaz = "7.2.7"
   val pickling = "0.11.0-M2-11-gf9ea158"
-  val akka = "2.4.12-21-g0983fdc"
-  val xml = "1.0.5"
+  val akka = "2.4.12-22-g9641cc4"
+  val logback = "1.1.7"
   val scalatest = "3.0.0"
   val leveldb = "1.8"
 }
@@ -26,22 +26,21 @@ object Build extends sbt.Build {
       libraryDependencies ++= Seq(
         "org.scalaz" %% "scalaz-core" % Versions.scalaz,
         "com.playtech.mws" %% "scala-pickling" % Versions.pickling,
-        "org.scala-lang" % "scala-compiler" % Versions.scala,
-        "org.scala-lang.modules" %% "scala-xml" % Versions.xml,
         "org.fusesource.leveldbjni" % "leveldbjni-all" % Versions.leveldb,
         "org.scalatest" %% "scalatest" % Versions.scalatest % Test,
+        ("ch.qos.logback" % "logback-classic" % Versions.logback).exclude("org.slf4j","slf4j-api"),
         "com.playtech.mws.akka" %% "akka-actor"              % Versions.akka,
         "com.playtech.mws.akka" %% "akka-cluster"            % Versions.akka,
         "com.playtech.mws.akka" %% "akka-cluster-sharding"   % Versions.akka,
         "com.playtech.mws.akka" %% "akka-cluster-tools"      % Versions.akka,
         "com.playtech.mws.akka" %% "akka-distributed-data"   % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-multi-node-testkit" % Versions.akka,
+        "com.playtech.mws.akka" %% "akka-multi-node-testkit" % Versions.akka % Test,
         "com.playtech.mws.akka" %% "akka-protobuf"           % Versions.akka,
         "com.playtech.mws.akka" %% "akka-remote"             % Versions.akka,
         "com.playtech.mws.akka" %% "akka-slf4j"              % Versions.akka,
         "com.playtech.mws.akka" %% "akka-stream"             % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-stream-testkit"     % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-testkit"            % Versions.akka
+        "com.playtech.mws.akka" %% "akka-stream-testkit"     % Versions.akka % Test,
+        "com.playtech.mws.akka" %% "akka-testkit"            % Versions.akka % Test
       )
     )
   )
