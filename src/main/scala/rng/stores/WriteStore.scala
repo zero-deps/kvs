@@ -97,14 +97,12 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
   def doDelete(key: Key): String = {
     val b = hashing.findBucket(key)
     val keys = fromBytesList(leveldb.get(bytes(s"$b:keys")), classOf[List[Key]])
-    val newKeys = keys.map{_.filterNot(_ == key)}
+    val newKeys = keys.map{_.filterNot(_ == key))
 
     newKeys.map{
       ks => {
-        withBatch(batch => {
-          batch.delete(bytes(s"$b:key:$key"))
-          batch.put(bytes(s"$b:keys"), bytes(ks))
-        })
+        batch.delete(bytes(s"$b:key:$key"))
+        batch.put(bytes(s"$b:keys"), bytes(ks))
       }
     }
     "ok"

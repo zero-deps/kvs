@@ -133,7 +133,6 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(InternalPut(k, v), data) =>
       doPut(k, v, self, data)
       stay()
-    case Event(_,_) => stay()
   }
 
 def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
@@ -141,10 +140,6 @@ def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
   val gather = system.actorOf(Props(classOf[GathererDel], nodes, client))
   val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
   stores.foreach(s => s.fold(_.tell(StoreDelete(k), gather), _.tell(StoreDelete(k), gather)))
-
-  cluster.state.members.map(_.address).diff(nodes)
-    .map{actorsMem.get(_, "ring_write_store")}
-    .foreach(s => s.fold(_ ! StoreDelete(k), _ ! StoreDelete(k)))
 }
 
 def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
