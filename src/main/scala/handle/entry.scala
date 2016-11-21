@@ -26,13 +26,13 @@ object EnHandler {
  * Abstract type entry handler
  * Since we don't know the exact type the pickler/unpickler still needs to be provided explicitly
  *
- *               top -prev-> el -prev-> empty
+ * top --prev--> el --prev--> empty
  */
 trait EnHandler[T] extends Handler[En[T]] {
   import Handler._
   val fh = implicitly[FdHandler]
 
-  def key(fid:String,id:String):String = s"$fid.$id"
+  def key(fid:String,id:String):String = s"${fid}.${id}"
   def put(el:En[T])(implicit dba:Dba):Res[En[T]] = dba.put(key(el.fid,el.id),pickle(el)).right.map(_=>el)
   def get(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = dba.get(key(fid,id)).right.map(unpickle)
   def delete(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = dba.delete(key(fid,id)).right.map(unpickle)
@@ -42,7 +42,7 @@ trait EnHandler[T] extends Handler[En[T]] {
    * Creates the container if it's absent
    * @param el entry to add (prev is ignored)
    */
-  def add(el: En[T])(implicit dba: Dba): Res[En[T]] = {
+  def add(el: En[T])(implicit dba: Dba): Res[En[T]] =
     fh.get(Fd(el.fid)).left.map {
       _ => fh.put(Fd(el.fid)) // create feed if it doesn't exist
     }.joinLeft.right.map{ fd: Fd =>
@@ -52,7 +52,7 @@ trait EnHandler[T] extends Handler[En[T]] {
           // add new entry with prev pointer
           put(el.copy(prev=fd.top)).right.map { added =>
             // update feed's top
-            fh.put(fd.copy(top=el.id)) match {
+            fh.put(fd.copy(top=el.id,count=fd.count+1)) match {
               case Right(_) => Right(added)
               case Left(err) => Left(err)
             }
@@ -60,24 +60,44 @@ trait EnHandler[T] extends Handler[En[T]] {
         r => Left(s"entry ${el.id} exist in ${el.fid}")
       )
     }.joinRight
-  }
 
   /**
    * Remove the entry from the container specified
    * @param el entry to remove (prev/data is ignored)
    * @return deleted entry (with data)
    */
-  def remove(el: En[T])(implicit dba: Dba): Res[En[T]] = {
-    def `change top`(el:En[T]):Res[En[T]] =
-      fh.get(Fd(el.fid)).right.map(fd=>fh.put(fd.copy(top=el.prev)).right.map{_ =>
-        `delete entry`(el)
-      }.joinRight).joinRight
-
-    def `delete entry`(el:En[T]):Res[En[T]] = delete(el.fid,el.id)
-
-    // entry must exist
-    get(el.fid,el.id).right.map(`change top`).joinRight
-  }
+  def remove(el: En[T])(implicit dba: Dba): Res[En[T]] =
+    // get entry to delete
+    get(el.fid,el.id).flatMap{ en =>
+      val id = en.id
+      val fid = en.fid
+      val prev = en.prev
+      // get top
+      fh.get(Fd(fid)).flatMap{ fd =>
+        val top = fd.top
+        ( if (id == top)
+            // change top and decrement
+            fh.put(fd.copy(top=prev,count=fd.count-1))
+          else
+            // find entry which points to this one (next)
+            Stream.iterate(start=get(fid,top))(x => x.flatMap(x=>get(fid,x.prev)))
+              .takeWhile(_.isRight)
+              .flatMap(_.toOption)
+              .find(x => x.prev==id)
+              .toRight("not found")
+              .flatMap{ next =>
+                // change link
+                put(next.copy(prev=prev)).flatMap{ _ =>
+                  // decrement count
+                  fh.put(fd.copy(count=fd.count-1))
+                }
+              }
+        ).flatMap{ _ =>
+          // delete entry
+          delete(fid,id)
+        }
+      }
+    }
 
   /**
    * Iterate through container and return the list of entry with specified size.
@@ -86,7 +106,6 @@ trait EnHandler[T] extends Handler[En[T]] {
    */
   def entries(fid:String,from:Option[En[T]],count:Option[Int])(implicit dba:Dba):Res[List[En[T]]] =
     fh.get(Fd(fid)).right.map{ fd =>
-      def prev_res: (Res[En[T]]) => Res[En[T]] = _.right.map(x=>get(fid,x.prev)).joinRight
       val start:String = from match {
         case None => fd.top
         case Some(from) => from.prev

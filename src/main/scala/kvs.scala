@@ -33,9 +33,10 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   def get[A:ElHandler](k:String):Either[Err,A] = implicitly[ElHandler[A]].get(k)
   def delete[A:ElHandler](k:String):Either[Err,A] = implicitly[ElHandler[A]].delete(k)
 
-  def put(fd:Fd)(implicit fh:FdHandler):Either[Err,Fd] = fh.put(fd)
-  def get(fd:Fd)(implicit fh:FdHandler):Either[Err,Fd] = fh.get(fd)
-  def delete(fd:Fd)(implicit fh:FdHandler):Either[Err,Fd] = fh.delete(fd)
+  import mws.kvs.handle.Handler._
+  def put(fd:Fd):Either[Err,Fd] = implicitly[FdHandler].put(fd)
+  def get(fd:Fd):Either[Err,Fd] = implicitly[FdHandler].get(fd)
+  def delete(fd:Fd):Either[Err,Fd] = implicitly[FdHandler].delete(fd)
 
   def add[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].add(el)
   def remove[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].remove(el)
@@ -54,25 +55,24 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
     import system.log
     val p = Promise[T]()
     var count = 0
-    def loop():Unit =
-      system.scheduler.scheduleOnce(1 second){
-        dba.isReady onComplete {
-          case Success(true) =>
-            // make sure that dba is ready 5 times in the row
-            if (count > 4) {
-              log.info("KVS is ready")
-              body
-            } else {
-              log.info(s"KVS isn't ready yet...")
-              count = count + 1
-              loop()
-            }
-          case _ =>
-            log.info("KVS isn't ready yet...")
-            count = 0
+    def loop():Unit = system.scheduler.scheduleOnce(1 second){
+      dba.isReady onComplete {
+        case Success(true) =>
+          // make sure that dba is ready 5 times in the row
+          if (count > 4) {
+            log.info("KVS is ready")
+            body
+          } else {
+            log.info(s"KVS isn't ready yet...")
+            count = count + 1
             loop()
-        }
+          }
+        case _ =>
+          log.info("KVS isn't ready yet...")
+          count = 0
+          loop()
       }
+    }
     loop()
   }
 

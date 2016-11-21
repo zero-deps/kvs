@@ -8,7 +8,7 @@ import akka.testkit._
 import org.scalatest._
 
 object EnHandlerTest {
-  val fid = "fid"
+  val fid = "fid" + java.util.UUID.randomUUID.toString
   type EnType = En[FeedEntry]
 
   final case class FeedEntry(string:String,twoDimVector:Vector[Vector[(String,String)]],anotherVector:Vector[String])
@@ -26,7 +26,8 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
   import EnHandlerTest._
 
   val kvs = Kvs(system)
-  //Await.ready(kvs.onReady{},Duration("1 min"))
+
+  Thread.sleep(2000)
 
   val mod = 50
   def entry(n:Int):EnType = En(fid,s"$n",FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
@@ -56,7 +57,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get e1 and e2 from feed" in {
       val entries = kvs.entries[EnType](fid)
 
-      entries.right.get.size shouldBe 2
+      kvs.get(Fd(fid)).right.get.count shouldBe 2
 
       (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, e1.id, e1.data)
       (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, e2.id, e2.data)
@@ -74,7 +75,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get 3 values from feed" in {
       val entries = kvs.entries[EnType](fid)
 
-      entries.right.get.size shouldBe 3
+      kvs.get(Fd(fid)).right.get.count shouldBe 3
 
       (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, e1.id, e1.data)
       (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, e2.id, e2.data)
@@ -94,7 +95,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get 2 values from feed" in {
       val entries = kvs.entries[EnType](fid)
 
-      entries.right.get.size shouldBe 2
+      kvs.get(Fd(fid)).right.get.count shouldBe 2
 
       (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, e1.id, e1.data)
       (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e3.fid, e3.id, e3.data)
@@ -109,7 +110,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get 1 values from feed" in {
       val entries = kvs.entries[EnType](fid)
 
-      entries.right.get.size shouldBe 1
+      kvs.get(Fd(fid)).right.get.count shouldBe 1
 
       (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, e3.id, e3.data)
     }
@@ -142,7 +143,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
         val entries = kvs.entries[EnType](fid)
 
-        entries.right.get.size shouldBe (limit - n)
+        kvs.get(Fd(fid)).right.get.count shouldBe (limit - n)
       }
     }
 
