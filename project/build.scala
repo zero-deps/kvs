@@ -7,7 +7,7 @@ object Versions {
   val scala = "2.12.0"
   val scalaz = "7.2.7"
   val pickling = "0.11.0-M2-11-gf9ea158"
-  val akka = "2.4.12-26-gbde0017"
+  val akka = "2.4.13"
   val logback = "1.1.7"
   val scalatest = "3.0.0"
   val leveldb = "1.8"
