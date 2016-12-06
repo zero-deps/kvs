@@ -54,17 +54,19 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
     import system.dispatcher
     import system.log
     val p = Promise[T]()
+    val N = cfg.getIntList("ring.quorum").get(0)
+    val K = if (N==1) 1 else cfg.getInt("kvs.onreadycount")
     var count = 0
     def loop():Unit = system.scheduler.scheduleOnce(1 second){
       dba.isReady onComplete {
         case Success(true) =>
-          // make sure that dba is ready 5 times in the row
-          if (count > 4) {
+          count = count + 1
+          // make sure that dba is ready K times in the row
+          if (count == K) {
             log.info("KVS is ready")
             body
           } else {
             log.info(s"KVS isn't ready yet...")
-            count = count + 1
             loop()
           }
         case _ =>

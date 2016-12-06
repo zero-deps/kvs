@@ -72,7 +72,6 @@ trait EnHandler[T] extends Handler[En[T]] {
       val id = en.id
       val fid = en.fid
       val prev = en.prev
-      // get top
       fh.get(Fd(fid)).flatMap{ fd =>
         val top = fd.top
         ( if (id == top)
@@ -80,10 +79,10 @@ trait EnHandler[T] extends Handler[En[T]] {
             fh.put(fd.copy(top=prev,count=fd.count-1))
           else
             // find entry which points to this one (next)
-            Stream.iterate(start=get(fid,top))(x => x.flatMap(x=>get(fid,x.prev)))
+            Stream.iterate(start=get(fid,top))(_.flatMap(x=>get(fid,x.prev)))
               .takeWhile(_.isRight)
               .flatMap(_.toOption)
-              .find(x => x.prev==id)
+              .find(_.prev==id)
               .toRight("not found")
               .flatMap{ next =>
                 // change link
@@ -92,10 +91,7 @@ trait EnHandler[T] extends Handler[En[T]] {
                   fh.put(fd.copy(count=fd.count-1))
                 }
               }
-        ).flatMap{ _ =>
-          // delete entry
-          delete(fid,id)
-        }
+        ).flatMap(_ => delete(fid,id)) // delete entry
       }
     }
 
