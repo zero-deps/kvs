@@ -4,10 +4,10 @@ import sbt._
 import sbt.Keys._
 
 object Versions {
-  val scala = "2.12.0"
-  val scalaz = "7.2.7"
+  val scala = "2.12.1"
+  val scalaz = "7.2.8"
   val pickling = "0.11.0-M2-11-gf9ea158"
-  val akka = "2.4.13"
+  val akka = "2.4.14.0"
   val logback = "1.1.7"
   val scalatest = "3.0.0"
   val leveldb = "1.8"
@@ -27,7 +27,7 @@ object Build extends sbt.Build {
         "org.scalaz" %% "scalaz-core" % Versions.scalaz,
         "com.playtech.mws" %% "scala-pickling" % Versions.pickling,
         "org.fusesource.leveldbjni" % "leveldbjni-all" % Versions.leveldb,
-        "org.scalatest" %% "scalatest" % Versions.scalatest,
+        ("org.scalatest" %% "scalatest" % Versions.scalatest).exclude("org.scala-lang.modules","scala-xml_2.12"),
         ("ch.qos.logback" % "logback-classic" % Versions.logback).exclude("org.slf4j","slf4j-api"),
         "com.playtech.mws.akka" %% "akka-actor"              % Versions.akka,
         "com.playtech.mws.akka" %% "akka-cluster"            % Versions.akka,
@@ -70,7 +70,6 @@ object Build extends sbt.Build {
     publishArtifact in Test := true,
     publishMavenStyle := true,
     pomIncludeRepository := (_ => false),
-    publishLocal <<= publishM2,
     isSnapshot := true
   )
 }

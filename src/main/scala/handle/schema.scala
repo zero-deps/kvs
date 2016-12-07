@@ -78,5 +78,5 @@ object GamesSchema {
 
   def en2r(e:En[Game]):Recent = Recent(e)
   def r2en(r:Recent):En[Game] = Tag.unwrap(r)
-  implicit val revHandler:Handler[Recent] = Handler.by[Recent,En[Game]](r2en)(en2r)(identity(_))
+  implicit val recHandler:Handler[Recent] = Handler.by[Recent,En[Game]](r2en)(en2r)(identity(_))
 }
