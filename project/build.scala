@@ -6,7 +6,7 @@ import sbt.Keys._
 object Versions {
   val scala = "2.12.1"
   val scalaz = "7.2.8"
-  val pickling = "0.11.0-M2-11-gf9ea158"
+  val pickling = "1.0"
   val akka = "2.4.14.0"
   val logback = "1.1.7"
   val scalatest = "3.0.0"
