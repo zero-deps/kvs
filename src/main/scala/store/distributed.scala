@@ -3,13 +3,14 @@ package store
 
 import java.io.File
 import java.util.concurrent.TimeUnit
+import scala.language.postfixOps
 import scala.concurrent.{Await,Future}
 import scala.concurrent.duration._
 import scala.util._
 import akka.event.Logging
 import akka.routing.FromConfig
 import akka.pattern.ask
-import akka.actor.{ActorSystem,Deploy,Props}
+import akka.actor._
 import akka.util.{Timeout,ByteString}
 import mws.rng._
 import mws.rng.store.{ReadonlyStore,WriteStore}
@@ -28,8 +29,9 @@ object Ring {
 class Ring(system: ActorSystem) extends Dba {
   import Ring._
   lazy val log = Logging(system, "hash-ring")
-  implicit val timeout = Timeout(5.second)
-  val d = Duration(5, TimeUnit.SECONDS)
+
+  val d = 5 seconds
+  implicit val timeout = Timeout(d)
 
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
   system.eventStream
@@ -77,4 +79,39 @@ class Ring(system: ActorSystem) extends Dba {
   def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Future[Any] = hash ? IterateDump(path,foreach)
 
   def close(): Unit = ()
+
+  def nextid(feed:String):String = {
+    import akka.cluster.sharding._
+    import system.dispatcher
+    Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed).collect{case id:String=>id},d)
+  }
+}
+
+object IdCounter {
+  def props:Props = Props(new IdCounter)
+  val shardName = "nextid"
+}
+class IdCounter extends Actor with ActorLogging {
+  val kvs = mws.kvs.Kvs(context.system)
+
+  import mws.kvs.handle.ElHandler
+  implicit val strHandler:ElHandler[String] = new ElHandler[String] {
+    def pickle(e: String): Array[Byte] = e.getBytes("UTF-8")
+    def unpickle(a: Array[Byte]): String = (new String(a,"UTF-8"))
+  }
+
+  def receive: Receive = {
+    case name:String =>
+      kvs.get[String](s"IdCounter.${name}").fold(
+        empty => put(name, prev="0"),
+        prev => put(name, prev)
+      )
+  }
+
+  def put(name:String, prev: String): Unit = {
+    kvs.put[String](s"IdCounter.$name", (prev.toLong+1).toString).fold(
+      l => log.error(s"Failed to increment `$name` id=$l"),
+      r => sender ! r
+    )
+  }
 }

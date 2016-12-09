@@ -16,4 +16,5 @@ trait Dba {
   def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Future[Any]
   def close():Unit
   def isReady:Future[Boolean]
+  def nextid(fid:String):String
 }

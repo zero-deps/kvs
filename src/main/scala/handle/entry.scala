@@ -32,15 +32,15 @@ trait EnHandler[T] extends Handler[En[T]] {
   import Handler._
   val fh = implicitly[FdHandler]
 
-  def key(fid:String,id:String):String = s"${fid}.${id}"
-  def put(el:En[T])(implicit dba:Dba):Res[En[T]] = dba.put(key(el.fid,el.id),pickle(el)).right.map(_=>el)
+  private def key(fid:String,id:String):String = s"${fid}.${id}"
+  private def put(el:En[T])(implicit dba:Dba):Res[En[T]] = dba.put(key(el.fid,el.id),pickle(el)).right.map(_=>el)
   def get(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = dba.get(key(fid,id)).right.map(unpickle)
-  def delete(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = dba.delete(key(fid,id)).right.map(unpickle)
+  private def delete(fid:String,id:String)(implicit dba:Dba):Res[En[T]] = dba.delete(key(fid,id)).right.map(unpickle)
 
   /**
    * Adds the entry to the container
    * Creates the container if it's absent
-   * @param el entry to add (prev is ignored)
+   * @param el entry to add (prev is ignored). If id is empty it will be generated
    */
   def add(el: En[T])(implicit dba: Dba): Res[En[T]] =
     fh.get(Fd(el.fid)).left.map {
@@ -48,15 +48,17 @@ trait EnHandler[T] extends Handler[En[T]] {
     }.joinLeft.right.map{ fd: Fd =>
       // id of entry must be unique
       get(el.fid,el.id).fold(
-        l =>
+        l => {
+          // generate ID if it is empty
+          val id = if (el.id==empty) dba.nextid(el.fid) else el.id
           // add new entry with prev pointer
-          put(el.copy(prev=fd.top)).right.map { added =>
+          put(el.copy(id=id,prev=fd.top)).right.map { added =>
             // update feed's top
-            fh.put(fd.copy(top=el.id,count=fd.count+1)) match {
+            fh.put(fd.copy(top=id,count=fd.count+1)) match {
               case Right(_) => Right(added)
               case Left(err) => Left(err)
             }
-          }.joinRight,
+          }.joinRight},
         r => Left(s"entry ${el.id} exist in ${el.fid}")
       )
     }.joinRight
@@ -94,6 +96,9 @@ trait EnHandler[T] extends Handler[En[T]] {
         ).flatMap(_ => delete(fid,id)) // delete entry
       }
     }
+
+  def remove(fid:String,id:String)(implicit dba:Dba):Res[En[T]] =
+    remove(new En[T](fid,id,prev=empty,data=null.asInstanceOf[T]))
 
   /**
    * Iterate through container and return the list of entry with specified size.

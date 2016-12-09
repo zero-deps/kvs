@@ -16,6 +16,17 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   import mws.kvs.store._
   import handle._
 
+  { /* start sharding */
+    import akka.cluster.sharding._
+    import mws.kvs.store.IdCounter
+    val sharding = ClusterSharding(system)
+    val settings = ClusterShardingSettings(system)
+    sharding.start(typeName=IdCounter.shardName,entityProps=IdCounter.props,settings=settings,
+      extractEntityId = { case msg:String => (msg,msg) },
+      extractShardId = { case msg:String => (math.abs(msg.hashCode) % 100).toString }
+    )
+  }
+
   val cfg = system.settings.config
   val store = cfg.getString("kvs.store")
   val feeds:List[String] = cfg.getStringList("kvs.feeds").asScala.toList
@@ -29,18 +40,21 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
     sys.addShutdownHook(jmx.unregisterMBean())
   }
 
-  def put[A:ElHandler](k:String,el:A):Either[Err,A] = implicitly[ElHandler[A]].put(k,el)
-  def get[A:ElHandler](k:String):Either[Err,A] = implicitly[ElHandler[A]].get(k)
-  def delete[A:ElHandler](k:String):Either[Err,A] = implicitly[ElHandler[A]].delete(k)
+  def put[A:ElHandler](k:String,el:A):Res[A] = implicitly[ElHandler[A]].put(k,el)
+  def get[A:ElHandler](k:String):Res[A] = implicitly[ElHandler[A]].get(k)
+  def delete[A:ElHandler](k:String):Res[A] = implicitly[ElHandler[A]].delete(k)
 
   import mws.kvs.handle.Handler._
-  def put(fd:Fd):Either[Err,Fd] = implicitly[FdHandler].put(fd)
-  def get(fd:Fd):Either[Err,Fd] = implicitly[FdHandler].get(fd)
-  def delete(fd:Fd):Either[Err,Fd] = implicitly[FdHandler].delete(fd)
+  def put(fd:Fd):Res[Fd] = implicitly[FdHandler].put(fd)
+  def get(fd:Fd):Res[Fd] = implicitly[FdHandler].get(fd)
+  def delete(fd:Fd):Res[Fd] = implicitly[FdHandler].delete(fd)
 
-  def add[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].add(el)
-  def remove[H:Handler](el:H):Either[Err,H] = implicitly[Handler[H]].remove(el)
-  def entries[H:Handler](fid:String,from:Option[H]=None,count:Option[Int]=None):Either[Err,List[H]] = implicitly[Handler[H]].entries(fid,from,count)
+  def nextid(fid:String):String = dba.nextid(fid)
+  def add[H:Handler](el:H):Res[H] = implicitly[Handler[H]].add(el)
+  def remove[H:Handler](el:H):Res[H] = implicitly[Handler[H]].remove(el)
+  def remove[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].remove(fid,id)
+  def entries[H:Handler](fid:String,from:Option[H]=None,count:Option[Int]=None):Res[List[H]] = implicitly[Handler[H]].entries(fid,from,count)
+  def get[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].get(fid,id)
 
   val dump_timeout = 1 hour
   def save():Option[String] = Try(Await.result(dba.save(),dump_timeout)).toOption
@@ -66,7 +80,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
             log.info("KVS is ready")
             body
           } else {
-            log.info(s"KVS isn't ready yet...")
+            log.info("KVS isn't ready yet...")
             loop()
           }
         case _ =>

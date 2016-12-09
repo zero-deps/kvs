@@ -13,18 +13,10 @@ object Schema {
   type Message = En[String] @@ Msg
   implicit def Message(a: En[String]): En[String] @@ Msg = Tag[En[String], Msg](a)
 
-  implicit object msgHandler extends Handler[Message]{
-    val enh = implicitly[Handler[En[String]]]
-    import mws.kvs.store.Dba
+  private def en2m(e:En[String]):Message = Message(e)
+  private def m2en(m:Message):En[String] = Tag.unwrap(m)
 
-    def add(el: Message)(implicit dba: Dba): Either[Err,Message] = enh.add(Tag.unwrap(el)).right.map(Message)
-    def remove(el: Message)(implicit dba: Dba): Either[Err,Message] =  enh.remove(Tag.unwrap(el)).right.map(Message)
-    def entries(fid: String,from: Option[Message],count: Option[Int])(implicit dba: Dba): Either[Err,List[Message]] =
-      enh.entries(fid,from.map(Tag.unwrap(_)),count).right.map(_.map(Message))
-
-    def pickle(e: Message): Array[Byte] = enh.pickle(Tag.unwrap(e))
-    def unpickle(a: Array[Byte]): Message = Message(enh.unpickle(a))
-  }
+  implicit val msgHandler:Handler[Message] = Handler.by[Message,En[String]](m2en)(en2m)(identity(_))
 }
 
 /**

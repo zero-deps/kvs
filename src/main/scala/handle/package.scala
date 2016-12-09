@@ -14,7 +14,7 @@ package object handle {
   }
 
   object En {
-    def apply[T](fid:String,id:String,data:T):En[T] = En(fid,id,prev=empty,data)
-    def apply[T](fid:String,id:String):En[T] = En(fid,id,prev=empty,data=null.asInstanceOf[T])
+    def apply[T](fid:String,data:T):En[T] = En(fid,id=empty,prev=empty,data)
+    def withID[T](fid:String,id:String,data:T):En[T] = En(fid,id,prev=empty,data)
   }
 }

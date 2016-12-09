@@ -66,8 +66,6 @@ object Build extends sbt.Build {
     publishTo := Some("releases" at "http://nexus.mobile.playtechgaming.com/nexus/content/repositories/releases"),
     credentials += Credentials("Sonatype Nexus Repository Manager","nexus.mobile.playtechgaming.com","wpl-deployer","aG1reeshie"),
     publishArtifact := true,
-    publishArtifact in Compile := true,
-    publishArtifact in Test := true,
     publishMavenStyle := true,
     pomIncludeRepository := (_ => false),
     isSnapshot := true

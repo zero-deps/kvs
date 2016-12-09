@@ -30,7 +30,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
   Thread.sleep(2000)
 
   val mod = 50
-  def entry(n:Int):EnType = En(fid,s"$n",FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
+  def entry(n:Int):EnType = En(fid,FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
 
   val e1 = entry(1)
   val e2 = entry(2)
@@ -44,14 +44,14 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
       kvs.entries[EnType](fid) should be ('left)
     }
 
-    "should save e1 " in {
+    "should save e1" in {
       val saved = kvs.add(e1).right.get
-      (saved.fid, saved.id, saved.data) shouldBe(e1.fid, e1.id, e1.data)
+      (saved.fid, saved.id, saved.data) shouldBe(e1.fid, "1", e1.data)
     }
 
     "should save e2" in {
       val saved = kvs.add(e2).right.get
-      (saved.fid, saved.id, saved.data) shouldBe(e2.fid, e2.id, e2.data)
+      (saved.fid, saved.id, saved.data) shouldBe(e2.fid, "2", e2.data)
     }
 
     "should get e1 and e2 from feed" in {
@@ -59,17 +59,17 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
       kvs.get(Fd(fid)).right.get.count shouldBe 2
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, e1.id, e1.data)
-      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, e2.id, e2.data)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, "1", e1.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, "2", e2.data)
     }
 
     "should save entry(3)" in {
       val saved = kvs.add(e3).right.get
-      (saved.fid, saved.id, saved.data) shouldBe(e3.fid, e3.id, e3.data)
+      (saved.fid, saved.id, saved.data) shouldBe(e3.fid, "3", e3.data)
     }
 
     "should not save entry(2) again" in {
-      kvs.add(e2).left.value should be (s"entry 2 exist in $fid")
+      kvs.add(e2.copy(id="2")).left.value should be (s"entry 2 exist in $fid")
     }
 
     "should get 3 values from feed" in {
@@ -77,19 +77,19 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
       kvs.get(Fd(fid)).right.get.count shouldBe 3
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, e1.id, e1.data)
-      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, e2.id, e2.data)
-      (entries.right.get(2).fid, entries.right.get(2).id, entries.right.get(2).data) shouldBe(e3.fid, e3.id, e3.data)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, "1", e1.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, "2", e2.data)
+      (entries.right.get(2).fid, entries.right.get(2).id, entries.right.get(2).data) shouldBe(e3.fid, "3", e3.data)
     }
 
     "should not remove unexisting entry from feed" in {
-      kvs.remove(e5).left.value should be (s"not_found key ${e5.fid}.${e5.id}")
+      kvs.remove(fid,"5").left.value should be (s"not_found key ${fid}.5")
     }
 
     "should remove entry(2) from feed without prev/next/data" in {
-      val deleted = kvs.remove(En[FeedEntry](e2.fid,e2.id)).right.get
+      val deleted = kvs.remove(e2.fid,"2").right.get
 
-      (deleted.fid, deleted.id, deleted.data) shouldBe(e2.fid, e2.id, e2.data)
+      (deleted.fid, deleted.id, deleted.data) shouldBe(e2.fid, "2", e2.data)
     }
 
     "should get 2 values from feed" in {
@@ -97,14 +97,14 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
       kvs.get(Fd(fid)).right.get.count shouldBe 2
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, e1.id, e1.data)
-      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e3.fid, e3.id, e3.data)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, "1", e1.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e3.fid, "3", e3.data)
     }
 
     "should remove entry(1) from feed" in {
-      val deleted = kvs.remove(e1).right.get
+      val deleted = kvs.remove(fid,"1").right.get
 
-      (deleted.fid, deleted.id, deleted.data) shouldBe(e1.fid, e1.id, e1.data)
+      (deleted.fid, deleted.id, deleted.data) shouldBe(e1.fid, "1", e1.data)
     }
 
     "should get 1 values from feed" in {
@@ -112,13 +112,13 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
       kvs.get(Fd(fid)).right.get.count shouldBe 1
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, e3.id, e3.data)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, "3", e3.data)
     }
 
     "should remove entry(3) from feed" in {
-      val deleted = kvs.remove(e3).right.get
+      val deleted = kvs.remove(fid,"3").right.get
 
-      (deleted.fid, deleted.id, deleted.data) shouldBe(e3.fid, e3.id, e3.data)
+      (deleted.fid, deleted.id, deleted.data) shouldBe(e3.fid, "3", e3.data)
     }
 
     "should be empty" in {
@@ -129,17 +129,17 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
       val limit = 100
 
       Stream.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
-        val toadd= entry(n)
+        val toadd = entry(n)
         val added = kvs.add(toadd).right.get
-        (added.fid, added.id, added.data) shouldBe (toadd.fid, toadd.id, toadd.data)
+        (added.fid, added.id, added.data) shouldBe (toadd.fid, (n+3).toString, toadd.data)
       }
 
       Stream.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
 
-        val toremove= entry(n)
+        val toremove= entry(n).copy(id=(n+3).toString)
         val removed = kvs.remove(toremove).right.get
 
-        (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, toremove.id, toremove.data)
+        (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, (n+3).toString, toremove.data)
 
         val entries = kvs.entries[EnType](fid)
 
