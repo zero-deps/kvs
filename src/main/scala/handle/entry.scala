@@ -105,24 +105,47 @@ trait EnHandler[T] extends Handler[En[T]] {
    * List is inserted ordered (first added is first in list).
    * @param from if specified then return entries after this entry
    */
-  def entries(fid:String,from:Option[En[T]],count:Option[Int])(implicit dba:Dba):Res[List[En[T]]] =
-    fh.get(Fd(fid)).right.map{ fd =>
-      val start:String = from match {
-        case None => fd.top
-        case Some(from) => from.prev
-      }
-      @tailrec def iterate(acc:List[En[T]],id:String):Res[List[En[T]]] = count match {
-        case Some(count) if count == acc.length => Right(acc) // limit results
-        case _ =>
-          get(fid,id) match {
-            case Right(en) => en.prev match {
-              case `empty` => Right(en::acc)
-              case prev => iterate(en::acc,prev)
-            }
-            case Left(err) => Left(err) // in case of error discard acc
-          }
+  def entries(fid:String,from:Option[En[T]])(implicit dba:Dba):Res[Vector[En[T]]] = {
+    @tailrec def append(acc:Vector[En[T]],id:String):Res[Vector[En[T]]] =
+      get(fid,id) match {
+        case Right(en) => en.prev match {
+          case `empty` => Right(en+:acc)
+          case prev => append(en+:acc,prev)
         }
-      if (start == empty) Right(Nil)
-      else iterate(acc=Nil,id=start)
-    }.joinRight
+        case Left(err) =>
+          log.error(s"Error while iterating=${err}")
+          Right(acc) // return something
+      }
+    from match {
+      case None => fh.get(Fd(fid)).map(_.top) match {
+        case Left(x) => Left(x)
+        case Right(`empty`) => Right(Vector.empty)
+        case Right(start) => append(acc=Vector.empty,id=start)
+      }
+      case Some(from) => from.prev match {
+        case `empty` => Right(Vector.empty)
+        case start => append(acc=Vector.empty,id=start)
+      }
+    }
+  }
+
+  def stream(fid:String,from:Option[En[T]])(implicit dba:Dba):Res[Stream[En[T]]] = {
+    def _stream(start:String):Stream[En[T]] =
+      Stream.iterate(start=get(fid,start))(_.flatMap(x=>get(fid,x.prev)))
+        .takeWhile(_.isRight)
+        .flatMap(_.toOption)
+    from match {
+      case None => fh.get(Fd(fid)).map(_.top) match {
+        case Left(x) => Left(x)
+        case Right(`empty`) => Right(Stream.empty)
+        case Right(start) => Right(_stream(start))
+      }
+      case Some(from) => from.prev match {
+        case `empty` => Right(Stream.empty)
+        case start => Right(_stream(start))
+      }
+    }
+  }
+
+  private val log = org.slf4j.LoggerFactory.getLogger(getClass)
 }

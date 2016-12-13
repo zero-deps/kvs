@@ -29,7 +29,6 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
 
   val cfg = system.settings.config
   val store = cfg.getString("kvs.store")
-  val feeds:List[String] = cfg.getStringList("kvs.feeds").asScala.toList
 
   implicit val dba = system.dynamicAccess.createInstanceFor[Dba](store,
     List(classOf[ActorSystem]->system)).get
@@ -53,7 +52,8 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   def add[H:Handler](el:H):Res[H] = implicitly[Handler[H]].add(el)
   def remove[H:Handler](el:H):Res[H] = implicitly[Handler[H]].remove(el)
   def remove[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].remove(fid,id)
-  def entries[H:Handler](fid:String,from:Option[H]=None,count:Option[Int]=None):Res[List[H]] = implicitly[Handler[H]].entries(fid,from,count)
+  def entries[H:Handler](fid:String,from:Option[H]=None):Res[Vector[H]] = implicitly[Handler[H]].entries(fid,from)
+  def stream[H:Handler](fid:String,from:Option[H]=None):Res[Stream[H]] = implicitly[Handler[H]].stream(fid,from)
   def get[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].get(fid,id)
 
   val dump_timeout = 1 hour
