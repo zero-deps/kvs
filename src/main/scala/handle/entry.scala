@@ -102,15 +102,15 @@ trait EnHandler[T] extends Handler[En[T]] {
 
   /**
    * Iterate through container and return the list of entry with specified size.
-   * List is inserted ordered (first added is first in list).
+   * List is inserted ordered.
    * @param from if specified then return entries after this entry
    */
   def entries(fid:String,from:Option[En[T]])(implicit dba:Dba):Res[Vector[En[T]]] = {
     @tailrec def append(acc:Vector[En[T]],id:String):Res[Vector[En[T]]] =
       get(fid,id) match {
         case Right(en) => en.prev match {
-          case `empty` => Right(en+:acc)
-          case prev => append(en+:acc,prev)
+          case `empty` => Right(acc:+en)
+          case prev => append(acc:+en,prev)
         }
         case Left(err) =>
           log.error(s"Error while iterating=${err}")
