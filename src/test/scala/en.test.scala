@@ -41,7 +41,8 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
   "Feed should" - {
     "be empty at creation" in {
-      kvs.entries[EnType](fid) should be ('left)
+      kvs.entries[EnType](fid) shouldBe ('left)
+      kvs.stream[EnType](fid) shouldBe ('left)
     }
 
     "should save e1" in {
@@ -55,12 +56,15 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should get e1 and e2 from feed" in {
-      val entries = kvs.entries[EnType](fid)
-
       kvs.get(Fd(fid)).right.get.count shouldBe 2
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, "1", e1.data)
-      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, "2", e2.data)
+      val entries = kvs.entries[EnType](fid)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e2.fid, "2", e2.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e1.fid, "1", e1.data)
+
+      val stream = kvs.stream[EnType](fid)
+      (stream.right.get(0).fid, stream.right.get(0).id, stream.right.get(0).data) shouldBe(e2.fid, "2", e2.data)
+      (stream.right.get(1).fid, stream.right.get(1).id, stream.right.get(1).data) shouldBe(e1.fid, "1", e1.data)
     }
 
     "should save entry(3)" in {
@@ -69,21 +73,25 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should not save entry(2) again" in {
-      kvs.add(e2.copy(id="2")).left.value should be (s"entry 2 exist in $fid")
+      kvs.add(e2.copy(id="2")).left.value shouldBe (s"entry 2 exist in $fid")
     }
 
     "should get 3 values from feed" in {
-      val entries = kvs.entries[EnType](fid)
-
       kvs.get(Fd(fid)).right.get.count shouldBe 3
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, "1", e1.data)
+      val entries = kvs.entries[EnType](fid)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, "3", e3.data)
       (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e2.fid, "2", e2.data)
-      (entries.right.get(2).fid, entries.right.get(2).id, entries.right.get(2).data) shouldBe(e3.fid, "3", e3.data)
+      (entries.right.get(2).fid, entries.right.get(2).id, entries.right.get(2).data) shouldBe(e1.fid, "1", e1.data)
+
+      val stream = kvs.stream[EnType](fid)
+      (stream.right.get(0).fid, stream.right.get(0).id, stream.right.get(0).data) shouldBe(e3.fid, "3", e3.data)
+      (stream.right.get(1).fid, stream.right.get(1).id, stream.right.get(1).data) shouldBe(e2.fid, "2", e2.data)
+      (stream.right.get(2).fid, stream.right.get(2).id, stream.right.get(2).data) shouldBe(e1.fid, "1", e1.data)
     }
 
     "should not remove unexisting entry from feed" in {
-      kvs.remove(fid,"5").left.value should be (s"not_found key ${fid}.5")
+      kvs.remove(fid,"5").left.value shouldBe (s"not_found key ${fid}.5")
     }
 
     "should remove entry(2) from feed without prev/next/data" in {
@@ -93,12 +101,15 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should get 2 values from feed" in {
-      val entries = kvs.entries[EnType](fid)
-
       kvs.get(Fd(fid)).right.get.count shouldBe 2
 
-      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e1.fid, "1", e1.data)
-      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e3.fid, "3", e3.data)
+      val entries = kvs.entries[EnType](fid)
+      (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, "3", e3.data)
+      (entries.right.get(1).fid, entries.right.get(1).id, entries.right.get(1).data) shouldBe(e1.fid, "1", e1.data)
+
+      val stream = kvs.stream[EnType](fid)
+      (stream.right.get(0).fid, stream.right.get(0).id, stream.right.get(0).data) shouldBe(e3.fid, "3", e3.data)
+      (stream.right.get(1).fid, stream.right.get(1).id, stream.right.get(1).data) shouldBe(e1.fid, "1", e1.data)
     }
 
     "should remove entry(1) from feed" in {
@@ -108,11 +119,13 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should get 1 values from feed" in {
-      val entries = kvs.entries[EnType](fid)
-
       kvs.get(Fd(fid)).right.get.count shouldBe 1
 
+      val entries = kvs.entries[EnType](fid)
       (entries.right.get(0).fid, entries.right.get(0).id, entries.right.get(0).data) shouldBe(e3.fid, "3", e3.data)
+
+      val stream = kvs.stream[EnType](fid)
+      (stream.right.get(0).fid, stream.right.get(0).id, stream.right.get(0).data) shouldBe(e3.fid, "3", e3.data)
     }
 
     "should remove entry(3) from feed" in {
@@ -122,7 +135,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should be empty" in {
+      kvs.get(Fd(fid)).right.get.count shouldBe 0
       kvs.entries[EnType](fid).right.get shouldBe empty
+      kvs.stream[EnType](fid).right.get shouldBe empty
     }
 
     "should not create stack overflow" in {
@@ -136,22 +151,23 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
       Stream.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
 
-        val toremove= entry(n).copy(id=(n+3).toString)
+        val toremove = entry(n).copy(id=(n+3).toString)
         val removed = kvs.remove(toremove).right.get
 
         (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, (n+3).toString, toremove.data)
-
-        val entries = kvs.entries[EnType](fid)
 
         kvs.get(Fd(fid)).right.get.count shouldBe (limit - n)
       }
     }
 
     "feed should be empty at the end test" in {
-      kvs.entries[EnType](fid).right.value.length should be (0)
+      kvs.get(Fd(fid)).right.get.count shouldBe 0
+      kvs.entries[EnType](fid).right.value shouldBe empty
+      kvs.stream[EnType](fid).right.value shouldBe empty
       import Handler._
       kvs.delete(Fd(fid))
-      kvs.entries[EnType](fid) should be ('left)
+      kvs.entries[EnType](fid) shouldBe ('left)
+      kvs.stream[EnType](fid) shouldBe ('left)
     }
   }
 }

@@ -100,35 +100,40 @@ trait EnHandler[T] extends Handler[En[T]] {
   def remove(fid:String,id:String)(implicit dba:Dba):Res[En[T]] =
     remove(new En[T](fid,id,prev=empty,data=null.asInstanceOf[T]))
 
-  /**
-   * Iterate through container and return the list of entry with specified size.
-   * List is inserted ordered.
+  /** Iterates through container and return the list of entries.
+   *
+   * List is FILO ordered (most recent is first).
    * @param from if specified then return entries after this entry
    */
   def entries(fid:String,from:Option[En[T]])(implicit dba:Dba):Res[Vector[En[T]]] = {
-    @tailrec def append(acc:Vector[En[T]],id:String):Res[Vector[En[T]]] =
+    @tailrec def append(acc:Vector[En[T]],id:String):Vector[En[T]] =
       get(fid,id) match {
         case Right(en) => en.prev match {
-          case `empty` => Right(acc:+en)
+          case `empty` => acc:+en
           case prev => append(acc:+en,prev)
         }
         case Left(err) =>
           log.error(s"Error while iterating=${err}")
-          Right(acc) // return something
+          acc // return something
       }
     from match {
       case None => fh.get(Fd(fid)).map(_.top) match {
         case Left(x) => Left(x)
         case Right(`empty`) => Right(Vector.empty)
-        case Right(start) => append(acc=Vector.empty,id=start)
+        case Right(start) => Right(append(acc=Vector.empty,id=start))
       }
       case Some(from) => from.prev match {
         case `empty` => Right(Vector.empty)
-        case start => append(acc=Vector.empty,id=start)
+        case start => Right(append(acc=Vector.empty,id=start))
       }
     }
   }
 
+  /** Iterates through container and return the stream of entries.
+   *
+   * Stream is FILO ordered (most recent is first).
+   * @param from if specified then return entries after this entry
+   */
   def stream(fid:String,from:Option[En[T]])(implicit dba:Dba):Res[Stream[En[T]]] = {
     def _stream(start:String):Stream[En[T]] =
       Stream.iterate(start=get(fid,start))(_.flatMap(x=>get(fid,x.prev)))
