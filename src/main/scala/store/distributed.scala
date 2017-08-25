@@ -47,8 +47,9 @@ class Ring(system: ActorSystem) extends Dba {
     val putF = (hash ? Put(key, ByteString(value))).mapTo[Ack]
     Try(Await.result(putF, d)) match {
       case Success(AckSuccess) => Right(value)
-      case Success(not_success: Ack) => Left(not_success.toString)
-      case Failure(ex) => Left(ex.getMessage)
+      case Success(AckQuorumFailed) => Left(RngAskQuorumFailed)
+      case Success(AckTimeoutFailed) => Left(RngAskTimeoutFailed)
+      case Failure(ex) => Left(RngThrow(ex))
     }
   }
 
@@ -58,8 +59,8 @@ class Ring(system: ActorSystem) extends Dba {
     val getF = (hash ? Get(key)).mapTo[Option[Value]]
     Try(Await.result(getF, d)) match {
       case Success(Some(v)) => Right(v.toArray)
-      case Success(None) => Left(s"not_found key $key")
-      case Failure(ex) => Left(ex.getMessage)
+      case Success(None) => Left(NotFound(key))
+      case Failure(ex) => Left(RngThrow(ex))
     }
   }
 
@@ -68,8 +69,9 @@ class Ring(system: ActorSystem) extends Dba {
       l => Left(l),
       r => Try(Await.result((hash ? Delete(key)).mapTo[Ack], d)) match {
         case Success(AckSuccess) => Right(r)
-        case Success(not_success) => Left(not_success.toString)
-        case Failure(ex) => Left(ex.getMessage)
+        case Success(AckQuorumFailed) => Left(RngAskQuorumFailed)
+        case Success(AckTimeoutFailed) => Left(RngAskTimeoutFailed)
+        case Failure(ex) => Left(RngThrow(ex))
       }
     )
   }

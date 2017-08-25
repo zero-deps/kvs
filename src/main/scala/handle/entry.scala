@@ -59,7 +59,7 @@ trait EnHandler[T] extends Handler[En[T]] {
               case Left(err) => Left(err)
             }
           }.joinRight},
-        r => Left(s"entry ${el.id} exist in ${el.fid}")
+        r => Left(EntryExist(key(el.fid, el.id)))
       )
     }.joinRight
 
@@ -85,7 +85,7 @@ trait EnHandler[T] extends Handler[En[T]] {
               .takeWhile(_.isRight)
               .flatMap(_.toOption)
               .find(_.prev==id)
-              .toRight("not found")
+              .toRight(NotFound(key(fid, id)))
               .flatMap{ next =>
                 // change link
                 put(next.copy(prev=prev)).flatMap{ _ =>

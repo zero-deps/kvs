@@ -73,7 +73,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should not save entry(2) again" in {
-      kvs.add(e2.copy(id="2")).left.value shouldBe (s"entry 2 exist in $fid")
+      kvs.add(e2.copy(id="2")).left.value shouldBe EntryExist(s"${fid}.2")
     }
 
     "should get 3 values from feed" in {
@@ -91,7 +91,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should not remove unexisting entry from feed" in {
-      kvs.remove(fid,"5").left.value shouldBe (s"not_found key ${fid}.5")
+      kvs.remove(fid,"5").left.value shouldBe NotFound(s"${fid}.5")
     }
 
     "should remove entry(2) from feed without prev/next/data" in {
