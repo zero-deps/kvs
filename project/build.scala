@@ -4,12 +4,12 @@ import sbt._
 import sbt.Keys._
 
 object Versions {
-  val scala = "2.12.1"
-  val scalaz = "7.2.8"
+  val scala = "2.12.3"
+  val scalaz = "7.2.15"
   val pickling = "1.0"
-  val akka = "2.4.14.0"
-  val logback = "1.1.7"
-  val scalatest = "3.0.0"
+  val akka = "2.5.6"
+  val logback = "1.2.3"
+  val scalatest = "3.0.1"
   val leveldb = "1.8"
 }
 
@@ -24,23 +24,25 @@ object Build extends sbt.Build {
       scalacOptions in Compile ++= Seq("-feature","-deprecation"/*,"-Xlog-implicits"*/),
       fork in Test := true,
       libraryDependencies ++= Seq(
-        "org.scalaz" %% "scalaz-core" % Versions.scalaz,
-        "com.playtech.mws" %% "scala-pickling" % Versions.pickling,
-        "org.fusesource.leveldbjni" % "leveldbjni-all" % Versions.leveldb,
-        ("org.scalatest" %% "scalatest" % Versions.scalatest).exclude("org.scala-lang.modules","scala-xml_2.12"),
-        ("ch.qos.logback" % "logback-classic" % Versions.logback).exclude("org.slf4j","slf4j-api"),
-        "com.playtech.mws.akka" %% "akka-actor"              % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-cluster"            % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-cluster-sharding"   % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-cluster-tools"      % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-distributed-data"   % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-multi-node-testkit" % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-protobuf"           % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-remote"             % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-slf4j"              % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-stream"             % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-stream-testkit"     % Versions.akka,
-        "com.playtech.mws.akka" %% "akka-testkit"            % Versions.akka
+        "org.scalaz"        %% "scalaz-core"             % Versions.scalaz,
+        "org.fusesource.leveldbjni" % "leveldbjni-all"   % Versions.leveldb,
+        "ch.qos.logback"     % "logback-classic"         % Versions.logback,
+
+        "com.typesafe.akka" %% "akka-actor"              % Versions.akka,
+        "com.typesafe.akka" %% "akka-cluster"            % Versions.akka,
+        "com.typesafe.akka" %% "akka-cluster-sharding"   % Versions.akka,
+        "com.typesafe.akka" %% "akka-cluster-tools"      % Versions.akka,
+        "com.typesafe.akka" %% "akka-distributed-data"   % Versions.akka,
+        "com.typesafe.akka" %% "akka-protobuf"           % Versions.akka,
+        "com.typesafe.akka" %% "akka-remote"             % Versions.akka,
+        "com.typesafe.akka" %% "akka-slf4j"              % Versions.akka,
+        "com.typesafe.akka" %% "akka-stream"             % Versions.akka,
+
+        "com.playtech.mws"  %% "scala-pickling"          % Versions.pickling  % Test,
+        "org.scalatest"     %% "scalatest"               % Versions.scalatest % Test,
+        "com.typesafe.akka" %% "akka-multi-node-testkit" % Versions.akka      % Test,
+        "com.typesafe.akka" %% "akka-stream-testkit"     % Versions.akka      % Test,
+        "com.typesafe.akka" %% "akka-testkit"            % Versions.akka      % Test
       )
     )
   )

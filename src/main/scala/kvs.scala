@@ -1,13 +1,16 @@
 package mws.kvs
 
-import scala.util._
+import scala.util.Try
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionKey}
+
+import scalaz._, Scalaz._, Maybe.{Empty}
+
+import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 
 /** Akka Extension to interact with KVS storage as built into Akka */
-object Kvs extends ExtensionKey[Kvs] {
+object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
   override def lookup = Kvs
   override def createExtension(system:ExtendedActorSystem):Kvs = new Kvs(system)
 }
@@ -43,23 +46,20 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   def get[A:ElHandler](k:String):Res[A] = implicitly[ElHandler[A]].get(k)
   def delete[A:ElHandler](k:String):Res[A] = implicitly[ElHandler[A]].delete(k)
 
-  import mws.kvs.handle.Handler._
-  def put(fd:Fd):Res[Fd] = implicitly[FdHandler].put(fd)
-  def get(fd:Fd):Res[Fd] = implicitly[FdHandler].get(fd)
-  def delete(fd:Fd):Res[Fd] = implicitly[FdHandler].delete(fd)
+  def put(fd:Fd)(implicit fh: FdHandler):Res[Fd] = fh.put(fd)
+  def get(fd:Fd)(implicit fh: FdHandler):Res[Fd] = fh.get(fd)
+  def delete(fd:Fd)(implicit fh: FdHandler):Res[Fd] = fh.delete(fd)
 
-  def nextid(fid:String):String = dba.nextid(fid)
+  def nextid(fid:String):Res[String] = dba.nextid(fid)
   def add[H:Handler](el:H):Res[H] = implicitly[Handler[H]].add(el)
-  def remove[H:Handler](el:H):Res[H] = implicitly[Handler[H]].remove(el)
   def remove[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].remove(fid,id)
-  def entries[H:Handler](fid:String,from:Option[H]=None):Res[Vector[H]] = implicitly[Handler[H]].entries(fid,from)
-  def stream[H:Handler](fid:String,from:Option[H]=None):Res[Stream[H]] = implicitly[Handler[H]].stream(fid,from)
+  def stream[H:Handler](fid:String,from:Maybe[H]=Empty[H]()):Res[Stream[H]] = implicitly[Handler[H]].stream(fid,from)
   def get[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].get(fid,id)
 
   val dump_timeout = 1 hour
-  def save():Option[String] = Try(Await.result(dba.save(),dump_timeout)).toOption
-  def load(path:String):Option[Any] = Try(Await.result(dba.load(path),dump_timeout)).toOption
-  def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Option[Any] = Try(Await.result(dba.iterate(path,foreach),dump_timeout)).toOption
+  def save():Res[String] = Try(Await.result(dba.save(),dump_timeout)).toDisjunction.leftMap(Failed(_))
+  def load(path:String):Res[Any] = Try(Await.result(dba.load(path),dump_timeout)).toDisjunction.leftMap(Failed(_))
+  def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Res[Any] = Try(Await.result(dba.iterate(path,foreach),dump_timeout)).toDisjunction.leftMap(Failed(_))
 
   def onReady[T](body: =>Unit):Unit = {
     import scala.language.postfixOps
@@ -73,7 +73,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
     var count = 0
     def loop():Unit = system.scheduler.scheduleOnce(1 second){
       dba.isReady onComplete {
-        case Success(true) =>
+        case scala.util.Success(true) =>
           count = count + 1
           // make sure that dba is ready K times in the row
           if (count == K) {

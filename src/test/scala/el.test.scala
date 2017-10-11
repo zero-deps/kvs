@@ -19,19 +19,19 @@ class ElHandlerTest extends TestKit(ActorSystem("Test"))
   "el handler should" - {
     import Handler._
     "return error when element is absent" in {
-      kvs.get[String]("key") should be ('left)
+      kvs.get[String]("key").isLeft should be (true)
     }
     "save value" in {
-      kvs.put("key","value").right.value should be ("value")
+      kvs.put("key","value").toEither.right.value should be ("value")
     }
     "retrieve value" in {
-      kvs.get[String]("key").right.value should be ("value")
+      kvs.get[String]("key").toEither.right.value should be ("value")
     }
     "override value" in {
-      kvs.put("key","value2").right.value should be ("value2")
+      kvs.put("key","value2").toEither.right.value should be ("value2")
     }
     "delete value" in {
-      kvs.delete[String]("key").right.value should be ("value2")
+      kvs.delete[String]("key").toEither.right.value should be ("value2")
     }
     "clean up" in {
       kvs.get[String]("key") should be ('left)

@@ -1,5 +1,9 @@
 package mws.kvs
 
+import scala.util.Try
+
+import scalaz._, Scalaz._
+
 import akka.actor.ActorSystem
 
 object Run extends App {
@@ -33,6 +37,6 @@ object Run extends App {
     system.terminate()
     import scala.concurrent.Await
     import scala.concurrent.duration.Duration
-    Await.result(system.whenTerminated,Duration.Inf)
+    Try(Await.result(system.whenTerminated,Duration.Inf))
   }
 }

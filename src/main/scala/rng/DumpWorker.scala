@@ -10,6 +10,7 @@ import scala.collection.{SortedSet, SortedMap}
 import java.io.File
 import java.text.SimpleDateFormat
 import org.iq80.leveldb._
+import scalaz.{Ordering => _, _}, Scalaz._
 
 final case class DumpData(current: Bucket, prefList: PreferenceList, collected: List[List[Data]],
                           lastKey: Option[Key], client: Option[ActorRef])
@@ -22,7 +23,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
 
     val timestamp = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss").format(Calendar.getInstance().getTime())
     val filePath = s"rng_dump_$timestamp"
-    val db = Ring.openLeveldb(context.system, Some(filePath))
+    val db = Ring.openLeveldb(context.system, filePath.just)
     val dumpStore = context.actorOf(Props(classOf[WriteStore], db))
     val stores = SelectionMemorize(context.system)
     val maxBucket = context.system.settings.config.getInt("ring.buckets")
@@ -81,7 +82,7 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
     val extraxtedDir = path.dropRight(".zip".length)
     unZipIt(path, extraxtedDir)
 
-    val dumpDb = Ring.openLeveldb(context.system, Some(extraxtedDir))
+    val dumpDb = Ring.openLeveldb(context.system, extraxtedDir.just)
     val store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
     val stores = SelectionMemorize(context.system)
     startWith(ReadyCollect, None)
@@ -118,7 +119,7 @@ class IterateDumpWorker(path: String, foreach: (String,Array[Byte])=>Unit) exten
     val extraxtedDir = path.dropRight(".zip".length)
 
     unZipIt(path, extraxtedDir)
-    val dumpDb = Ring.openLeveldb(context.system,Some(extraxtedDir))
+    val dumpDb = Ring.openLeveldb(context.system,extraxtedDir.just)
     val store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
     val stores = SelectionMemorize(context.system)
     startWith(ReadyCollect, None)

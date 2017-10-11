@@ -2,9 +2,13 @@ package mws.rng
 
 import java.lang.management.ManagementFactory
 import javax.management.{InstanceAlreadyExistsException, InstanceNotFoundException, ObjectName, StandardMBean}
-import mws.kvs.store.Ring
+
 import scala.language.postfixOps
+import scalaz._, Scalaz._
+
 import akka.event.LoggingAdapter
+
+import mws.kvs.store.Ring
 
 /** JMX cient */
 trait HashRingMBean {
@@ -21,18 +25,18 @@ private[mws] class HashRingJmx(ring:Ring, log: LoggingAdapter) {
     val mbean = new StandardMBean(classOf[HashRingMBean]) with HashRingMBean {
 
       def get(key: String): String = ring.get(key) match {
-        case Right(byteStr) => new String(byteStr.toArray)
-        case _ => "not_present"
+        case \/-(byteStr) => new String(byteStr.toArray)
+        case -\/(_) => "not_present"
       }
 
       def put(key: String, value: String): String = ring.put(key, value.getBytes) match {
-          case Right(_) => "ok"
-          case Left(e) => s"$e"
+          case \/-(_) => "ok"
+          case -\/(e) => s"$e"
       }
 
       def delete(key:String) = ring.delete(key)match {
-          case Right(_) => "ok"
-          case Left(e) => s"error: $e"
+          case \/-(_) => "ok"
+          case -\/(e) => s"error: $e"
       }
     }
 

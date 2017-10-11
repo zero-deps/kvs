@@ -1,24 +1,30 @@
-package mws.kvs
+package mws
+package kvs
 package store
 
 import java.io.File
 import java.util.concurrent.TimeUnit
+
 import scala.language.postfixOps
 import scala.concurrent.{Await,Future}
 import scala.concurrent.duration._
-import scala.util._
+import scala.util.Try
+
+import scalaz._, Scalaz._, Maybe.{Empty, Just}
+
 import akka.event.Logging
 import akka.routing.FromConfig
 import akka.pattern.ask
 import akka.actor._
 import akka.util.{Timeout,ByteString}
+
 import mws.rng._
 import mws.rng.store.{ReadonlyStore,WriteStore}
 
 object Ring {
   def apply(system: ActorSystem): Dba = new Ring(system)
 
-  def openLeveldb(s: ActorSystem, path: Option[String]= None) = {
+  def openLeveldb(s: ActorSystem, path: Maybe[String]=Empty()) = {
     val config = s.settings.config.getConfig("ring.leveldb")
     val leveldbDir = new File(path.getOrElse(config.getString("dir")))
     val leveldbOptions = new org.iq80.leveldb.Options().createIfMissing(true)
@@ -43,38 +49,36 @@ class Ring(system: ActorSystem) extends Dba {
 
   private val hash = system.actorOf(Props(classOf[Hash]).withDeploy(Deploy.local), name = "ring_hash")
 
-  def put(key: String, value: V): Either[Err, V] = {
+  def put(key: String, value: V): Res[V] = {
     val putF = (hash ? Put(key, ByteString(value))).mapTo[Ack]
-    Try(Await.result(putF, d)) match {
-      case Success(AckSuccess) => Right(value)
-      case Success(AckQuorumFailed) => Left(RngAskQuorumFailed)
-      case Success(AckTimeoutFailed) => Left(RngAskTimeoutFailed)
-      case Failure(ex) => Left(RngThrow(ex))
+    Try(Await.result(putF, d)).toDisjunction match {
+      case \/-(AckSuccess) => value.right
+      case \/-(AckQuorumFailed) => RngAskQuorumFailed.left
+      case \/-(AckTimeoutFailed) => RngAskTimeoutFailed.left
+      case -\/(ex) => RngThrow(ex).left
     }
   }
 
   def isReady: Future[Boolean] = (hash ? Ready).mapTo[Boolean]
 
-  def get(key: String): Either[Err, V] = {
-    val getF = (hash ? Get(key)).mapTo[Option[Value]]
-    Try(Await.result(getF, d)) match {
-      case Success(Some(v)) => Right(v.toArray)
-      case Success(None) => Left(NotFound(key))
-      case Failure(ex) => Left(RngThrow(ex))
+  def get(key: String): Res[V] = {
+    val getF = (hash ? Get(key)).mapTo[Option[rng.Value]]
+    Try(Await.result(getF, d)).toDisjunction.map(_.toMaybe) match {
+      case \/-(Just(v)) => v.toArray.right
+      case \/-(Empty()) => NotFound(key).left
+      case -\/(ex) => RngThrow(ex).left
     }
   }
 
-  def delete(key: String): Either[Err, V] = {
-    get(key).fold(
-      l => Left(l),
-      r => Try(Await.result((hash ? Delete(key)).mapTo[Ack], d)) match {
-        case Success(AckSuccess) => Right(r)
-        case Success(AckQuorumFailed) => Left(RngAskQuorumFailed)
-        case Success(AckTimeoutFailed) => Left(RngAskTimeoutFailed)
-        case Failure(ex) => Left(RngThrow(ex))
+  def delete(key: String): Res[V] =
+    get(key).flatMap{ r =>
+      Try(Await.result((hash ? Delete(key)).mapTo[Ack], d)).toDisjunction match {
+        case \/-(AckSuccess) => r.right
+        case \/-(AckQuorumFailed) => RngAskQuorumFailed.left
+        case \/-(AckTimeoutFailed) => RngAskTimeoutFailed.left
+        case -\/(ex) => RngThrow(ex).left
       }
-    )
-  }
+    }
 
   def save():Future[String] = (hash ? Dump).mapTo[String]
   def load(path:String):Future[Any] = hash ? LoadDump(path)
@@ -82,10 +86,10 @@ class Ring(system: ActorSystem) extends Dba {
 
   def close(): Unit = ()
 
-  def nextid(feed:String):String = {
+  def nextid(feed:String):Res[String] = {
     import akka.cluster.sharding._
     import system.dispatcher
-    Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed).collect{case id:String=>id},d)
+    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed).mapTo[String],d)).toDisjunction.leftMap(RngThrow(_))
   }
 }
 
@@ -99,7 +103,7 @@ class IdCounter extends Actor with ActorLogging {
   import mws.kvs.handle.ElHandler
   implicit val strHandler:ElHandler[String] = new ElHandler[String] {
     def pickle(e: String): Array[Byte] = e.getBytes("UTF-8")
-    def unpickle(a: Array[Byte]): String = (new String(a,"UTF-8"))
+    def unpickle(a: Array[Byte]): Res[String] = new String(a,"UTF-8").right
   }
 
   def receive: Receive = {

@@ -11,7 +11,6 @@ import scalaz._, Scalaz._
 
 /** Kvs management access */
 trait KvsMBean {
-  def allStr(fid:String):String
   def save():String
   def load(path:String):Any
 }
@@ -23,10 +22,6 @@ class KvsJmx(kvs:Kvs,system:ActorSystem) {
 
   def createMBean():Unit = {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
-      def allStr(fid:String):String = kvs.entries[En[String]](fid) match {
-        case Right(list) => list.mkString(",\n")
-        case Left(err) => err.shows
-      }
       def save():String         = kvs.save().    getOrElse("timeout")
       def load(path:String):Any = kvs.load(path).getOrElse("timeout")
     }
