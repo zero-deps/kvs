@@ -2,8 +2,6 @@ package mws.kvs
 package handle
 
 import scala.util.Try
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
 
 import scalaz._, Scalaz._
 
@@ -162,7 +160,6 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "feed should be empty at the end test" in {
       kvs.get(Fd(fid)).toEither.right.get.count shouldBe 0
       kvs.stream[EnType](fid).toEither.right.value shouldBe empty
-      import Handler._
       kvs.delete(Fd(fid))
       kvs.stream[EnType](fid) shouldBe ('left)
     }

@@ -5,7 +5,7 @@ import akka.actor._
 import com.typesafe.config.Config
 
 import scala.annotation.tailrec
-import scala.collection.{SortedSet, SortedMap}
+import scala.collection.{SortedMap}
 
 class HashingImpl(config: Config) extends  Extension {
   val hashLen = config.getInt("hashLength")

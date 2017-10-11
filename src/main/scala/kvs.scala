@@ -15,7 +15,6 @@ object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
   override def createExtension(system:ExtendedActorSystem):Kvs = new Kvs(system)
 }
 class Kvs(system:ExtendedActorSystem) extends Extension {
-  import scala.collection.JavaConverters._
   import mws.kvs.store._
   import handle._
 

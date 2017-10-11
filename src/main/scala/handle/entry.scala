@@ -1,8 +1,6 @@
 package mws.kvs
 package handle
 
-import scala.annotation.tailrec
-
 import scalaz._, Scalaz._, Maybe.{Empty, Just}
 
 import store._

@@ -3,8 +3,7 @@ package mws.rng
 import java.lang.management.ManagementFactory
 import javax.management.{InstanceAlreadyExistsException, InstanceNotFoundException, ObjectName, StandardMBean}
 
-import scala.language.postfixOps
-import scalaz._, Scalaz._
+import scalaz._
 
 import akka.event.LoggingAdapter
 

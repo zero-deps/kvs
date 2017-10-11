@@ -6,7 +6,6 @@ import akka.util.ByteString
 import mws.rng.store.PutStatus
 
 import scala.annotation.tailrec
-import scala.collection.SortedSet
 
 package object rng {
   type Bucket = Int

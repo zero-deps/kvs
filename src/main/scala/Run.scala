@@ -2,8 +2,6 @@ package mws.kvs
 
 import scala.util.Try
 
-import scalaz._, Scalaz._
-
 import akka.actor.ActorSystem
 
 object Run extends App {
@@ -33,7 +31,6 @@ object Run extends App {
   }
 
   sys.addShutdownHook {
-    import system.dispatcher
     system.terminate()
     import scala.concurrent.Await
     import scala.concurrent.duration.Duration

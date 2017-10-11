@@ -1,8 +1,7 @@
 package mws.rng.arch
 
-import scala.collection.JavaConversions._
-import java.io.{File, OutputStream, FileInputStream, BufferedInputStream, FileOutputStream, InputStream, IOException }
-import java.util.zip.{ZipEntry, ZipFile, ZipOutputStream, ZipInputStream}
+import java.io.{File, FileInputStream, BufferedInputStream, FileOutputStream, IOException}
+import java.util.zip.{ZipEntry, ZipOutputStream, ZipInputStream}
 
 object Archiver {
 

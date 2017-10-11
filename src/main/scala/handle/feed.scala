@@ -1,11 +1,7 @@
 package mws.kvs
 package handle
 
-import scala.util.Try
-
-import scalaz._, Scalaz._
-
-import store._
+import mws.kvs.store._
 
 trait FdHandler extends Pickler[Fd] {
   def put(el:Fd)(implicit dba:Dba):Res[Fd] = dba.put(el.id,pickle(el)).flatMap(unpickle)

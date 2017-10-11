@@ -3,7 +3,6 @@ package kvs
 package store
 
 import java.io.File
-import java.util.concurrent.TimeUnit
 
 import scala.language.postfixOps
 import scala.concurrent.{Await,Future}
@@ -88,7 +87,6 @@ class Ring(system: ActorSystem) extends Dba {
 
   def nextid(feed:String):Res[String] = {
     import akka.cluster.sharding._
-    import system.dispatcher
     Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed).mapTo[String],d)).toDisjunction.leftMap(RngThrow(_))
   }
 }

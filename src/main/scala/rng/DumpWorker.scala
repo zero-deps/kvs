@@ -7,9 +7,7 @@ import mws.rng.store._
 import akka.util.ByteString
 import java.util.Calendar
 import scala.collection.{SortedSet, SortedMap}
-import java.io.File
 import java.text.SimpleDateFormat
-import org.iq80.leveldb._
 import scalaz.{Ordering => _, _}, Scalaz._
 
 final case class DumpData(current: Bucket, prefList: PreferenceList, collected: List[List[Data]],

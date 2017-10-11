@@ -21,7 +21,17 @@ object Build extends sbt.Build {
       mainClass in (Compile,run) := Some("mws.kvs.Run"),
       cancelable in Global := true,
       fork in run := true,
-      scalacOptions in Compile ++= Seq("-feature","-deprecation"/*,"-Xlog-implicits"*/),
+      scalacOptions in Compile ++= Seq(
+        "-feature",
+        "-unchecked",
+        "-deprecation",
+        "-language:_",
+        "-encoding", "UTF-8",
+        "-Ypartial-unification",
+        "-Xfatal-warnings",
+        "-Ywarn-dead-code",
+        "-Ywarn-unused-import"
+      ),
       fork in Test := true,
       libraryDependencies ++= Seq(
         "org.scalaz"        %% "scalaz-core"             % Versions.scalaz,

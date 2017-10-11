@@ -2,12 +2,8 @@ package mws.kvs
 
 import java.lang.management.ManagementFactory
 import javax.management.{ObjectName,StandardMBean}
-import scala.language.postfixOps
 import scala.util._
 import akka.actor.ActorSystem
-import handle._
-import Handler._
-import scalaz._, Scalaz._
 
 /** Kvs management access */
 trait KvsMBean {

@@ -1,11 +1,8 @@
 package mws.kvs
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
 import org.scalatest._
 import akka.actor._
 import akka.testkit._
-import handle._
 
 class ElHandlerTest extends TestKit(ActorSystem("Test"))
   with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
@@ -17,7 +14,6 @@ class ElHandlerTest extends TestKit(ActorSystem("Test"))
   override def afterAll = TestKit.shutdownActorSystem(system)
 
   "el handler should" - {
-    import Handler._
     "return error when element is absent" in {
       kvs.get[String]("key").isLeft should be (true)
     }

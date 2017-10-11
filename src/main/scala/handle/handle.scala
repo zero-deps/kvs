@@ -1,10 +1,7 @@
 package mws.kvs
 package handle
 
-import scala.language.postfixOps
-import scala.util.Try
-
-import scalaz._, Scalaz._
+import scalaz._
 
 import store._
 
