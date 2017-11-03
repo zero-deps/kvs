@@ -4,13 +4,13 @@ import sbt._
 import sbt.Keys._
 
 object Versions {
-  val scala = "2.12.3"
+  val scala = "2.12.4"
   val scalaz = "7.2.15"
-  val pickling = "1.0"
-  val akka = "2.4.14.0" // before updating to 2.5.x test 'sbt createPkg' in CMS project
-  val logback = "1.2.3"
-  val scalatest = "3.0.1"
+  val akka = "2.4.20.0" // before updating to 2.5.x test 'sbt createPkg' in CMS project
   val leveldb = "1.8"
+  val logback = "1.2.3"
+  val pickling = "1.0"
+  val scalatest = "3.0.1"
 }
 
 object Build extends sbt.Build {
@@ -34,9 +34,10 @@ object Build extends sbt.Build {
       ),
       fork in Test := true,
       libraryDependencies ++= Seq(
-        "org.scalaz"        %% "scalaz-core"             % Versions.scalaz,
-        "org.fusesource.leveldbjni" % "leveldbjni-all"   % Versions.leveldb,
-        "ch.qos.logback"     % "logback-classic"         % Versions.logback,
+        "org.scalaz"            %% "scalaz-core"             % Versions.scalaz,
+        "org.scalaz"            %% "scalaz-effect"           % Versions.scalaz,
+        "org.fusesource.leveldbjni" % "leveldbjni"           % Versions.leveldb,
+        "ch.qos.logback"         % "logback-classic"         % Versions.logback,
 
         "com.playtech.mws.akka" %% "akka-actor"              % Versions.akka,
         "com.playtech.mws.akka" %% "akka-cluster"            % Versions.akka,
@@ -48,8 +49,8 @@ object Build extends sbt.Build {
         "com.playtech.mws.akka" %% "akka-slf4j"              % Versions.akka,
         "com.playtech.mws.akka" %% "akka-stream"             % Versions.akka,
 
-        "com.playtech.mws"  %% "scala-pickling"          % Versions.pickling  % Test,
-        "org.scalatest"     %% "scalatest"               % Versions.scalatest % Test,
+        "com.playtech.mws"      %% "scala-pickling"          % Versions.pickling  % Test,
+        "org.scalatest"         %% "scalatest"               % Versions.scalatest % Test,
         "com.playtech.mws.akka" %% "akka-multi-node-testkit" % Versions.akka      % Test,
         "com.playtech.mws.akka" %% "akka-stream-testkit"     % Versions.akka      % Test,
         "com.playtech.mws.akka" %% "akka-testkit"            % Versions.akka      % Test
