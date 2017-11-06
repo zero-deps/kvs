@@ -6,7 +6,7 @@ import sbt.Keys._
 object Versions {
   val scala = "2.12.4"
   val scalaz = "7.2.15"
-  val akka = "2.4.20.0" // before updating to 2.5.x test 'sbt createPkg' in CMS project
+  val akka = "2.4.14.0" // before updating to any version test 'sbt createPkg' in CMS project
   val leveldb = "1.8"
   val logback = "1.2.3"
   val pickling = "1.0"
