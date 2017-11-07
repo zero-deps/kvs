@@ -36,7 +36,7 @@ object Build extends sbt.Build {
       libraryDependencies ++= Seq(
         "org.scalaz"            %% "scalaz-core"             % Versions.scalaz,
         "org.scalaz"            %% "scalaz-effect"           % Versions.scalaz,
-        "org.fusesource.leveldbjni" % "leveldbjni"           % Versions.leveldb,
+        "org.fusesource.leveldbjni" % "leveldbjni-all"       % Versions.leveldb,
         "ch.qos.logback"         % "logback-classic"         % Versions.logback,
 
         "com.playtech.mws.akka" %% "akka-actor"              % Versions.akka,
