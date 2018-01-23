@@ -22,6 +22,7 @@ object Archiver {
     		in.close()
     		zos.closeEntry()
   		}
+			println("Dump created")
   		zos.close()
 	}
 

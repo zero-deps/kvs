@@ -4,11 +4,20 @@ package mws.rng
 import akka.actor._
 import mws.kvs.store.Ring
 import mws.rng.store._
-import akka.util.ByteString
+import akka.util.{ByteString, Timeout}
 import java.util.Calendar
-import scala.collection.{SortedSet, SortedMap}
+
+import akka.pattern.ask
+
+import scala.collection.{SortedMap, SortedSet}
 import java.text.SimpleDateFormat
-import scalaz.{Ordering => _, _}, Scalaz._
+import java.util.concurrent.TimeUnit
+
+import org.iq80.leveldb.DB
+
+import scalaz.{Ordering => _, _}
+import Scalaz._
+import scala.concurrent.Await
 
 final case class DumpData(current: Bucket, prefList: PreferenceList, collected: List[List[Data]],
                           lastKey: Option[Key], client: Option[ActorRef])
@@ -19,7 +28,7 @@ object DumpWorker {
 class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extends FSM[FsmState, DumpData] with ActorLogging {
     implicit val ord = Ordering.by[Node, String](n => n.hostPort)
 
-    val timestamp = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss").format(Calendar.getInstance().getTime())
+    val timestamp = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss").format(Calendar.getInstance().getTime)
     val filePath = s"rng_dump_$timestamp"
     val db = Ring.openLeveldb(context.system, filePath.just)
     val dumpStore = context.actorOf(Props(classOf[WriteStore], db))
@@ -48,12 +57,13 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
                         dumpStore ! PutSavingEntity("head_of_keys", (ByteString("dummy"), lastKey))
                         dumpStore ! PoisonPill //TODO stop after processing last msg
                         import mws.rng.arch.Archiver._
+                        Thread.sleep(5000)
                         zip(filePath)
                         state.client.map(_ ! s"$filePath.zip")
                         stop()
                     case nextBucket =>
                         buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(nextBucket), _ ! BucketGet(nextBucket))}
-                        stay() using(DumpData(nextBucket, buckets(nextBucket), Nil, lastKey, state.client))
+                        stay() using DumpData(nextBucket, buckets(nextBucket), Nil, lastKey, state.client)
                 }
             }
             else
@@ -65,7 +75,8 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
         case Nil => prevKey
         case h::t =>
             log.debug(s"dump key=${h.key}")
-            dumpStore ! PutSavingEntity(h.key, (h.value, prevKey))
+            implicit  val timeout = Timeout(3, TimeUnit.SECONDS)
+            Await.ready(dumpStore ? PutSavingEntity(h.key, (h.value, prevKey)), timeout.duration)
             linkKeysInDb(t,Some(h.key))
     }
 
@@ -80,8 +91,8 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
     val extraxtedDir = path.dropRight(".zip".length)
     unZipIt(path, extraxtedDir)
 
-    val dumpDb = Ring.openLeveldb(context.system, extraxtedDir.just)
-    val store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
+    val dumpDb: DB = Ring.openLeveldb(context.system, extraxtedDir.just)
+    val store: ActorRef = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
     val stores = SelectionMemorize(context.system)
     startWith(ReadyCollect, None)
 

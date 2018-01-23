@@ -32,6 +32,9 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
     case Event(incomeStatus: PutStatus, Statuses(statuses)) =>
       val updStatuses = Statuses( incomeStatus :: statuses )
       updStatuses.all.count(_ == Saved) match {
+        case n if n == putInfo.N =>
+          client ! AckSuccess
+          stop()
         case w if w == putInfo.W =>
           client ! AckSuccess
           goto(Sent) using updStatuses

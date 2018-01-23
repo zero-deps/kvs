@@ -65,6 +65,7 @@ class WriteStore(leveldb: DB ) extends Actor with ActorLogging {
       sender ! doPut(data)
     case PutSavingEntity(k:Key,v:(Value, Option[Key])) =>
       withBatch(batch => { batch.put(bytes(k), bytes(v)) })
+      sender() ! "done"
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketPut(data) => data map doPut
     case unhandled => log.warning(s"[store]unhandled message: $unhandled")
