@@ -25,7 +25,10 @@ object Ring {
     import com.protonail.leveldb.jna._
     val config = s.settings.config.getConfig("ring.leveldb")
     val leveldbDir = path.getOrElse(config.getString("dir"))
-    val leveldbOptions = new LevelDBOptions
+    val leveldbOptions = new LevelDBOptions() {
+      val bloom = native.leveldb_filterpolicy_create_bloom(10)
+      native.leveldb_options_set_filter_policy(options, bloom)
+    }
     leveldbOptions.setCreateIfMissing(true)
     new LevelDB(leveldbDir, leveldbOptions)
   }
