@@ -6,4 +6,10 @@ object native {
 
   def leveldb_options_set_filter_policy(options: LevelDBNative.Options, filterPolicy: LevelDBNative.FilterPolicy): Unit =
     LevelDBNative.leveldb_options_set_filter_policy(options, filterPolicy)
+
+  def leveldb_options_set_cache(options: LevelDBNative.Options, cache: LevelDBNative.Cache): Unit =
+    LevelDBNative.leveldb_options_set_cache(options, cache)
+
+  def leveldb_cache_create_lru(capacity: Int): LevelDBNative.Cache =
+    LevelDBNative.leveldb_cache_create_lru(capacity)
 }

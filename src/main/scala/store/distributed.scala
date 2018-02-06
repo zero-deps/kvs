@@ -28,6 +28,8 @@ object Ring {
     val leveldbOptions = new LevelDBOptions() {
       val bloom = native.leveldb_filterpolicy_create_bloom(10)
       native.leveldb_options_set_filter_policy(options, bloom)
+      val cache = native.leveldb_cache_create_lru(100 * 1048576) // 100MB cache
+      native.leveldb_options_set_cache(options, cache)
     }
     leveldbOptions.setCreateIfMissing(true)
     new LevelDB(leveldbDir, leveldbOptions)
