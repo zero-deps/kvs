@@ -13,7 +13,7 @@ import scala.collection.{SortedMap, SortedSet}
 import java.text.SimpleDateFormat
 import java.util.concurrent.TimeUnit
 
-import org.iq80.leveldb.DB
+import com.protonail.leveldb.jna._
 
 import scalaz.{Ordering => _, _}
 import Scalaz._
@@ -91,7 +91,7 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
     val extraxtedDir = path.dropRight(".zip".length)
     unZipIt(path, extraxtedDir)
 
-    val dumpDb: DB = Ring.openLeveldb(context.system, extraxtedDir.just)
+    val dumpDb: LevelDB = Ring.openLeveldb(context.system, extraxtedDir.just)
     val store: ActorRef = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
     val stores = SelectionMemorize(context.system)
     startWith(ReadyCollect, None)

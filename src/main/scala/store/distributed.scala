@@ -2,8 +2,6 @@ package mws
 package kvs
 package store
 
-import java.io.File
-
 import scala.language.postfixOps
 import scala.concurrent.{Await,Future}
 import scala.concurrent.duration._
@@ -24,10 +22,12 @@ object Ring {
   def apply(system: ActorSystem): Dba = new Ring(system)
 
   def openLeveldb(s: ActorSystem, path: Maybe[String]=Empty()) = {
+    import com.protonail.leveldb.jna._
     val config = s.settings.config.getConfig("ring.leveldb")
-    val leveldbDir = new File(path.getOrElse(config.getString("dir")))
-    val leveldbOptions = new org.iq80.leveldb.Options().createIfMissing(true)
-    org.fusesource.leveldbjni.JniDBFactory.factory.open(leveldbDir,leveldbOptions)
+    val leveldbDir = path.getOrElse(config.getString("dir"))
+    val leveldbOptions = new LevelDBOptions
+    leveldbOptions.setCreateIfMissing(true)
+    new LevelDB(leveldbDir, leveldbOptions)
   }
 }
 
