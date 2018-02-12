@@ -7,7 +7,7 @@ import akka.actor.ActorSystem
 
 /** Kvs management access */
 trait KvsMBean {
-  def save():String
+  def save(path: String):String
   def load(path:String):Any
   def get(k: String): String
   def put(k: String, v: String): Unit
@@ -21,12 +21,11 @@ class KvsJmx(kvs:Kvs,system:ActorSystem) {
 
   def createMBean():Unit = {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
-      def save():String         = kvs.save().    getOrElse("timeout")
+      def save(path: String):String         = kvs.save(path).    getOrElse("timeout")
       def load(path:String):Any = kvs.load(path).getOrElse("timeout")
       import mws.kvs.handle.ElHandler.strHandler
       def get(k: String): String = kvs.get(k).getOrElse("NaN")
       def put(k: String,v: String): Unit = kvs.put(k, v)
-
 
     }
     Try(server.registerMBean(mbean,name))

@@ -23,21 +23,30 @@ final case class DumpData(current: Bucket, prefList: PreferenceList, collected: 
                           lastKey: Option[Key], client: Option[ActorRef])
 
 object DumpWorker {
-    def props(buckets: SortedMap[Bucket, PreferenceList], local: Node): Props = Props(new DumpWorker(buckets, local))
+    def props(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: String): Props = Props(new DumpWorker(buckets, local, path))
 }
-class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extends FSM[FsmState, DumpData] with ActorLogging {
+class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: String) extends FSM[FsmState, DumpData] with ActorLogging {
     implicit val ord = Ordering.by[Node, String](n => n.hostPort)
 
     val timestamp = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss").format(Calendar.getInstance().getTime)
-    val filePath = s"rng_dump_$timestamp"
-    val db = Ring.openLeveldb(context.system, filePath.just)
-    val dumpStore = context.actorOf(Props(classOf[WriteStore], db))
+    val filePath = s"$path/rng_dump_$timestamp"
+    var db: LevelDB = _
+    var dumpStore: ActorRef = _
     val stores = SelectionMemorize(context.system)
-    val maxBucket = context.system.settings.config.getInt("ring.buckets")
+    val maxBucket: Bucket = context.system.settings.config.getInt("ring.buckets")
+
+    override def preRestart (reason: Throwable, message: Option[Any]): Unit = {
+      stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
+      log.info(s"Dump creating is failed. Reason : ${reason.getMessage}")
+      super.preRestart(reason, message)
+    }
+
     startWith(ReadyCollect, DumpData(0, SortedSet.empty[Node], Nil, None, None))
 
     when(ReadyCollect){
-        case Event(Dump, state ) =>
+        case Event(Dump(_), state ) =>
+            db = Ring.openLeveldb(context.system, filePath.just)
+            dumpStore = context.actorOf(Props(classOf[WriteStore], db))
             buckets(state.current).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(state.current), _ ! BucketGet(state.current))}
             goto(Collecting) using DumpData(state.current, buckets(state.current), Nil, None, Some(sender))
     }
@@ -60,6 +69,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node) extend
                         Thread.sleep(5000)
                         zip(filePath)
                         state.client.map(_ ! s"$filePath.zip")
+                        db.close()
                         stop()
                     case nextBucket =>
                         buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(nextBucket), _ ! BucketGet(nextBucket))}
@@ -90,14 +100,15 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
     import mws.rng.arch.Archiver._
     val extraxtedDir = path.dropRight(".zip".length)
     unZipIt(path, extraxtedDir)
-
-    val dumpDb: LevelDB = Ring.openLeveldb(context.system, extraxtedDir.just)
-    val store: ActorRef = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
+    var dumpDb: LevelDB = _
+    var store: ActorRef = _
     val stores = SelectionMemorize(context.system)
     startWith(ReadyCollect, None)
 
     when(ReadyCollect){
         case Event(LoadDump(_),_) =>
+            dumpDb = Ring.openLeveldb(context.system, extraxtedDir.just)
+            store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
             store ! GetSavingEntity("head_of_keys")
             goto(Collecting) using Some(sender)
     }
@@ -128,13 +139,15 @@ class IterateDumpWorker(path: String, foreach: (String,Array[Byte])=>Unit) exten
     val extraxtedDir = path.dropRight(".zip".length)
 
     unZipIt(path, extraxtedDir)
-    val dumpDb = Ring.openLeveldb(context.system,extraxtedDir.just)
-    val store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
+    var dumpDb: LevelDB = _
+    var store: ActorRef = _
     val stores = SelectionMemorize(context.system)
     startWith(ReadyCollect, None)
 
     when(ReadyCollect){
         case Event(IterateDump(_,_),_) =>
+            dumpDb = Ring.openLeveldb(context.system,extraxtedDir.just)
+            store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
             store ! GetSavingEntity("head_of_keys")
             goto(Collecting) using Some(sender)
     }

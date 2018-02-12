@@ -17,7 +17,7 @@ sealed class APIMessage
 case class Put(k: Key, v: Value) extends APIMessage
 case class Get(k: Key) extends APIMessage
 case class Delete(k: Key) extends APIMessage
-case object Dump extends APIMessage
+case class Dump(dumpLocation: String) extends APIMessage
 case class LoadDump(dumpPath:String) extends APIMessage
 case class IterateDump(dumpPath:String,foreach:(String,Array[Byte])=>Unit) extends APIMessage
 case object RestoreState extends APIMessage
@@ -103,8 +103,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       val s = sender()
       doDelete(k,s,data)
       stay()
-    case Event(Dump, data) =>
-      system.actorOf(DumpWorker.props(data.buckets, local), s"dump_wrkr-${System.currentTimeMillis}").forward(Dump)
+    case Event(Dump(path), data) =>
+      system.actorOf(DumpWorker.props(data.buckets, local, path), s"dump_wrkr-${System.currentTimeMillis}").forward(Dump(path))
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
       goto(Readonly)
     case Event(LoadDump(dumpPath), data) =>

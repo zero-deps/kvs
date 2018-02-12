@@ -3,28 +3,28 @@ package kvs
 package store
 
 import scala.language.postfixOps
-import scala.concurrent.{Await,Future}
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.util.Try
-
-import scalaz._, Scalaz._, Maybe.{Empty, Just}
-
+import scalaz._
+import Scalaz._
+import Maybe.{Empty, Just}
 import akka.event.Logging
 import akka.routing.FromConfig
 import akka.pattern.ask
 import akka.actor._
-import akka.util.{Timeout,ByteString}
-
+import akka.util.{ByteString, Timeout}
+import com.protonail.leveldb.jna.LevelDB
 import mws.rng._
-import mws.rng.store.{ReadonlyStore,WriteStore}
+import mws.rng.store.{ReadonlyStore, WriteStore}
 
 object Ring {
   def apply(system: ActorSystem): Dba = new Ring(system)
 
-  def openLeveldb(s: ActorSystem, path: Maybe[String]=Empty()) = {
+  def openLeveldb(s: ActorSystem, path: Maybe[String]=Empty()): LevelDB = {
     import com.protonail.leveldb.jna._
     val config = s.settings.config.getConfig("ring.leveldb")
-    val leveldbDir = path.getOrElse(config.getString("dir"))
+    val leveldbDir: String = path.getOrElse(config.getString("dir"))
     val leveldbOptions = new LevelDBOptions() {
       val bloom = native.leveldb_filterpolicy_create_bloom(10)
       native.leveldb_options_set_filter_policy(options, bloom)
@@ -46,7 +46,7 @@ class Ring(system: ActorSystem) extends Dba {
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
   system.eventStream
 
-  var leveldb = openLeveldb(system)
+  var leveldb: LevelDB = openLeveldb(system)
 
   system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
@@ -84,7 +84,7 @@ class Ring(system: ActorSystem) extends Dba {
       }
     }
 
-  def save():Future[String] = (hash ? Dump).mapTo[String]
+  def save(path: String):Future[String] = (hash ? Dump(path)).mapTo[String]
   def load(path:String):Future[Any] = hash ? LoadDump(path)
   def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Future[Any] = hash ? IterateDump(path,foreach)
 

@@ -56,7 +56,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   def get[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].get(fid,id)
 
   val dump_timeout = 1 hour
-  def save():Res[String] = Try(Await.result(dba.save(),dump_timeout)).toDisjunction.leftMap(Failed(_))
+  def save(path: String):Res[String] = Try(Await.result(dba.save(path),dump_timeout)).toDisjunction.leftMap(Failed(_))
   def load(path:String):Res[Any] = Try(Await.result(dba.load(path),dump_timeout)).toDisjunction.leftMap(Failed(_))
   def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Res[Any] = Try(Await.result(dba.iterate(path,foreach),dump_timeout)).toDisjunction.leftMap(Failed(_))
 
