@@ -1,8 +1,9 @@
 package mws.rng
 
-import akka.actor.{Props, ActorLogging, ActorRef, FSM}
+import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import akka.cluster.VectorClock
-import mws.rng.store.{GetResp, Saved, PutStatus, StorePut}
+import mws.rng.store.{GetResp, PutStatus, Saved, StorePut}
+
 import scala.concurrent.duration._
 
 case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
@@ -59,10 +60,8 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
   }
 
   def mapInPut(nodes: Set[Node], d: Data) = {
-    val storeList = nodes.map(stores.get(_, "ring_write_store"))
-      storeList.foreach(ref =>
-      ref.fold(_.tell(StorePut(d), self),
-        _.tell(StorePut(d), self)))
+    val storeList = nodes.map(n => RootActorPath(n) / "user" / "ring_write_store")
+      storeList.foreach(ref =>  context.system.actorSelection(ref).tell(StorePut(d), self))
   }
   
   initialize()
