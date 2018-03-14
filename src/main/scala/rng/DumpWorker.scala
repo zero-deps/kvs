@@ -1,6 +1,5 @@
 package mws.rng
 
-
 import akka.actor._
 import mws.kvs.store.Ring
 import mws.rng.store._
@@ -18,6 +17,7 @@ import com.protonail.leveldb.jna._
 import scalaz.{Ordering => _, _}
 import Scalaz._
 import scala.concurrent.Await
+import scala.util.Try
 
 final case class DumpData(current: Bucket, prefList: PreferenceList, collected: List[List[Data]],
                           lastKey: Option[Key], client: Option[ActorRef])
@@ -69,7 +69,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
                         Thread.sleep(5000)
                         zip(filePath)
                         state.client.map(_ ! s"$filePath.zip")
-                        db.close()
+                        Try(db.close()).toEither.left.map(err => log.info(s"Error closing db $err"))
                         stop()
                     case nextBucket =>
                         buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(nextBucket), _ ! BucketGet(nextBucket))}
@@ -120,7 +120,7 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
             nextKey match {
                 case None =>
                     stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
-                    dumpDb.close()
+                    Try(dumpDb.close()).toEither.left.map(err => log.info(s"Error closing db $err"))
                     log.info("load is completed")
                     state.map(_ ! "done")
                     stop()
@@ -158,7 +158,7 @@ class IterateDumpWorker(path: String, foreach: (String,Array[Byte])=>Unit) exten
             foreach(k,v.toArray)
             nextKey match {
                 case None =>
-                    dumpDb.close()
+                    Try(dumpDb.close()).toEither.left.map(err => log.info(s"Error closing db $err"))
                     state.map(_ ! "done")
                     log.debug("iteration ended")
                     stop()
