@@ -81,11 +81,11 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
 
     }
 
-    def linkKeysInDb(ldata: List[Data], prevKey: Option[Key]): Option[Key] = ldata match {
+    @scala.annotation.tailrec final def linkKeysInDb(ldata: List[Data], prevKey: Option[Key]): Option[Key] = ldata match {
         case Nil => prevKey
         case h::t =>
             log.debug(s"dump key=${h.key}")
-            implicit  val timeout = Timeout(3, TimeUnit.SECONDS)
+            implicit  val timeout = Timeout(120, TimeUnit.SECONDS)
             Await.ready(dumpStore ? PutSavingEntity(h.key, (h.value, prevKey)), timeout.duration)
             linkKeysInDb(t,Some(h.key))
     }
