@@ -35,6 +35,9 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
     val stores = SelectionMemorize(context.system)
     val maxBucket: Bucket = context.system.settings.config.getInt("ring.buckets")
 
+    var keysInDump: Int = 0
+    implicit val timeout = Timeout(120, TimeUnit.SECONDS)
+
     override def preRestart (reason: Throwable, message: Option[Any]): Unit = {
       stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
       log.info(s"Dump creating is failed. Reason : ${reason.getMessage}")
@@ -62,12 +65,13 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
                 b+1 match {
                     case `maxBucket` =>
                         stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
-                        log.info(s"Dump complete, sending path to hash, lastKey = $lastKey")
+                        log.info(s"Dump complete, sending path to hash, lastKey = $lastKey, keysInDump=$keysInDump")
                         dumpStore ! PutSavingEntity("head_of_keys", (ByteString("dummy"), lastKey))
                         dumpStore ! PoisonPill //TODO stop after processing last msg
                         import mws.rng.arch.Archiver._
                         Thread.sleep(5000)
                         zip(filePath)
+                        log.info(s"zip dump ok=$filePath")
                         state.client.map(_ ! s"$filePath.zip")
                         Try(db.close()).toEither.left.map(err => log.info(s"Error closing db $err"))
                         stop()
@@ -84,9 +88,9 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
     @scala.annotation.tailrec final def linkKeysInDb(ldata: List[Data], prevKey: Option[Key]): Option[Key] = ldata match {
         case Nil => prevKey
         case h::t =>
-            log.debug(s"dump key=${h.key}")
-            implicit  val timeout = Timeout(120, TimeUnit.SECONDS)
+            log.debug("dump key={}", h.key)
             Await.ready(dumpStore ? PutSavingEntity(h.key, (h.value, prevKey)), timeout.duration)
+            keysInDump = keysInDump + 1
             linkKeysInDb(t,Some(h.key))
     }
 
@@ -98,6 +102,9 @@ object LoadDumpWorker {
 }
 class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
     import mws.rng.arch.Archiver._
+    implicit val timeout = Timeout(120.second)
+    var keysNumber = 0
+
     val extraxtedDir = path.dropRight(".zip".length)
     unZipIt(path, extraxtedDir)
     var dumpDb: LevelDB = _
@@ -115,17 +122,19 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
 
     when(Collecting){
         case Event(SavingEntity(k,v,nextKey),state) =>
-            log.debug(s"saving state $k -> $v, nextKey = $nextKey")
-            stores.get(self.path.address, "ring_hash").fold(_ ! InternalPut(k,v), _ ! InternalPut(k,v))
+            log.debug(s"saving state {} -> {}, nextKey = {}", k, v, nextKey)
+            val putF = stores.get(self.path.address, "ring_hash").fold(_ ! InternalPut(k,v), _ ! InternalPut(k,v))
+            Await.ready(putF, timeout.duration)
             nextKey match {
                 case None =>
                     stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
                     Try(dumpDb.close()).toEither.left.map(err => log.info(s"Error closing db $err"))
-                    log.info("load is completed")
+                    log.info("load is completed, keys={}", keysNumber)
                     state.map(_ ! "done")
                     stop()
                 case Some(key) =>
                     store ! GetSavingEntity(key)
+                    keysNumber = keysNumber + 1
                     stay() using state
             }
     }
