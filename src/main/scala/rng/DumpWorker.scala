@@ -73,7 +73,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
                         zip(filePath)
                         log.info(s"zip dump ok=$filePath")
                         state.client.map(_ ! s"$filePath.zip")
-                        Try(db.close()).toEither.left.map(err => log.info(s"Error closing db $err"))
+                        Try(db.close()).recover{ case err => log.info(s"Error closing db $err")}
                         stop()
                     case nextBucket =>
                         buckets(nextBucket).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(nextBucket), _ ! BucketGet(nextBucket))}
@@ -128,7 +128,7 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
             nextKey match {
                 case None =>
                     stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
-                    Try(dumpDb.close()).toEither.left.map(err => log.info(s"Error closing db $err"))
+                    Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
                     log.info("load is completed, keys={}", keysNumber)
                     state.map(_ ! "done")
                     stop()
@@ -167,7 +167,7 @@ class IterateDumpWorker(path: String, foreach: (String,Array[Byte])=>Unit) exten
             foreach(k,v.toArray)
             nextKey match {
                 case None =>
-                    Try(dumpDb.close()).toEither.left.map(err => log.info(s"Error closing db $err"))
+                    Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
                     state.map(_ ! "done")
                     log.debug("iteration ended")
                     stop()
