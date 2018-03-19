@@ -102,7 +102,7 @@ object LoadDumpWorker {
 }
 class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
     import mws.rng.arch.Archiver._
-    implicit val timeout = Timeout(120.second)
+    implicit val timeout = Timeout(120, TimeUnit.SECONDS)
     var keysNumber = 0
 
     val extraxtedDir = path.dropRight(".zip".length)
@@ -123,7 +123,7 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
     when(Collecting){
         case Event(SavingEntity(k,v,nextKey),state) =>
             log.debug(s"saving state {} -> {}, nextKey = {}", k, v, nextKey)
-            val putF = stores.get(self.path.address, "ring_hash").fold(_ ! InternalPut(k,v), _ ! InternalPut(k,v))
+            val putF = stores.get(self.path.address, "ring_hash").fold(_.ask(InternalPut(k,v)), _.ask(InternalPut(k,v)))
             Await.ready(putF, timeout.duration)
             nextKey match {
                 case None =>
