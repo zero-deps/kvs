@@ -51,6 +51,7 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
 
   def nextid(fid:String):Res[String] = dba.nextid(fid)
   def add[H:Handler](el:H):Res[H] = implicitly[Handler[H]].add(el)
+  def put[H:Handler](el:H):Res[H] = implicitly[Handler[H]].put(el)
   def remove[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].remove(fid,id)
   def stream[H:Handler](fid:String,from:Maybe[H]=Empty[H]()):Res[Stream[H]] = implicitly[Handler[H]].stream(fid,from)
   def get[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].get(fid,id)

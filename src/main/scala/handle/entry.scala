@@ -40,7 +40,7 @@ trait EntryHandler[A <: Entry] extends Handler[A] {
   val fh: FdHandler
 
   private def key(fid:String,id:String):String = s"${fid}.${id}"
-  private def put(en:A)(implicit dba:Dba):Res[A] = dba.put(key(en.fid,en.id),pickle(en)).map(_=>en)
+  private def _put(en:A)(implicit dba:Dba):Res[A] = dba.put(key(en.fid,en.id),pickle(en)).map(_=>en)
   def get(fid:String,id:String)(implicit dba:Dba):Res[A] = dba.get(key(fid,id)).flatMap(unpickle)
   private def delete(fid:String,id:String)(implicit dba:Dba):Res[A] = dba.delete(key(fid,id)).flatMap(unpickle)
 
@@ -66,12 +66,24 @@ trait EntryHandler[A <: Entry] extends Handler[A] {
           )
       ).map(id => update(en, id=id, prev=fd.top)).flatMap{ en =>
         // add new entry with prev pointer
-        put(en).flatMap{ en =>
+        _put(en).flatMap{ en =>
           // update feed's top
           fh.put(fd.copy(top=en.id, count=fd.count+1)).map(_ => en)
         }
       }
     }
+
+  /**
+   * Puts the entry to the container
+   * If entry don't exists in containter create container and add it to the head
+   * If entry exists in container, put it in the same place
+   * @param en entry to put (prev is ignored)
+   */
+  def put(en: A)(implicit dba: Dba): Res[A] =
+    get(en.fid, en.id).fold(
+      l => add(en),
+      r => _put(update(en, r.prev))
+    )
 
   /**
    * Remove the entry from the container specified
@@ -97,7 +109,7 @@ trait EntryHandler[A <: Entry] extends Handler[A] {
               .\/>(NotFound(key(fid, id)))
               .flatMap{ next =>
                 // change link
-                put(update(next, prev=prev)).flatMap{ _ =>
+                _put(update(next, prev=prev)).flatMap{ _ =>
                   // decrement count
                   fh.put(fd.copy(count=fd.count-1))
                 }

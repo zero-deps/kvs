@@ -16,6 +16,7 @@ trait Pickler[T] {
  */
 trait Handler[T] extends Pickler[T] {
   def add(el:T)(implicit dba:Dba):Res[T]
+  def put(el:T)(implicit dba:Dba):Res[T]
   def remove(fid:String,id:String)(implicit dba:Dba):Res[T]
   def stream(fid:String,from:Maybe[T])(implicit dba:Dba):Res[Stream[T]]
   def get(fid:String,id:String)(implicit dba:Dba):Res[T]
@@ -30,6 +31,7 @@ object Handler {
     def unpickle(a: Array[Byte]): Res[A] = h.unpickle(a).map(g)
 
     def add(el:A)(implicit dba:Dba):Res[A] = h.add(f(el)).map(g)
+    def put(el:A)(implicit dba:Dba):Res[A] = h.put(f(el)).map(g)
     def remove(fid:String,id:String)(implicit dba:Dba):Res[A] = h.remove(fid,id).map(g)
     def stream(fid:String,from:Maybe[A])(implicit dba:Dba):Res[Stream[A]] =
       h.stream(fid,toOpt(from)).map { _ map g }
