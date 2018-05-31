@@ -65,4 +65,8 @@ package object rng {
       }
     case Nil => merged
   }
+
+  implicit class StringOps(value: String) {
+    def blue: String = s"\u001B[34m${value}\u001B[0m"
+  }
 }

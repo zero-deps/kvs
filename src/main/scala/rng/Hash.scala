@@ -7,7 +7,6 @@ import akka.util.Timeout
 import mws.rng.store._
 import scala.collection.{SortedMap, SortedSet}
 import scala.concurrent.duration._
-import scala.collection.JavaConverters._
 import scala.collection.breakOut
 
 import com.typesafe.config.Config
@@ -42,11 +41,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
   implicit val timeout = Timeout(5.second)
 
-  val config:Config = system.settings.config.getConfig("ring")
-  log.info(s"Ring configuration: ")
-  for (c <- config.entrySet().asScala) {
-    log.info(s"${c.getKey} = ${c.getValue.render()}")
-  }
+  val config: Config = system.settings.config.getConfig("ring")
 
   val quorum = config.getIntList("quorum")
   val N: Int = quorum.get(0)
@@ -60,8 +55,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   val hashing = HashingExtension(system)
   val actorsMem = SelectionMemorize(system)
 
-  startWith(Unsatisfied, HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList],
-                                 SortedMap.empty[Bucket, Address]))
+  log.info(s"Ring configuration:".blue)
+  log.info(s"ring.quorum.N = ${N}".blue)
+  log.info(s"ring.quorum.W = ${W}".blue)
+  log.info(s"ring.quorum.R = ${R}".blue)
+  log.info(s"ring.leveldb.dir = ${config.getString("leveldb.dir")}".blue)
+
+  startWith(Unsatisfied, HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Address]))
 
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
