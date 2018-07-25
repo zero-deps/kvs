@@ -27,10 +27,9 @@ lazy val root = (project in file(".")).withId("kvs")
       "com.protonail.leveldb-jna" % "leveldb-jna-native" % Versions.leveldb classifier "linux-x86_64",
       "com.protonail.leveldb-jna" % "leveldb-jna-native" % Versions.leveldb classifier "linux-x86",
 
-      "org.scalaz"            %% "scalaz-core"             % Versions.scalaz,
-      "org.scalaz"            %% "scalaz-effect"           % Versions.scalaz,
+      "org.scalaz"            %% "scalaz-core"             % Versions.scalaz % Provided,
 
-      "ch.qos.logback"         % "logback-classic"         % Versions.logback,
+      "ch.qos.logback"         % "logback-classic"         % Versions.logback % Provided,
 
       "com.playtech.mws.akka" %% "akka-actor"              % Versions.akka,
       "com.playtech.mws.akka" %% "akka-cluster"            % Versions.akka,
@@ -71,5 +70,5 @@ lazy val publishSettings = Seq(
   publishMavenStyle := true,
   pomIncludeRepository := (_ => false),
   isSnapshot := true,
-  crossScalaVersions := Seq("2.11.11", "2.12.4")
+  crossScalaVersions := Seq("2.11.12", "2.12.6")
 )

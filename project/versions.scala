@@ -1,6 +1,6 @@
 object Versions {
   val scala = "2.12.6"
-  val scalaz = "7.2.24"
+  val scalaz = "7.2.25"
   val akka = "2.4.14.0-2-g00894bc" // before updating to any version test 'sbt createPkg' in CMS project
   val leveldb = "1.20.0"
   val logback = "1.2.3"
