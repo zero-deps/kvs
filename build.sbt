@@ -22,10 +22,9 @@ lazy val root = (project in file(".")).withId("kvs")
     libraryDependencies ++= Seq(
       "com.github.jnr" % "jnr-ffi" % "2.1.7",
 
+      "org.scalaz" %% "scalaz-core" % Versions.scalaz,
 
-      "org.scalaz"            %% "scalaz-core"             % Versions.scalaz % Provided,
-
-      "ch.qos.logback"         % "logback-classic"         % Versions.logback % Provided,
+      "ch.qos.logback" % "logback-classic" % Versions.logback,
 
       "com.playtech.mws.akka" %% "akka-actor"              % Versions.akka,
       "com.playtech.mws.akka" %% "akka-cluster"            % Versions.akka,
