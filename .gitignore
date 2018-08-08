@@ -1,4 +1,4 @@
 /rng_data_*/
-/.idea
 target/
 .DS_Store
+/lib/

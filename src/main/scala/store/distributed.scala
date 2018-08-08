@@ -14,7 +14,7 @@ import akka.routing.FromConfig
 import akka.pattern.ask
 import akka.actor._
 import akka.util.{ByteString, Timeout}
-import com.protonail.leveldb.jna.LevelDB
+import leveldbjnr.LevelDB
 import mws.rng._
 import mws.rng.store.{ReadonlyStore, WriteStore}
 
@@ -22,14 +22,14 @@ object Ring {
   def apply(system: ActorSystem): Dba = new Ring(system)
 
   def openLeveldb(s: ActorSystem, path: Maybe[String]=Empty()): LevelDB = {
-    import com.protonail.leveldb.jna._
+    import leveldbjnr._
     val config = s.settings.config.getConfig("ring.leveldb")
     val leveldbDir: String = path.getOrElse(config.getString("dir"))
     val leveldbOptions = new LevelDBOptions() {
-      val bloom = native.leveldb_filterpolicy_create_bloom(10)
-      native.leveldb_options_set_filter_policy(options, bloom)
-      val cache = native.leveldb_cache_create_lru(100 * 1048576) // 100MB cache
-      native.leveldb_options_set_cache(options, cache)
+      val bloom = LevelDB.lib.leveldb_filterpolicy_create_bloom(10)
+      LevelDB.lib.leveldb_options_set_filter_policy(options, bloom)
+      val cache = LevelDB.lib.leveldb_cache_create_lru(100 * 1048576) // 100MB cache
+      LevelDB.lib.leveldb_options_set_cache(options, cache)
     }
     leveldbOptions.setCreateIfMissing(true)
     new LevelDB(leveldbDir, leveldbOptions)

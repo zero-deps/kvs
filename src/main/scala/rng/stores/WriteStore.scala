@@ -7,7 +7,7 @@ import akka.cluster.VectorClock
 import akka.serialization.SerializationExtension
 import mws.rng._
 
-import com.protonail.leveldb.jna._
+import leveldbjnr._
 
 case class StoreGet(key:Key)
 case class StorePut(data:Data)

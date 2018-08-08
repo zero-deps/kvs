@@ -12,7 +12,7 @@ import scala.collection.{SortedMap, SortedSet}
 import java.text.SimpleDateFormat
 import java.util.concurrent.TimeUnit
 
-import com.protonail.leveldb.jna._
+import leveldbjnr._
 
 import scalaz.{Ordering => _, _}
 import Scalaz._

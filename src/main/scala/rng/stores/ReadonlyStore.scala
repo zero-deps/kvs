@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 import akka.actor.{Actor, ActorLogging}
 import akka.serialization.SerializationExtension
 import mws.rng._
-import com.protonail.leveldb.jna._
+import leveldbjnr._
 import akka.util.ByteString
 
 case class GetBucketResp(b:Bucket,l: List[Data])

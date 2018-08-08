@@ -20,12 +20,8 @@ lazy val root = (project in file(".")).withId("kvs")
     ),
     fork in Test := true,
     libraryDependencies ++= Seq(
-      "com.protonail.leveldb-jna" % "leveldb-jna-core"   % Versions.leveldb,
-      "com.protonail.leveldb-jna" % "leveldb-jna-native" % Versions.leveldb classifier "osx",
-      "com.protonail.leveldb-jna" % "leveldb-jna-native" % Versions.leveldb classifier "windows-x86_64",
-      "com.protonail.leveldb-jna" % "leveldb-jna-native" % Versions.leveldb classifier "windows-x86",
-      "com.protonail.leveldb-jna" % "leveldb-jna-native" % Versions.leveldb classifier "linux-x86_64",
-      "com.protonail.leveldb-jna" % "leveldb-jna-native" % Versions.leveldb classifier "linux-x86",
+      "com.github.jnr" % "jnr-ffi" % "2.1.7",
+
 
       "org.scalaz"            %% "scalaz-core"             % Versions.scalaz % Provided,
 
@@ -45,9 +41,15 @@ lazy val root = (project in file(".")).withId("kvs")
       "org.scalatest"         %% "scalatest"               % Versions.scalatest % Test,
       "com.playtech.mws.akka" %% "akka-multi-node-testkit" % Versions.akka      % Test,
       "com.playtech.mws.akka" %% "akka-stream-testkit"     % Versions.akka      % Test,
-      "com.playtech.mws.akka" %% "akka-testkit"            % Versions.akka      % Test
+      "com.playtech.mws.akka" %% "akka-testkit"            % Versions.akka      % Test,
     )
   )
+
+lazy val leveldbTest = (project in file("leveldb-test")).settings(
+  testOptions += Tests.Argument(TestFrameworks.JUnit),
+  libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test,
+  libraryDependencies += "junit" % "junit" % "4.12" % Test,
+).dependsOn(root)
 
 lazy val buildSettings = Seq(
   organization := "com.playtech.mws",
@@ -65,7 +67,7 @@ lazy val resolverSettings = Seq(
 
 lazy val publishSettings = Seq(
   publishTo := Some("releases" at "http://nexus.mobile.playtechgaming.com/nexus/content/repositories/releases"),
-  credentials += Credentials("Sonatype Nexus Repository Manager","nexus.mobile.playtechgaming.com","wpl-deployer","aG1reeshie"),
+  credentials += Credentials("Sonatype Nexus Repository Manager", "nexus.mobile.playtechgaming.com", "wpl-deployer", "aG1reeshie"),
   publishArtifact := true,
   publishMavenStyle := true,
   pomIncludeRepository := (_ => false),
