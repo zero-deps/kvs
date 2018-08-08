@@ -46,8 +46,7 @@ lazy val kvsDemo = (project in file("kvs-demo")).settings(
   fork in run := true,
   libraryDependencies += "org.scalaz" %% "scalaz-core" % "7.2.25",
   libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3",
-  libraryDependencies += "com.playtech.mws" %% "kvs" % "0.2-15-gbb0b70e",
-)
+).dependsOn(root)
 
 lazy val leveldbTest = (project in file("leveldb-test")).settings(
   testOptions += Tests.Argument(TestFrameworks.JUnit),
