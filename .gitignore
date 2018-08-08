@@ -1,4 +1,4 @@
-/rng_data_*/
-target/
 .DS_Store
-/lib/
+target/
+rng_data_*/
+tmp/

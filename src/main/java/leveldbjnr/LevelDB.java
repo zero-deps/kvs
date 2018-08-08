@@ -15,7 +15,7 @@ import java.nio.file.StandardCopyOption;
 public class LevelDB implements AutoCloseable {
     static void copyLib(String name) {
         try (InputStream is = LevelDB.class.getResourceAsStream("/lib/" + name)) {
-            File dest = new File("./lib/" + name);
+            File dest = new File("./tmp/" + name);
             dest.mkdirs();
             Files.copy(is, dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
@@ -26,7 +26,7 @@ public class LevelDB implements AutoCloseable {
         copyLib("libleveldb.dylib");
         copyLib("libleveldb.so"); 
         copyLib("leveldb.dll");
-        System.setProperty("java.library.path", "./lib/");
+        System.setProperty("java.library.path", "./tmp/");
     }
     public static final LevelDBNative lib = LibraryLoader.create(LevelDBNative.class).failImmediately().load("leveldb");
     public static final Runtime runtime = Runtime.getRuntime(lib);
