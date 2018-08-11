@@ -85,11 +85,7 @@ public class LevelDBOptions implements AutoCloseable {
         checkOptionsOpen();
 
         this.writeBufferSize = writeBufferSize;
-        if (LevelDB.is64bit()) {
-            LevelDB.lib.leveldb_options_set_write_buffer_size(options, writeBufferSize);
-        } else {
-            LevelDB.lib.leveldb_options_set_write_buffer_size(options, (int) writeBufferSize);
-        }
+        LevelDB.lib.leveldb_options_set_write_buffer_size(options, writeBufferSize);
     }
 
     public int getMaxOpenFiles() {
@@ -111,11 +107,7 @@ public class LevelDBOptions implements AutoCloseable {
         checkOptionsOpen();
 
         this.blockSize = blockSize;
-        if (LevelDB.is64bit()) {
-            LevelDB.lib.leveldb_options_set_block_size(options, blockSize);
-        } else {
-            LevelDB.lib.leveldb_options_set_block_size(options, (int) blockSize);
-        }
+        LevelDB.lib.leveldb_options_set_block_size(options, blockSize);
     }
 
     public int getBlockRestartInterval() {

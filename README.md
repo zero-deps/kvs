@@ -2,13 +2,17 @@
 
 Key Value Storage.
 
-# Backend
+## Backend
 
- * Ring http://gitlab.ee.playtech.corp/mws/rng
+ * Ring
  * Memory
  * FS
  * etc.
 
-# Services Handlers
+## Test
 
-Implementation of particular data types storage with some service specific logic.
+```bash
+sbt test
+sbt 'project leveldbTest' test
+sbt 'project kvsDemo' run
+```
