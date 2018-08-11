@@ -25,15 +25,15 @@ object Run extends App {
   implicit val system = ActorSystem("kvs", cfg)
   val kvs = Kvs(system)
 
-  kvs.onReady{
-    val r = kvs.put("a","b")
-    system.log.info(s"${r}")
-  }
-
   sys.addShutdownHook {
     system.terminate()
     import scala.concurrent.Await
     import scala.concurrent.duration.Duration
     Try(Await.result(system.whenTerminated,Duration.Inf))
+  }
+
+  kvs.onReady{
+    val r = kvs.put("a","b")
+    system.log.info(s"${r}")
   }
 }

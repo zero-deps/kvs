@@ -34,7 +34,7 @@ trait EnHandler[T] extends EntryHandler[En[T]] {
  * Abstract type entry handler
  * Since we don't know the exact type the pickler/unpickler still needs to be provided explicitly
  *
- * top --prev--> en --prev--> empty
+ * [top] -->prev--> [en] -->prev--> [empty]
  */
 trait EntryHandler[A <: Entry] extends Handler[A] {
   val fh: FdHandler

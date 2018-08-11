@@ -22,7 +22,7 @@ lazy val root = (project in file(".")).withId("kvs")
       "org.scalaz" %% "scalaz-core" % "7.2.25" % Provided,
       "ch.qos.logback" % "logback-classic" % "1.2.3" % Provided,
 
-      // before updating to any version test 'sbt createPkg' in CMS project
+      // before updating akka to any version test 'sbt createPkg' in CMS project
       "com.playtech.mws.akka" %% "akka-actor"              % "2.4.14.0-2-g00894bc",
       "com.playtech.mws.akka" %% "akka-cluster"            % "2.4.14.0-2-g00894bc",
       "com.playtech.mws.akka" %% "akka-cluster-sharding"   % "2.4.14.0-2-g00894bc",
