@@ -46,4 +46,9 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
     case _ =>    
   }
 
+  override def postStop(): Unit = {
+    ro.close()
+    super.postStop()
+  }
+
 }

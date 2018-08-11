@@ -29,7 +29,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   val config = context.system.settings.config.getConfig("ring.leveldb")
   val serialization = SerializationExtension(context.system)
   val ro = new LevelDBReadOptions
-  val wo = new LevelDBWriteOptions()
+  val wo = new LevelDBWriteOptions
   wo.setSync(config.getBoolean("fsync"))
   val hashing = HashingExtension(context.system)
 
@@ -60,6 +60,8 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
 
   override def postStop(): Unit = {
     leveldb.close()
+    ro.close()
+    wo.close()
     super.postStop()
   }
 

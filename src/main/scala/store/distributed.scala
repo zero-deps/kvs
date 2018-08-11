@@ -32,7 +32,9 @@ object Ring {
       LevelDB.lib.leveldb_options_set_cache(options, cache)
     }
     leveldbOptions.setCreateIfMissing(true)
-    new LevelDB(leveldbDir, leveldbOptions)
+    val x = new LevelDB(leveldbDir, leveldbOptions)
+    leveldbOptions.close()
+    x
   }
 }
 
