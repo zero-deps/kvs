@@ -3,7 +3,9 @@ lazy val root = (project in file(".")).withId("kvs")
     inThisBuild(
       publishSettings ++ buildSettings ++ resolverSettings ++ Seq(
         cancelable in Global := true,
+        javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
         scalacOptions in Compile ++= Seq(
+          "-target:jvm-1.8",
           "-feature",
           "-unchecked",
           "-deprecation",
