@@ -20,8 +20,8 @@ lazy val root = (project in file(".")).withId("kvs")
     ),
     fork in Test := true,
     libraryDependencies ++= Seq(
-      "com.github.jnr" % "jnr-ffi" % "2.1.7",
-      "org.scalaz" %% "scalaz-core" % "7.2.25" % Provided,
+      "com.github.jnr" % "jnr-ffi" % "2.1.9",
+      "org.scalaz" %% "scalaz-core" % "7.2.26" % Provided,
       "ch.qos.logback" % "logback-classic" % "1.2.3" % Provided,
 
       // before updating akka to any version test 'sbt createPkg' in CMS project
@@ -60,18 +60,18 @@ lazy val buildSettings = Seq(
   organization := "com.playtech.mws",
   description := "Abstract Scala Types Key-Value Storage",
   version := org.eclipse.jgit.api.Git.open(file(".")).describe().call(),
-  scalaVersion := "2.12.6"
+  scalaVersion := "2.12.7"
 )
 
 lazy val resolverSettings = Seq(
   resolvers ++= Seq(
     Resolver.mavenLocal,
-    "releases resolver" at "http://nexus.mobile.playtechgaming.com/nexus/content/repositories/releases"
+    "releases resolver" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases"
   )
 )
 
 lazy val publishSettings = Seq(
-  publishTo := Some("releases" at "http://nexus.mobile.playtechgaming.com/nexus/content/repositories/releases"),
+  publishTo := Some("releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases"),
   credentials += Credentials("Sonatype Nexus Repository Manager", "nexus.mobile.playtechgaming.com", "wpl-deployer", "aG1reeshie"),
   publishArtifact := true,
   publishMavenStyle := true,
