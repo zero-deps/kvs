@@ -20,7 +20,7 @@ lazy val root = (project in file(".")).withId("kvs")
     ),
     fork in Test := true,
     libraryDependencies ++= Seq(
-      "com.github.jnr" % "jnr-ffi" % "2.1.9",
+      "com.github.jnr" % "jnr-ffi" % "2.1.7",
       "org.scalaz" %% "scalaz-core" % "7.2.26" % Provided,
       "ch.qos.logback" % "logback-classic" % "1.2.3" % Provided,
 
