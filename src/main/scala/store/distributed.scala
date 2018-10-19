@@ -8,7 +8,6 @@ import scala.concurrent.duration._
 import scala.util.Try
 import scalaz._
 import Scalaz._
-import Maybe.{Empty, Just}
 import akka.event.Logging
 import akka.routing.FromConfig
 import akka.pattern.ask
@@ -21,7 +20,7 @@ import mws.rng.store.{ReadonlyStore, WriteStore}
 object Ring {
   def apply(system: ActorSystem): Dba = new Ring(system)
 
-  def openLeveldb(s: ActorSystem, path: Maybe[String]=Empty()): LevelDB = {
+  def openLeveldb(s: ActorSystem, path: Option[String]=None): LevelDB = {
     import leveldbjnr._
     val config = s.settings.config.getConfig("ring.leveldb")
     val leveldbDir: String = path.getOrElse(config.getString("dir"))
@@ -69,9 +68,9 @@ class Ring(system: ActorSystem) extends Dba {
 
   def get(key: String): Res[V] = {
     val getF = (hash ? Get(key)).mapTo[Option[rng.Value]]
-    Try(Await.result(getF, d)).toDisjunction.map(_.toMaybe) match {
-      case \/-(Just(v)) => v.toArray.right
-      case \/-(Empty()) => NotFound(key).left
+    Try(Await.result(getF, d)).toDisjunction match {
+      case \/-(Some(v)) => v.toArray.right
+      case \/-(None) => NotFound(key).left
       case -\/(ex) => RngThrow(ex).left
     }
   }
@@ -94,7 +93,7 @@ class Ring(system: ActorSystem) extends Dba {
 
   def nextid(feed:String):Res[String] = {
     import akka.cluster.sharding._
-    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed).mapTo[String],d)).toDisjunction.leftMap(RngThrow(_))
+    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed).mapTo[String],d)).toDisjunction.leftMap(RngThrow)
   }
 }
 

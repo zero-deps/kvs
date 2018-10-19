@@ -5,7 +5,7 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-import scalaz._, Scalaz._, Maybe.{Empty}
+import scalaz._, Scalaz._
 
 import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 
@@ -53,13 +53,13 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
   def add[H:Handler](el:H):Res[H] = implicitly[Handler[H]].add(el)
   def put[H:Handler](el:H):Res[H] = implicitly[Handler[H]].put(el)
   def remove[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].remove(fid,id)
-  def stream[H:Handler](fid:String,from:Maybe[H]=Empty[H]()):Res[Stream[H]] = implicitly[Handler[H]].stream(fid,from)
+  def stream[H:Handler](fid:String,from:Option[H]=None):Res[Stream[Res[H]]] = implicitly[Handler[H]].stream(fid,from)
   def get[H:Handler](fid:String,id:String):Res[H] = implicitly[Handler[H]].get(fid,id)
 
   val dump_timeout = 1 hour
-  def save(path: String):Res[String] = Try(Await.result(dba.save(path),dump_timeout)).toDisjunction.leftMap(Failed(_))
-  def load(path:String):Res[Any] = Try(Await.result(dba.load(path),dump_timeout)).toDisjunction.leftMap(Failed(_))
-  def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Res[Any] = Try(Await.result(dba.iterate(path,foreach),dump_timeout)).toDisjunction.leftMap(Failed(_))
+  def save(path: String):Res[String] = Try(Await.result(dba.save(path),dump_timeout)).toDisjunction.leftMap(Failed)
+  def load(path:String):Res[Any] = Try(Await.result(dba.load(path),dump_timeout)).toDisjunction.leftMap(Failed)
+  def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Res[Any] = Try(Await.result(dba.iterate(path,foreach),dump_timeout)).toDisjunction.leftMap(Failed)
 
   def onReady[T](body: =>Unit):Unit = {
     import scala.language.postfixOps

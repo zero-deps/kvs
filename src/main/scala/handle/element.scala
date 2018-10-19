@@ -20,16 +20,4 @@ object ElHandler {
     def pickle(e:String):Array[Byte] = e.getBytes("UTF-8")
     def unpickle(a:Array[Byte]):Res[String] = new String(a,"UTF-8").right
   }
-
-  /**
-   * Given handler S create the handler for T from conversion functions.
-   */
-  def by[A,S](f:A => S)(g:S => A)(key:String=>String)(implicit h:ElHandler[S]):ElHandler[A] = new ElHandler[A] {
-    def pickle(e: A): Array[Byte] = h.pickle(f(e))
-    def unpickle(a: Array[Byte]): Res[A] = h.unpickle(a).map(g)
-
-    override def put(k:String,el:A)(implicit dba:Dba):Res[A] = h.put(key(k),f(el)).map(g)
-    override def get(k:String)(implicit dba:Dba):Res[A] = h.get(key(k)).map(g)
-    override def delete(k:String)(implicit dba:Dba):Res[A] = h.delete(key(k)).map(g)
-  }
 }

@@ -13,8 +13,6 @@ lazy val root = (project in file(".")).withId("kvs")
           "-encoding", "UTF-8",
           "-Ypartial-unification",
           "-Xfatal-warnings",
-          "-Ywarn-dead-code",
-          "-Ywarn-unused-import"
         ),
       ),
     ),

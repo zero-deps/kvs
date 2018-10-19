@@ -50,7 +50,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
   "Feed should" - {
     "be empty at creation" in {
-      kvs.stream[EnType](fid).isLeft shouldBe (true)
+      kvs.stream[EnType](fid) shouldBe (-\/(FeedNotExists(fid)))
     }
 
     "should save e1" in {
@@ -73,8 +73,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
       kvs.get(Fd(fid)).toEither.right.get.count shouldBe 2
 
       val stream = kvs.stream[EnType](fid)
-      (stream.toEither.right.get(0).fid, stream.toEither.right.get(0).id, stream.toEither.right.get(0).data) shouldBe(e2.fid, "2", e2.data)
-      (stream.toEither.right.get(1).fid, stream.toEither.right.get(1).id, stream.toEither.right.get(1).data) shouldBe(e1.fid, "1", e1.data)
+      stream.map(_.toList) shouldBe List(e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
     }
 
     "should save entry(3)" in {
@@ -90,9 +89,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
       kvs.get(Fd(fid)).toEither.right.get.count shouldBe 3
 
       val stream = kvs.stream[EnType](fid)
-      (stream.toEither.right.get(0).fid, stream.toEither.right.get(0).id, stream.toEither.right.get(0).data) shouldBe(e3.fid, "3", e3.data)
-      (stream.toEither.right.get(1).fid, stream.toEither.right.get(1).id, stream.toEither.right.get(1).data) shouldBe(e2.fid, "2", e2.data)
-      (stream.toEither.right.get(2).fid, stream.toEither.right.get(2).id, stream.toEither.right.get(2).data) shouldBe(e1.fid, "1", e1.data)
+      stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="2").right, e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
     }
 
     "should not remove unexisting entry from feed" in {
@@ -109,8 +106,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
       kvs.get(Fd(fid)).toEither.right.get.count shouldBe 2
 
       val stream = kvs.stream[EnType](fid)
-      (stream.toEither.right.get(0).fid, stream.toEither.right.get(0).id, stream.toEither.right.get(0).data) shouldBe(e3.fid, "3", e3.data)
-      (stream.toEither.right.get(1).fid, stream.toEither.right.get(1).id, stream.toEither.right.get(1).data) shouldBe(e1.fid, "1", e1.data)
+      stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="1").right, e1.copy(id="1").right).right
     }
 
     "should remove entry(1) from feed" in {
@@ -123,7 +119,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
       kvs.get(Fd(fid)).toEither.right.get.count shouldBe 1
 
       val stream = kvs.stream[EnType](fid)
-      (stream.toEither.right.get(0).fid, stream.toEither.right.get(0).id, stream.toEither.right.get(0).data) shouldBe(e3.fid, "3", e3.data)
+      stream.map(_.toList) shouldBe List(e3.copy(id="3").right).right
     }
 
     "should remove entry(3) from feed" in {

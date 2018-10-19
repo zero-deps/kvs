@@ -48,7 +48,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
 
     when(ReadyCollect){
         case Event(Dump(_), state ) =>
-            db = Ring.openLeveldb(context.system, filePath.just)
+            db = Ring.openLeveldb(context.system, filePath.some)
             dumpStore = context.actorOf(Props(classOf[WriteStore], db))
             buckets(state.current).foreach{n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(state.current), _ ! BucketGet(state.current))}
             goto(Collecting) using DumpData(state.current, buckets(state.current), Nil, None, Some(sender))
@@ -114,7 +114,7 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
 
     when(ReadyCollect){
         case Event(LoadDump(_),_) =>
-            dumpDb = Ring.openLeveldb(context.system, extraxtedDir.just)
+            dumpDb = Ring.openLeveldb(context.system, extraxtedDir.some)
             store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
             store ! GetSavingEntity("head_of_keys")
             goto(Collecting) using Some(sender)
@@ -155,7 +155,7 @@ class IterateDumpWorker(path: String, foreach: (String,Array[Byte])=>Unit) exten
 
     when(ReadyCollect){
         case Event(IterateDump(_,_),_) =>
-            dumpDb = Ring.openLeveldb(context.system,extraxtedDir.just)
+            dumpDb = Ring.openLeveldb(context.system,extraxtedDir.some)
             store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
             store ! GetSavingEntity("head_of_keys")
             goto(Collecting) using Some(sender)

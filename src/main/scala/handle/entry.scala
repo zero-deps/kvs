@@ -1,29 +1,9 @@
 package mws.kvs
 package handle
 
-import scalaz._, Scalaz._, Maybe.{Empty, Just}
+import scalaz._, Scalaz._
 
 import store._
-
-object EnHandler {
-  /**
-   * Given EnHandler S create the EnHandler for A from conversion functions
-   */
-  def by[A, S](f: A => S)(g: S => A)(implicit h: EnHandler[S], _fh: FdHandler): EnHandler[A] = new EnHandler[A] {
-    val fh = _fh
-
-    def pickle(e: En[A]): Array[Byte] = h.pickle(en_A_to_En_S(e))
-    def unpickle(a: Array[Byte]): Res[En[A]] = h.unpickle(a).map(en_S_to_En_A)
-
-    private val en_A_to_En_S: En[A]=>En[S] = {
-      case En(fid,id,prev,data) => En[S](fid,id,prev,f(data))
-    }
-
-    private val en_S_to_En_A: En[S]=>En[A] = {
-      case En(fid,id,prev,data) => En[A](fid,id,prev,g(data))
-    }
-  }
-}
 
 trait EnHandler[T] extends EntryHandler[En[T]] {
   override protected def update(en: En[T], id: String, prev: String): En[T] = en.copy(id = id, prev = prev)
@@ -123,20 +103,21 @@ trait EntryHandler[A <: Entry] extends Handler[A] {
    * Stream is FILO ordered (most recent is first).
    * @param from if specified then return entries after this entry
    */
-  def stream(fid:String,from:Maybe[A])(implicit dba:Dba):Res[Stream[A]] = {
-    def _stream(start:String):Stream[A] =
-      Stream.iterate(start=get(fid,start))(_.flatMap(x=>get(fid,x.prev)))
-        .takeWhile(_.isRight)
-        .flatMap(_.toOption)
-    from match {
-      case Empty() => fh.get(Fd(fid)).map(_.top).map{
+  def stream(fid: String, from: Option[A])(implicit dba: Dba): Res[Stream[Res[A]]] = {
+    def _stream(id: String): Stream[Res[A]] = {
+      id match {
         case `empty` => Stream.empty
-        case start => _stream(start)
+        case _ =>
+          val en = get(fid, id)
+          en match {
+            case \/-(e) => Stream.cons(en, _stream(e.prev))
+            case _ => Stream(en)
+          }
       }
-      case Just(from) => from.prev match {
-        case `empty` => Stream.empty.right
-        case start => _stream(start).right
-      }
+    }
+    from match {
+      case None => fh.get(Fd(fid)).map(r => _stream(r.top))
+      case Some(en) => _stream(en.prev).right
     }
   }
 }
