@@ -1,31 +1,32 @@
 package mws.kvs
-package handle
+package en
 
 import scala.util.Try
-
 import scalaz._, Scalaz._
-
 import akka.actor.ActorSystem
 import akka.testkit._
 import org.scalatest._
+import EnHandlerTest._
 
 object EnHandlerTest {
   val fid = "fid" + java.util.UUID.randomUUID.toString
-  type EnType = En[FeedEntry]
 
-  final case class FeedEntry(string:String,twoDimVector:Vector[Vector[(String,String)]],anotherVector:Vector[String])
+  final case class FeedEntry(string: String, twoDimVector: Vector[Vector[(String, String)]], anotherVector: Vector[String])
+  final case class EnType(fid: String, id: String = empty, prev: String = empty, data: FeedEntry) extends En
+
+  implicit val h = new EnHandler[EnType] {
+    val fh = feedHandler
+    import scala.pickling._,Defaults._,binary._
+    def pickle(e: EnType): Array[Byte] = e.pickle.value
+    def unpickle(a: Array[Byte]): Res[EnType] = Try(a.unpickle[EnType]).toDisjunction.leftMap(UnpickleFailed(_))
+    override protected def update(en: EnType, id: String, prev: String): EnType = en.copy(id = id, prev = prev)
+    override protected def update(en: EnType, prev: String): EnType = en.copy(prev = prev)
+  }
 
   implicit object feedHandler extends FdHandler {
     import scala.pickling._,Defaults._,binary._
     def pickle(e:Fd):Array[Byte] = e.pickle.value
     def unpickle(a:Array[Byte]):Res[Fd] = Try(a.unpickle[Fd]).toDisjunction.leftMap(UnpickleFailed(_))
-  }
-
-  implicit object FeedEntryEnHandler extends EnHandler[FeedEntry] {
-    val fh = feedHandler
-    import scala.pickling._,Defaults._,binary._
-    def pickle(e: En[FeedEntry]): Array[Byte] = e.pickle.value
-    def unpickle(a: Array[Byte]): Res[En[FeedEntry]] = Try(a.unpickle[En[FeedEntry]]).toDisjunction.leftMap(UnpickleFailed(_))
   }
 }
 
@@ -39,7 +40,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
   Thread.sleep(2000)
 
   val mod = 50
-  def entry(n:Int):EnType = En(fid,data=FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
+  def entry(n:Int):EnType = EnType(fid,data=FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
 
   val e1 = entry(1)
   val e2 = entry(2)
@@ -55,7 +56,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
     "should save e1" in {
       val saved = kvs.add(e1).toEither.right.get
-      kvs.get(Fd(fid)).map(_.count) match {
+      kvs.fd.get(Fd(fid)).map(_.count) match {
         case \/-(x) => x shouldBe 1
         case -\/(RngThrow(t)) => t.printStackTrace
         case -\/(x) => fail(x.toString)
@@ -65,12 +66,12 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
     "should save e2" in {
       val saved = kvs.add(e2).toEither.right.get
-      kvs.get(Fd(fid)).toEither.right.get.count shouldBe 2
+      kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 2
       (saved.fid, saved.id, saved.data) shouldBe(e2.fid, "2", e2.data)
     }
 
     "should get e1 and e2 from feed" in {
-      kvs.get(Fd(fid)).toEither.right.get.count shouldBe 2
+      kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 2
 
       val stream = kvs.stream[EnType](fid)
       stream.map(_.toList) shouldBe List(e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
@@ -86,7 +87,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should get 3 values from feed" in {
-      kvs.get(Fd(fid)).toEither.right.get.count shouldBe 3
+      kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 3
 
       val stream = kvs.stream[EnType](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="2").right, e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
@@ -103,7 +104,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should get 2 values from feed" in {
-      kvs.get(Fd(fid)).toEither.right.get.count shouldBe 2
+      kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 2
 
       val stream = kvs.stream[EnType](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="1").right, e1.copy(id="1").right).right
@@ -116,7 +117,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should get 1 values from feed" in {
-      kvs.get(Fd(fid)).toEither.right.get.count shouldBe 1
+      kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 1
 
       val stream = kvs.stream[EnType](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3").right).right
@@ -129,7 +130,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should be empty" in {
-      kvs.get(Fd(fid)).toEither.right.get.count shouldBe 0
+      kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 0
       kvs.stream[EnType](fid).toEither.right.get shouldBe empty
     }
 
@@ -149,14 +150,14 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
         (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, (n+3).toString, toremove.data)
 
-        kvs.get(Fd(fid)).toEither.right.get.count shouldBe (limit - n)
+        kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe (limit - n)
       }
     }
 
     "feed should be empty at the end test" in {
-      kvs.get(Fd(fid)).toEither.right.get.count shouldBe 0
+      kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 0
       kvs.stream[EnType](fid).toEither.right.value shouldBe empty
-      kvs.delete(Fd(fid))
+      kvs.fd.delete(Fd(fid))
       kvs.stream[EnType](fid) shouldBe ('left)
     }
   }

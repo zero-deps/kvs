@@ -70,10 +70,10 @@ lazy val resolverSettings = Seq(
 
 lazy val publishSettings = Seq(
   publishTo := Some("releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases"),
-  credentials += Credentials("Sonatype Nexus Repository Manager", "nexus.mobile.playtechgaming.com", "wpl-deployer", "aG1reeshie"),
+  credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
   publishArtifact := true,
   publishMavenStyle := true,
   pomIncludeRepository := (_ => false),
   isSnapshot := true,
-  crossScalaVersions := Seq("2.11.12", "2.12.6")
+  crossScalaVersions := Seq("2.11.12", "2.12.7")
 )

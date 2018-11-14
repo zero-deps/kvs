@@ -1,21 +1,21 @@
-package mws
-package kvs
+package mws.kvs
 package store
 
-import scala.language.postfixOps
-import scala.concurrent.{Await, Future}
+import akka.actor._
+import akka.event.Logging
+import akka.pattern.ask
+import akka.routing.FromConfig
+import akka.util.{ByteString, Timeout}
+import leveldbjnr.LevelDB
+import mws.kvs.el.ElHandler
+import mws.rng
+import mws.rng.store.{ReadonlyStore, WriteStore}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
+import scala.language.postfixOps
 import scala.util.Try
 import scalaz._
 import Scalaz._
-import akka.event.Logging
-import akka.routing.FromConfig
-import akka.pattern.ask
-import akka.actor._
-import akka.util.{ByteString, Timeout}
-import leveldbjnr.LevelDB
-import mws.rng._
-import mws.rng.store.{ReadonlyStore, WriteStore}
 
 object Ring {
   def apply(system: ActorSystem): Dba = new Ring(system)
@@ -52,22 +52,22 @@ class Ring(system: ActorSystem) extends Dba {
   system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
 
-  private val hash = system.actorOf(Props(classOf[Hash]).withDeploy(Deploy.local), name = "ring_hash")
+  private val hash = system.actorOf(Props(classOf[rng.Hash]).withDeploy(Deploy.local), name = "ring_hash")
 
   def put(key: String, value: V): Res[V] = {
-    val putF = (hash ? Put(key, ByteString(value))).mapTo[Ack]
+    val putF = (hash ? rng.Put(key, ByteString(value))).mapTo[rng.Ack]
     Try(Await.result(putF, d)).toDisjunction match {
-      case \/-(AckSuccess) => value.right
-      case \/-(AckQuorumFailed) => RngAskQuorumFailed.left
-      case \/-(AckTimeoutFailed) => RngAskTimeoutFailed.left
+      case \/-(rng.AckSuccess) => value.right
+      case \/-(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case \/-(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
       case -\/(ex) => RngThrow(ex).left
     }
   }
 
-  def isReady: Future[Boolean] = (hash ? Ready).mapTo[Boolean]
+  def isReady: Future[Boolean] = (hash ? rng.Ready).mapTo[Boolean]
 
   def get(key: String): Res[V] = {
-    val getF = (hash ? Get(key)).mapTo[Option[rng.Value]]
+    val getF = (hash ? rng.Get(key)).mapTo[Option[rng.Value]]
     Try(Await.result(getF, d)).toDisjunction match {
       case \/-(Some(v)) => v.toArray.right
       case \/-(None) => NotFound(key).left
@@ -77,17 +77,17 @@ class Ring(system: ActorSystem) extends Dba {
 
   def delete(key: String): Res[V] =
     get(key).flatMap{ r =>
-      Try(Await.result((hash ? Delete(key)).mapTo[Ack], d)).toDisjunction match {
-        case \/-(AckSuccess) => r.right
-        case \/-(AckQuorumFailed) => RngAskQuorumFailed.left
-        case \/-(AckTimeoutFailed) => RngAskTimeoutFailed.left
+      Try(Await.result((hash ? rng.Delete(key)).mapTo[rng.Ack], d)).toDisjunction match {
+        case \/-(rng.AckSuccess) => r.right
+        case \/-(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+        case \/-(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
         case -\/(ex) => RngThrow(ex).left
       }
     }
 
-  def save(path: String):Future[String] = (hash ? Dump(path)).mapTo[String]
-  def load(path:String):Future[Any] = hash ? LoadDump(path)
-  def iterate(path:String,foreach:(String,Array[Byte])=>Unit):Future[Any] = hash ? IterateDump(path,foreach)
+  def save(path: String): Future[String] = (hash ? rng.Dump(path)).mapTo[String]
+  def load(path: String): Future[Any] = hash ? rng.LoadDump(path)
+  def iterate(path: String, f: (String, Array[Byte]) => Unit): Future[Any] = hash ? rng.IterateDump(path,f)
 
   def close(): Unit = ()
 
@@ -104,7 +104,6 @@ object IdCounter {
 class IdCounter extends Actor with ActorLogging {
   val kvs = mws.kvs.Kvs(context.system)
 
-  import mws.kvs.handle.ElHandler
   implicit val strHandler:ElHandler[String] = new ElHandler[String] {
     def pickle(e: String): Array[Byte] = e.getBytes("UTF-8")
     def unpickle(a: Array[Byte]): Res[String] = new String(a,"UTF-8").right
@@ -112,14 +111,14 @@ class IdCounter extends Actor with ActorLogging {
 
   def receive: Receive = {
     case name:String =>
-      kvs.get[String](s"IdCounter.${name}").fold(
+      kvs.el.get[String](s"IdCounter.${name}").fold(
         empty => put(name, prev="0"),
         prev => put(name, prev)
       )
   }
 
   def put(name:String, prev: String): Unit = {
-    kvs.put[String](s"IdCounter.$name", (prev.toLong+1).toString).fold(
+    kvs.el.put[String](s"IdCounter.$name", (prev.toLong+1).toString).fold(
       l => log.error(s"Failed to increment `$name` id=$l"),
       r => sender ! r
     )

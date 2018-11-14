@@ -9,13 +9,13 @@ import scala.concurrent.Future
 trait Dba {
   type K = String
   type V = Array[Byte]
-  def put(key:K,value:V):Res[V]
-  def get(key:K)        :Res[V]
-  def delete(key:K)     :Res[V]
+  def put(key: K, value: V): Res[V]
+  def get(key: K): Res[V]
+  def delete(key: K): Res[V]
   def save(path: String): Future[String]
-  def load(path:String):Future[Any]
-  def iterate(path:String,foreach:(K,V)=>Unit):Future[Any]
-  def close():Unit
-  def isReady:Future[Boolean]
-  def nextid(fid:String):Res[K]
+  def load(path: String): Future[Any]
+  def iterate(path: String, f: (K, V) => Unit): Future[Any]
+  def close(): Unit
+  def isReady: Future[Boolean]
+  def nextid(fid: String): Res[String]
 }

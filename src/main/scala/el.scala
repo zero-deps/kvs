@@ -1,11 +1,13 @@
 package mws.kvs
-package handle
+package el
 
 import scalaz._, Scalaz._
-
 import store._
 
-trait ElHandler[T] extends Pickler[T] {
+trait ElHandler[T] {
+  def pickle(e: T): Array[Byte]
+  def unpickle(a: Array[Byte]): Res[T]
+
   def put(k:String,el:T)(implicit dba:Dba):Res[T] = dba.put(k,pickle(el)).map(_=>el)
   def get(k:String)(implicit dba:Dba):Res[T] = dba.get(k).flatMap(unpickle)
   def delete(k:String)(implicit dba:Dba):Res[T] = dba.delete(k).flatMap(unpickle)

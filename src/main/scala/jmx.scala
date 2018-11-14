@@ -4,6 +4,7 @@ import java.lang.management.ManagementFactory
 import javax.management.{ObjectName,StandardMBean}
 import scala.util._
 import akka.actor.ActorSystem
+import mws.kvs.el.ElHandler.strHandler
 
 /** Kvs management access */
 trait KvsMBean {
@@ -22,11 +23,10 @@ class KvsJmx(kvs:Kvs,system:ActorSystem) {
 
   def createMBean():Unit = {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
-      def save(path: String):String         = kvs.save(path).    getOrElse("timeout")
-      def load(path:String):Any = kvs.load(path).getOrElse("timeout")
-      import mws.kvs.handle.ElHandler.strHandler
-      def get(k: String): String = kvs.get(k).getOrElse("NaN")
-      def put(k: String,v: String): Unit = kvs.put(k, v)
+      def save(path: String): String = kvs.dump.save(path).getOrElse("timeout")
+      def load(path: String): Any = kvs.dump.load(path).getOrElse("timeout")
+      def get(k: String): String = kvs.el.get(k).getOrElse("NaN")
+      def put(k: String, v: String): Unit = kvs.el.put(k, v)
 //      def check(i: Int): Unit = {
 //        println(s"started check")
 //        (0 to i * 500000).foreach(i =>{

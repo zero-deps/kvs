@@ -1,13 +1,15 @@
 package mws.kvs
-package handle
+package en
 
-import scalaz._, Scalaz._
+import scalaz._
+import scalaz.Scalaz._
+import mws.kvs.store._
+import store.Dba
 
-import store._
-
-trait EnHandler[T] extends EntryHandler[En[T]] {
-  override protected def update(en: En[T], id: String, prev: String): En[T] = en.copy(id = id, prev = prev)
-  override protected def update(en: En[T], prev: String): En[T] = en.copy(prev = prev)
+trait En {
+  val fid: String
+  val id: String
+  val prev: String
 }
 
 /**
@@ -16,8 +18,11 @@ trait EnHandler[T] extends EntryHandler[En[T]] {
  *
  * [top] -->prev--> [en] -->prev--> [empty]
  */
-trait EntryHandler[A <: Entry] extends Handler[A] {
+trait EnHandler[A <: En] {
   val fh: FdHandler
+
+  def pickle(e: A): Array[Byte]
+  def unpickle(a: Array[Byte]): Res[A]
 
   private def key(fid:String,id:String):String = s"${fid}.${id}"
   private def _put(en:A)(implicit dba:Dba):Res[A] = dba.put(key(en.fid,en.id),pickle(en)).map(_=>en)

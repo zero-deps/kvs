@@ -1,19 +1,10 @@
 package mws
 
+import scalaz.\/
+
 package object kvs {
+  // Don't change ever
+  val empty = "empty_8fc62083-b0d1-49cc-899c-fbb9ab177241"
 
-  sealed trait Err
-
-  final case class EntryExist(key: String) extends Err
-  final case class NotFound(key: String) extends Err
-  final case class FeedNotExists(key: String) extends Err
-  final case class Failed(t: Throwable) extends Err
-  final case class UnpickleFailed(t: Throwable) extends Err
-
-  case object RngAskQuorumFailed extends Err
-  case object RngAskTimeoutFailed extends Err
-  final case class RngThrow(t: Throwable) extends Err
-
-  import scalaz.\/
   type Res[A] = Err \/ A
 }
