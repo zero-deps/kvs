@@ -66,6 +66,8 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
     def append(dir: String, name: String, chunk: Array[Byte])(implicit h: FileHandler): Res[File] = h.append(dir, name, chunk)
     def stream(dir: String, name: String)(implicit h: FileHandler): Res[Stream[Res[Array[Byte]]]] = h.stream(dir, name)
     def size(dir: String, name: String)(implicit h: FileHandler): Res[Long] = h.size(dir, name)
+    def delete(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.delete(dir, name)
+    def copy(dir: String, name: (String, String))(implicit h: FileHandler): Res[File] = h.copy(dir, name)
   }
 
   object dump {

@@ -54,8 +54,36 @@ trait FileHandler {
   def stream(dir: String, name: String)(implicit dba: Dba): Res[Stream[Res[Array[Byte]]]] = {
     get(dir, name).map(_.count).flatMap{
       case n if n < 0 => Fail(s"impossible count=${n}").left
-      case 0 => FileEmpty(dir, name).left
+      case 0 => Stream.empty.right
       case n if n > 0 => Stream.range(1, n+1).map(i => dba.get(s"${dir}/${name}_chunk_${i}")).right
     }
+  }
+
+  def delete(dir: String, name: String)(implicit dba: Dba): Res[File] = {
+    for {
+      file <- get(dir, name)
+      _ <- Stream.range(1, file.count+1).map(i => dba.delete(s"${dir}/${name}_chunk_${i}")).sequence_
+      _ <- dba.delete(s"${dir}/${name}")
+    } yield file
+  }
+
+  def copy(dir: String, name: (String, String))(implicit dba: Dba): Res[File] = {
+    val (fromName, toName) = name
+    for {
+      from <- get(dir, fromName)
+      _ <- get(dir, toName).fold(
+        l => l match {
+          case _: FileNotExists => ().right
+          case _ => l.left
+        },
+        r => FileAlreadyExists(dir, toName).left
+      )
+      _ <- Stream.range(1, from.count+1).map(i => for {
+        x <- dba.get(s"${dir}/${fromName}_chunk_${i}")
+        _ <- dba.put(s"${dir}/${toName}_chunk_${i}", x)
+      } yield ()).sequence_
+      to = File(toName, from.count, from.size)
+      _ <- dba.put(s"${dir}/${toName}", pickle(to))
+    } yield to
   }
 }

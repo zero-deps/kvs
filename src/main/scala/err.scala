@@ -5,7 +5,6 @@ sealed trait Err
 final case class EntryExist(key: String) extends Err
 final case class NotFound(key: String) extends Err
 final case class FeedNotExists(key: String) extends Err
-final case class FileEmpty(dir: String, name: String) extends Err
 final case class FileNotExists(dir: String, name: String) extends Err
 final case class FileAlreadyExists(dir: String, name: String) extends Err
 final case class Fail(r: String) extends Err
