@@ -21,11 +21,11 @@ trait En {
 trait EnHandler[A <: En] {
   val fh: FdHandler
 
-  def pickle(e: A): Array[Byte]
+  def pickle(e: A): Res[Array[Byte]]
   def unpickle(a: Array[Byte]): Res[A]
 
   private def key(fid:String,id:String):String = s"${fid}.${id}"
-  private def _put(en:A)(implicit dba:Dba):Res[A] = dba.put(key(en.fid,en.id),pickle(en)).map(_=>en)
+  private def _put(en:A)(implicit dba:Dba):Res[A] = pickle(en).flatMap(x => dba.put(key(en.fid,en.id),x)).map(_=>en)
   def get(fid:String,id:String)(implicit dba:Dba):Res[A] = dba.get(key(fid,id)).flatMap(unpickle)
   private def delete(fid:String,id:String)(implicit dba:Dba):Res[A] = dba.delete(key(fid,id)).flatMap(unpickle)
 

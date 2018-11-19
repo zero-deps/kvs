@@ -17,16 +17,16 @@ object EnHandlerTest {
   implicit val h = new EnHandler[EnType] {
     val fh = feedHandler
     import scala.pickling._,Defaults._,binary._
-    def pickle(e: EnType): Array[Byte] = e.pickle.value
-    def unpickle(a: Array[Byte]): Res[EnType] = Try(a.unpickle[EnType]).toDisjunction.leftMap(UnpickleFailed(_))
+    def pickle(e: EnType): Res[Array[Byte]] = e.pickle.value.right
+    def unpickle(a: Array[Byte]): Res[EnType] = Try(a.unpickle[EnType]).toDisjunction.leftMap(x => UnpickleFail(x.toString))
     override protected def update(en: EnType, id: String, prev: String): EnType = en.copy(id = id, prev = prev)
     override protected def update(en: EnType, prev: String): EnType = en.copy(prev = prev)
   }
 
   implicit object feedHandler extends FdHandler {
     import scala.pickling._,Defaults._,binary._
-    def pickle(e:Fd):Array[Byte] = e.pickle.value
-    def unpickle(a:Array[Byte]):Res[Fd] = Try(a.unpickle[Fd]).toDisjunction.leftMap(UnpickleFailed(_))
+    def pickle(e:Fd):Res[Array[Byte]] = e.pickle.value.right
+    def unpickle(a:Array[Byte]):Res[Fd] = Try(a.unpickle[Fd]).toDisjunction.leftMap(x => UnpickleFail(x.toString))
   }
 }
 

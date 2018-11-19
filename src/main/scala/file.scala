@@ -15,7 +15,7 @@ final case class File(name: String, count: Int, size: Long)
 trait FileHandler {
   protected val chunkLength: Int
 
-  protected def pickle(e: File): Array[Byte]
+  protected def pickle(e: File): Res[Array[Byte]]
   protected def unpickle(a: Array[Byte]): Res[File]
 
   private def get(dir: String, name: String)(implicit dba: Dba): Res[File] = dba.get(s"${dir}/${name}").fold(
@@ -30,7 +30,10 @@ trait FileHandler {
     l => l match {
       case _: NotFound =>
         val f = File(name, count=0, size=0L)
-        dba.put(s"${dir}/${name}", pickle(f)).map(_ => f)
+        for {
+          x <- pickle(f)
+          r <- dba.put(s"${dir}/${name}", x).map(_ => f)
+        } yield r
       case _ => l.left
     },
     r => FileAlreadyExists(dir, name).left
@@ -42,7 +45,7 @@ trait FileHandler {
       chunk1 = chunk.grouped(chunkLength).zipWithIndex
       _ <- chunk1.toStream.map{ case (x, y) => dba.put(s"${dir}/${name}_chunk_${file.count+y+1}", x) }.sequence_
       file1 = file.copy(count = file.count + chunk1.length, size = file.size + chunk.length)
-      file2 = pickle(file1)
+      file2 <- pickle(file1)
       _ <- dba.put(s"${dir}/${name}", file2)
     } yield file1
   }
@@ -83,7 +86,8 @@ trait FileHandler {
         _ <- dba.put(s"${dir}/${toName}_chunk_${i}", x)
       } yield ()).sequence_
       to = File(toName, from.count, from.size)
-      _ <- dba.put(s"${dir}/${toName}", pickle(to))
+      x <- pickle(to)
+      _ <- dba.put(s"${dir}/${toName}", x)
     } yield to
   }
 }

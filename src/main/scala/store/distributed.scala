@@ -105,7 +105,7 @@ class IdCounter extends Actor with ActorLogging {
   val kvs = mws.kvs.Kvs(context.system)
 
   implicit val strHandler:ElHandler[String] = new ElHandler[String] {
-    def pickle(e: String): Array[Byte] = e.getBytes("UTF-8")
+    def pickle(e: String): Res[Array[Byte]] = e.getBytes("UTF-8").right
     def unpickle(a: Array[Byte]): Res[String] = new String(a,"UTF-8").right
   }
 
