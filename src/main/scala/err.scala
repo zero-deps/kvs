@@ -11,6 +11,7 @@ final case class Fail(r: String) extends Err
 final case class Failed(t: Throwable) extends Err
 final case class PickleFail(r: String) extends Err
 final case class UnpickleFail(r: String) extends Err
+final case class InvalidArgument(d: String) extends Err
 
 case object RngAskQuorumFailed extends Err
 case object RngAskTimeoutFailed extends Err

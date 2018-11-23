@@ -4,6 +4,7 @@ package file
 import mws.kvs.store.Dba
 import scalaz._
 import scalaz.Scalaz._
+import scala.annotation.tailrec
 
 /**
  * id – filepath or whatever uniquely identifies this file
@@ -39,12 +40,23 @@ trait FileHandler {
     r => FileAlreadyExists(dir, name).left
   )
 
-  def append(dir: String, name: String, chunk: Array[Byte])(implicit dba: Dba): Res[File] = {
+  def append(dir: String, name: String, data: Array[Byte])(implicit dba: Dba): Res[File] = {
+    @tailrec
+    def writeChunks(count: Int, rem: Array[Byte]): Res[Int] = {
+      rem.splitAt(chunkLength) match {
+        case (xs, _) if xs.length === 0 => count.right
+        case (xs, ys) =>
+          dba.put(s"${dir}/${name}_chunk_${count+1}", xs) match {
+            case r @ \/-(_) => writeChunks(count+1, rem=ys)
+            case l @ -\/(_) => l
+          }
+      }
+    }
     for {
+      _ <- (data.length === 0).fold(InvalidArgument("data is empty").left, ().right)
       file <- get(dir, name)
-      chunk1 = chunk.grouped(chunkLength).zipWithIndex
-      _ <- chunk1.toStream.map{ case (x, y) => dba.put(s"${dir}/${name}_chunk_${file.count+y+1}", x) }.sequence_
-      file1 = file.copy(count = file.count + chunk1.length, size = file.size + chunk.length)
+      count <- writeChunks(file.count, rem=data)
+      file1 = file.copy(count=count, size=file.size+data.length)
       file2 <- pickle(file1)
       _ <- dba.put(s"${dir}/${name}", file2)
     } yield file1
