@@ -131,7 +131,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(ChangeState(s), data) =>
       if(state(data.nodes.size) == Unsatisfied) stay() else goto(s)
     case Event(InternalPut(k, v), data) =>
-      doPut(k, v, self, data)
+      doPut(k, v, sender(), data)
       stay()
   }
 

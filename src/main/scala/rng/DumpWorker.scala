@@ -122,7 +122,7 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
 
     when(Collecting){
         case Event(SavingEntity(k,v,nextKey),state) =>
-            log.debug(s"saving state {} -> {}, nextKey = {}", k, v, nextKey)
+            log.debug("saving state {} -> {}, nextKey = {}", k, v, nextKey)
             val putF = stores.get(self.path.address, "ring_hash").fold(_.ask(InternalPut(k,v)), _.ask(InternalPut(k,v)))
             Await.ready(putF, timeout.duration)
             nextKey match {
