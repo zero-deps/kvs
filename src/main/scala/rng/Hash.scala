@@ -17,8 +17,8 @@ case class Put(k: Key, v: Value) extends APIMessage
 case class Get(k: Key) extends APIMessage
 case class Delete(k: Key) extends APIMessage
 case class Dump(dumpLocation: String) extends APIMessage
-case class LoadDump(dumpPath:String) extends APIMessage
-case class IterateDump(dumpPath:String,foreach:(String,Array[Byte])=>Unit) extends APIMessage
+case class LoadDump(dumpPath: String) extends APIMessage
+case class IterateDump(dumpPath: String, foreach: (String, Array[Byte]) => Unit) extends APIMessage
 case object RestoreState extends APIMessage
 //utilities
 case object Ready

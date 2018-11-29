@@ -32,8 +32,11 @@ object Run extends App {
     Try(Await.result(system.whenTerminated,Duration.Inf))
   }
 
-  kvs.onReady{
-    val r = kvs.put("a","b")
+  import system.dispatcher
+
+  kvs.onReady.map{ _ =>
+    val r = kvs.el.put("a","b")
     system.log.info(s"${r}")
+    system.log.info(kvs.nextid("fid").toString)
   }
 }

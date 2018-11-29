@@ -3,13 +3,16 @@ package mws.kvs
 import org.scalatest._
 import akka.actor._
 import akka.testkit._
+import scala.concurrent.Await
+import scala.util.Try
+import scala.concurrent.duration._
 
 class ElHandlerTest extends TestKit(ActorSystem("Test"))
   with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
   val kvs = Kvs(system)
 
-  Thread.sleep(2000)
+  Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
 
   override def afterAll = TestKit.shutdownActorSystem(system)
 

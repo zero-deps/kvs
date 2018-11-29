@@ -64,7 +64,7 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  def isReady: Future[Boolean] = (hash ? rng.Ready).mapTo[Boolean]
+  def isReady: Future[Boolean] = hash.ask(rng.Ready).mapTo[Boolean]
 
   def get(key: String): Res[V] = {
     val getF = (hash ? rng.Get(key)).mapTo[Option[rng.Value]]
@@ -98,19 +98,19 @@ class Ring(system: ActorSystem) extends Dba {
 }
 
 object IdCounter {
-  def props:Props = Props(new IdCounter)
+  def props: Props = Props(new IdCounter)
   val shardName = "nextid"
 }
 class IdCounter extends Actor with ActorLogging {
   val kvs = mws.kvs.Kvs(context.system)
 
-  implicit val strHandler:ElHandler[String] = new ElHandler[String] {
+  implicit val strHandler: ElHandler[String] = new ElHandler[String] {
     def pickle(e: String): Res[Array[Byte]] = e.getBytes("UTF-8").right
     def unpickle(a: Array[Byte]): Res[String] = new String(a,"UTF-8").right
   }
 
   def receive: Receive = {
-    case name:String =>
+    case name: String =>
       kvs.el.get[String](s"IdCounter.${name}").fold(
         empty => put(name, prev="0"),
         prev => put(name, prev)

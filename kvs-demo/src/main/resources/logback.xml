@@ -1,0 +1,13 @@
+<configuration>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%date{HH:mm:ss.SSS} %highlight(%-5level) %cyan(%logger{36}) %X{akkaSource} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
+
+  <root level="${logLevel:-INFO}">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>

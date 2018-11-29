@@ -1,3 +1,5 @@
+val akkaVersion = "2.5.18"
+
 lazy val root = (project in file(".")).withId("kvs")
   .settings(
     inThisBuild(
@@ -18,34 +20,27 @@ lazy val root = (project in file(".")).withId("kvs")
     ),
     fork in Test := true,
     libraryDependencies ++= Seq(
+      "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.github.jnr" % "jnr-ffi" % "2.1.7",
-      "org.scalaz" %% "scalaz-core" % "7.2.26" % Provided,
-      "ch.qos.logback" % "logback-classic" % "1.2.3" % Provided,
+      "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
+      "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
+      "org.scalaz" %% "scalaz-core" % "7.2.27",
 
-      // before updating akka to any version test 'sbt createPkg' in CMS project
-      "com.playtech.mws.akka" %% "akka-actor"              % "2.4.14.0-2-g00894bc",
-      "com.playtech.mws.akka" %% "akka-cluster"            % "2.4.14.0-2-g00894bc",
-      "com.playtech.mws.akka" %% "akka-cluster-sharding"   % "2.4.14.0-2-g00894bc",
-      "com.playtech.mws.akka" %% "akka-cluster-tools"      % "2.4.14.0-2-g00894bc",
-      "com.playtech.mws.akka" %% "akka-distributed-data"   % "2.4.14.0-2-g00894bc",
-      "com.playtech.mws.akka" %% "akka-protobuf"           % "2.4.14.0-2-g00894bc",
-      "com.playtech.mws.akka" %% "akka-remote"             % "2.4.14.0-2-g00894bc",
-      "com.playtech.mws.akka" %% "akka-slf4j"              % "2.4.14.0-2-g00894bc",
-      "com.playtech.mws.akka" %% "akka-stream"             % "2.4.14.0-2-g00894bc",
-
-      "com.playtech.mws"      %% "scala-pickling"          % "1.0-2-gb05b7b9" % Test,
-      "org.scalatest"         %% "scalatest"               % "3.0.1" % Test,
-      "com.playtech.mws.akka" %% "akka-multi-node-testkit" % "2.4.14.0-2-g00894bc" % Test,
-      "com.playtech.mws.akka" %% "akka-stream-testkit"     % "2.4.14.0-2-g00894bc" % Test,
-      "com.playtech.mws.akka" %% "akka-testkit"            % "2.4.14.0-2-g00894bc" % Test,
+      "com.playtech.mws" %% "scala-pickling" % "1.0-2-gb05b7b9" % Test,
+      "com.typesafe.akka" %% "akka-testkit" % akkaVersion       % Test,
+      "org.scalatest" %% "scalatest" % "3.0.1"                  % Test,
     )
   )
 
 lazy val kvsDemo = (project in file("kvs-demo")).settings(
-  mainClass in (Compile,run) := Some("mws.kvs.Run"),
+  mainClass in (Compile, run) := Some("mws.kvs.Run"),
   fork in run := true,
-  libraryDependencies += "org.scalaz" %% "scalaz-core" % "7.2.25",
-  libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3",
+  javaOptions ++= Seq(
+    "-Dcom.sun.management.jmxremote",
+    "-Dcom.sun.management.jmxremote.ssl=false",
+    "-Dcom.sun.management.jmxremote.authenticate=false",
+    "-Dcom.sun.management.jmxremote.port=9000",
+  ),
 ).dependsOn(root)
 
 lazy val leveldbTest = (project in file("leveldb-test")).settings(
@@ -75,5 +70,5 @@ lazy val publishSettings = Seq(
   publishMavenStyle := true,
   pomIncludeRepository := (_ => false),
   isSnapshot := true,
-  crossScalaVersions := Seq("2.11.12", "2.12.7")
+  // crossScalaVersions := Seq("2.11.12", "2.12.7")
 )

@@ -7,6 +7,9 @@ import akka.actor.ActorSystem
 import akka.testkit._
 import org.scalatest._
 import EnHandlerTest._
+import scala.concurrent.Await
+import scala.util.Try
+import scala.concurrent.duration._
 
 object EnHandlerTest {
   val fid = "fid" + java.util.UUID.randomUUID.toString
@@ -37,7 +40,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
   val kvs = Kvs(system)
 
-  Thread.sleep(2000)
+  Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
 
   val mod = 50
   def entry(n:Int):EnType = EnType(fid,data=FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))

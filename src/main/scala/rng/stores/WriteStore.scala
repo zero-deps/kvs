@@ -1,25 +1,23 @@
 package mws.rng.store
 
-import java.nio.ByteBuffer
-
 import akka.actor.{Actor, ActorLogging}
 import akka.cluster.VectorClock
-import akka.serialization.SerializationExtension
+import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
+import java.nio.ByteBuffer
+import leveldbjnr._
 import mws.rng._
 
-import leveldbjnr._
-
-case class StoreGet(key:Key)
-case class StorePut(data:Data)
-case class StoreDelete(key:Key)
+case class StoreGet(key: Key)
+case class StorePut(data: Data)
+case class StoreDelete(key: Key)
 case class BucketPut(data: List[Data])
-case class BucketGet(b:Bucket)
+case class BucketGet(b: Bucket)
 case class GetResp(d: Option[List[Data]])
-case class PutSavingEntity(k:Key,v:(Value, Option[Key]))
+case class PutSavingEntity(k: Key, v: (Value, Option[Key]))
 case class GetSavingEntity(k: Key)
 case class BucketKeys(b: Bucket)
 
-case class FeedAppend(fid:String, v:Value,  version: VectorClock)
+case class FeedAppend(fid: String, v: Value, version: VectorClock)
 sealed trait PutStatus  
 case object Saved extends PutStatus
 case class Conflict(broken: List[Data]) extends PutStatus
@@ -27,7 +25,6 @@ case class Conflict(broken: List[Data]) extends PutStatus
 class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   
   val config = context.system.settings.config.getConfig("ring.leveldb")
-  val serialization = SerializationExtension(context.system)
   val ro = new LevelDBReadOptions
   val wo = new LevelDBWriteOptions
   wo.setSync(config.getBoolean("fsync"))
@@ -35,11 +32,20 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
 
   def bytes(any: Any): Array[Byte] = any match {
     case b: Bucket => ByteBuffer.allocate(4).putInt(b).array()
-    case anyRef: AnyRef => serialization.serialize(anyRef).get
+    case anyRef: AnyRef =>
+      val bos = new ByteArrayOutputStream
+      val out = new ObjectOutputStream(bos)
+      out.writeObject(anyRef)
+      out.close()
+      bos.toByteArray
   }
 
-  def fromBytesList[T](arr: Array[Byte], clazz : Class[T]): Option[T] = Option(arr) match {
-    case Some(a) => Some(serialization.deserialize(a, clazz).get)
+  def fromBytesList[T](arr: Array[Byte], clazz: Class[T]): Option[T] = Option(arr) match {
+    case Some(a) =>
+      val in = new ObjectInputStream(new ByteArrayInputStream(a))
+      val obj = in.readObject
+      in.close()
+      Some(obj.asInstanceOf[T])
     case None => None
   }
 

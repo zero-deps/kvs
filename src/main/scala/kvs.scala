@@ -7,7 +7,7 @@ import mws.kvs.store.IdCounter
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.Try
+import scala.util.{Try, Success}
 import scalaz._
 import scalaz.Scalaz._
 import mws.kvs.en.{En, EnHandler, Fd, FdHandler}
@@ -19,7 +19,7 @@ object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
   override def lookup = Kvs
   override def createExtension(system:ExtendedActorSystem):Kvs = new Kvs(system)
 }
-class Kvs(system:ExtendedActorSystem) extends Extension {
+class Kvs(system: ExtendedActorSystem) extends Extension {
   { /* start sharding */
     val sharding = ClusterSharding(system)
     val settings = ClusterShardingSettings(system)
@@ -77,31 +77,24 @@ class Kvs(system:ExtendedActorSystem) extends Extension {
     def iterate(path: String, f: (String, Array[Byte]) => Unit): Res[Any] = Try(Await.result(dba.iterate(path, f), timeout)).toDisjunction.leftMap(Failed)
   }
 
-  def onReady[T](body: => Unit): Unit = {
+  def onReady: Future[Unit] = {
     import system.dispatcher
     import system.log
-    val N = cfg.getIntList("ring.quorum").get(0)
-    val K = if (N==1) 1 else cfg.getInt("kvs.onreadycount")
-    var count = 0
-    def loop(): Unit = system.scheduler.scheduleOnce(1 second){
-      dba.isReady onComplete {
-        case scala.util.Success(true) =>
-          count = count + 1
-          // make sure that dba is ready K times in the row
-          if (count == K) {
+    val p = Promise[Unit]()
+    def loop(): Unit = {
+      system.scheduler.scheduleOnce(1 second){
+        dba.isReady onComplete {
+          case Success(true) =>
             log.info("KVS is ready")
-            body
-          } else {
+            p.success(())
+          case _ =>
             log.info("KVS isn't ready yet...")
             loop()
-          }
-        case _ =>
-          log.info("KVS isn't ready yet...")
-          count = 0
-          loop()
+        }
       }
     }
     loop()
+    p.future
   }
 
   def close(): Unit = dba.close()

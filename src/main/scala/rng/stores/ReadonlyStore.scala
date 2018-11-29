@@ -1,28 +1,35 @@
 package mws.rng.store
 
-import java.nio.ByteBuffer
-
 import akka.actor.{Actor, ActorLogging}
-import akka.serialization.SerializationExtension
-import mws.rng._
-import leveldbjnr._
 import akka.util.ByteString
+import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
+import java.nio.ByteBuffer
+import leveldbjnr._
+import mws.rng._
 
 case class GetBucketResp(b:Bucket,l: List[Data])
 case class SavingEntity(k: Key, v:Value, nextKey: Option[Key])
 
 class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
-  val serialization = SerializationExtension(context.system)
   val hashing = HashingExtension(context.system)
   val ro = new LevelDBReadOptions
 
   def bytes(any: Any): Array[Byte] = any match {
     case b: Bucket => ByteBuffer.allocate(4).putInt(b).array()
-    case anyRef: AnyRef => serialization.serialize(anyRef).get
+    case anyRef: AnyRef =>
+      val bos = new ByteArrayOutputStream
+      val out = new ObjectOutputStream(bos)
+      out.writeObject(anyRef)
+      out.close()
+      bos.toByteArray
   }
 
   def fromBytesList[T](arr: Array[Byte], clazz : Class[T]): Option[T] = Option(arr) match {
-    case Some(a) => Some(serialization.deserialize(a, clazz).get)
+    case Some(a) => 
+      val in = new ObjectInputStream(new ByteArrayInputStream(a))
+      val obj = in.readObject
+      in.close()
+      Some(obj.asInstanceOf[T])
     case None => None
   }
 
@@ -50,5 +57,4 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
     ro.close()
     super.postStop()
   }
-
 }
