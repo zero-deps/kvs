@@ -86,7 +86,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     }
 
     "should not save entry(2) again" in {
-      kvs.add(e2.copy(id="2")).toEither.left.value shouldBe EntryExist(s"${fid}.2")
+      kvs.add(e2.copy(id="2")).toEither.left.value shouldBe EntryExists(s"${fid}.2")
     }
 
     "should get 3 values from feed" in {

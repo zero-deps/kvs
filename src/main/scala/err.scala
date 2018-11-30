@@ -2,7 +2,7 @@ package mws.kvs
 
 sealed trait Err
 
-final case class EntryExist(key: String) extends Err
+final case class EntryExists(key: String) extends Err
 final case class NotFound(key: String) extends Err
 final case class FeedNotExists(key: String) extends Err
 final case class FileNotExists(dir: String, name: String) extends Err

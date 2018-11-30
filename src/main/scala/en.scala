@@ -47,7 +47,7 @@ trait EnHandler[A <: En] {
         else
           get(en.fid, en.id).fold( // id of entry must be unique
             l => en.id.right,
-            r => EntryExist(key(en.fid, en.id)).left
+            r => EntryExists(key(en.fid, en.id)).left
           )
       ).map(id => update(en, id=id, prev=fd.top)).flatMap{ en =>
         // add new entry with prev pointer

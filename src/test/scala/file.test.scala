@@ -32,6 +32,9 @@ class FileHandlerTest extends TestKit(ActorSystem("Test"))
     "create" in {
       kvs.file.create(dir, name).isRight should be (true)
     }
+    "create if exists" in {
+      kvs.file.create(dir, name).toEither.left.value should be (FileAlreadyExists(dir, name))
+    }
     "append" in {
       val r = kvs.file.append(dir, name, Array(1, 2, 3, 4, 5, 6))
       r.isRight should be (true)
@@ -43,12 +46,24 @@ class FileHandlerTest extends TestKit(ActorSystem("Test"))
       r.isRight should be (true)
       r.toEither.right.value should be (6)
     }
+    "size if absent" in {
+      kvs.file.size(dir, name + "1").toEither.left.value should be (FileNotExists(dir, name + "1"))
+    }
     "content" in {
       val r = kvs.file.stream(dir, name)
       r.isRight should be (true)
       val r1 = r.toEither.right.value.sequenceURun
       r1.isRight should be (true)
       r1.toEither.right.value.toArray.flatten should be (Array(1, 2, 3, 4, 5, 6))
+    }
+    "content if absent" in {
+      kvs.file.stream(dir, name + "1").toEither.left.value should be (FileNotExists(dir, name + "1"))
+    }
+    "delete" in {
+      kvs.file.delete(dir, name).isRight should be (true)
+    }
+    "delete if absent" in {
+      kvs.file.delete(dir, name).toEither.left.value should be (FileNotExists(dir, name))
     }
   }
 
