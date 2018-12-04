@@ -54,7 +54,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
   "Feed should" - {
     "be empty at creation" in {
-      kvs.stream[EnType](fid) shouldBe (-\/(FeedNotExists(fid)))
+      kvs.stream_safe[EnType](fid) shouldBe (-\/(FeedNotExists(fid)))
     }
 
     "should save e1" in {
@@ -76,7 +76,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get e1 and e2 from feed" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 2
 
-      val stream = kvs.stream[EnType](fid)
+      val stream = kvs.stream_safe[EnType](fid)
       stream.map(_.toList) shouldBe List(e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
     }
 
@@ -92,7 +92,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get 3 values from feed" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 3
 
-      val stream = kvs.stream[EnType](fid)
+      val stream = kvs.stream_safe[EnType](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="2").right, e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
     }
 
@@ -109,7 +109,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get 2 values from feed" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 2
 
-      val stream = kvs.stream[EnType](fid)
+      val stream = kvs.stream_safe[EnType](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="1").right, e1.copy(id="1").right).right
     }
 
@@ -122,7 +122,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get 1 values from feed" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 1
 
-      val stream = kvs.stream[EnType](fid)
+      val stream = kvs.stream_safe[EnType](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3").right).right
     }
 
@@ -134,7 +134,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
     "should be empty" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 0
-      kvs.stream[EnType](fid).toEither.right.get shouldBe empty
+      kvs.stream_safe[EnType](fid).toEither.right.get shouldBe empty
     }
 
     "should not create stack overflow" in {
@@ -159,9 +159,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
     "feed should be empty at the end test" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 0
-      kvs.stream[EnType](fid).toEither.right.value shouldBe empty
+      kvs.stream_safe[EnType](fid).toEither.right.value shouldBe empty
       kvs.fd.delete(Fd(fid))
-      kvs.stream[EnType](fid) shouldBe ('left)
+      kvs.stream_safe[EnType](fid) shouldBe ('left)
     }
   }
 }
