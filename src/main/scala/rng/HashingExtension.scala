@@ -6,6 +6,7 @@ import com.typesafe.config.Config
 
 import scala.annotation.tailrec
 import scala.collection.{SortedMap}
+import com.google.protobuf.ByteString
 
 class HashingImpl(config: Config) extends  Extension {
   val hashLen = config.getInt("hashLength")
@@ -13,9 +14,9 @@ class HashingImpl(config: Config) extends  Extension {
   val bucketRange = (math.pow(2, hashLen) / bucketsNum).ceil.toInt
 
 
-  def hash(word: String): Int = {
+  def hash(word: ByteString): Int = {
     implicit val digester = MessageDigest.getInstance("MD5")
-    digester update word.getBytes("UTF-8")
+    digester update word.toByteArray
     val digest = digester.digest
 
     (0 to hashLen / 8 - 1).foldLeft(0)((acc, i) => acc | ((digest(i) & 0xff) << (8 * (hashLen / 8 - 1 - i)))) //take first 4 byte

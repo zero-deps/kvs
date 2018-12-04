@@ -29,6 +29,9 @@ lazy val root = (project in file(".")).withId("kvs")
       "com.playtech.mws" %% "scala-pickling" % "1.0-2-gb05b7b9" % Test,
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion       % Test,
       "org.scalatest" %% "scalatest" % "3.0.1"                  % Test,
+    ),
+    PB.targets in Compile := Seq(
+      scalapb.gen() -> (sourceManaged in Compile).value
     )
   )
 

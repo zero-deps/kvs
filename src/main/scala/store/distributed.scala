@@ -6,9 +6,12 @@ import akka.event.Logging
 import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.{ByteString, Timeout}
+import akka.actor._
+import akka.util.Timeout
 import leveldbjnr.LevelDB
 import mws.kvs.el.ElHandler
 import mws.rng
+import mws.rng.{atob, stob}
 import mws.rng.store.{ReadonlyStore, WriteStore}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -29,6 +32,8 @@ object Ring {
       LevelDB.lib.leveldb_options_set_filter_policy(options, bloom)
       val cache = LevelDB.lib.leveldb_cache_create_lru(100 * 1048576) // 100MB cache
       LevelDB.lib.leveldb_options_set_cache(options, cache)
+      val writeBuffer = 10 * 1048576 // 10MB write buffer
+      LevelDB.lib.leveldb_options_set_write_buffer_size(options, writeBuffer)
     }
     leveldbOptions.setCreateIfMissing(true)
     val x = new LevelDB(leveldbDir, leveldbOptions)
@@ -55,7 +60,7 @@ class Ring(system: ActorSystem) extends Dba {
   private val hash = system.actorOf(Props(classOf[rng.Hash]).withDeploy(Deploy.local), name = "ring_hash")
 
   def put(key: String, value: V): Res[V] = {
-    val putF = (hash ? rng.Put(key, ByteString(value))).mapTo[rng.Ack]
+    val putF = (hash ? rng.Put(stob(key), atob(value))).mapTo[rng.Ack]
     Try(Await.result(putF, d)).toDisjunction match {
       case \/-(rng.AckSuccess) => value.right
       case \/-(rng.AckQuorumFailed) => RngAskQuorumFailed.left
@@ -67,9 +72,9 @@ class Ring(system: ActorSystem) extends Dba {
   def isReady: Future[Boolean] = hash.ask(rng.Ready).mapTo[Boolean]
 
   def get(key: String): Res[V] = {
-    val getF = (hash ? rng.Get(key)).mapTo[Option[rng.Value]]
+    val getF = (hash ? rng.Get(stob(key))).mapTo[Option[rng.Value]]
     Try(Await.result(getF, d)).toDisjunction match {
-      case \/-(Some(v)) => v.toArray.right
+      case \/-(Some(v)) => v.toByteArray.right
       case \/-(None) => NotFound(key).left
       case -\/(ex) => RngThrow(ex).left
     }
@@ -77,7 +82,7 @@ class Ring(system: ActorSystem) extends Dba {
 
   def delete(key: String): Res[V] =
     get(key).flatMap{ r =>
-      Try(Await.result((hash ? rng.Delete(key)).mapTo[rng.Ack], d)).toDisjunction match {
+      Try(Await.result((hash ? rng.Delete(stob(key))).mapTo[rng.Ack], d)).toDisjunction match {
         case \/-(rng.AckSuccess) => r.right
         case \/-(rng.AckQuorumFailed) => RngAskQuorumFailed.left
         case \/-(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
@@ -85,9 +90,9 @@ class Ring(system: ActorSystem) extends Dba {
       }
     }
 
-  def save(path: String): Future[String] = (hash ? rng.Dump(path)).mapTo[String]
-  def load(path: String): Future[Any] = hash ? rng.LoadDump(path)
-  def iterate(path: String, f: (String, Array[Byte]) => Unit): Future[Any] = hash ? rng.IterateDump(path,f)
+  def save(path: String): Future[String] = (hash.ask(rng.Dump(path))(Timeout(1 hour))).mapTo[String]
+  def load(path: String): Future[Any] = hash.ask(rng.LoadDump(path))(Timeout(1 hour))
+  def iterate(path:String, foreach: (String, Array[Byte]) => Unit): Future[Any] = hash.ask(rng.IterateDump(path, (k, v) => foreach(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(Timeout(1 hour))
 
   def close(): Unit = ()
 

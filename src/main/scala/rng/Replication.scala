@@ -2,7 +2,8 @@ package mws.rng
 
 import akka.actor.{ActorLogging, Props, ActorRef, FSM}
 import akka.cluster.Cluster
-import mws.rng.store.{GetBucketResp, BucketPut, BucketGet}
+import mws.rng.msg.{GetBucketResp, BucketPut, BucketGet}
+import mws.rng.data.Data
 import scala.collection.SortedMap
 import scala.concurrent.duration._
 
@@ -42,7 +43,7 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
   }
 }
 
-case class ReplKeys(b:Bucket, prefList: PreferenceList, info: List[List[Data]])
+case class ReplKeys(b:Bucket, prefList: PreferenceList, info: Seq[Seq[Data]])
 class ReplicationWorker(bucket:Bucket,preferenceList: PreferenceList) extends FSM[FsmState, ReplKeys] with ActorLogging {
   val local = Cluster(context.system).selfAddress
   val actorMem = SelectionMemorize(context.system)
@@ -54,12 +55,12 @@ class ReplicationWorker(bucket:Bucket,preferenceList: PreferenceList) extends FS
     case Event(GetBucketResp(b,l), data) =>
       data.prefList - addrs(sender()) match {
         case empty if empty.isEmpty =>
-          val all = data.info.foldLeft(l)((acc, list) => list :::  acc )
+          val all = data.info.foldLeft(l)((acc, list) => list ++ acc )
           val merged = mergeBucketData(all, Nil)
           actorMem.get(local, "ring_write_store").fold(_ ! BucketPut(merged), _ ! BucketPut(merged))
           context.parent ! b
           stop()
-        case nodes => stay() using ReplKeys(bucket, nodes, l :: data.info)
+        case nodes => stay() using ReplKeys(bucket, nodes, l +: data.info)
       }
 
     case Event(OpsTimeout, data) =>

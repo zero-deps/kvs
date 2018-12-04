@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package mws.rng;
+
+import "data.proto";
+
+message Msg {
+  oneof msg_type {
+    StoreGet storeGet = 1;
+    StorePut storePut = 2;
+    StoreDelete storeDelete = 3;
+    BucketPut bucketPut = 4;
+    BucketGet bucketGet = 5;
+    GetResp getResp = 6;
+    PutSavingEntity putSavingEntity = 7;
+    GetSavingEntity getSavingEntity = 8;
+    BucketKeys bucketKeys = 9;
+    GetBucketResp getBucketResp = 10;
+    SavingEntity savingEntity = 11;
+  }
+}
+
+message StoreGet {
+  bytes key = 1;
+}
+
+message StorePut {
+  Data data = 1;
+}
+
+message StoreDelete {
+  bytes key = 1;
+}
+
+message BucketPut {
+  repeated Data data = 1;
+}
+
+message BucketGet { 
+  int32 b = 1;
+}
+
+message GetResp {
+  repeated Data d = 1;
+}
+
+message PutSavingEntity {
+  bytes k = 1;
+  bytes v = 2;
+  bytes prev = 3;
+}
+
+message GetSavingEntity {
+  bytes k = 1;
+}
+
+message BucketKeys {
+  int32 b = 1;
+}
+
+message GetBucketResp {
+  int32 b = 1;
+  repeated Data l = 2;
+}
+
+message SavingEntity {
+  bytes k = 1;
+  bytes v = 2;
+  bytes nextKey = 3;
+}

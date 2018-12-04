@@ -2,63 +2,60 @@ package mws.rng.store
 
 import akka.actor.{Actor, ActorLogging}
 import akka.cluster.VectorClock
-import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
+import akka.serialization.SerializationExtension
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets.UTF_8
 import leveldbjnr._
 import mws.rng._
+import scala.collection.immutable.TreeMap
+import mws.rng.msg.{StoreGet, GetResp, BucketGet, GetBucketResp, BucketKeys, GetSavingEntity, SavingEntity, StorePut, PutSavingEntity, StoreDelete, BucketPut}
+import mws.rng.data.{Data, SeqData, SeqKey, ValueKey}
+// import com.github.plokhotnyuk.jsoniter_scala.macros._
+// import com.github.plokhotnyuk.jsoniter_scala.core._
 
-case class StoreGet(key: Key)
-case class StorePut(data: Data)
-case class StoreDelete(key: Key)
-case class BucketPut(data: List[Data])
-case class BucketGet(b: Bucket)
-case class GetResp(d: Option[List[Data]])
-case class PutSavingEntity(k: Key, v: (Value, Option[Key]))
-case class GetSavingEntity(k: Key)
-case class BucketKeys(b: Bucket)
+// case class StoreGet(key:Key)
+// case class StorePut(data:Data)
+// case class StoreDelete(key:Key)
+// case class BucketPut(data: List[Data])
+// case class BucketGet(b:Bucket)
+// case class GetResp(d: List[Data])
+// case class PutSavingEntity(k:Key,v:(Value, Option[Key]))
+// case class GetSavingEntity(k: Key)
+// case class BucketKeys(b: Bucket)
 
 case class FeedAppend(fid: String, v: Value, version: VectorClock)
 sealed trait PutStatus  
 case object Saved extends PutStatus
-case class Conflict(broken: List[Data]) extends PutStatus
+case class Conflict(broken: Seq[Data]) extends PutStatus
 
 class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   
   val config = context.system.settings.config.getConfig("ring.leveldb")
+
   val ro = new LevelDBReadOptions
   val wo = new LevelDBWriteOptions
   wo.setSync(config.getBoolean("fsync"))
   val hashing = HashingExtension(context.system)
 
-  def bytes(any: Any): Array[Byte] = any match {
-    case b: Bucket => ByteBuffer.allocate(4).putInt(b).array()
-    case anyRef: AnyRef =>
-      val bos = new ByteArrayOutputStream
-      val out = new ObjectOutputStream(bos)
-      out.writeObject(anyRef)
-      out.close()
-      bos.toByteArray
-  }
+  def get(k: Key): Option[Array[Byte]] = Option(leveldb.get(k.toByteArray, ro))
 
-  def fromBytesList[T](arr: Array[Byte], clazz: Class[T]): Option[T] = Option(arr) match {
-    case Some(a) =>
-      val in = new ObjectInputStream(new ByteArrayInputStream(a))
-      val obj = in.readObject
-      in.close()
-      Some(obj.asInstanceOf[T])
-    case None => None
-  }
+  // val listDataCodec: JsonValueCodec[List[Data]] = JsonCodecMaker.make[List[Data]](CodecMakerConfig())
+  // val valueKeyCodec: JsonValueCodec[(Value, Option[Key])] = JsonCodecMaker.make[(Value, Option[Key])](CodecMakerConfig())
+  // val listKeyCodec: JsonValueCodec[List[Key]] = JsonCodecMaker.make[List[Key]](CodecMakerConfig())
+
+  val keyWord = stob(":key:")
+  val keysWord = stob(":keys")
 
   override def preStart(): Unit = {
     // old style to new layout bucket -> List[Data] to bucket:key
     val buckets = context.system.settings.config.getInt("ring.buckets")
     (0 to buckets).foreach(b => {
-      val binfo = fromBytesList(leveldb.get(bytes(b),ro), classOf[List[Data]])
+      val binfo = get(itob(b)).map(SeqData.parseFrom(_).data)
       binfo.map(_.groupBy(_.bucket)) match {
         case None =>
         case Some(m) => m.foreach { case (buk, list) =>
           list map doPut
-          leveldb.delete(bytes(buk),wo)
+          leveldb.delete(itob(buk).toByteArray,wo)
         }
       }
     })
@@ -72,10 +69,10 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   }
 
   def receive: Receive = {
-    case StorePut(data) => 
+    case StorePut(Some(data)) => 
       sender ! doPut(data)
-    case PutSavingEntity(k:Key,v:(Value, Option[Key])) =>
-      withBatch(batch => { batch.put(bytes(k), bytes(v)) })
+    case PutSavingEntity(k: Key, v: Value, nextKey: Key) =>
+      withBatch(batch => { batch.put(k.toByteArray, ValueKey(v=v, nextKey=nextKey).toByteArray) })
       sender() ! "done"
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketPut(data) => data map doPut
@@ -83,36 +80,36 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   }
 
   def doPut(data: Data): PutStatus = {
-    val keyData = fromBytesList(leveldb.get(bytes(s"${data.bucket}:key:${data.key}"),ro), classOf[List[Data]])
+    val keyData: Option[Seq[Data]] = get(itob(data.bucket).concat(keyWord).concat(data.key)).map(SeqData.parseFrom(_).data)
 
-    val updated: (PutStatus, List[Data]) = keyData match {
-      case None => (Saved, List(data))
-      case Some(list) if list.size == 1 & descendant(list.head.vc, data.vc) => (Saved, List(data))
-      case Some(list) if list forall (d => descendant(d.vc, data.vc)) =>
-        val newVC = (list map (_.vc)).foldLeft(data.vc)((sum, i) => sum.merge(i))
-        (Saved, List(data.copy(vc = newVC)))
+    val updated: (PutStatus, Seq[Data]) = keyData match {
+      case None => (Saved, Seq(data))
+      case Some(list) if list.size == 1 & descendant(makevc(list.head.vc), makevc(data.vc)) => (Saved, Seq(data))
+      case Some(list) if list forall (d => descendant(makevc(d.vc), makevc(data.vc))) =>
+        val newVC = (list map (_.vc)).foldLeft(makevc(data.vc))((sum, i) => sum.merge(makevc(i)))
+        (Saved, Seq(data.copy(vc = fromvc(newVC))))
       case Some(brokenData) => 
-        val broken = data :: brokenData
+        val broken = data +: brokenData
         (Conflict(broken), broken)
     }
     
-    val keysInBucket = fromBytesList(leveldb.get(bytes(s"${data.bucket}:keys"),ro), classOf[List[Key]]).getOrElse(Nil)
+    val keysInBucket = get(itob(data.bucket).concat(keysWord)).map(SeqKey.parseFrom(_).keys).getOrElse(Nil)
 
     withBatch(batch => {
-      if(!keysInBucket.contains(data.key)) batch.put(bytes(s"${data.bucket}:keys"), bytes(data.key :: keysInBucket))
-      batch.put(bytes(s"${data.bucket}:key:${data.key}"), bytes(updated._2))
+      if(!keysInBucket.contains(data.key)) batch.put(itob(data.bucket).concat(keysWord).toByteArray, SeqKey(data.key +: keysInBucket).toByteArray)
+      batch.put(itob(data.bucket).concat(keyWord).concat(data.key).toByteArray, SeqData(updated._2).toByteArray)
     })
     updated._1
   }
 
   def doDelete(key: Key): String = {
     val b = hashing.findBucket(key)
-    val keys = fromBytesList(leveldb.get(bytes(s"$b:keys"),ro), classOf[List[Key]])
+    val keys = get(itob(b).concat(keysWord)).map(SeqKey.parseFrom(_).keys)
     val newKeys = keys.getOrElse(Nil).filterNot(_ == key)
 
     withBatch(batch => {
-      batch.delete(bytes(s"$b:key:$key"))
-      batch.put(bytes(s"$b:keys"), bytes(newKeys))
+      batch.delete(itob(b).concat(keyWord).concat(key).toByteArray)
+      batch.put(itob(b).concat(keysWord).toByteArray, SeqKey(newKeys).toByteArray)
     })
     "ok"
   }

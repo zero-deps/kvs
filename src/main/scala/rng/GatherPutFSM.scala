@@ -2,11 +2,14 @@ package mws.rng
 
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import akka.cluster.VectorClock
-import mws.rng.store.{GetResp, PutStatus, Saved, StorePut}
+import mws.rng.store.{PutStatus, Saved}
+import mws.rng.msg.{GetResp, StorePut}
+import mws.rng.data.Data
 
 import scala.concurrent.duration._
 
 case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
+case class PutInfoBulk(b: List[(Key, Value)], N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
 
 object GatherPutFSM{
   def props(client: ActorRef, t: Int, actorsMem: SelectionMemorize, putInfo: PutInfo) = Props(
@@ -21,12 +24,14 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
 
   when(Collecting) {
     case Event(GetResp(data), _) =>
-      val vc: VectorClock = data match {
-        case Some(d) if d.size == 1 => d.head.vc
-        case Some(d) if d.size > 1 => (d map (_.vc)).foldLeft(new VectorClock)((sum, i) => sum.merge(i))
-        case None => new VectorClock
+      val vc: VectorClock = if (data == 1) {
+        makevc(data.head.vc)
+      } else if (data.size > 1) {
+        data.map(_.vc).foldLeft(new VectorClock)((sum, i) => sum.merge(makevc(i)))
+      } else {
+        new VectorClock
       }
-      val updatedData = Data(putInfo.key, putInfo.bucket, System.currentTimeMillis(), vc.:+(putInfo.localAdr.toString), putInfo.v)
+      val updatedData = Data(putInfo.key, putInfo.bucket, System.currentTimeMillis(), fromvc(vc.:+(putInfo.localAdr.toString)), putInfo.v)
       mapInPut(putInfo.nodes, updatedData)
       stay()
     
@@ -61,7 +66,7 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
 
   def mapInPut(nodes: Set[Node], d: Data) = {
     val storeList = nodes.map(n => RootActorPath(n) / "user" / "ring_write_store")
-      storeList.foreach(ref =>  context.system.actorSelection(ref).tell(StorePut(d), self))
+      storeList.foreach(ref =>  context.system.actorSelection(ref).tell(StorePut(Some(d)), self))
   }
   
   initialize()

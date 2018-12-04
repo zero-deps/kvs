@@ -1,25 +1,24 @@
 package mws.rng
 
 import akka.actor._
-import mws.kvs.store.Ring
-import mws.rng.store._
-import akka.util.{ByteString, Timeout}
-import java.util.Calendar
-
 import akka.pattern.ask
-
-import scala.collection.{SortedMap, SortedSet}
+import akka.util.Timeout
+import com.google.protobuf.ByteString
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.concurrent.TimeUnit
-
 import leveldbjnr._
-
-import scalaz.{Ordering => _, _}
-import Scalaz._
+import mws.kvs.store.Ring
+import mws.rng.data.Data
+import mws.rng.msg.{BucketGet, GetBucketResp, PutSavingEntity, GetSavingEntity, SavingEntity}
+import mws.rng.store._
+import scala.collection.{SortedMap, SortedSet}
 import scala.concurrent.Await
 import scala.util.Try
+import scalaz.Scalaz._
+import scalaz.{Ordering => _, _}
 
-final case class DumpData(current: Bucket, prefList: PreferenceList, collected: List[List[Data]],
+final case class DumpData(current: Bucket, prefList: PreferenceList, collected: Seq[Seq[Data]],
                           lastKey: Option[Key], client: Option[ActorRef])
 
 object DumpWorker {
@@ -58,15 +57,17 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
         case Event(GetBucketResp(b,data), state) => // TODO add timeout if any node is not responding.
             val pList = state.prefList - (if(sender().path.address.hasLocalScope) local else sender().path.address)
             if (pList.isEmpty) {
-                val lastKey = mergeBucketData((data :: state.collected).foldLeft(List.empty[Data])((acc, l) => l ::: acc), Nil) match {
-                  case Nil => state.lastKey
-                  case listData =>  linkKeysInDb(listData, state.lastKey)
+                val merged: Seq[Data] = mergeBucketData((data +: state.collected).foldLeft(Seq.empty[Data])((acc, l) => l ++ acc), Nil)
+                val lastKey: Option[Key] = if (merged.size == 0) {
+                    state.lastKey
+                } else {
+                    linkKeysInDb(merged, state.lastKey)
                 }
                 b+1 match {
                     case `maxBucket` =>
                         stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
                         log.info(s"Dump complete, sending path to hash, lastKey = $lastKey, keysInDump=$keysInDump")
-                        dumpStore ! PutSavingEntity("head_of_keys", (ByteString("dummy"), lastKey))
+                        dumpStore ! PutSavingEntity(stob("head_of_keys"), stob("dummy"), lastKey.getOrElse(ByteString.EMPTY))
                         dumpStore ! PoisonPill //TODO stop after processing last msg
                         import mws.rng.arch.Archiver._
                         Thread.sleep(5000)
@@ -81,15 +82,15 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
                 }
             }
             else
-                stay() using DumpData(state.current, pList, data :: state.collected, state.lastKey, state.client)
+                stay() using DumpData(state.current, pList, data +: state.collected, state.lastKey, state.client)
 
     }
 
-    @scala.annotation.tailrec final def linkKeysInDb(ldata: List[Data], prevKey: Option[Key]): Option[Key] = ldata match {
+    @scala.annotation.tailrec final def linkKeysInDb(ldata: Seq[Data], prevKey: Option[Key]): Option[Key] = ldata match {
         case Nil => prevKey
         case h::t =>
             log.debug("dump key={}", h.key)
-            Await.ready(dumpStore ? PutSavingEntity(h.key, (h.value, prevKey)), timeout.duration)
+            Await.ready(dumpStore ? PutSavingEntity(h.key, h.value, prevKey.getOrElse(ByteString.EMPTY)), timeout.duration)
             keysInDump = keysInDump + 1
             linkKeysInDb(t,Some(h.key))
     }
@@ -116,7 +117,7 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
         case Event(LoadDump(_),_) =>
             dumpDb = Ring.openLeveldb(context.system, extraxtedDir.some)
             store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
-            store ! GetSavingEntity("head_of_keys")
+            store ! GetSavingEntity(stob("head_of_keys"))
             goto(Collecting) using Some(sender)
     }
 
@@ -125,25 +126,24 @@ class LoadDumpWorker(path: String) extends FSM[FsmState, Option[ActorRef]] with 
             log.debug("saving state {} -> {}, nextKey = {}", k, v, nextKey)
             val putF = stores.get(self.path.address, "ring_hash").fold(_.ask(InternalPut(k,v)), _.ask(InternalPut(k,v)))
             Await.ready(putF, timeout.duration)
-            nextKey match {
-                case None =>
-                    stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
-                    Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
-                    log.info("load is completed, keys={}", keysNumber)
-                    state.map(_ ! "done")
-                    stop()
-                case Some(key) =>
-                    store ! GetSavingEntity(key)
-                    keysNumber = keysNumber + 1
-                    stay() using state
+            if (nextKey.isEmpty) {
+                stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
+                Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
+                log.info("load is completed, keys={}", keysNumber)
+                state.map(_ ! "done")
+                stop()
+            } else {
+                store ! GetSavingEntity(nextKey)
+                keysNumber = keysNumber + 1
+                stay() using state
             }
     }
 }
 
 object IterateDumpWorker {
-    def props(path: String, foreach: (String,Array[Byte])=>Unit): Props = Props(new IterateDumpWorker(path,foreach))
+    def props(path: String, foreach: (ByteString,ByteString)=>Unit): Props = Props(new IterateDumpWorker(path,foreach))
 }
-class IterateDumpWorker(path: String, foreach: (String,Array[Byte])=>Unit) extends FSM[FsmState,Option[ActorRef]] with ActorLogging {
+class IterateDumpWorker(path: String, foreach: (ByteString,ByteString)=>Unit) extends FSM[FsmState,Option[ActorRef]] with ActorLogging {
     import mws.rng.arch.Archiver._
     val extraxtedDir = path.dropRight(".zip".length)
 
@@ -157,23 +157,24 @@ class IterateDumpWorker(path: String, foreach: (String,Array[Byte])=>Unit) exten
         case Event(IterateDump(_,_),_) =>
             dumpDb = Ring.openLeveldb(context.system,extraxtedDir.some)
             store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
-            store ! GetSavingEntity("head_of_keys")
+            store ! GetSavingEntity(stob("head_of_keys"))
             goto(Collecting) using Some(sender)
     }
 
     when(Collecting){
         case Event(SavingEntity(k,v,nextKey),state) =>
             log.debug(s"iterate key=$k")
-            foreach(k,v.toArray)
-            nextKey match {
-                case None =>
-                    Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
-                    state.map(_ ! "done")
-                    log.debug("iteration ended")
-                    stop()
-                case Some(key) =>
-                    store ! GetSavingEntity(key)
-                    stay() using state
+            foreach(k,v)
+            if (nextKey.isEmpty) {
+                Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
+                state.map(_ ! "done")
+                log.debug("iteration ended")
+                stop()
+            } else {
+                store ! GetSavingEntity(nextKey)
+                stay() using state
             }
     }
 }
+
+

@@ -8,8 +8,9 @@ import mws.rng.store._
 import scala.collection.{SortedMap, SortedSet}
 import scala.concurrent.duration._
 import scala.collection.breakOut
-
 import com.typesafe.config.Config
+import com.google.protobuf.ByteString
+import mws.rng.msg.{StoreDelete, StoreGet}
 
 sealed class APIMessage
 //kvs
@@ -18,7 +19,7 @@ case class Get(k: Key) extends APIMessage
 case class Delete(k: Key) extends APIMessage
 case class Dump(dumpLocation: String) extends APIMessage
 case class LoadDump(dumpPath: String) extends APIMessage
-case class IterateDump(dumpPath: String, foreach: (String, Array[Byte]) => Unit) extends APIMessage
+case class IterateDump(dumpPath: String, foreach: (ByteString, ByteString) => Unit) extends APIMessage
 case object RestoreState extends APIMessage
 //utilities
 case object Ready
@@ -96,7 +97,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       doGet(k,s , data)
       stay()
     case Event(Put(k,v), data) =>
-    val s = sender()
+      val s = sender()
       doPut(k,v,s,data)
       stay()
     case Event(Delete(k), data) =>
@@ -175,7 +176,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
 
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
       val newvNodes: Map[VNode, Address] = (1 to vNodesNum).map(vnode => {
-        hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
+        hashing.hash(stob(member.address.hostPort).concat(itob(vnode))) -> member.address})(breakOut)
       val updvNodes = data.vNodes ++ newvNodes
       val nodes = data.nodes + member.address
       val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
@@ -188,7 +189,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
   def removeNodeFromRing(member: Member, data: HashRngData) : (QuorumState, HashRngData) = {
       log.info(s"[ring_hash]Removing $member from ring")
       val unusedvNodes: Map[VNode, Address] = (1 to vNodesNum).map(vnode => {
-      hashing.hash(member.address.hostPort + vnode) -> member.address})(breakOut)
+      hashing.hash(stob(member.address.hostPort).concat(itob(vnode))) -> member.address})(breakOut)
       val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
       val nodes = data.nodes + member.address
       val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
