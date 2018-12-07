@@ -19,10 +19,11 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
         case None => stop()
         case Some(replica) => 
           log.info(s"Replication is started")
-          val worker = context.actorOf(Props(classOf[ReplicationWorker], replica._1, replica._2))
+          val worker = context.actorOf(ReplicationWorker.props(bucket=replica._1, preferenceList=replica._2))
           replica._2.map(node => actorMem.get(node, "ring_readonly_store").fold(
-                _.tell(BucketGet(replica._1),worker), _.tell(BucketGet(replica._1), worker)))  
-          
+            _.tell(BucketGet(replica._1), worker),
+            _.tell(BucketGet(replica._1), worker)
+          ))
           goto(Collecting) using data
       }
   }
@@ -35,7 +36,7 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
           stop()
         case syncBuckets =>
           val replica = syncBuckets.head
-          val worker = context.actorOf(Props(classOf[ReplicationWorker], replica._1, replica._2))
+          val worker = context.actorOf(ReplicationWorker.props(bucket=replica._1, preferenceList=replica._2))
           replica._2.map(node => actorMem.get(node, "ring_readonly_store").fold(
             _.tell(BucketGet(replica._1),worker) , _.tell(BucketGet(replica._1), worker)))
           stay() using syncBuckets
@@ -43,7 +44,12 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
   }
 }
 
-case class ReplKeys(b:Bucket, prefList: PreferenceList, info: Seq[Seq[Data]])
+final case class ReplKeys(b:Bucket, prefList: PreferenceList, info: Seq[Seq[Data]])
+
+object ReplicationWorker {
+  def props(bucket: Bucket, preferenceList: PreferenceList): Props = Props(new ReplicationWorker(bucket, preferenceList))
+}
+
 class ReplicationWorker(bucket:Bucket,preferenceList: PreferenceList) extends FSM[FsmState, ReplKeys] with ActorLogging {
   val local = Cluster(context.system).selfAddress
   val actorMem = SelectionMemorize(context.system)
@@ -57,7 +63,10 @@ class ReplicationWorker(bucket:Bucket,preferenceList: PreferenceList) extends FS
         case empty if empty.isEmpty =>
           val all = data.info.foldLeft(l)((acc, list) => list ++ acc )
           val merged = mergeBucketData(all, Nil)
-          actorMem.get(local, "ring_write_store").fold(_ ! BucketPut(merged), _ ! BucketPut(merged))
+          actorMem.get(local, "ring_write_store").fold(
+            _ ! BucketPut(merged),
+            _ ! BucketPut(merged)
+          )
           context.parent ! b
           stop()
         case nodes => stay() using ReplKeys(bucket, nodes, l +: data.info)

@@ -1,9 +1,16 @@
+val scalaVersion_ = "2.12.8"
+val scalazVersion = "7.2.27"
 val akkaVersion = "2.5.18"
 
 lazy val root = (project in file(".")).withId("kvs")
   .settings(
     inThisBuild(
-      publishSettings ++ buildSettings ++ resolverSettings ++ Seq(
+      publishSettings ++ Seq(
+        organization := "com.playtech.mws",
+        description := "Abstract Scala Types Key-Value Storage",
+        version := org.eclipse.jgit.api.Git.open(file(".")).describe().call(),
+        scalaVersion := scalaVersion_,
+        resolvers += "releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases",
         cancelable in Global := true,
         javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
         scalacOptions in Compile ++= Seq(
@@ -24,7 +31,7 @@ lazy val root = (project in file(".")).withId("kvs")
       "com.github.jnr" % "jnr-ffi" % "2.1.7",
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
       "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
-      "org.scalaz" %% "scalaz-core" % "7.2.27",
+      "org.scalaz" %% "scalaz-core" % scalazVersion,
 
       "com.playtech.mws" %% "scala-pickling" % "1.0-2-gb05b7b9" % Test,
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion       % Test,
@@ -32,7 +39,7 @@ lazy val root = (project in file(".")).withId("kvs")
     ),
     PB.targets in Compile := Seq(
       scalapb.gen() -> (sourceManaged in Compile).value
-    )
+    ),
   )
 
 lazy val kvsDemo = (project in file("kvs-demo")).settings(
@@ -52,20 +59,6 @@ lazy val leveldbTest = (project in file("leveldb-test")).settings(
   libraryDependencies += "junit" % "junit" % "4.12" % Test,
 ).dependsOn(root)
 
-lazy val buildSettings = Seq(
-  organization := "com.playtech.mws",
-  description := "Abstract Scala Types Key-Value Storage",
-  version := org.eclipse.jgit.api.Git.open(file(".")).describe().call(),
-  scalaVersion := "2.12.7"
-)
-
-lazy val resolverSettings = Seq(
-  resolvers ++= Seq(
-    Resolver.mavenLocal,
-    "releases resolver" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases"
-  )
-)
-
 lazy val publishSettings = Seq(
   publishTo := Some("releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases"),
   credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
@@ -73,5 +66,5 @@ lazy val publishSettings = Seq(
   publishMavenStyle := true,
   pomIncludeRepository := (_ => false),
   isSnapshot := true,
-  // crossScalaVersions := Seq("2.11.12", "2.12.7")
+  // crossScalaVersions := Seq("2.11.12", scalaVersion)
 )

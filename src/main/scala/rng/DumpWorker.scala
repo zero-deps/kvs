@@ -57,7 +57,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
         case Event(GetBucketResp(b,data), state) => // TODO add timeout if any node is not responding.
             val pList = state.prefList - (if(sender().path.address.hasLocalScope) local else sender().path.address)
             if (pList.isEmpty) {
-                val merged: Seq[Data] = mergeBucketData((data +: state.collected).foldLeft(Seq.empty[Data])((acc, l) => l ++ acc), Seq.empty)
+                val merged: Seq[Data] = mergeBucketData((data +: state.collected).foldLeft(Seq.empty[Data])(_ ++ _), Seq.empty)
                 val lastKey: Option[Key] = if (merged.size == 0) {
                     state.lastKey
                 } else {

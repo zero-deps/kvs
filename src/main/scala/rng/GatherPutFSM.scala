@@ -6,14 +6,14 @@ import mws.rng.data.Data
 import mws.rng.msg.{GetResp, StorePut}
 import mws.rng.store.{PutStatus, Saved}
 import scala.concurrent.duration._
-import scalaz._,Scalaz._
+import scalaz._
+import scalaz.Scalaz._
 
 case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
 case class PutInfoBulk(b: List[(Key, Value)], N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
 
-object GatherPutFSM{
-  def props(client: ActorRef, t: Int, actorsMem: SelectionMemorize, putInfo: PutInfo) = Props(
-    classOf[GatherPutFSM], client, t, actorsMem, putInfo)
+object GatherPutFSM {
+  def props(client: ActorRef, t: Int, actorsMem: SelectionMemorize, putInfo: PutInfo): Props = Props(new GatherPutFSM(client, t, actorsMem, putInfo))
 }
 
 class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo: PutInfo)
@@ -22,7 +22,7 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
   startWith(Collecting, Statuses(Nil))
   setTimer("send_by_timeout", OpsTimeout, t.seconds)
 
-  when(Collecting) {
+  when(Collecting){
     case Event(GetResp(data), _) =>
       val vc: VectorClock = if (data.size === 1) {
         makevc(data.head.vc)
@@ -66,7 +66,7 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
 
   def mapInPut(nodes: Set[Node], d: Data) = {
     val storeList = nodes.map(n => RootActorPath(n) / "user" / "ring_write_store")
-      storeList.foreach(ref =>  context.system.actorSelection(ref).tell(StorePut(Some(d)), self))
+      storeList.foreach(ref => context.system.actorSelection(ref).tell(StorePut(Some(d)), self))
   }
   
   initialize()

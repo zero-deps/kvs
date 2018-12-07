@@ -2,12 +2,13 @@ package mws
 
 import akka.actor.Address
 import akka.cluster.VectorClock
+import com.google.protobuf.{ByteString, ByteStringWrap}
 import java.nio.ByteBuffer
+import mws.rng.data.{Data, Vec}
+import mws.rng.data.{Data, Vec}
 import mws.rng.store.PutStatus
 import scala.annotation.tailrec
 import scala.collection.immutable.TreeMap
-import com.google.protobuf.{ByteString, ByteStringWrap}
-import mws.rng.data.{Data, Vec}
 
 package object rng {
   type Bucket = Int
@@ -46,10 +47,10 @@ package object rng {
   def order[E](l: Seq[E], age: E => Age): (Option[E], Seq[E]) = {
     @tailrec
     def itr(l: Seq[E], newest: E): E = l match {
-      case Nil => newest
-      case h :: t if t.exists(age(h)._1 < age(_)._1) => itr(t, newest )
-      case h :: t if age(h)._1 > age(newest)._1 => itr(t, h)
-      case h :: t if age(h)._1 <> age(newest)._1 &&
+      case xs if xs.isEmpty => newest
+      case h +: t if t.exists(age(h)._1 < age(_)._1) => itr(t, newest )
+      case h +: t if age(h)._1 > age(newest)._1 => itr(t, h)
+      case h +: t if age(h)._1 <> age(newest)._1 &&
         age(h)._2 > age(newest)._2 => itr(t, h)
       case _ => itr(l.tail, newest)
     }
@@ -78,7 +79,7 @@ package object rng {
     case xs if xs.isEmpty => merged
   }
 
-  implicit class StringOps(value: String) {
+  implicit class StringExt(value: String) {
     def blue: String = s"\u001B[34m${value}\u001B[0m"
   }
 }

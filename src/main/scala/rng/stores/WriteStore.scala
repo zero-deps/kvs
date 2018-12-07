@@ -80,8 +80,16 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
     val keysInBucket = get(itob(data.bucket).concat(keysWord)).map(SeqKey.parseFrom(_).keys).getOrElse(Nil)
 
     withBatch(batch => {
-      if(!keysInBucket.contains(data.key)) batch.put(itob(data.bucket).concat(keysWord).toByteArray, SeqKey(data.key +: keysInBucket).toByteArray)
-      batch.put(itob(data.bucket).concat(keyWord).concat(data.key).toByteArray, SeqData(updated._2).toByteArray)
+      if (!keysInBucket.contains(data.key)) {
+        batch.put(
+          itob(data.bucket).concat(keysWord).toByteArray, 
+          SeqKey(data.key +: keysInBucket).toByteArray
+        )
+      }
+      batch.put(
+        itob(data.bucket).concat(keyWord).concat(data.key).toByteArray,
+        SeqData(updated._2).toByteArray
+      )
     })
     updated._1
   }
