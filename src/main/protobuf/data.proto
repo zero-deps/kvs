@@ -27,3 +27,12 @@ message Vec {
   string key = 1;
   int64 value = 2;
 }
+
+message DumpKV {
+  repeated KV kv = 1;
+}
+
+message KV {
+  bytes k = 1;
+  bytes v = 2;
+}

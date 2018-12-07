@@ -14,6 +14,7 @@ trait Dba {
   def delete(key: K): Res[V]
   def save(path: String): Future[String]
   def load(path: String): Future[Any]
+  def loadJava(path: String): Future[Any]
   def iterate(path: String, f: (K, V) => Unit): Future[Any]
   def close(): Unit
   def isReady: Future[Boolean]

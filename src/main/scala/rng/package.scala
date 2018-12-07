@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
 import mws.rng.store.PutStatus
 import scala.annotation.tailrec
 import scala.collection.immutable.TreeMap
-import com.google.protobuf.ByteString
+import com.google.protobuf.{ByteString, ByteStringWrap}
 import mws.rng.data.{Data, Vec}
 
 package object rng {
@@ -38,6 +38,7 @@ package object rng {
   def fromvc(vc: VectorClock): VectorClockList = vc.versions.toSeq.map(a => Vec(a._1, a._2))
 
   def stob(s: String): ByteString = ByteString.copyFrom(s, "UTF-8")
+  def itoa(v: Int): Array[Byte] = Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte)
   def itob(v: Int): ByteString = ByteString.copyFrom(Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte))
   def atob(a: Array[Byte]): ByteString = ByteString.copyFrom(a)
 
@@ -64,7 +65,7 @@ package object rng {
 
   @tailrec
   def mergeBucketData(l: Seq[Data], merged: Seq[Data]): Seq[Data] = l match {
-    case h :: t =>
+    case h +: t =>
       val hvc = makevc(h.vc)
       merged.find(_.key == h.key) match {
         case Some(d) if hvc == makevc(d.vc) && h.lastModified > d.lastModified =>
@@ -74,7 +75,7 @@ package object rng {
         case None => mergeBucketData(t, h +: merged)
         case _ => mergeBucketData(t, merged)
       }
-    case Nil => merged
+    case xs if xs.isEmpty => merged
   }
 
   implicit class StringOps(value: String) {

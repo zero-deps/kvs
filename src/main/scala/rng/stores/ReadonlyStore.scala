@@ -11,34 +11,16 @@ import scala.collection.immutable.TreeMap
 import mws.rng.msg.{StoreGet, GetResp, BucketGet, GetBucketResp, BucketKeys, GetSavingEntity, SavingEntity}
 import mws.rng.data.{Data, SeqData, SeqKey, ValueKey}
 import com.google.protobuf.ByteString
-// import com.github.plokhotnyuk.jsoniter_scala.macros._
-// import com.github.plokhotnyuk.jsoniter_scala.core._
-
-// case class GetBucketResp(b:Bucket,l: List[Data])
-// case class SavingEntity(k: Key, v:Value, nextKey: Option[Key])
 
 class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
   val hashing = HashingExtension(context.system)
   val ro = new LevelDBReadOptions
 
-  // val VectorClockCodec: Codec[VectorClock] = caseCodec1[List[(String, Long)], VectorClock](l => new VectorClock(TreeMap[String, Long]() ++ l), vc => Some(vc.versions.toList))(list(utf8 ~ vlong))
-  // val DataCodec: Codec[Data] = caseCodec5(Data.apply, Data.unapply)(abytes, vint, vlong, VectorClockCodec, abytes)
-
-  // val ListDataCodec: Codec[List[Data]] = list(DataCodec)
-  // val ListKeyCodec: Codec[List[Key]] = list(abytes)
-  // val ValueKeyCodec: Codec[(Value, Option[Key])] = abytes ~ option(abytes)
-
-  // def err(x: scodec.Err): Nothing = throw new Exception(x.messageWithContext)
-
   def get(k: Key): Option[Array[Byte]] = Option(leveldb.get(k.toByteArray, ro))
-  // def decode[A](c: Codec[A])(b: BitVector): A = c.decode(b).fold(err, _.value)
-
-  // val listDataCodec: JsonValueCodec[List[Data]] = JsonCodecMaker.make[List[Data]](CodecMakerConfig())
-  // val listKeyCodec: JsonValueCodec[List[Key]] = JsonCodecMaker.make[List[Key]](CodecMakerConfig())
-  // val valueKeyCodec: JsonValueCodec[(Value, Option[Key])] = JsonCodecMaker.make[(Value, Option[Key])](CodecMakerConfig())
 
   val keyWord = stob(":key:")
   val keysWord = stob(":keys")
+  val dummy = stob("readonly_dummy")
 
   override def receive: Receive = {
     case StoreGet(key) =>
@@ -55,11 +37,25 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
     case BucketKeys(b) => 
       sender ! get(itob(b).concat(keysWord)).map(SeqKey.parseFrom(_).keys).getOrElse(Seq.empty[Key])
     case GetSavingEntity(k) =>
-      val e = get(k).map(ValueKey.parseFrom(_)) match {
-        case None => SavingEntity(k, stob("dymmy"), ByteString.EMPTY)
-        case Some(valueKey) => SavingEntity(k, valueKey.v, valueKey.nextKey)
+      import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
+      val key: Array[Byte] = {
+        val bos = new ByteArrayOutputStream
+        val out = new ObjectOutputStream(bos)
+        out.writeObject(new String(k.toByteArray, "UTF-8"))
+        out.close()
+        bos.toByteArray
       }
-      sender ! e
+      val data: Array[Byte] = leveldb.get(key, ro)
+      val res: SavingEntity = if (data == null) {
+        SavingEntity(k, dummy, ByteString.EMPTY)
+      } else {
+        val in = new ObjectInputStream(new ByteArrayInputStream(data))
+        val obj = in.readObject
+        in.close()
+        val decoded = obj.asInstanceOf[(akka.util.ByteString, Option[String])] 
+        SavingEntity(k, atob(decoded._1.toArray), decoded._2.fold(ByteString.EMPTY)(stob))
+      }
+      sender ! res
     case _ =>    
   }
 

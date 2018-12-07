@@ -2,11 +2,11 @@ package mws.rng
 
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import akka.cluster.VectorClock
-import mws.rng.store.{PutStatus, Saved}
-import mws.rng.msg.{GetResp, StorePut}
 import mws.rng.data.Data
-
+import mws.rng.msg.{GetResp, StorePut}
+import mws.rng.store.{PutStatus, Saved}
 import scala.concurrent.duration._
+import scalaz._,Scalaz._
 
 case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
 case class PutInfoBulk(b: List[(Key, Value)], N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
@@ -24,7 +24,7 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
 
   when(Collecting) {
     case Event(GetResp(data), _) =>
-      val vc: VectorClock = if (data == 1) {
+      val vc: VectorClock = if (data.size === 1) {
         makevc(data.head.vc)
       } else if (data.size > 1) {
         data.map(_.vc).foldLeft(new VectorClock)((sum, i) => sum.merge(makevc(i)))

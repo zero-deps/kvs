@@ -75,6 +75,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
     private val timeout = 1 hour
     def save(path: String): Res[String] = Try(Await.result(dba.save(path), timeout)).toDisjunction.leftMap(Failed)
     def load(path: String): Res[Any] = Try(Await.result(dba.load(path), timeout)).toDisjunction.leftMap(Failed)
+    def loadJava(path: String): Res[Any] = Try(Await.result(dba.loadJava(path), timeout)).toDisjunction.leftMap(Failed)
     def iterate(path: String, f: (String, Array[Byte]) => Unit): Res[Any] = Try(Await.result(dba.iterate(path, f), timeout)).toDisjunction.leftMap(Failed)
   }
 

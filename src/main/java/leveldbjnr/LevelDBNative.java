@@ -36,6 +36,7 @@ public interface LevelDBNative {
   void leveldb_options_set_cache(Pointer options, @In Pointer cache);
   void leveldb_options_set_block_size(Pointer options, @In long blockSize);
   void leveldb_options_set_block_restart_interval(Pointer options, @In int blockRestartInterval);
+  //void leveldb_options_set_max_file_size(Pointer options, @In long writeBufferSize);
   void leveldb_options_set_compression(Pointer options, @In int compressionType);
 
   Pointer leveldb_readoptions_create();

@@ -18,7 +18,7 @@ case class Put(k: Key, v: Value) extends APIMessage
 case class Get(k: Key) extends APIMessage
 case class Delete(k: Key) extends APIMessage
 case class Dump(dumpLocation: String) extends APIMessage
-case class LoadDump(dumpPath: String) extends APIMessage
+case class LoadDump(dumpPath: String, javaSer: Boolean) extends APIMessage
 case class IterateDump(dumpPath: String, foreach: (ByteString, ByteString) => Unit) extends APIMessage
 case object RestoreState extends APIMessage
 //utilities
@@ -105,12 +105,16 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       doDelete(k,s,data)
       stay()
     case Event(Dump(path), data) =>
-      system.actorOf(DumpWorker.props(data.buckets, local, path), s"dump_wrkr-${System.currentTimeMillis}").forward(Dump(path))
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
+      system.actorOf(DumpProcessor.props, s"dump_wrkr-${System.currentTimeMillis}").forward(DumpProcessor.SaveDump(data.buckets, local, path))
       goto(Readonly)
-    case Event(LoadDump(dumpPath), data) =>
-      system.actorOf(LoadDumpWorker.props(dumpPath), s"load_wrkr-${System.currentTimeMillis}").forward(LoadDump(dumpPath))
+    case Event(LoadDump(dumpPath, javaSer), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(_ ! ChangeState(Readonly), _ ! ChangeState(Readonly)))
+      if (javaSer) {
+        system.actorOf(LoadDumpWorkerJava.props(dumpPath), s"load_wrkr-${System.currentTimeMillis}").forward(LoadDump(dumpPath, true))
+      } else {
+        system.actorOf(DumpProcessor.props, s"load_wrkr-${System.currentTimeMillis}").forward(DumpProcessor.LoadDump(dumpPath))
+      }
       goto(Readonly)
     case Event(IterateDump(dumpPath, foreach), data) =>
       system.actorOf(IterateDumpWorker.props(dumpPath,foreach), s"iter_wrkr-${System.currentTimeMillis}").forward(IterateDump(dumpPath,foreach))

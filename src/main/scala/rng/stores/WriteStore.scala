@@ -10,18 +10,6 @@ import mws.rng._
 import scala.collection.immutable.TreeMap
 import mws.rng.msg.{StoreGet, GetResp, BucketGet, GetBucketResp, BucketKeys, GetSavingEntity, SavingEntity, StorePut, PutSavingEntity, StoreDelete, BucketPut}
 import mws.rng.data.{Data, SeqData, SeqKey, ValueKey}
-// import com.github.plokhotnyuk.jsoniter_scala.macros._
-// import com.github.plokhotnyuk.jsoniter_scala.core._
-
-// case class StoreGet(key:Key)
-// case class StorePut(data:Data)
-// case class StoreDelete(key:Key)
-// case class BucketPut(data: List[Data])
-// case class BucketGet(b:Bucket)
-// case class GetResp(d: List[Data])
-// case class PutSavingEntity(k:Key,v:(Value, Option[Key]))
-// case class GetSavingEntity(k: Key)
-// case class BucketKeys(b: Bucket)
 
 case class FeedAppend(fid: String, v: Value, version: VectorClock)
 sealed trait PutStatus  
@@ -38,10 +26,6 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   val hashing = HashingExtension(context.system)
 
   def get(k: Key): Option[Array[Byte]] = Option(leveldb.get(k.toByteArray, ro))
-
-  // val listDataCodec: JsonValueCodec[List[Data]] = JsonCodecMaker.make[List[Data]](CodecMakerConfig())
-  // val valueKeyCodec: JsonValueCodec[(Value, Option[Key])] = JsonCodecMaker.make[(Value, Option[Key])](CodecMakerConfig())
-  // val listKeyCodec: JsonValueCodec[List[Key]] = JsonCodecMaker.make[List[Key]](CodecMakerConfig())
 
   val keyWord = stob(":key:")
   val keysWord = stob(":keys")

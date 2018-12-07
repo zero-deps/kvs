@@ -32,17 +32,19 @@ object Run extends App {
     Try(Await.result(system.whenTerminated,Duration.Inf))
   }
 
-<<<<<<< HEAD
   import system.dispatcher
 
   kvs.onReady.map{ _ =>
+    // (1 to 1000).map { i =>
+    //   kvs.el.put(i.toString, i.toString)
+    // }
+
     val r = kvs.el.put("a","b")
     system.log.info(s"${r}")
     system.log.info(kvs.nextid("fid").toString)
-=======
-  kvs.onReady{
-    kvs.load("/home/anle/perf_data/rng_dump_2018.11.21-18.20.48.zip")
->>>>>>> dbf6ee8... protobuff
+    // kvs.dump.loadJava("/Users/anst/prj/kvs/kvs-demo/rng_dump_2018.11.21-18.20.48/")
+    // kvs.dump.load("/Users/anst/prj/kvs/kvs-demo/rng_dump_new/rng_dump_2018.12.07-15.14.57")
+    // kvs.dump.save("/Users/anst/prj/kvs/kvs-demo/rng_dump_new/")
   }
 }
 
@@ -55,7 +57,7 @@ object Stat {
       info.put(k, stat)
     }
 
-    kvs.iterate("/home/anle/perf_data/rng_dump_2018.11.21-18.20.48.zip", (key, data) => {
+    kvs.dump.iterate("/Users/anst/prj/kvs/kvs-demo/rng_dump_2018.11.21-18.20.48.zip", (key, data) => {
       val parts = key.split("_")
       parts match {
         case Array("translations", "b", brandId, "commit", _*) =>

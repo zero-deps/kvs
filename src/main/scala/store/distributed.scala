@@ -30,9 +30,9 @@ object Ring {
     val leveldbOptions = new LevelDBOptions() {
       val bloom = LevelDB.lib.leveldb_filterpolicy_create_bloom(10)
       LevelDB.lib.leveldb_options_set_filter_policy(options, bloom)
-      val cache = LevelDB.lib.leveldb_cache_create_lru(100 * 1048576) // 100MB cache
+      val cache = LevelDB.lib.leveldb_cache_create_lru(500 * 1048576) // 100MB cache
       LevelDB.lib.leveldb_options_set_cache(options, cache)
-      val writeBuffer = 10 * 1048576 // 10MB write buffer
+      val writeBuffer = 20 * 1048576 // 10MB write buffer
       LevelDB.lib.leveldb_options_set_write_buffer_size(options, writeBuffer)
     }
     leveldbOptions.setCreateIfMissing(true)
@@ -91,7 +91,8 @@ class Ring(system: ActorSystem) extends Dba {
     }
 
   def save(path: String): Future[String] = (hash.ask(rng.Dump(path))(Timeout(1 hour))).mapTo[String]
-  def load(path: String): Future[Any] = hash.ask(rng.LoadDump(path))(Timeout(1 hour))
+  def load(path: String): Future[Any] = hash.ask(rng.LoadDump(path, javaSer=false))(Timeout(1 hour))
+  def loadJava(path: String): Future[Any] = hash.ask(rng.LoadDump(path, javaSer=true))(Timeout(1 hour))
   def iterate(path:String, foreach: (String, Array[Byte]) => Unit): Future[Any] = hash.ask(rng.IterateDump(path, (k, v) => foreach(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(Timeout(1 hour))
 
   def close(): Unit = ()
