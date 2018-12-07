@@ -163,7 +163,7 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
   if (nodes.size >= W) {
     val info = PutInfo(k, v, N, W, bucket, local, data.nodes)
     val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
-    val node = ??? // nodes.getOrElse(local, nodes.head)
+    val node = if (nodes contains local) local else nodes.head
     actorsMem.get(node, "ring_readonly_store").fold(
       _.tell(StoreGet(k), gather),
       _.tell(StoreGet(k), gather),
@@ -193,28 +193,28 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
   }
 
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
-      val newvNodes: Map[VNode, Node] = (1 to vNodesNum).map(vnode => {
-        hashing.hash(stob(member.address.hostPort).concat(itob(vnode))) -> member.address})(breakOut)
-      val updvNodes = data.vNodes ++ newvNodes
-      val nodes = data.nodes + member.address
-      val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
-      synchNodes(moved)
-      val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes)
-      log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
-      (state(updData.nodes.size), updData)
+    val newvNodes: Map[VNode, Node] = (1 to vNodesNum).map(vnode => {
+      hashing.hash(stob(member.address.hostPort).concat(itob(vnode))) -> member.address})(breakOut)
+    val updvNodes = data.vNodes ++ newvNodes
+    val nodes = data.nodes + member.address
+    val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
+    synchNodes(moved)
+    val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes)
+    log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
+    (state(updData.nodes.size), updData)
   }
 
   def removeNodeFromRing(member: Member, data: HashRngData) : (QuorumState, HashRngData) = {
-      log.info(s"[ring_hash]Removing $member from ring")
-      val unusedvNodes: Map[VNode, Node] = (1 to vNodesNum).map(vnode => {
-      hashing.hash(stob(member.address.hostPort).concat(itob(vnode))) -> member.address})(breakOut)
-      val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
-      val nodes = data.nodes + member.address
-      val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
-      log.info(s"WILL UPDATE ${moved.size} buckets")
-      val updData: HashRngData = HashRngData(data.nodes + member.address, data.buckets++moved, updvNodes)
-      synchNodes(moved)
-      (state(updData.nodes.size), updData)
+    log.info(s"[ring_hash]Removing $member from ring")
+    val unusedvNodes: Map[VNode, Node] = (1 to vNodesNum).map(vnode => {
+    hashing.hash(stob(member.address.hostPort).concat(itob(vnode))) -> member.address})(breakOut)
+    val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
+    val nodes = data.nodes + member.address
+    val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
+    log.info(s"WILL UPDATE ${moved.size} buckets")
+    val updData: HashRngData = HashRngData(data.nodes + member.address, data.buckets++moved, updvNodes)
+    synchNodes(moved)
+    (state(updData.nodes.size), updData)
   }
 
   def synchNodes(buckets: SortedMap[Bucket, PreferenceList]): Unit = {

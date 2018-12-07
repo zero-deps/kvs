@@ -5,10 +5,11 @@ import akka.cluster.VectorClock
 import com.google.protobuf.{ByteString, ByteStringWrap}
 import java.nio.ByteBuffer
 import mws.rng.data.{Data, Vec}
-import mws.rng.data.{Data, Vec}
 import mws.rng.store.PutStatus
 import scala.annotation.tailrec
 import scala.collection.immutable.TreeMap
+import scalaz._
+import scalaz.Scalaz._
 
 package object rng {
   type Bucket = Int
@@ -82,4 +83,6 @@ package object rng {
   implicit class StringExt(value: String) {
     def blue: String = s"\u001B[34m${value}\u001B[0m"
   }
+
+  implicit val ByteStringEqual: Equal[ByteString] = Equal.equalA
 }

@@ -1,4 +1,5 @@
-package mws.rng.store
+package mws.rng
+package store
 
 import akka.actor.{Actor, ActorLogging}
 import akka.cluster.VectorClock
@@ -6,10 +7,11 @@ import akka.serialization.SerializationExtension
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import leveldbjnr._
-import mws.rng._
-import scala.collection.immutable.TreeMap
-import mws.rng.msg.{StoreGet, GetResp, BucketGet, GetBucketResp, BucketKeys, GetSavingEntity, SavingEntity, StorePut, PutSavingEntity, StoreDelete, BucketPut}
 import mws.rng.data.{Data, SeqData, SeqKey, ValueKey}
+import mws.rng.msg.{StoreGet, GetResp, BucketGet, GetBucketResp, BucketKeys, GetSavingEntity, SavingEntity, StorePut, PutSavingEntity, StoreDelete, BucketPut}
+import scala.collection.immutable.TreeMap
+import scalaz.{Value => _, _}
+import scalaz.Scalaz._
 
 case class FeedAppend(fid: String, v: Value, version: VectorClock)
 sealed trait PutStatus  
@@ -97,7 +99,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   def doDelete(key: Key): String = {
     val b = hashing.findBucket(key)
     val keys = get(itob(b).concat(keysWord)).map(SeqKey.parseFrom(_).keys)
-    val newKeys = keys.getOrElse(Nil).filterNot(_ == key)
+    val newKeys = keys.getOrElse(Nil).filterNot(_ === key)
 
     withBatch(batch => {
       batch.delete(itob(b).concat(keyWord).concat(key).toByteArray)
