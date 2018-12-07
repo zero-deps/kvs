@@ -2,14 +2,12 @@ package mws
 
 import akka.actor.Address
 import akka.cluster.VectorClock
-import com.google.protobuf.{ByteString, ByteStringWrap}
-import java.nio.ByteBuffer
+import com.google.protobuf.{ByteString}
 import mws.rng.data.{Data, Vec}
 import mws.rng.store.PutStatus
 import scala.annotation.tailrec
 import scala.collection.immutable.TreeMap
 import scalaz._
-import scalaz.Scalaz._
 
 package object rng {
   type Bucket = Int
@@ -17,13 +15,9 @@ package object rng {
   type Node = Address
   type Key = ByteString
   type Value = ByteString
-  type VectorClockList = Seq[data.Vec]
+  type VectorClockList = Seq[Vec]
   type Age = (VectorClock, Long)
   type PreferenceList = Set[Node]
-
-  //TODO try lm from VectorClock.versions: TreeMap[VectorClock.Node, Long]
-  // case class Data(key: Key, bucket: Bucket, lastModified: Long, vc: VectorClockList, value: Value)
-  case class Feed(fid: Key, lastModified: Long, vc: VectorClock, value: List[Value])
 
   //FSM
   sealed trait FsmState
@@ -32,8 +26,8 @@ package object rng {
   case object Sent extends FsmState
 
   sealed trait FsmData
-  case class Statuses(all: List[PutStatus]) extends FsmData
-  case class DataCollection(perNode: Seq[(Option[Data], Node)], nodes: Int) extends FsmData
+  final case class Statuses(all: List[PutStatus]) extends FsmData
+  final case class DataCollection(perNode: Seq[(Option[Data], Node)], nodes: Int) extends FsmData
   case object OpsTimeout
 
   def makevc(l: VectorClockList): VectorClock = new VectorClock(TreeMap.empty[String, Long] ++ l.map(a => a.key -> a.value))

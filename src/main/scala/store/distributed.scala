@@ -5,7 +5,7 @@ import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
 import akka.routing.FromConfig
-import akka.util.{ByteString, Timeout}
+import akka.util.{Timeout}
 import akka.actor._
 import akka.util.Timeout
 import leveldbjnr.LevelDB
@@ -65,7 +65,7 @@ class Ring(system: ActorSystem) extends Dba {
       case \/-(rng.AckSuccess) => value.right
       case \/-(rng.AckQuorumFailed) => RngAskQuorumFailed.left
       case \/-(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
-      case -\/(ex) => RngThrow(ex).left
+      case -\/(t) => RngThrow(t).left
     }
   }
 
@@ -76,7 +76,7 @@ class Ring(system: ActorSystem) extends Dba {
     Try(Await.result(getF, d)).toDisjunction match {
       case \/-(Some(v)) => v.toByteArray.right
       case \/-(None) => NotFound(key).left
-      case -\/(ex) => RngThrow(ex).left
+      case -\/(t) => RngThrow(t).left
     }
   }
 
@@ -86,7 +86,7 @@ class Ring(system: ActorSystem) extends Dba {
         case \/-(rng.AckSuccess) => r.right
         case \/-(rng.AckQuorumFailed) => RngAskQuorumFailed.left
         case \/-(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
-        case -\/(ex) => RngThrow(ex).left
+        case -\/(t) => RngThrow(t).left
       }
     }
 
@@ -94,8 +94,6 @@ class Ring(system: ActorSystem) extends Dba {
   def load(path: String): Future[Any] = hash.ask(rng.LoadDump(path, javaSer=false))(Timeout(1 hour))
   def loadJava(path: String): Future[Any] = hash.ask(rng.LoadDump(path, javaSer=true))(Timeout(1 hour))
   def iterate(path:String, foreach: (String, Array[Byte]) => Unit): Future[Any] = hash.ask(rng.IterateDump(path, (k, v) => foreach(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(Timeout(1 hour))
-
-  def close(): Unit = ()
 
   def nextid(feed:String):Res[String] = {
     import akka.cluster.sharding._

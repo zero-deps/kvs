@@ -16,7 +16,6 @@ trait Dba {
   def load(path: String): Future[Any]
   def loadJava(path: String): Future[Any]
   def iterate(path: String, f: (K, V) => Unit): Future[Any]
-  def close(): Unit
   def isReady: Future[Boolean]
   def nextid(fid: String): Res[String]
 }

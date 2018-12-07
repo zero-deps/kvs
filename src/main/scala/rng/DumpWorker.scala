@@ -3,7 +3,7 @@ package mws.rng
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import com.google.protobuf.{ByteString, ByteStringWrap}
+import com.google.protobuf.{ByteString}
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
@@ -13,10 +13,9 @@ import mws.rng.data.{Data, DumpKV, KV}
 import mws.rng.msg.{BucketGet, GetBucketResp, PutSavingEntity, GetSavingEntity, SavingEntity}
 import mws.rng.store._
 import scala.collection.{SortedMap, SortedSet}
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await}
 import scala.util.Try
 import scalaz.Scalaz._
-import scalaz.{Ordering => _, _}
 
 final case class DumpData(current: Bucket, prefList: PreferenceList, collected: Seq[Seq[Data]],
                           lastKey: Option[Key], client: Option[ActorRef])

@@ -1,15 +1,10 @@
-package mws.rng.store
+package mws.rng
+package store
 
 import akka.actor.{Actor, ActorLogging}
-import akka.cluster.VectorClock
-import akka.serialization.SerializationExtension
-import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets.UTF_8
 import leveldbjnr._
-import mws.rng._
-import scala.collection.immutable.TreeMap
 import mws.rng.msg.{StoreGet, GetResp, BucketGet, GetBucketResp, BucketKeys, GetSavingEntity, SavingEntity}
-import mws.rng.data.{Data, SeqData, SeqKey, ValueKey}
+import mws.rng.data.{Data, SeqData, SeqKey}
 import com.google.protobuf.ByteString
 
 class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {

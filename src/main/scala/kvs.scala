@@ -98,6 +98,4 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
     loop()
     p.future
   }
-
-  def close(): Unit = dba.close()
 }

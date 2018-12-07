@@ -23,6 +23,10 @@ message Data {
   bytes value = 5;
 }
 
+message SeqVec {
+  repeated Vec v = 1;
+}
+
 message Vec {
   string key = 1;
   int64 value = 2;

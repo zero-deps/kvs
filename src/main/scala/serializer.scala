@@ -1,14 +1,9 @@
 package mws.kvs    
 
 import akka.actor.{ExtendedActorSystem}
-import akka.cluster.VectorClock
 import akka.serialization.{BaseSerializer}
-import java.io.{NotSerializableException}
-import scala.collection.immutable.TreeMap
 import mws.rng.msg
 import mws.rng.msg.Msg.MsgType
-import mws.rng.data
-import com.google.protobuf.ByteString
 
 class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
 

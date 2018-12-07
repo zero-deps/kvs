@@ -6,7 +6,6 @@ import mws.rng.data.Data
 import mws.rng.msg.{GetResp, StorePut}
 import mws.rng.store.{PutStatus, Saved}
 import scala.concurrent.duration._
-import scalaz._
 import scalaz.Scalaz._
 
 case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])

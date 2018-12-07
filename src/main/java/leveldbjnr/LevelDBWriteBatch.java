@@ -26,16 +26,13 @@ public class LevelDBWriteBatch implements AutoCloseable {
     public void put(byte[] key, byte[] value) {
         checkWriteBatchOpen();
 
-        long keyLength = key != null ? key.length : 0;
-        long valueLength = value != null ? value.length : 0;
-        LevelDB.lib.leveldb_writebatch_put(writeBatch, key, keyLength, value, valueLength);
+        LevelDB.lib.leveldb_writebatch_put(writeBatch, key, key.length, value, value.length);
     }
 
     public void delete(byte[] key) {
         checkWriteBatchOpen();
 
-        long keyLength = key != null ? key.length : 0;
-        LevelDB.lib.leveldb_writebatch_delete(writeBatch, key, keyLength);
+        LevelDB.lib.leveldb_writebatch_delete(writeBatch, key, key.length);
     }
 
     protected void checkWriteBatchOpen() {

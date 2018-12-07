@@ -1,7 +1,6 @@
 package mws.rng
 
 import akka.actor._
-import mws.rng.store._
 import scala.concurrent.duration._
 import akka.cluster.VectorClock
 import mws.rng.data.Data
@@ -10,7 +9,7 @@ import mws.rng.msg.{GetResp, StorePut, StoreDelete}
 class GatherGetFsm(client: ActorRef, N: Int, R: Int, k: Key)
   extends FSM[FsmState, FsmData] with ActorLogging{
   val stores = SelectionMemorize(context.system)
-  val ZERO:Age = (new VectorClock(), 0L)
+  val ZERO:Age = (new VectorClock, 0L)
 
   startWith(Collecting, DataCollection(Seq.empty[(Option[Data], Node)], 0))
   setTimer("send_by_timeout", OpsTimeout, context.system.settings.config.getInt("ring.gather-timeout").seconds)

@@ -3,23 +3,16 @@ package store
 
 import akka.actor.{Actor, ActorLogging}
 import akka.cluster.VectorClock
-import akka.serialization.SerializationExtension
-import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets.UTF_8
 import leveldbjnr._
-import mws.rng.data.{Data, SeqData, SeqKey, ValueKey}
-import mws.rng.msg.{StoreGet, GetResp, BucketGet, GetBucketResp, BucketKeys, GetSavingEntity, SavingEntity, StorePut, PutSavingEntity, StoreDelete, BucketPut}
-import scala.collection.immutable.TreeMap
-import scalaz.{Value => _, _}
+import mws.rng.data.{Data, SeqData, SeqKey, ValueKey/*, SeqVec*/}
+import mws.rng.msg.{StorePut, PutSavingEntity, StoreDelete, BucketPut}
 import scalaz.Scalaz._
 
-case class FeedAppend(fid: String, v: Value, version: VectorClock)
 sealed trait PutStatus  
 case object Saved extends PutStatus
-case class Conflict(broken: Seq[Data]) extends PutStatus
+final case class Conflict(broken: Seq[Data]) extends PutStatus
 
 class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
-  
   val config = context.system.settings.config.getConfig("ring.leveldb")
 
   val ro = new LevelDBReadOptions
@@ -27,10 +20,12 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   wo.setSync(config.getBoolean("fsync"))
   val hashing = HashingExtension(context.system)
 
-  def get(k: Key): Option[Array[Byte]] = Option(leveldb.get(k.toByteArray, ro))
+  def get(k: Key): Option[Array[Byte]] = get(k.toByteArray)
+  def get(k: Array[Byte]): Option[Array[Byte]] = Option(leveldb.get(k, ro))
 
   val keyWord = stob(":key:")
   val keysWord = stob(":keys")
+  // val vcWord = stob(":vc")
 
   override def preStart(): Unit = {
     // old style to new layout bucket -> List[Data] to bucket:key
@@ -79,17 +74,34 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
         (Conflict(broken), broken)
     }
     
-    val keysInBucket = get(itob(data.bucket).concat(keysWord)).map(SeqKey.parseFrom(_).keys).getOrElse(Nil)
-
     withBatch(batch => {
-      if (!keysInBucket.contains(data.key)) {
-        batch.put(
-          itob(data.bucket).concat(keysWord).toByteArray, 
-          SeqKey(data.key +: keysInBucket).toByteArray
-        )
+      val bucket_keys: Key = itob(data.bucket).concat(keysWord)
+      val keysInBucket: Option[Seq[Key]] = get(bucket_keys).map(SeqKey.parseFrom(_).keys)
+      keysInBucket match {
+        case Some(xs) if xs contains data.key => //nop
+        case Some(xs) =>
+          batch.put(
+            bucket_keys.toByteArray, 
+            SeqKey(data.key +: xs).toByteArray
+          )
+        case None =>
+          batch.put(
+            bucket_keys.toByteArray,
+            SeqKey(Seq(data.key)).toByteArray
+          )
       }
+      
+      // val bucket_keys_vc: Key = itob(data.bucket).concat(keysWord).concat(vcWord)
+      // val bucket_keys_vc_ba: Array[Byte] = bucket_keys_vc.toByteArray
+      // val vcOfBucket = get(bucket_keys_vc_ba).map(SeqVec.parseFrom(_).v).map(makevc).getOrElse(new VectorClock)
+      // batch.put(
+      //   bucket_keys_vc.toByteArray,
+      //   SeqVec(fromvc(vcOfBucket)).toByteArray
+      // )
+      
+      val bucket_key: Key = itob(data.bucket).concat(keyWord).concat(data.key)
       batch.put(
-        itob(data.bucket).concat(keyWord).concat(data.key).toByteArray,
+        bucket_key.toByteArray,
         SeqData(updated._2).toByteArray
       )
     })

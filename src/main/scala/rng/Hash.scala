@@ -7,7 +7,6 @@ import akka.util.Timeout
 import com.google.protobuf.ByteString
 import com.typesafe.config.Config
 import mws.rng.msg.{StoreDelete, StoreGet}
-import mws.rng.store._
 import scala.collection.{SortedMap, SortedSet, breakOut}
 import scala.concurrent.duration._
 
