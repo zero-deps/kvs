@@ -1,10 +1,11 @@
 package mws.rng
 package store
 
-import akka.actor.{Actor, ActorLogging}
-import akka.cluster.VectorClock
+import akka.actor.{Actor, ActorLogging, Props}
+import akka.cluster.{Cluster, VectorClock}
+import com.google.protobuf.{ByteStringWrap}
 import leveldbjnr._
-import mws.rng.data.{Data, SeqData, SeqKey, ValueKey/*, SeqVec*/}
+import mws.rng.data.{Data, SeqData, ValueKey, SeqVec, BucketInfo}
 import mws.rng.msg.{StorePut, PutSavingEntity, StoreDelete, BucketPut}
 import scalaz.Scalaz._
 
@@ -12,20 +13,26 @@ sealed trait PutStatus
 case object Saved extends PutStatus
 final case class Conflict(broken: Seq[Data]) extends PutStatus
 
+object WriteStore {
+  def props(leveldb: LevelDB): Props = Props(new WriteStore(leveldb))
+}
+
 class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
-  val config = context.system.settings.config.getConfig("ring.leveldb")
+  import context.system
+  val config = system.settings.config.getConfig("ring.leveldb")
 
   val ro = new LevelDBReadOptions
   val wo = new LevelDBWriteOptions
   wo.setSync(config.getBoolean("fsync"))
-  val hashing = HashingExtension(context.system)
+  val hashing = HashingExtension(system)
+
+  val local: Node = Cluster(system).selfAddress
 
   def get(k: Key): Option[Array[Byte]] = get(k.toByteArray)
   def get(k: Array[Byte]): Option[Array[Byte]] = Option(leveldb.get(k, ro))
 
   val keyWord = stob(":key:")
   val keysWord = stob(":keys")
-  // val vcWord = stob(":vc")
 
   override def preStart(): Unit = {
     // old style to new layout bucket -> List[Data] to bucket:key
@@ -64,40 +71,44 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
     val keyData: Option[Seq[Data]] = get(itob(data.bucket).concat(keyWord).concat(data.key)).map(SeqData.parseFrom(_).data)
 
     val updated: (PutStatus, Seq[Data]) = keyData match {
-      case None => (Saved, Seq(data))
-      case Some(list) if list.size == 1 & descendant(makevc(list.head.vc), makevc(data.vc)) => (Saved, Seq(data))
+      case None => 
+        Saved -> Seq(data)
+      case Some(list) if list.size == 1 & descendant(makevc(list.head.vc), makevc(data.vc)) => 
+        Saved -> Seq(data)
       case Some(list) if list forall (d => descendant(makevc(d.vc), makevc(data.vc))) =>
-        val newVC = (list map (_.vc)).foldLeft(makevc(data.vc))((sum, i) => sum.merge(makevc(i)))
-        (Saved, Seq(data.copy(vc = fromvc(newVC))))
+        val newVC = list.foldLeft(makevc(data.vc))((sum, i) => sum.merge(makevc(i.vc)))
+        Saved -> Seq(data.copy(vc = fromvc(newVC)))
       case Some(brokenData) => 
         val broken = data +: brokenData
-        (Conflict(broken), broken)
+        Conflict(broken) -> broken
     }
     
     withBatch(batch => {
-      val bucket_keys: Key = itob(data.bucket).concat(keysWord)
-      val keysInBucket: Option[Seq[Key]] = get(bucket_keys).map(SeqKey.parseFrom(_).keys)
-      keysInBucket match {
-        case Some(xs) if xs contains data.key => //nop
-        case Some(xs) =>
+      val bucket_id: Key = itob(data.bucket).concat(keysWord)
+      val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_)) //todo: do one parse
+      bucket_info match {
+        case Some(x) if x.keys contains data.key =>
+          val vc = makevc(SeqVec.parseFrom(x.vc.newCodedInput).vc)
+          val vc1 = atob(SeqVec(fromvc(vc :+ local.toString)).toByteArray)
           batch.put(
-            bucket_keys.toByteArray, 
-            SeqKey(data.key +: xs).toByteArray
+            bucket_id.toByteArray,
+            x.copy(vc = vc1).toByteArray
+          )
+        case Some(x) =>
+          val vc = makevc(SeqVec.parseFrom(x.vc.newCodedInput).vc)
+          val vc1 = atob(SeqVec(fromvc(vc :+ local.toString)).toByteArray)
+          batch.put(
+            bucket_id.toByteArray,
+            x.copy(vc = vc1, keys = data.key +: x.keys).toByteArray
           )
         case None =>
+          val vc = new VectorClock
+          val vc1 = atob(SeqVec(fromvc(vc :+ local.toString)).toByteArray)
           batch.put(
-            bucket_keys.toByteArray,
-            SeqKey(Seq(data.key)).toByteArray
+            bucket_id.toByteArray,
+            BucketInfo(vc = vc1, keys = Seq(data.key)).toByteArray
           )
       }
-      
-      // val bucket_keys_vc: Key = itob(data.bucket).concat(keysWord).concat(vcWord)
-      // val bucket_keys_vc_ba: Array[Byte] = bucket_keys_vc.toByteArray
-      // val vcOfBucket = get(bucket_keys_vc_ba).map(SeqVec.parseFrom(_).v).map(makevc).getOrElse(new VectorClock)
-      // batch.put(
-      //   bucket_keys_vc.toByteArray,
-      //   SeqVec(fromvc(vcOfBucket)).toByteArray
-      // )
       
       val bucket_key: Key = itob(data.bucket).concat(keyWord).concat(data.key)
       batch.put(
@@ -110,14 +121,19 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
 
   def doDelete(key: Key): String = {
     val b = hashing.findBucket(key)
-    val keys = get(itob(b).concat(keysWord)).map(SeqKey.parseFrom(_).keys)
-    val newKeys = keys.getOrElse(Nil).filterNot(_ === key)
-
-    withBatch(batch => {
-      batch.delete(itob(b).concat(keyWord).concat(key).toByteArray)
-      batch.put(itob(b).concat(keysWord).toByteArray, SeqKey(newKeys).toByteArray)
-    })
-    "ok"
+    val b_info = get(itob(b).concat(keysWord)).map(BucketInfo.parseFrom(_))
+    b_info match {
+      case Some(b_info) =>
+        val vc = atob(SeqVec(fromvc(makevc(SeqVec.parseFrom(b_info.vc.newCodedInput).vc) :+ local.toString)).toByteArray)
+        val keys = b_info.keys.filterNot(_ === key)
+        withBatch(batch => {
+          batch.delete(itob(b).concat(keyWord).concat(key).toByteArray)
+          batch.put(itob(b).concat(keysWord).toByteArray, BucketInfo(vc, keys).toByteArray)
+        })
+        "ok"
+      case None => 
+        "ok"
+    }
   }
 
   def withBatch[R](body: LevelDBWriteBatch ⇒ R): R = {

@@ -27,15 +27,13 @@ class HashingImpl(config: Config) extends  Extension {
   def findNodes(hashKey: Int, vNodes: SortedMap[Bucket, Address], nodesNumber: Int): PreferenceList = {
     @tailrec
     def findBucketNodes(hashK: Int, nodes: PreferenceList): PreferenceList = {
-
       val it = vNodes.keysIteratorFrom(hashK)
       val hashedNode = if (it.hasNext) it.next() else vNodes.firstKey
       val node = vNodes(hashedNode)
-
-      val prefList = if (nodes.contains(node)) nodes else nodes + node
+      val prefList = nodes + node
       prefList.size match {
         case `nodesNumber` => prefList
-        case _ => findBucketNodes(hashedNode + 1 , prefList)
+        case _ => findBucketNodes(hashedNode + 1, prefList)
       }
     }
 

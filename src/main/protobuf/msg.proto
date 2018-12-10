@@ -3,6 +3,7 @@ syntax = "proto3";
 package mws.rng;
 
 import "data.proto";
+import "google/protobuf/wrappers.proto";
 
 message Msg {
   oneof msg_type {
@@ -73,6 +74,27 @@ message SavingEntity {
 
 message ChangeState {
   int32 quorumState = 1;
+}
+
+message GetBucketVc { 
+  int32 b = 1;
+}
+
+message BucketVc {
+  google.protobuf.BytesValue vc = 1;
+}
+
+message GetBucketIfNew { 
+  int32 b = 1;
+  google.protobuf.BytesValue vc = 2;
+}
+
+message NoChanges {
+  int32 b = 1;
+}
+
+message ReplFailed {
+  repeated string down = 1;
 }
 
 message Saved {

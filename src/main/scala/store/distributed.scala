@@ -2,17 +2,17 @@ package mws.kvs
 package store
 
 import akka.actor._
+import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
 import akka.routing.FromConfig
-import akka.util.{Timeout}
-import akka.actor._
 import akka.util.Timeout
+import akka.util.{Timeout}
 import leveldbjnr.LevelDB
 import mws.kvs.el.ElHandler
 import mws.rng
-import mws.rng.{atob, stob}
 import mws.rng.store.{ReadonlyStore, WriteStore}
+import mws.rng.{atob, stob}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
@@ -57,12 +57,12 @@ class Ring(system: ActorSystem) extends Dba {
   lazy val clusterConfig = system.settings.config.getConfig("akka.cluster")
   system.eventStream
 
-  var leveldb: LevelDB = openLeveldb(system)
+  val leveldb: LevelDB = openLeveldb(system)
 
-  system.actorOf(Props(classOf[WriteStore],leveldb).withDeploy(Deploy.local), name="ring_write_store")
-  system.actorOf(FromConfig.props(Props(classOf[ReadonlyStore], leveldb)).withDeploy(Deploy.local), name = "ring_readonly_store")
+  system.actorOf(WriteStore.props(leveldb).withDeploy(Deploy.local), name="ring_write_store")
+  system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb)).withDeploy(Deploy.local), name="ring_readonly_store")
 
-  private val hash = system.actorOf(Props(classOf[rng.Hash]).withDeploy(Deploy.local), name = "ring_hash")
+  val hash = system.actorOf(Props(classOf[rng.Hash]).withDeploy(Deploy.local), name = "ring_hash")
 
   def put(key: String, value: V): Res[V] = {
     val putF = (hash ? rng.Put(stob(key), atob(value))).mapTo[rng.Ack]
@@ -98,9 +98,9 @@ class Ring(system: ActorSystem) extends Dba {
   def save(path: String): Future[String] = (hash.ask(rng.Dump(path))(Timeout(1 hour))).mapTo[String]
   def load(path: String): Future[Any] = hash.ask(rng.LoadDump(path, javaSer=false))(Timeout(1 hour))
   def loadJava(path: String): Future[Any] = hash.ask(rng.LoadDump(path, javaSer=true))(Timeout(1 hour))
-  def iterate(path:String, foreach: (String, Array[Byte]) => Unit): Future[Any] = hash.ask(rng.IterateDump(path, (k, v) => foreach(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(Timeout(1 hour))
+  def iterate(path: String, foreach: (String, Array[Byte]) => Unit): Future[Any] = hash.ask(rng.IterateDump(path, (k, v) => foreach(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(Timeout(1 hour))
 
-  def nextid(feed:String):Res[String] = {
+  def nextid(feed: String): Res[String] = {
     import akka.cluster.sharding._
     Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed).mapTo[String],d)).toDisjunction.leftMap(RngThrow)
   }

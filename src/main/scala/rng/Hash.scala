@@ -32,9 +32,12 @@ case object Effective extends QuorumState
 case object WriteOnly extends QuorumState
 case object WeakReadonly extends QuorumState
 
-case class HashRngData(nodes: Set[Node],
-                  buckets: SortedMap[Bucket, PreferenceList],
-                  vNodes: SortedMap[Bucket, Node])
+case class HashRngData(
+  nodes: Set[Node],
+  buckets: SortedMap[Bucket, PreferenceList],
+  vNodes: SortedMap[Bucket, Node],
+)
+
 // TODO available/not avaiable nodes
 class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
@@ -65,6 +68,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
   }
+  
   override def postStop(): Unit = cluster.unsubscribe(self)
 
   when(Unsatisfied){
@@ -110,7 +114,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         _ ! ChangeState(Readonly),
         _ ! ChangeState(Readonly),
       ))
-      system.actorOf(DumpProcessor.props, s"dump_wrkr-${System.currentTimeMillis}").forward(DumpProcessor.SaveDump(data.buckets, local, path))
+      system.actorOf(DumpProcessor.props, s"dump_wrkr-${now_ms()}").forward(DumpProcessor.SaveDump(data.buckets, local, path))
       goto(Readonly)
     case Event(LoadDump(dumpPath, javaSer), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
@@ -118,13 +122,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         _ ! ChangeState(Readonly),
       ))
       if (javaSer) {
-        system.actorOf(LoadDumpWorkerJava.props(dumpPath), s"load_wrkr-${System.currentTimeMillis}").forward(LoadDump(dumpPath, true))
+        system.actorOf(LoadDumpWorkerJava.props(dumpPath), s"load_wrkr-${now_ms()}").forward(LoadDump(dumpPath, true))
       } else {
-        system.actorOf(DumpProcessor.props, s"load_wrkr-${System.currentTimeMillis}").forward(DumpProcessor.LoadDump(dumpPath))
+        system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}").forward(DumpProcessor.LoadDump(dumpPath))
       }
       goto(Readonly)
     case Event(IterateDump(dumpPath, foreach), data) =>
-      system.actorOf(IterateDumpWorker.props(dumpPath,foreach), s"iter_wrkr-${System.currentTimeMillis}").forward(IterateDump(dumpPath,foreach))
+      system.actorOf(IterateDumpWorker.props(dumpPath,foreach), s"iter_wrkr-${now_ms()}").forward(IterateDump(dumpPath,foreach))
       stay()
   }
 
@@ -193,36 +197,43 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
 
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
     val newvNodes: Map[VNode, Node] = (1 to vNodesNum).map(vnode => {
-      hashing.hash(stob(member.address.hostPort).concat(itob(vnode))) -> member.address})(breakOut)
+      hashing.hash(stob(member.address.hostPort).concat(itob(vnode))) -> member.address
+    })(breakOut)
     val updvNodes = data.vNodes ++ newvNodes
     val nodes = data.nodes + member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
-    synchNodes(moved)
-    val updData:HashRngData = HashRngData(nodes, data.buckets++moved,updvNodes)
+    syncNodes(moved)
+    val updData = HashRngData(nodes, data.buckets++moved, updvNodes)
     log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
     (state(updData.nodes.size), updData)
   }
 
-  def removeNodeFromRing(member: Member, data: HashRngData) : (QuorumState, HashRngData) = {
-    log.info(s"[ring_hash]Removing $member from ring")
-    val unusedvNodes: Map[VNode, Node] = (1 to vNodesNum).map(vnode => {
-    hashing.hash(stob(member.address.hostPort).concat(itob(vnode))) -> member.address})(breakOut)
+  def removeNodeFromRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
+    log.info(s"[ring_hash]Removing ${member} from ring")
+    val unusedvNodes: Set[VNode] = (1 to vNodesNum).map(vnode => hashing.hash(stob(member.address.hostPort).concat(itob(vnode))))(breakOut)
     val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
-    val nodes = data.nodes + member.address
+    val nodes = data.nodes - member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
     log.info(s"WILL UPDATE ${moved.size} buckets")
-    val updData: HashRngData = HashRngData(data.nodes + member.address, data.buckets++moved, updvNodes)
-    synchNodes(moved)
+    val updData = HashRngData(nodes, data.buckets++moved, updvNodes)
+    syncNodes(moved)
     (state(updData.nodes.size), updData)
   }
 
-  def synchNodes(buckets: SortedMap[Bucket, PreferenceList]): Unit = {
-    val repl = buckets.foldLeft(SortedMap.empty[Bucket,PreferenceList])((acc, b_prefList) =>
-      if(b_prefList._2.contains(local)) acc+ (b_prefList._1 ->  b_prefList._2.filterNot(_ == local)) else acc)
-    context.actorOf(Props(classOf[ReplicationSupervisor], repl), s"repl-${System.currentTimeMillis()}") ! "go-repl"
+  def syncNodes(buckets: SortedMap[Bucket,PreferenceList]): Unit = {
+    val empty = SortedMap.empty[Bucket,PreferenceList]
+    val repl = buckets.foldLeft(empty){ case (acc, (b, prefList)) =>
+      if (prefList contains local) {
+        prefList.filterNot(_ == local) match {
+          case empty if empty.isEmpty => acc
+          case xs => acc + (b -> xs)
+        }
+      } else acc
+    }
+    context.actorOf(ReplicationSupervisor.props(repl), s"repl-${now_ms()}") ! "go-repl"
   }
 
-  def state(nodes : Int): QuorumState = nodes match {
+  def state(nodes: Int): QuorumState = nodes match {
     case 0 => Unsatisfied
     case n if n >= Seq(R,W).max => Effective
     case _ => Readonly

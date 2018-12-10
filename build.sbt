@@ -38,6 +38,7 @@ lazy val root = (project in file(".")).withId("kvs")
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion       % Test,
       "org.scalatest" %% "scalatest" % "3.0.1"                  % Test,
     ),
+    libraryDependencies += "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
     PB.targets in Compile := Seq(
       scalapb.gen() -> (sourceManaged in Compile).value
     ),
@@ -46,15 +47,15 @@ lazy val root = (project in file(".")).withId("kvs")
 import deployssh.DeploySSH.{ServerConfig, ArtifactSSH}
 import fr.janalyse.ssh._
 
-lazy val kvsDemo = (project in file("kvs-demo")).settings(
+lazy val demo = (project in file("kvs-demo")).settings(
   mainClass in (Compile, run) := Some("mws.kvs.Run"),
   fork in run := true,
-  javaOptions ++= Seq(
-    "-Dcom.sun.management.jmxremote",
-    "-Dcom.sun.management.jmxremote.ssl=false",
-    "-Dcom.sun.management.jmxremote.authenticate=false",
-    "-Dcom.sun.management.jmxremote.port=9000",
-  ),
+  // javaOptions ++= Seq(
+  //   "-Dcom.sun.management.jmxremote",
+  //   "-Dcom.sun.management.jmxremote.ssl=false",
+  //   "-Dcom.sun.management.jmxremote.authenticate=false",
+  //   "-Dcom.sun.management.jmxremote.port=9000",
+  // ),
   javaOptions in Universal ++= Seq(
     "-J-XX:+PreserveFramePointer"
   ),

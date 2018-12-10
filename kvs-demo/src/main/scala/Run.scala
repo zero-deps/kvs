@@ -5,27 +5,13 @@ import scala.util.Try
 import akka.actor.ActorSystem
 
 object Run extends App {
-  // val config = """
-  //   akka {
-  //     loglevel = INFO
-  //     remote {
-  //       netty.tcp {
-  //         hostname = 127.0.0.1
-  //         port = 4281
-  //       }
-  //     }
-  //     cluster {
-  //       seed-nodes = ["akka.tcp://kvs@127.0.0.1:4281"]
-  //     }
-  //   }
-  // """
-
   import com.typesafe.config.ConfigFactory
   val cfg = ConfigFactory.load()
   implicit val system = ActorSystem("kvs", cfg)
   val kvs = Kvs(system)
 
   sys.addShutdownHook {
+    println("SHUTDOWN")
     system.terminate()
     import scala.concurrent.Await
     import scala.concurrent.duration.Duration
@@ -35,20 +21,22 @@ object Run extends App {
   import system.dispatcher
 
   kvs.onReady.map{ _ =>
-    Thread.sleep(15000)
-    system.log.info("start!!!")
+    // system.log.info("start!!!")
     // (1 to 1000).map { i =>
+    // (1 to 100000).map { i =>
     //   kvs.el.put(i.toString, i.toString)
     // }
+    // system.log.info("written")
 
     // val r = kvs.el.put("a","b")
     // system.log.info(s"${r}")
     // system.log.info(kvs.nextid("fid").toString)
+
     // kvs.dump.loadJava("/Users/anst/prj/kvs/kvs-demo/rng_dump_2018.11.21-18.20.48/")
-    val p1 = System.nanoTime
-    kvs.dump.load("/home/anle/perf_data/rng_dump_2018.12.07-15.26.23_io")
-    val p2 = System.nanoTime - p1
-    system.log.info(s"time=${p2/1000000}ms")
+    // val p1 = System.nanoTime
+    // kvs.dump.load("/home/anle/perf_data/rng_dump_2018.12.07-15.26.23_io")
+    // val p2 = System.nanoTime - p1
+    // system.log.info(s"time=${p2/1000000}ms")
     // kvs.dump.save("/home/anle/perf_data/")
   }
 }

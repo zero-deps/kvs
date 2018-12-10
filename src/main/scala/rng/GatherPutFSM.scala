@@ -30,7 +30,7 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
       } else {
         new VectorClock
       }
-      val updatedData = Data(putInfo.key, putInfo.bucket, System.currentTimeMillis(), fromvc(vc.:+(putInfo.localAdr.toString)), putInfo.v)
+      val updatedData = Data(putInfo.key, putInfo.bucket, now_ms(), fromvc(vc.:+(putInfo.localAdr.toString)), putInfo.v)
       mapInPut(putInfo.nodes, updatedData)
       stay()
     
