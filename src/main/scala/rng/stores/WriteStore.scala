@@ -3,7 +3,6 @@ package store
 
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{Cluster, VectorClock}
-import com.google.protobuf.{ByteStringWrap}
 import leveldbjnr._
 import mws.rng.data.{Data, SeqData, ValueKey, SeqVec, BucketInfo}
 import mws.rng.msg.{StorePut, PutSavingEntity, StoreDelete, BucketPut}

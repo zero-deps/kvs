@@ -1,6 +1,6 @@
 package mws.rng
 
-import akka.actor.{ActorLogging, Props, ActorRef, FSM, AddressFromURIString}
+import akka.actor.{ActorLogging, Props, ActorRef, FSM}
 import akka.cluster.{Cluster}
 import mws.rng.msg.{GetBucketResp, BucketPut, GetBucketVc, BucketVc, GetBucketIfNew, NoChanges, ReplFailed}
 import mws.rng.data.{Data}
