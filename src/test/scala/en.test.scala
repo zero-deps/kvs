@@ -6,7 +6,7 @@ import scalaz._, Scalaz._
 import akka.actor.ActorSystem
 import akka.testkit._
 import org.scalatest._
-import EnHandlerTest._
+// import EnHandlerTest._
 import scala.concurrent.Await
 import scala.util.Try
 import scala.concurrent.duration._

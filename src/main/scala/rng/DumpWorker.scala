@@ -224,6 +224,7 @@ class DumpProcessor extends Actor with ActorLogging {
         if (res.last) {
           log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
           dumpInitiator ! "done"
+          stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
           context.stop(self)
         }
     }
@@ -274,12 +275,14 @@ class DumpProcessor extends Actor with ActorLogging {
         }
       case res: GetBucketResp =>
         log.error(s"wrong bucket response, expected=${processBucket}, actual=${res.b}")
+        stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
         context.stop(self)
       case DumpIO.PutDone =>
         if (putQueue.isEmpty) {
           if (processBucket == maxBucket) {
-            context.stop(self)
             log.info("dump write done")
+            stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
+            context.stop(self)
           }
           readyToPut = true
         } else {
