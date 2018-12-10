@@ -6,3 +6,8 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.3.14")
 
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.19")
 libraryDependencies += "com.thesamet.scalapb" %% "compilerplugin" % "0.8.2"
+
+addSbtPlugin("com.github.shmishleniy" % "sbt-deploy-ssh" % "0.1.4")
+resolvers += "JAnalyse Repository" at "http://www.janalyse.fr/repository/"
+
+addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.3.4")

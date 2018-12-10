@@ -35,16 +35,21 @@ object Run extends App {
   import system.dispatcher
 
   kvs.onReady.map{ _ =>
+    Thread.sleep(15000)
+    system.log.info("start!!!")
     // (1 to 1000).map { i =>
     //   kvs.el.put(i.toString, i.toString)
     // }
 
-    val r = kvs.el.put("a","b")
-    system.log.info(s"${r}")
-    system.log.info(kvs.nextid("fid").toString)
+    // val r = kvs.el.put("a","b")
+    // system.log.info(s"${r}")
+    // system.log.info(kvs.nextid("fid").toString)
     // kvs.dump.loadJava("/Users/anst/prj/kvs/kvs-demo/rng_dump_2018.11.21-18.20.48/")
-    // kvs.dump.load("/Users/anst/prj/kvs/kvs-demo/rng_dump_new/rng_dump_2018.12.07-15.14.57")
-    // kvs.dump.save("/Users/anst/prj/kvs/kvs-demo/rng_dump_new/")
+    val p1 = System.nanoTime
+    kvs.dump.load("/home/anle/perf_data/rng_dump_2018.12.07-15.26.23_io")
+    val p2 = System.nanoTime - p1
+    system.log.info(s"time=${p2/1000000}ms")
+    // kvs.dump.save("/home/anle/perf_data/")
   }
 }
 

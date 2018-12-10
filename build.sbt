@@ -43,6 +43,9 @@ lazy val root = (project in file(".")).withId("kvs")
     ),
   )
 
+import deployssh.DeploySSH.{ServerConfig, ArtifactSSH}
+import fr.janalyse.ssh._
+
 lazy val kvsDemo = (project in file("kvs-demo")).settings(
   mainClass in (Compile, run) := Some("mws.kvs.Run"),
   fork in run := true,
@@ -52,7 +55,50 @@ lazy val kvsDemo = (project in file("kvs-demo")).settings(
     "-Dcom.sun.management.jmxremote.authenticate=false",
     "-Dcom.sun.management.jmxremote.port=9000",
   ),
-).dependsOn(root)
+  javaOptions in Universal ++= Seq(
+    "-J-XX:+PreserveFramePointer"
+  ),
+  deployConfigs ++= Seq(
+    ServerConfig(name="cms1", host="ua-mws-newcms1.ee.playtech.corp", user=Some("anle")),
+    ServerConfig(name="cms2", host="ua-mws-newcms2.ee.playtech.corp", user=Some("anle")),
+    ServerConfig(name="cms3", host="ua-mws-newcms3.ee.playtech.corp", user=Some("anle")),
+  ),
+  deployArtifacts ++= Seq(
+    ArtifactSSH((packageBin in Universal).value, s"perf_data")
+  ),
+  deploySshExecBefore ++= Seq(
+    (ssh: SSH) => ssh.shell{ shell =>
+      shell.execute("cd perf_data")
+      shell.execute("touch pid")
+      val pid = shell.execute("cat pid")
+      shell.execute(s"kill -9 ${pid}")
+      shell.execute("rm -v -rf kvsdemo*")
+      shell.execute("rm pid")
+    }
+  ),
+  deploySshExecAfter ++= Seq(
+    (ssh: SSH) => {
+      ssh.scp { scp =>
+        scp.send(file(s"./kvs-demo/src/main/resources/${ssh.options.name.get}.conf"), s"perf_data/app.conf")
+      }
+      ssh.shell{ shell =>
+        val name = (packageName in Universal).value
+        val script = (executableScriptName in Universal).value
+        shell.execute("cd perf_data")
+        shell.execute(s"unzip -q -o ${name}.zip")
+        shell.execute(s"nohup ./${name}/bin/${script} -Dconfig.file=/home/anle/perf_data/app.conf &")
+        // shell.execute(s"nohup ./${name}/bin/${script} &")
+        shell.execute("echo $! > pid")
+        shell.execute("touch pid")
+        val pid = shell.execute("cat pid")
+        val (_, status) = shell.executeWithStatus("echo $?")
+        if (status != 0 || pid == "") {
+         throw new RuntimeException(s"status=${status}, pid=${pid}. please check package")
+        }
+      }
+    }
+  )
+).dependsOn(root).enablePlugins(JavaAppPackaging, DeploySSH, JmhPlugin)
 
 lazy val leveldbTest = (project in file("leveldb-test")).settings(
   testOptions += Tests.Argument(TestFrameworks.JUnit),

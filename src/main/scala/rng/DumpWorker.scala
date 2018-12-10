@@ -222,6 +222,7 @@ class DumpProcessor extends Actor with ActorLogging {
           log.info(s"load info: write done, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
         }
         if (res.last) {
+          log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
           dumpInitiator ! "done"
           context.stop(self)
         }

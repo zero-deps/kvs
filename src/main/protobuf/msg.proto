@@ -17,6 +17,8 @@ message Msg {
     BucketKeys bucketKeys = 9;
     GetBucketResp getBucketResp = 10;
     SavingEntity savingEntity = 11;
+    ChangeState changeState = 12;
+    Saved saved = 13;
   }
 }
 
@@ -67,4 +69,11 @@ message SavingEntity {
   bytes k = 1;
   bytes v = 2;
   bytes nextKey = 3;
+}
+
+message ChangeState {
+  int32 quorumState = 1;
+}
+
+message Saved {
 }

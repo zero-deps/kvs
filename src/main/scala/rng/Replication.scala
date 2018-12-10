@@ -73,6 +73,7 @@ class ReplicationWorker(bucket:Bucket,preferenceList: PreferenceList) extends FS
       }
 
     case Event(OpsTimeout, data) =>
+      log.error(s"GetBucketResp timeout bucket=${data.b}")
       self ! GetBucketResp(bucket, Nil)
       stay()
   }
