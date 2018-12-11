@@ -104,6 +104,10 @@ class Ring(system: ActorSystem) extends Dba {
     import akka.cluster.sharding._
     Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed).mapTo[String],d)).toDisjunction.leftMap(RngThrow)
   }
+
+  def compact(): Unit = {
+    leveldb.compactRange(null, null)
+  }
 }
 
 object IdCounter {

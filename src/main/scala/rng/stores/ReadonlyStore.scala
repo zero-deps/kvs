@@ -5,8 +5,8 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{VectorClock}
 import com.google.protobuf.ByteString
 import leveldbjnr._
-import mws.rng.data.{Data, SeqData, BucketInfo, SeqVec}
-import mws.rng.msg.{StoreGet, GetResp, BucketGet, GetBucketResp, BucketKeys, GetSavingEntity, SavingEntity, GetBucketVc, BucketVc, GetBucketIfNew, NoChanges}
+import mws.rng.data.{Data, SeqData, BucketInfo}
+import mws.rng.msg.{StoreGet, GetResp, BucketGet, GetBucketResp, GetSavingEntity, SavingEntity, GetBucketVc, BucketVc, GetBucketIfNew, BucketUpToDate, NewerBucket}
 
 object ReadonlyStore {
   def props(leveldb: LevelDB): Props = Props(new ReadonlyStore(leveldb))
@@ -36,8 +36,6 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
         get(itob(b).concat(keyWord).concat(key)).map(SeqData.parseFrom(_).data).getOrElse(Nil) ++ acc
       )
       sender ! GetBucketResp(b, data)
-    case BucketKeys(b) => 
-      sender ! get(itob(b).concat(keysWord)).map(BucketInfo.parseFrom(_).keys).getOrElse(Nil: Seq[Key])
     case GetSavingEntity(k) =>
       import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
       val key: Array[Byte] = {
@@ -60,25 +58,25 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
       sender ! res
     case GetBucketVc(b) =>
       val k = itob(b).concat(keysWord)
-      val vc = get(k).map(BucketInfo.parseFrom(_).vc)
+      val vc = get(k).map(BucketInfo.parseFrom(_).vc).getOrElse(Nil)
       sender ! BucketVc(vc)
     case GetBucketIfNew(b, vc) =>
-      val vc_other: VectorClock = vc.map(x => makevc(SeqVec.parseFrom(x.newCodedInput).vc)).getOrElse(new VectorClock)
+      val vc_other: VectorClock = makevc(vc)
       val k = itob(b).concat(keysWord)
       val b_info = get(k).map(BucketInfo.parseFrom(_))
       b_info match {
         case Some(b_info) =>
-          val vc_local: VectorClock = makevc(SeqVec.parseFrom(b_info.vc.newCodedInput).vc)
+          val vc_local: VectorClock = makevc(b_info.vc)
           vc_other == vc_local || vc_other > vc_local match {
-            case true => sender ! NoChanges(b)
+            case true => sender ! BucketUpToDate(b)
             case false =>
               val data = b_info.keys.foldLeft(Nil: Seq[Data])((acc, key) =>
                 get(itob(b).concat(keyWord).concat(key)).map(SeqData.parseFrom(_).data).getOrElse(Nil) ++ acc
               )
-              sender ! GetBucketResp(b, data)
+              sender ! NewerBucket(b, b_info.vc, data)
           }
         case None =>
-          sender ! GetBucketResp(b, Nil)
+          sender ! BucketUpToDate(b)
       }
     case _ =>    
   }

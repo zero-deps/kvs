@@ -7,7 +7,7 @@ message SeqData {
 }
 
 message BucketInfo {
-  bytes vc = 1;
+  repeated Vec vc = 1;
   repeated bytes keys = 2;
 }
 
@@ -22,10 +22,6 @@ message Data {
   int64 lastModified = 3;
   repeated Vec vc = 4;
   bytes value = 5;
-}
-
-message SeqVec {
-  repeated Vec vc = 1;
 }
 
 message Vec {

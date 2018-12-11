@@ -18,4 +18,5 @@ trait Dba {
   def iterate(path: String, f: (K, V) => Unit): Future[Any]
   def isReady: Future[Boolean]
   def nextid(fid: String): Res[String]
+  def compact(): Unit
 }

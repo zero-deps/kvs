@@ -3,7 +3,6 @@ syntax = "proto3";
 package mws.rng;
 
 import "data.proto";
-import "google/protobuf/wrappers.proto";
 
 message Msg {
   oneof msg_type {
@@ -15,11 +14,9 @@ message Msg {
     GetResp getResp = 6;
     PutSavingEntity putSavingEntity = 7;
     GetSavingEntity getSavingEntity = 8;
-    BucketKeys bucketKeys = 9;
-    GetBucketResp getBucketResp = 10;
-    SavingEntity savingEntity = 11;
-    ChangeState changeState = 12;
-    Saved saved = 13;
+    GetBucketResp getBucketResp = 9;
+    SavingEntity savingEntity = 10;
+    ChangeState changeState = 11;
   }
 }
 
@@ -37,6 +34,7 @@ message StoreDelete {
 
 message BucketPut {
   repeated Data data = 1;
+  repeated Vec vc = 2;
 }
 
 message BucketGet { 
@@ -55,10 +53,6 @@ message PutSavingEntity {
 
 message GetSavingEntity {
   bytes k = 1;
-}
-
-message BucketKeys {
-  int32 b = 1;
 }
 
 message GetBucketResp {
@@ -81,21 +75,24 @@ message GetBucketVc {
 }
 
 message BucketVc {
-  google.protobuf.BytesValue vc = 1;
+  repeated Vec vc = 1;
 }
 
 message GetBucketIfNew { 
   int32 b = 1;
-  google.protobuf.BytesValue vc = 2;
+  repeated Vec vc = 2;
 }
 
-message NoChanges {
+message BucketUpToDate {
   int32 b = 1;
+}
+
+message NewerBucket {
+  int32 b = 1;
+  repeated Vec vc = 2;
+  repeated Data l = 3;
 }
 
 message ReplFailed {
   repeated string down = 1;
-}
-
-message Saved {
 }

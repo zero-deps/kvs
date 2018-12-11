@@ -1,11 +1,11 @@
 package mws.rng
 
 import akka.actor.{ActorLogging, Props, ActorRef, FSM}
-import akka.cluster.{Cluster}
-import mws.rng.msg.{GetBucketResp, BucketPut, GetBucketVc, BucketVc, GetBucketIfNew, NoChanges, ReplFailed}
+import akka.cluster.{Cluster, VectorClock}
 import mws.rng.data.{Data}
+import mws.rng.msg.{BucketPut, GetBucketVc, BucketVc, GetBucketIfNew, ReplFailed, BucketUpToDate, NewerBucket}
 import scala.collection.SortedMap
-import scala.concurrent.duration._
+import scala.concurrent.duration.{Duration}
 
 object ReplicationSupervisor {
   def props(buckets: SortedMap[Bucket, PreferenceList]): Props = Props(new ReplicationSupervisor(buckets))
@@ -36,7 +36,10 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
   when(Sent){
     case Event(b: BucketVc, data) =>
       val replica = data.head // safe
-      val worker = context.actorOf(ReplicationWorker.props(prefList=replica._2))
+      val worker = {
+        val vc = makevc(b.vc)
+        context.actorOf(ReplicationWorker.props(prefList=replica._2, vc))
+      }
       replica._2.map(node => actorMem.get(node, "ring_readonly_store").fold(
         _.tell(GetBucketIfNew(b=replica._1, b.vc), worker),
         _.tell(GetBucketIfNew(b=replica._1, b.vc), worker),
@@ -56,24 +59,8 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
           goto (Sent) using remaining
       }
     case Event(ReplFailed(down), _) =>
-      //todo: check that memberRemoved is received after node is down
       log.info("replication: skipped with timeout")
       stop()
-      // log.info("replication: start over with new pref list")
-      // val data = buckets.map{ 
-      //   case (b, prefList) => b -> (prefList -- down.map(AddressFromURIString(_)))
-      // }.collect{
-      //   case x@(b, prefList) if prefList.nonEmpty => x
-      // }
-      // data.headOption match {
-      //   case None => 
-      //     log.info("replication: skipped")
-      //     stop()
-      //   case Some((b, prefList)) => 
-      //     log.info("replication: started")
-      //     getBucketVc(b)
-      //     goto (Sent) using data
-      // }
   }
 
   def getBucketVc(b: Bucket): Unit = {
@@ -84,50 +71,55 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
   }
 }
 
-import ReplicationWorker.{ReplKeys}
+import ReplicationWorker.{ReplState}
 
 object ReplicationWorker {
-  final case class ReplKeys(prefList: PreferenceList, info: Seq[Seq[Data]])
+  final case class ReplState(prefList: PreferenceList, info: Seq[Seq[Data]], vc: VectorClock)
 
-  def props(prefList: PreferenceList): Props = Props(new ReplicationWorker(prefList))
+  def props(prefList: PreferenceList, vc: VectorClock): Props = Props(new ReplicationWorker(prefList, vc))
 }
 
-class ReplicationWorker(_prefList: PreferenceList) extends FSM[FsmState, ReplKeys] with ActorLogging {
+class ReplicationWorker(_prefList: PreferenceList, _vc: VectorClock) extends FSM[FsmState, ReplState] with ActorLogging {
   import context.system
   val cluster = Cluster(system)
   val local = cluster.selfAddress
   val actorMem = SelectionMemorize(system)
 
-  setTimer("send_by_timeout", OpsTimeout, 60 seconds)
-  startWith(Collecting, ReplKeys(_prefList, info=Nil))
+  setTimer("send_by_timeout", OpsTimeout, Duration.fromNanos(context.system.settings.config.getDuration("ring.gather-timeout-replication").toNanos), repeat=false)
+  startWith(Collecting, ReplState(_prefList, info=Nil, _vc))
 
   when(Collecting){
-    case Event(GetBucketResp(b, l), data) =>
+    case Event(NewerBucket(b, vc, l), data) =>
       data.prefList - addr(sender) match {
         case empty if empty.isEmpty =>
           val all = data.info.foldLeft(l)((acc, list) => list ++ acc)
           val merged = mergeBucketData(all, Nil)
           actorMem.get(local, "ring_write_store").fold(
-            _ ! BucketPut(merged),
-            _ ! BucketPut(merged),
+            _ ! BucketPut(merged, fromvc(data.vc)),
+            _ ! BucketPut(merged, fromvc(data.vc)),
           )
           context.parent ! b
           stop()
-        case nodes => stay() using ReplKeys(nodes, l +: data.info)
+        case nodes =>
+          stay() using data.copy(
+            prefList = nodes, 
+            info = l +: data.info, 
+            vc = data.vc merge makevc(vc),
+          )
       }
 
-    case Event(NoChanges(b), data) =>
+    case Event(BucketUpToDate(b), data) =>
       data.prefList - addr(sender) match {
         case empty if empty.isEmpty =>
           val all = data.info.foldLeft(Nil: Seq[Data])((acc, list) => list ++ acc)
           val merged = mergeBucketData(all, Nil)
           actorMem.get(local, "ring_write_store").fold(
-            _ ! BucketPut(merged),
-            _ ! BucketPut(merged),
+            _ ! BucketPut(merged, fromvc(data.vc)),
+            _ ! BucketPut(merged, fromvc(data.vc)),
           )
           context.parent ! b
           stop()
-        case nodes => stay() using ReplKeys(nodes, data.info)
+        case nodes => stay() using data.copy(prefList=nodes)
       }
 
     case Event(OpsTimeout, data) =>

@@ -3,7 +3,7 @@ package mws
 import akka.actor.Address
 import akka.cluster.VectorClock
 import com.google.protobuf.{ByteString, ByteStringWrap}
-import mws.rng.data.{Data, Vec, SeqVec}
+import mws.rng.data.{Data, Vec}
 import mws.rng.data.{Data, Vec}
 import mws.rng.store.PutStatus
 import scala.annotation.tailrec
@@ -38,8 +38,6 @@ package object rng {
   def itoa(v: Int): Array[Byte] = Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte)
   def itob(v: Int): ByteString = ByteStringWrap.wrap(Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte))
   def atob(a: Array[Byte]): ByteString = ByteStringWrap.wrap(a)
-
-  val new_vc_b: ByteString = atob(SeqVec(fromvc(new VectorClock)).toByteArray)
 
   /* returns (actual data, list of outdated nodes) */
   def order[E](l: Seq[E], age: E => Age): (Option[E], Seq[E]) = {

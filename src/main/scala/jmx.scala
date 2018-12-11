@@ -14,6 +14,7 @@ trait KvsMBean {
   def put(k: String, v: String): Unit
   def load(i: Int): Unit
   def check(i: Int): Unit
+  def compact(): String
 }
 
 class KvsJmx(kvs: Kvs, system: ActorSystem) {
@@ -23,11 +24,11 @@ class KvsJmx(kvs: Kvs, system: ActorSystem) {
 
   def createMBean(): Unit = {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
-      def save(path: String): String = kvs.dump.save(path).getOrElse("timeout")
-      def load(path: String): Any = kvs.dump.load(path).getOrElse("timeout")
-      def get(k: String): String = kvs.el.get(k).getOrElse("NaN")
-      def put(k: String, v: String): Unit = kvs.el.put(k, v)
-      def check(i: Int): Unit = {
+      override def save(path: String): String = kvs.dump.save(path).getOrElse("timeout")
+      override def load(path: String): Any = kvs.dump.load(path).getOrElse("timeout")
+      override def get(k: String): String = kvs.el.get(k).getOrElse("NaN")
+      override def put(k: String, v: String): Unit = kvs.el.put(k, v)
+      override def check(i: Int): Unit = {
         println(s"started check")
         val s = System.nanoTime()
         ((i - 1) * 200000 to i * 200000).foreach(i =>
@@ -37,7 +38,7 @@ class KvsJmx(kvs: Kvs, system: ActorSystem) {
         println(s"End check in ${(System.nanoTime() - s) / 1000000d} ms")
         println(s"One read in ${(System.nanoTime() - s) / 200000d} ns")
       }
-      def load(i: Int): Unit = {
+      override def load(i: Int): Unit = {
         println(s" Start load ")
         val s = System.nanoTime()
         var t = System.nanoTime()
@@ -50,6 +51,11 @@ class KvsJmx(kvs: Kvs, system: ActorSystem) {
         }
         println(s"End load in ${(System.nanoTime() - s) / 1000000d} ms")
         println(s"One write in ${(System.nanoTime() - s) / 200000d} ns")
+      }
+      override def compact(): String = {
+        val t = System.nanoTime
+        kvs.compact()
+        s"done in ${(System.nanoTime - t) / 100000} ms"
       }
     }
     Try(server.registerMBean(mbean,name))

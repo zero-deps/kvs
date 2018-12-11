@@ -98,4 +98,8 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
     loop()
     p.future
   }
+
+  def compact(): Unit = {
+    dba.compact()
+  }
 }
