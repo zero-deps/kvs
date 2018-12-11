@@ -211,14 +211,13 @@ class DumpProcessor extends Actor with ActorLogging {
       case res: DumpIO.ReadNextRes =>
         if (!res.last) dumpIO ! DumpIO.ReadNext
         keysNumber = keysNumber + res.kv.size
-        if (keysNumber % 10000 == 0) log.info(s"load info: write keys=${res.kv.size}")
         res.kv.foreach { d =>
           ksize = ksize + d._1.size
           size = size + d._2.size
           val putF = stores.get(self.path.address, "ring_hash").fold(_.ask(InternalPut(d._1, d._2)), _.ask(InternalPut(d._1, d._2)))
           Await.ready(putF, timeout.duration)
         }
-        if (keysNumber % 10000 == 0) {
+        if (keysNumber % 1000 == 0) {
           log.info(s"load info: write done, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
         }
         if (res.last) {
