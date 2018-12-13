@@ -20,6 +20,7 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
       case a: mws.rng.msg.GetBucketResp => msg.Msg(msgType=MsgType.GetBucketResp(a)).toByteArray
       case a: mws.rng.msg.SavingEntity => msg.Msg(msgType=MsgType.SavingEntity(a)).toByteArray
       case a: mws.rng.ChangeState => msg.Msg(msgType=MsgType.ChangeState(mws.rng.msg.ChangeState(getQuorumState(a)))).toByteArray
+      case mws.rng.store.Saved => msg.Msg(msgType=MsgType.Saved(mws.rng.msg.Saved())).toByteArray
       case _ => throw new IllegalArgumentException(s"${getClass.getName} can't serialize [${o}]")
     }
   }
@@ -62,6 +63,7 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
       case MsgType.GetBucketResp(m) => m
       case MsgType.SavingEntity(m) => m
       case MsgType.ChangeState(m) => mws.rng.ChangeState(quorumState(m.quorumState))
+      case MsgType.Saved(_) => mws.rng.store.Saved
     }
   }
 }

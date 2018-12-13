@@ -67,7 +67,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
       // update bucket with provided vector clock
       datas.map(_.bucket).distinct.foreach{ bucket =>
         val bucket_id: Key = itob(bucket).concat(keysWord)
-        val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_)) //todo: do one parse
+        val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_))
         val newKeys = datas.map(_.key)
         bucket_info match {
           case Some(x) =>
@@ -93,7 +93,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
           case Some(list) if list forall (d => descendant(makevc(d.vc), makevc(data.vc))) =>
             val newVC = list.foldLeft(makevc(data.vc))((sum, i) => sum.merge(makevc(i.vc)))
             data -> Seq(data.copy(vc = fromvc(newVC)))
-          case Some(brokenData) => 
+          case Some(brokenData) =>
             val broken = data +: brokenData
             data -> broken
         }

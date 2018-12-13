@@ -17,6 +17,7 @@ message Msg {
     GetBucketResp getBucketResp = 9;
     SavingEntity savingEntity = 10;
     ChangeState changeState = 11;
+    Saved saved = 12;
   }
 }
 
@@ -68,6 +69,9 @@ message SavingEntity {
 
 message ChangeState {
   int32 quorumState = 1;
+}
+
+message Saved {
 }
 
 message GetBucketVc { 
