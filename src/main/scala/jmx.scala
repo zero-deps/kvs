@@ -55,7 +55,7 @@ class KvsJmx(kvs: Kvs, system: ActorSystem) {
       override def compact(): String = {
         val t = System.nanoTime
         kvs.compact()
-        s"done in ${(System.nanoTime - t) / 100000} ms"
+        s"done in ${(System.nanoTime - t) / 1000000} ms"
       }
     }
     Try(server.registerMBean(mbean,name))
