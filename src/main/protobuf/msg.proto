@@ -18,6 +18,9 @@ message Msg {
     SavingEntity savingEntity = 10;
     ChangeState changeState = 11;
     Saved saved = 12;
+    GetBucketIfNew getBucketIfNew = 13;
+    BucketUpToDate bucketUpToDate = 14;
+    NewerBucket newerBucket = 15;
   }
 }
 

@@ -4,25 +4,32 @@ import akka.actor.{ActorLogging, Props, ActorRef, FSM}
 import akka.cluster.{Cluster, VectorClock}
 import mws.rng.data.{Data}
 import mws.rng.msg.{BucketPut, GetBucketVc, BucketVc, GetBucketIfNew, ReplFailed, BucketUpToDate, NewerBucket}
-import scala.collection.SortedMap
+import ReplicationSupervisor.{State}
+import scala.collection.immutable.SortedMap
 import scala.concurrent.duration.{Duration}
+import scalaz.Scalaz._
 
 object ReplicationSupervisor {
-  def props(buckets: SortedMap[Bucket, PreferenceList]): Props = Props(new ReplicationSupervisor(buckets))
+  final case class Progress(done: Int, total: Int, step: Int)
+  final case class State(buckets: SortedMap[Bucket, PreferenceList], progress: Progress)
+
+  def props(buckets: SortedMap[Bucket, PreferenceList]): Props = {
+    val len = buckets.size
+    Props(new ReplicationSupervisor(State(buckets, Progress(done=0, total=len, step=len/4))))
+  }
 }
 
 /** Sequentially update buckets */
-class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends FSM[FsmState, SortedMap[Bucket, PreferenceList]] with ActorLogging {
+class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] with ActorLogging {
   val actorMem = SelectionMemorize(context.system)
-
   val local: Node = Cluster(context.system).selfAddress
 
-  startWith(ReadyCollect, buckets)
+  startWith(ReadyCollect, initialState)
 
   when(ReadyCollect){
     case Event("go-repl", data) =>
-      data.headOption match {
-        case None => 
+      data.buckets.headOption match {
+        case None =>
           log.info("replication: skipped")
           stop()
         case Some((b, prefList)) => 
@@ -35,7 +42,7 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
   // after ask for vc of bucket
   when(Sent){
     case Event(b: BucketVc, data) =>
-      val replica = data.head // safe
+      val replica = data.buckets.head // safe
       val worker = {
         val vc = makevc(b.vc)
         context.actorOf(ReplicationWorker.props(prefList=replica._2, vc))
@@ -49,14 +56,16 @@ class ReplicationSupervisor(buckets: SortedMap[Bucket, PreferenceList]) extends 
 
   when(Collecting){
     case Event(b: Bucket, data) =>
-      data - b match {
+      data.buckets - b match {
         case empty if empty.isEmpty =>
           log.info("replication: finished")
           stop()
         case remaining =>
+          val pr = data.progress
+          if (pr.done =/= 0 && pr.done % pr.step === 0) log.info(s"replication: ${pr.done*100/pr.total}%")
           val replica = remaining.head // safe
           getBucketVc(replica._1)
-          goto (Sent) using remaining
+          goto (Sent) using data.copy(buckets=remaining, progress=pr.copy(done=pr.done+1))
       }
     case Event(ReplFailed(down), _) =>
       log.info("replication: skipped with timeout")
