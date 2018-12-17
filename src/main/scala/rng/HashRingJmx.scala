@@ -16,7 +16,7 @@ trait HashRingMBean {
   def delete(key:String):String
 }
 
-private[mws] class HashRingJmx(ring:Ring, log: LoggingAdapter) {
+private[mws] class HashRingJmx(ring: Ring, log: LoggingAdapter) {
   private val server = ManagementFactory.getPlatformMBeanServer
   private val name = new ObjectName("akka:type=Store")
 

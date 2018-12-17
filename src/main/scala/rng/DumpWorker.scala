@@ -8,7 +8,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import leveldbjnr._
-import mws.kvs.store.Ring
+import mws.kvs.LeveldbOps
 import mws.rng.data.{Data, DumpKV, KV}
 import mws.rng.msg.{BucketGet, GetBucketResp, PutSavingEntity, GetSavingEntity, SavingEntity}
 import mws.rng.store._
@@ -47,7 +47,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
 
     when(ReadyCollect){
       case Event(Dump(_), state) =>
-        db = Ring.openLeveldb(context.system, filePath.some)
+        db = LeveldbOps.open(context.system, filePath)
         dumpStore = context.actorOf(Props(classOf[WriteStore], db))
         buckets(state.current).foreach(n => stores.get(n, "ring_readonly_store").fold(
           _ ! BucketGet(state.current),
@@ -121,7 +121,7 @@ class LoadDumpWorkerJava(path: String) extends FSM[FsmState, Option[ActorRef]] w
 
   when(ReadyCollect){
     case Event(LoadDump(_, _),_) =>
-      dumpDb = Ring.openLeveldb(context.system, path.some)
+      dumpDb = LeveldbOps.open(context.system, path)
       store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
       store ! GetSavingEntity(stob("head_of_keys"))
       goto(Collecting) using Some(sender)
@@ -167,7 +167,7 @@ class IterateDumpWorker(path: String, foreach: (ByteString,ByteString) => Unit) 
 
   when(ReadyCollect){
     case Event(IterateDump(_,_),_) =>
-      dumpDb = Ring.openLeveldb(context.system, extraxtedDir.some)
+      dumpDb = LeveldbOps.open(context.system, extraxtedDir)
       store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
       store ! GetSavingEntity(stob("head_of_keys"))
       goto(Collecting) using Some(sender)
