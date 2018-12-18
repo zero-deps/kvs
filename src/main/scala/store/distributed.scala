@@ -2,11 +2,9 @@ package mws.kvs
 package store
 
 import akka.actor._
-import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
 import akka.routing.FromConfig
-import akka.util.Timeout
 import akka.util.{Timeout}
 import leveldbjnr.LevelDB
 import mws.kvs.el.ElHandler
@@ -36,7 +34,7 @@ class Ring(system: ActorSystem) extends Dba {
   system.actorOf(WriteStore.props(leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb)).withDeploy(Deploy.local), name="ring_readonly_store")
 
-  val hash = system.actorOf(Props(classOf[rng.Hash]).withDeploy(Deploy.local), name = "ring_hash")
+  val hash = system.actorOf(rng.Hash.props().withDeploy(Deploy.local), name="ring_hash")
 
   def put(key: String, value: V): Res[V] = {
     val putF = (hash ? rng.Put(stob(key), atob(value))).mapTo[rng.Ack]
@@ -51,7 +49,7 @@ class Ring(system: ActorSystem) extends Dba {
   def isReady: Future[Boolean] = hash.ask(rng.Ready).mapTo[Boolean]
 
   def get(key: String): Res[V] = {
-    val getF = (hash ? rng.Get(stob(key))).mapTo[Option[rng.Value]]
+    val getF = hash.ask(rng.Get(stob(key))).mapTo[Option[rng.Value]]
     Try(Await.result(getF, d)).toDisjunction match {
       case \/-(Some(v)) => v.toByteArray.right
       case \/-(None) => NotFound(key).left

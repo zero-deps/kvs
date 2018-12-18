@@ -11,9 +11,9 @@ import mws.kvs.store.Ring
 
 /** JMX cient */
 trait HashRingMBean {
-  def get(key:String): String
-  def put(key:String, data: String):String
-  def delete(key:String):String
+  def get(key: String): String
+  def put(key: String, data: String):String
+  def delete(key: String):String
 }
 
 private[mws] class HashRingJmx(ring: Ring, log: LoggingAdapter) {

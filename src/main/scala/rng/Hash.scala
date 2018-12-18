@@ -10,6 +10,7 @@ import mws.rng.msg.{StoreDelete, StoreGet}
 import scala.collection.{breakOut}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.concurrent.duration._
+import scalaz.Scalaz._
 
 sealed class APIMessage
 //kvs
@@ -33,11 +34,15 @@ case object Effective extends QuorumState
 case object WriteOnly extends QuorumState
 case object WeakReadonly extends QuorumState
 
-case class HashRngData(
+final case class HashRngData(
   nodes: Set[Node],
   buckets: SortedMap[Bucket, PreferenceList],
   vNodes: SortedMap[Bucket, Node],
 )
+
+object Hash {
+  def props(): Props = Props(new Hash)
+}
 
 // TODO available/not avaiable nodes
 class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
@@ -66,6 +71,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   startWith(Unsatisfied, HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Node]))
 
+  var replication: Option[ActorRef] = None
+
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
   }
@@ -86,7 +93,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       val s = state(data.nodes.size)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
         _ ! ChangeState(s), 
-        _ ! ChangeState(s)
+        _ ! ChangeState(s),
       ))
       goto(s)
     case Event(Ready, _) =>
@@ -151,45 +158,45 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
   }
 
-def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
-  val nodes = nodesForKey(k, data)
-  val gather = system.actorOf(Props(classOf[GathererDel], nodes, client))
-  val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
-  stores.foreach(s => s.fold(
-    _.tell(StoreDelete(k), gather), 
-    _.tell(StoreDelete(k), gather),
-  ))
-}
-
-def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
-  val bucket = hashing findBucket k
-  val nodes = availableNodesFrom(nodesForKey(k, data))
-  if (nodes.size >= W) {
-    val info = PutInfo(k, v, N, W, bucket, local, data.nodes)
-    val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
-    val node = if (nodes contains local) local else nodes.head
-    actorsMem.get(node, "ring_readonly_store").fold(
-      _.tell(StoreGet(k), gather),
-      _.tell(StoreGet(k), gather),
-    )
-  } else {
-    client ! AckQuorumFailed
+  def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
+    val nodes = nodesForKey(k, data)
+    val gather = system.actorOf(Props(classOf[GathererDel], nodes, client))
+    val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
+    stores.foreach(s => s.fold(
+      _.tell(StoreDelete(k), gather), 
+      _.tell(StoreDelete(k), gather),
+    ))
   }
- }
 
- def doGet(key: Key, client: ActorRef, data: HashRngData) : Unit = {
-   val fromNodes = availableNodesFrom(nodesForKey(key, data))
-   if (fromNodes.nonEmpty) {
-     val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, key))
-     val stores = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
-     stores foreach (store => store.fold(
-       _.tell(StoreGet(key), gather),
-       _.tell(StoreGet(key), gather),
-     ))
-   } else {
-     client ! None
-   }
- }
+  def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
+    val bucket = hashing findBucket k
+    val nodes = availableNodesFrom(nodesForKey(k, data))
+    if (nodes.size >= W) {
+      val info = PutInfo(k, v, N, W, bucket, local, data.nodes)
+      val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
+      val node = if (nodes contains local) local else nodes.head
+      actorsMem.get(node, "ring_readonly_store").fold(
+        _.tell(StoreGet(k), gather),
+        _.tell(StoreGet(k), gather),
+      )
+    } else {
+      client ! AckQuorumFailed
+    }
+  }
+
+  def doGet(key: Key, client: ActorRef, data: HashRngData) : Unit = {
+    val fromNodes = availableNodesFrom(nodesForKey(key, data))
+    if (fromNodes.nonEmpty) {
+      val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, key))
+      val stores = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
+      stores foreach (store => store.fold(
+        _.tell(StoreGet(key), gather),
+        _.tell(StoreGet(key), gather),
+      ))
+    } else {
+      client ! None
+    }
+  }
 
   def availableNodesFrom(l: Set[Node]): Set[Node] = {
     val unreachableMembers = cluster.state.unreachable.map(m => m.address)
@@ -205,33 +212,35 @@ def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
     syncNodes(moved)
     val updData = HashRngData(nodes, data.buckets++moved, updvNodes)
-    log.info(s"[rng] Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
-    (state(updData.nodes.size), updData)
+    log.info(s"Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
+    state(updData.nodes.size) -> updData
   }
 
   def removeNodeFromRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
-    log.info(s"[ring_hash]Removing ${member} from ring")
+    log.info(s"Removing ${member} from ring")
     val unusedvNodes: Set[VNode] = (1 to vNodesNum).map(vnode => hashing.hash(stob(member.address.hostPort).concat(itob(vnode))))(breakOut)
     val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
     val nodes = data.nodes - member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
-    log.info(s"WILL UPDATE ${moved.size} buckets")
+    log.info(s"Will update ${moved.size} buckets")
     val updData = HashRngData(nodes, data.buckets++moved, updvNodes)
     syncNodes(moved)
-    (state(updData.nodes.size), updData)
+    state(updData.nodes.size) -> updData
   }
 
-  def syncNodes(buckets: SortedMap[Bucket,PreferenceList]): Unit = {
+  def syncNodes(_buckets: SortedMap[Bucket,PreferenceList]): Unit = {
     val empty = SortedMap.empty[Bucket,PreferenceList]
-    val repl = buckets.foldLeft(empty){ case (acc, (b, prefList)) =>
+    val buckets = _buckets.foldLeft(empty){ case (acc, (b, prefList)) =>
       if (prefList contains local) {
         prefList.filterNot(_ == local) match {
           case empty if empty.isEmpty => acc
-          case xs => acc + (b -> xs)
+          case prefList => acc + (b -> prefList)
         }
       } else acc
     }
-    context.actorOf(ReplicationSupervisor.props(repl), s"repl-${now_ms()}") ! "go-repl"
+    replication foreach (_ ! PoisonPill)
+    replication = context.actorOf(ReplicationSupervisor.props(buckets), s"repl-${now_ms()}").some
+    replication foreach (_ ! "go-repl")
   }
 
   def state(nodes: Int): QuorumState = nodes match {
