@@ -28,6 +28,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
       val k = itob(hashing.findBucket(key)).concat(keyWord).concat(key)
       val result: Seq[Data] = get(k).map(SeqData.parseFrom(_).data).getOrElse(Seq.empty[Data])
       sender ! GetResp(result)
+
     case GetBucketData(b) => 
       val k = itob(b).concat(keysWord)
       val b_info = get(k).map(BucketInfo.parseFrom(_))
@@ -39,30 +40,6 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
         )
       )
       sender ! BucketData(b, items)
-    case GetSavingEntity(k) =>
-      import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
-      val key: Array[Byte] = {
-        val bos = new ByteArrayOutputStream
-        val out = new ObjectOutputStream(bos)
-        out.writeObject(new String(k.toByteArray, "UTF-8"))
-        out.close()
-        bos.toByteArray
-      }
-      val data: Array[Byte] = leveldb.get(key, ro)
-      val res: SavingEntity = if (data == null) {
-        SavingEntity(k, dummy, ByteString.EMPTY)
-      } else {
-        val in = new ObjectInputStream(new ByteArrayInputStream(data))
-        val obj = in.readObject
-        in.close()
-        val decoded = obj.asInstanceOf[(akka.util.ByteString, Option[String])] 
-        SavingEntity(k, atob(decoded._1.toArray), decoded._2.fold(ByteString.EMPTY)(stob))
-      }
-      sender ! res
-    case GetBucketVc(b) =>
-      val k = itob(b).concat(keysWord)
-      val vc = get(k).map(BucketInfo.parseFrom(_).vc).getOrElse(Nil)
-      sender ! BucketVc(vc)
     case GetBucketIfNew(b, vc) =>
       val vc_other: VectorClock = makevc(vc)
       val k = itob(b).concat(keysWord)
@@ -85,6 +62,31 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
         case None =>
           sender ! BucketUpToDate(b)
       }
+    case GetBucketVc(b) =>
+      val k = itob(b).concat(keysWord)
+      val vc = get(k).map(BucketInfo.parseFrom(_).vc).getOrElse(Nil)
+      sender ! BucketVc(vc)
+
+    case GetSavingEntity(k) =>
+      import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
+      val key: Array[Byte] = {
+        val bos = new ByteArrayOutputStream
+        val out = new ObjectOutputStream(bos)
+        out.writeObject(new String(k.toByteArray, "UTF-8"))
+        out.close()
+        bos.toByteArray
+      }
+      val data: Array[Byte] = leveldb.get(key, ro)
+      val res: SavingEntity = if (data == null) {
+        SavingEntity(k, dummy, ByteString.EMPTY)
+      } else {
+        val in = new ObjectInputStream(new ByteArrayInputStream(data))
+        val obj = in.readObject
+        in.close()
+        val decoded = obj.asInstanceOf[(akka.util.ByteString, Option[String])] 
+        SavingEntity(k, atob(decoded._1.toArray), decoded._2.fold(ByteString.EMPTY)(stob))
+      }
+      sender ! res
     case _ =>    
   }
 
