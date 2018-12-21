@@ -65,10 +65,10 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   def doBulkPut(datas: Seq[Data], vc: VectorClockList): Unit = {
     withBatch{ batch =>
       // update bucket with provided vector clock
+      val newKeys = datas.map(_.key)
       datas.map(_.bucket).distinct.foreach{ bucket =>
         val bucket_id: Key = itob(bucket).concat(keysWord)
         val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_))
-        val newKeys = datas.map(_.key)
         bucket_info match {
           case Some(x) =>
             batch.put(
@@ -114,11 +114,11 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
     val updated: (PutStatus, Seq[Data]) = keyData match {
       case None => 
         Saved -> Seq(data)
-      case Some(list) if list.size == 1 & descendant(makevc(list.head.vc), makevc(data.vc)) => 
+      case Some(list) if list.size === 1 & descendant(makevc(list.head.vc), makevc(data.vc)) => 
         Saved -> Seq(data)
-      case Some(list) if list forall (d => descendant(makevc(d.vc), makevc(data.vc))) =>
+      case Some(list) if list.forall(d => descendant(makevc(d.vc), makevc(data.vc))) =>
         val newVC = list.foldLeft(makevc(data.vc))((sum, i) => sum.merge(makevc(i.vc)))
-        Saved -> Seq(data.copy(vc = fromvc(newVC)))
+        Saved -> Seq(data.copy(vc=fromvc(newVC)))
       case Some(brokenData) => 
         val broken = data +: brokenData
         Conflict(broken) -> broken

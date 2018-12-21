@@ -6,7 +6,7 @@ import akka.cluster.{VectorClock}
 import com.google.protobuf.ByteString
 import leveldbjnr._
 import mws.rng.data.{Data, SeqData, BucketInfo}
-import mws.rng.msg.{StoreGet, GetResp, BucketGet, GetBucketResp, GetSavingEntity, SavingEntity, GetBucketVc, BucketVc, GetBucketIfNew, BucketUpToDate, NewerBucket}
+import mws.rng.msg.{StoreGet, GetResp, GetBucketData, BucketData, GetSavingEntity, SavingEntity, GetBucketVc, BucketVc, GetBucketIfNew, BucketUpToDate, NewerBucketData, BucketDataItem}
 
 object ReadonlyStore {
   def props(leveldb: LevelDB): Props = Props(new ReadonlyStore(leveldb))
@@ -28,14 +28,17 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
       val k = itob(hashing.findBucket(key)).concat(keyWord).concat(key)
       val result: Seq[Data] = get(k).map(SeqData.parseFrom(_).data).getOrElse(Seq.empty[Data])
       sender ! GetResp(result)
-    case BucketGet(b) => 
+    case GetBucketData(b) => 
       val k = itob(b).concat(keysWord)
       val b_info = get(k).map(BucketInfo.parseFrom(_))
-      val keys = b_info.map(_.keys).getOrElse(Nil)
-      val data = keys.foldLeft(Nil: Seq[Data])((acc, key) =>
-        get(itob(b).concat(keyWord).concat(key)).map(SeqData.parseFrom(_).data).getOrElse(Nil) ++ acc
+      val keys: Seq[Key] = b_info.map(_.keys).getOrElse(Nil)
+      val items: Seq[BucketDataItem] = keys.map(key =>
+        BucketDataItem(
+          key = key,
+          data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_))
+        )
       )
-      sender ! GetBucketResp(b, data)
+      sender ! BucketData(b, items)
     case GetSavingEntity(k) =>
       import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
       val key: Array[Byte] = {
@@ -70,10 +73,14 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
           vc_other == vc_local || vc_other > vc_local match {
             case true => sender ! BucketUpToDate(b)
             case false =>
-              val data = b_info.keys.foldLeft(Nil: Seq[Data])((acc, key) =>
-                get(itob(b).concat(keyWord).concat(key)).map(SeqData.parseFrom(_).data).getOrElse(Nil) ++ acc
+              val keys = b_info.keys
+              val items: Seq[BucketDataItem] = keys.map(key =>
+                BucketDataItem(
+                  key = key,
+                  data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_))
+                )
               )
-              sender ! NewerBucket(b, b_info.vc, data)
+              sender ! NewerBucketData(b, b_info.vc, items)
           }
         case None =>
           sender ! BucketUpToDate(b)

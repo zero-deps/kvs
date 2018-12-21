@@ -10,17 +10,17 @@ message Msg {
     StorePut storePut = 2;
     StoreDelete storeDelete = 3;
     BucketPut bucketPut = 4;
-    BucketGet bucketGet = 5;
+    GetBucketData getBucketData = 5;
     GetResp getResp = 6;
     PutSavingEntity putSavingEntity = 7;
     GetSavingEntity getSavingEntity = 8;
-    GetBucketResp getBucketResp = 9;
+    BucketData bucketData = 9;
     SavingEntity savingEntity = 10;
     ChangeState changeState = 11;
     Saved saved = 12;
     GetBucketIfNew getBucketIfNew = 13;
     BucketUpToDate bucketUpToDate = 14;
-    NewerBucket newerBucket = 15;
+    NewerBucketData newerBucketData = 15;
   }
 }
 
@@ -41,7 +41,7 @@ message BucketPut {
   repeated Vec vc = 2;
 }
 
-message BucketGet { 
+message GetBucketData { 
   int32 b = 1;
 }
 
@@ -59,9 +59,14 @@ message GetSavingEntity {
   bytes k = 1;
 }
 
-message GetBucketResp {
+message BucketData {
   int32 b = 1;
-  repeated Data l = 2;
+  repeated BucketDataItem items = 2;
+}
+
+message BucketDataItem {
+  bytes key = 1;
+  SeqData data = 2;
 }
 
 message SavingEntity {
@@ -94,10 +99,10 @@ message BucketUpToDate {
   int32 b = 1;
 }
 
-message NewerBucket {
+message NewerBucketData {
   int32 b = 1;
   repeated Vec vc = 2;
-  repeated Data l = 3;
+  repeated BucketDataItem items = 3;
 }
 
 message ReplFailed {

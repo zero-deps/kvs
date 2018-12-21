@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 import leveldbjnr._
 import mws.kvs.LeveldbOps
 import mws.rng.data.{Data, DumpKV, KV}
-import mws.rng.msg.{BucketGet, GetBucketResp, PutSavingEntity, GetSavingEntity, SavingEntity}
+import mws.rng.msg.{GetBucketData, BucketData, PutSavingEntity, GetSavingEntity, SavingEntity, BucketDataItem}
 import mws.rng.store._
 import scala.annotation.tailrec
 import scala.collection.immutable.{SortedMap, SortedSet}
@@ -50,17 +50,19 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
         db = LeveldbOps.open(context.system, filePath)
         dumpStore = context.actorOf(Props(classOf[WriteStore], db))
         buckets(state.current).foreach(n => stores.get(n, "ring_readonly_store").fold(
-          _ ! BucketGet(state.current),
-          _ ! BucketGet(state.current),
+          _ ! GetBucketData(state.current),
+          _ ! GetBucketData(state.current),
         ))
         goto(Collecting) using DumpData(state.current, buckets(state.current), Seq.empty, None, Some(sender))
     }
 
     when(Collecting){
-      case Event(GetBucketResp(b,data), state) => // TODO add timeout if any node is not responding.
+      //todo: add timeout if any node is not responding
+      case Event(BucketData(b, items: Seq[BucketDataItem]), state) =>
+        val data: Seq[Data] = items.flatMap(_.data.map(_.data)).flatten //todo: remove this `data` with `items`
         val pList = state.prefList - (if(sender().path.address.hasLocalScope) local else sender().path.address)
         if (pList.isEmpty) {
-          val merged: Seq[Data] = mergeBucketData((data +: state.collected).foldLeft(Seq.empty[Data])((acc, l) => l ++ acc), Seq.empty)
+          val merged: Seq[Data] = mergeBucketData((data +: state.collected).foldLeft(Seq.empty[Data])((acc, l) => l ++ acc))
           val lastKey: Option[Key] = if (merged.size == 0) {
             state.lastKey
           } else {
@@ -79,8 +81,8 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
               stop()
             case nextBucket =>
               buckets(nextBucket).foreach(n => stores.get(n, "ring_readonly_store").fold(
-                _ ! BucketGet(nextBucket),
-                _ ! BucketGet(nextBucket),
+                _ ! GetBucketData(nextBucket),
+                _ ! GetBucketData(nextBucket),
               ))
               stay() using DumpData(nextBucket, buckets(nextBucket), Nil, lastKey, state.client)
           }
@@ -212,7 +214,7 @@ class DumpProcessor extends Actor with ActorLogging {
       val timestamp = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss").format(Calendar.getInstance().getTime)
       val dumpPath = s"${sd.path}/rng_dump_${timestamp}"
       val dumpIO = context.actorOf(DumpIO.props(dumpPath))
-      sd.buckets(0).foreach(n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(0), _ ! BucketGet(0)))
+      sd.buckets(0).foreach(n => stores.get(n, "ring_readonly_store").fold(_ ! GetBucketData(0), _ ! GetBucketData(0)))
       context.become(saveDump(sd.buckets, sd.local, dumpIO, sender)())
   }
 
@@ -255,7 +257,7 @@ class DumpProcessor extends Actor with ActorLogging {
       if (!pullWorking && putQueue.size < 50 && processBucket < maxBucket) {
         processBucket = processBucket + 1
         pullWorking = true
-        buckets(processBucket).foreach(n => stores.get(n, "ring_readonly_store").fold(_ ! BucketGet(processBucket), _ ! BucketGet(processBucket)))  
+        buckets(processBucket).foreach(n => stores.get(n, "ring_readonly_store").fold(_ ! GetBucketData(processBucket), _ ! GetBucketData(processBucket)))  
       }
     }
 
@@ -268,13 +270,14 @@ class DumpProcessor extends Actor with ActorLogging {
     }
 
     () => {
-      case res: (GetBucketResp) if processBucket == res.b =>
-        collected = res.l +: collected
-        if (collected.size == buckets(processBucket).size) {
+      case res: (BucketData) if processBucket === res.b =>
+        val res_l: Seq[Data] = res.items.flatMap(_.data.map(_.data)).flatten //todo: replace `res_l` with `items`
+        collected = res_l +: collected
+        if (collected.size === buckets(processBucket).size) {
           pullWorking = false
           pull
 
-          val merged: Seq[Data] = mergeBucketData(collected.flatten, Seq.empty)
+          val merged: Seq[Data] = mergeBucketData(collected.flatten)
           collected = Seq.empty
           keysNumber = keysNumber + merged.size
           if (readyToPut) {
@@ -285,7 +288,7 @@ class DumpProcessor extends Actor with ActorLogging {
           }
           showInfo("main")
         }
-      case res: GetBucketResp =>
+      case res: BucketData =>
         log.error(s"wrong bucket response, expected=${processBucket}, actual=${res.b}")
         stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
         context.stop(self)

@@ -22,14 +22,15 @@ package object rng {
 
   //FSM
   sealed trait FsmState
-  case object ReadyCollect extends FsmState
-  case object Collecting extends FsmState
-  case object Sent extends FsmState
+  final case object ReadyCollect extends FsmState
+  final case object Collecting extends FsmState
+  final case object Sent extends FsmState
 
   sealed trait FsmData
   final case class Statuses(all: List[PutStatus]) extends FsmData
   final case class DataCollection(perNode: Seq[(Option[Data], Node)], nodes: Int) extends FsmData
-  case object OpsTimeout
+  
+  final case object OpsTimeout
 
   def makevc(l: VectorClockList): VectorClock = new VectorClock(TreeMap.empty[String, Long] ++ l.map(a => a.key -> a.value))
   def fromvc(vc: VectorClock): VectorClockList = vc.versions.toSeq.map(a => Vec(a._1, a._2))
@@ -60,6 +61,8 @@ package object rng {
     }
   }
 
+  def mergeBucketData(l: Seq[Data]): Seq[Data] = mergeBucketData(l, merged=Nil)
+
   @tailrec
   def mergeBucketData(l: Seq[Data], merged: Seq[Data]): Seq[Data] = l match {
     case h +: t =>
@@ -80,6 +83,10 @@ package object rng {
   }
 
   implicit val ByteStringEqual: Equal[ByteString] = Equal.equalA
+
+  implicit class ByteStringExt(value: ByteString) {
+    def ++(x: ByteString): ByteString = value.concat(x)
+  }
 
   def now_ms(): Long = System.currentTimeMillis
 }

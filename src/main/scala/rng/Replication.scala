@@ -3,7 +3,7 @@ package mws.rng
 import akka.actor.{ActorLogging, Props, ActorRef, FSM}
 import akka.cluster.{Cluster, VectorClock}
 import mws.rng.data.{Data}
-import mws.rng.msg.{BucketPut, GetBucketVc, BucketVc, GetBucketIfNew, ReplFailed, BucketUpToDate, NewerBucket}
+import mws.rng.msg.{BucketPut, GetBucketVc, BucketVc, GetBucketIfNew, ReplFailed, BucketUpToDate, NewerBucketData}
 import ReplicationSupervisor.{State}
 import scala.collection.immutable.SortedMap
 import scala.concurrent.duration.{Duration}
@@ -98,11 +98,12 @@ class ReplicationWorker(_prefList: PreferenceList, _vc: VectorClock) extends FSM
   startWith(Collecting, ReplState(_prefList, info=Nil, _vc))
 
   when(Collecting){
-    case Event(NewerBucket(b, vc, l), data) =>
+    case Event(NewerBucketData(b, vc, items), data) =>
+      val l: Seq[Data] = items.flatMap(_.data.map(_.data)).flatten //todo: remove flatten
       data.prefList - addr(sender) match {
         case empty if empty.isEmpty =>
           val all = data.info.foldLeft(l)((acc, list) => list ++ acc)
-          val merged = mergeBucketData(all, Nil)
+          val merged = mergeBucketData(all)
           actorMem.get(local, "ring_write_store").fold(
             _ ! BucketPut(merged, fromvc(data.vc)),
             _ ! BucketPut(merged, fromvc(data.vc)),
@@ -121,7 +122,7 @@ class ReplicationWorker(_prefList: PreferenceList, _vc: VectorClock) extends FSM
       data.prefList - addr(sender) match {
         case empty if empty.isEmpty =>
           val all = data.info.foldLeft(Nil: Seq[Data])((acc, list) => list ++ acc)
-          val merged = mergeBucketData(all, Nil)
+          val merged = mergeBucketData(all)
           actorMem.get(local, "ring_write_store").fold(
             _ ! BucketPut(merged, fromvc(data.vc)),
             _ ! BucketPut(merged, fromvc(data.vc)),
