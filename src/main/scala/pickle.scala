@@ -13,11 +13,11 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
       case a: mws.rng.msg.StorePut => msg.Msg(msgType=MsgType.StorePut(a)).toByteArray
       case a: mws.rng.msg.StoreDelete => msg.Msg(msgType=MsgType.StoreDelete(a)).toByteArray
       case a: mws.rng.msg.BucketPut => msg.Msg(msgType=MsgType.BucketPut(a)).toByteArray
-      case a: mws.rng.msg.GetBucketData => msg.Msg(msgType=MsgType.GetBucketData(a)).toByteArray
+      case a: mws.rng.msg_dump.DumpGetBucketData => msg.Msg(msgType=MsgType.DumpGetBucketData(a)).toByteArray
       case a: mws.rng.msg.GetResp => msg.Msg(msgType=MsgType.GetResp(a)).toByteArray
       case a: mws.rng.msg_dump.DumpPut => msg.Msg(msgType=MsgType.DumpPut(a)).toByteArray
       case a: mws.rng.msg_dump.DumpGet => msg.Msg(msgType=MsgType.DumpGet(a)).toByteArray
-      case a: mws.rng.msg.BucketData => msg.Msg(msgType=MsgType.BucketData(a)).toByteArray
+      case a: mws.rng.msg_dump.DumpBucketData => msg.Msg(msgType=MsgType.DumpBucketData(a)).toByteArray
       case a: mws.rng.msg_dump.DumpEn => msg.Msg(msgType=MsgType.DumpEn(a)).toByteArray
       case a: mws.rng.ChangeState => msg.Msg(msgType=MsgType.ChangeState(mws.rng.msg.ChangeState(getQuorumState(a)))).toByteArray
       case mws.rng.store.Saved => msg.Msg(msgType=MsgType.Saved(mws.rng.msg.Saved())).toByteArray
@@ -59,11 +59,11 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
       case MsgType.StorePut(m) => m
       case MsgType.StoreDelete(m) => m
       case MsgType.BucketPut(m) => m
-      case MsgType.GetBucketData(m) => m
+      case MsgType.DumpGetBucketData(m) => m
       case MsgType.GetResp(m) => m
       case MsgType.DumpPut(m) => m
       case MsgType.DumpGet(m) => m
-      case MsgType.BucketData(m) => m
+      case MsgType.DumpBucketData(m) => m
       case MsgType.DumpEn(m) => m
       case MsgType.ChangeState(m) => mws.rng.ChangeState(quorumState(m.quorumState))
       case MsgType.Saved(_) => mws.rng.store.Saved

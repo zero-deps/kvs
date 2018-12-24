@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package mws.rng;
 
+import "data.proto";
+
 message DumpPut {
   bytes k = 1;
   bytes v = 2;
@@ -16,4 +18,18 @@ message DumpEn {
   bytes k = 1;
   bytes v = 2;
   bytes nextKey = 3;
+}
+
+message DumpGetBucketData { 
+  int32 b = 1;
+}
+
+message DumpBucketData {
+  int32 b = 1;
+  repeated DumpBucketDataItem items = 2;
+}
+
+message DumpBucketDataItem {
+  bytes key = 1;
+  repeated Data data = 2;
 }

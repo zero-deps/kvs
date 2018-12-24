@@ -11,11 +11,11 @@ message Msg {
     StorePut storePut = 2;
     StoreDelete storeDelete = 3;
     BucketPut bucketPut = 4;
-    GetBucketData getBucketData = 5;
+    DumpGetBucketData dumpGetBucketData = 5;
     GetResp getResp = 6;
     DumpPut dumpPut = 7;
     DumpGet dumpGet = 8;
-    BucketData bucketData = 9;
+    DumpBucketData dumpBucketData = 9;
     DumpEn dumpEn = 10;
     ChangeState changeState = 11;
     Saved saved = 12;
@@ -42,17 +42,8 @@ message BucketPut {
   repeated Vec bucketVc = 2;
 }
 
-message GetBucketData { 
-  int32 b = 1;
-}
-
 message GetResp {
   repeated Data d = 1;
-}
-
-message BucketData {
-  int32 b = 1;
-  repeated BucketDataItem items = 2;
 }
 
 message BucketDataItem {

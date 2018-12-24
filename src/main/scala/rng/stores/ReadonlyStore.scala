@@ -6,7 +6,8 @@ import akka.cluster.{VectorClock}
 import com.google.protobuf.ByteString
 import leveldbjnr._
 import mws.rng.data.{Data, SeqData, BucketInfo}
-import mws.rng.msg.{StoreGet, GetResp, GetBucketData, BucketData, GetBucketVc, BucketVc, GetBucketIfNew, BucketUpToDate, NewerBucketData, BucketDataItem}
+import mws.rng.msg.{StoreGet, GetResp, GetBucketVc, BucketVc, GetBucketIfNew, BucketUpToDate, NewerBucketData, BucketDataItem}
+import mws.rng.msg_dump.{DumpGetBucketData, DumpBucketData, DumpBucketDataItem}
 import mws.rng.msg_dump.{DumpGet, DumpEn}
 
 object ReadonlyStore {
@@ -30,17 +31,17 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
       val result: Seq[Data] = get(k).map(SeqData.parseFrom(_).data).getOrElse(Seq.empty[Data])
       sender ! GetResp(result)
 
-    case GetBucketData(b) => 
+    case DumpGetBucketData(b) => 
       val k = itob(b).concat(keysWord)
       val b_info = get(k).map(BucketInfo.parseFrom(_))
       val keys: Seq[Key] = b_info.map(_.keys).getOrElse(Nil)
-      val items: Seq[BucketDataItem] = keys.map(key =>
-        BucketDataItem(
+      val items: Seq[DumpBucketDataItem] = keys.map(key =>
+        DumpBucketDataItem(
           key = key,
           data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
         )
       )
-      sender ! BucketData(b, items)
+      sender ! DumpBucketData(b, items)
     case GetBucketIfNew(b, vc) =>
       val vc_other: VectorClock = makevc(vc)
       val k = itob(b).concat(keysWord)
