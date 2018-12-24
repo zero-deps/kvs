@@ -4,7 +4,8 @@ package store
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{Cluster, VectorClock}
 import leveldbjnr._
-import mws.rng.data.{Data, SeqData, ValueKey, BucketInfo}
+import mws.rng.data.{Data, SeqData, BucketInfo}
+import mws.rng.data_dump.{ValueKey}
 import mws.rng.msg.{StorePut, StoreDelete}
 import mws.rng.msg_repl.{ReplBucketPut}
 import mws.rng.msg_dump.{DumpPut}

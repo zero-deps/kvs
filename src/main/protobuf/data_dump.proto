@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package mws.rng;
+
+message DumpKV {
+  repeated KV kv = 1;
+}
+
+message KV {
+  bytes k = 1;
+  bytes v = 2;
+}
+
+message ValueKey {
+  bytes v = 1;
+  bytes nextKey = 2;
+}

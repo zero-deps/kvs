@@ -9,7 +9,8 @@ import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import leveldbjnr._
 import mws.kvs.LeveldbOps
-import mws.rng.data.{Data, DumpKV, KV}
+import mws.rng.data.{Data}
+import mws.rng.data_dump.{DumpKV, KV}
 import mws.rng.msg_dump.{DumpPut, DumpGet, DumpEn, DumpGetBucketData, DumpBucketData, DumpBucketDataItem}
 import mws.rng.store._
 import scala.annotation.tailrec
