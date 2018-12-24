@@ -3,8 +3,9 @@ package mws.rng
 import akka.actor._
 import akka.cluster.Cluster
 import scala.concurrent.duration._
+import scalaz.Scalaz._
 
-class GathererDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, Set[Node]] with ActorLogging{
+class GatherDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, Set[Node]] with ActorLogging{
   import context.system
 
   val config = system.settings.config.getConfig("ring")
@@ -18,7 +19,7 @@ class GathererDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, S
   when(Collecting){
     case Event("ok", nodesLeft) =>
       nodesLeft - addrs(sender()) match {
-        case enough if prefList.size - enough.size == W => // W nodes removed key
+        case enough if prefList.size - enough.size === W => // W nodes removed key
           client ! AckSuccess
           goto(Sent) using(enough)
         case less => stay using(less)

@@ -160,7 +160,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
     val nodes = nodesForKey(k, data)
-    val gather = system.actorOf(Props(classOf[GathererDel], nodes, client))
+    val gather = system.actorOf(Props(classOf[GatherDel], nodes, client))
     val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
     stores.foreach(s => s.fold(
       _.tell(StoreDelete(k), gather), 
@@ -173,7 +173,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     val nodes = availableNodesFrom(nodesForKey(k, data))
     if (nodes.size >= W) {
       val info = PutInfo(k, v, N, W, bucket, local, data.nodes)
-      val gather = system.actorOf(GatherPutFSM.props(client, gatherTimeout, actorsMem, info))
+      val gather = system.actorOf(GatherPut.props(client, gatherTimeout, actorsMem, info))
       val node = if (nodes contains local) local else nodes.head
       actorsMem.get(node, "ring_readonly_store").fold(
         _.tell(StoreGet(k), gather),
@@ -187,7 +187,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   def doGet(key: Key, client: ActorRef, data: HashRngData) : Unit = {
     val fromNodes = availableNodesFrom(nodesForKey(key, data))
     if (fromNodes.nonEmpty) {
-      val gather = system.actorOf(Props(classOf[GatherGetFsm], client, fromNodes.size, R, key))
+      val gather = system.actorOf(Props(classOf[GatherGet], client, fromNodes.size, R, key))
       val stores = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
       stores foreach (store => store.fold(
         _.tell(StoreGet(key), gather),

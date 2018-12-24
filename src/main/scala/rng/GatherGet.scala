@@ -6,7 +6,7 @@ import akka.cluster.VectorClock
 import mws.rng.data.Data
 import mws.rng.msg.{StoreGetAck, StorePut, StoreDelete}
 
-class GatherGetFsm(client: ActorRef, N: Int, R: Int, k: Key)
+class GatherGet(client: ActorRef, N: Int, R: Int, k: Key)
   extends FSM[FsmState, FsmData] with ActorLogging{
   val stores = SelectionMemorize(context.system)
   val ZERO:Age = (new VectorClock, 0L)

@@ -11,11 +11,11 @@ import scalaz.Scalaz._
 case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
 case class PutInfoBulk(b: List[(Key, Value)], N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
 
-object GatherPutFSM {
-  def props(client: ActorRef, t: Int, actorsMem: SelectionMemorize, putInfo: PutInfo): Props = Props(new GatherPutFSM(client, t, actorsMem, putInfo))
+object GatherPut {
+  def props(client: ActorRef, t: Int, actorsMem: SelectionMemorize, putInfo: PutInfo): Props = Props(new GatherPut(client, t, actorsMem, putInfo))
 }
 
-class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo: PutInfo)
+class GatherPut(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo: PutInfo)
   extends FSM[FsmState, FsmData] with ActorLogging {
 
   startWith(Collecting, Statuses(Nil))
