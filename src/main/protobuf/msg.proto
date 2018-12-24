@@ -106,5 +106,4 @@ message NewerBucketData {
 }
 
 message ReplFailed {
-  repeated string down = 1;
 }

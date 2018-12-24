@@ -67,7 +67,7 @@ class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] wi
           getBucketVc(replica._1)
           goto (Sent) using data.copy(buckets=remaining, progress=pr.copy(done=pr.done+1))
       }
-    case Event(ReplFailed(down), _) =>
+    case Event(ReplFailed(), _) =>
       log.info("replication: skipped with timeout")
       stop()
   }
@@ -135,7 +135,7 @@ class ReplicationWorker(_prefList: PreferenceList, _vc: VectorClock) extends FSM
     case Event(OpsTimeout, data) =>
       log.warning(s"replication: timeout. downing=${data.prefList}")
       data.prefList.map(cluster.down)
-      context.parent ! ReplFailed(data.prefList.map(_.toString).toSeq)
+      context.parent ! ReplFailed()
       stop()
   }
 
