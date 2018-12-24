@@ -60,7 +60,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
     when(Collecting){
       //todo: add timeout if any node is not responding
       case Event(BucketData(b, items: Seq[BucketDataItem]), state) =>
-        val data: Seq[Data] = items.flatMap(_.data.map(_.data)).flatten //todo: remove this `data` with `items`
+        val data: Seq[Data] = items.flatMap(_.data) //todo: replace `data` with `items`
         val pList = state.prefList - (if(sender().path.address.hasLocalScope) local else sender().path.address)
         if (pList.isEmpty) {
           val merged: Seq[Data] = mergeBucketData((data +: state.collected).foldLeft(Seq.empty[Data])((acc, l) => l ++ acc))
@@ -272,7 +272,7 @@ class DumpProcessor extends Actor with ActorLogging {
 
     () => {
       case res: (BucketData) if processBucket === res.b =>
-        val res_l: Seq[Data] = res.items.flatMap(_.data.map(_.data)).flatten //todo: replace `res_l` with `items`
+        val res_l: Seq[Data] = res.items.flatMap(_.data) //todo: replace `res_l` with `items`
         collected = res_l +: collected
         if (collected.size === buckets(processBucket).size) {
           pullWorking = false

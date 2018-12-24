@@ -99,7 +99,7 @@ class ReplicationWorker(_prefList: PreferenceList, _vc: VectorClock) extends FSM
 
   when(Collecting){
     case Event(NewerBucketData(b, vc, items), data) =>
-      val l: Seq[Data] = items.flatMap(_.data.map(_.data)).flatten //todo: remove flatten
+      val l: Seq[Data] = items.flatMap(_.data) //todo: replace `l` with `items`
       data.prefList - addr(sender) match {
         case empty if empty.isEmpty =>
           val all = data.info.foldLeft(l)((acc, list) => list ++ acc)

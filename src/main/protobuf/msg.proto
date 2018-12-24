@@ -57,7 +57,7 @@ message BucketData {
 
 message BucketDataItem {
   bytes key = 1;
-  SeqData data = 2;
+  repeated Data data = 2;
 }
 
 message ChangeState {

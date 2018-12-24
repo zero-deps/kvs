@@ -37,7 +37,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
       val items: Seq[BucketDataItem] = keys.map(key =>
         BucketDataItem(
           key = key,
-          data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_))
+          data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
         )
       )
       sender ! BucketData(b, items)
@@ -55,7 +55,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
               val items: Seq[BucketDataItem] = keys.map(key =>
                 BucketDataItem(
                   key = key,
-                  data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_))
+                  data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
                 )
               )
               sender ! NewerBucketData(b, b_info.vc, items)
