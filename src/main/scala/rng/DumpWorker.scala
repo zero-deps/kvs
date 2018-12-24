@@ -10,7 +10,8 @@ import java.util.concurrent.TimeUnit
 import leveldbjnr._
 import mws.kvs.LeveldbOps
 import mws.rng.data.{Data, DumpKV, KV}
-import mws.rng.msg.{GetBucketData, BucketData, PutSavingEntity, GetSavingEntity, SavingEntity, BucketDataItem}
+import mws.rng.msg.{GetBucketData, BucketData, BucketDataItem}
+import mws.rng.msg_dump.{DumpPut, DumpGet, DumpEn}
 import mws.rng.store._
 import scala.annotation.tailrec
 import scala.collection.immutable.{SortedMap, SortedSet}
@@ -72,7 +73,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
             case `maxBucket` =>
               stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
               log.info(s"Dump complete, sending path to hash, lastKey = $lastKey, keysInDump=$keysInDump")
-              dumpStore ! PutSavingEntity(stob("head_of_keys"), stob("dummy"), lastKey.getOrElse(ByteString.EMPTY))
+              dumpStore ! DumpPut(stob("head_of_keys"), stob("dummy"), lastKey.getOrElse(ByteString.EMPTY))
               dumpStore ! PoisonPill //TODO stop after processing last msg
               Thread.sleep(5000)
               log.info(s"dump ok=$filePath")
@@ -97,7 +98,7 @@ class DumpWorker(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: 
         case None => prevKey
         case Some(h) =>
           log.debug("dump key={}", h.key)
-          Await.ready(dumpStore ? PutSavingEntity(h.key, h.value, prevKey.getOrElse(ByteString.EMPTY)), timeout.duration)
+          Await.ready(dumpStore ? DumpPut(h.key, h.value, prevKey.getOrElse(ByteString.EMPTY)), timeout.duration)
           keysInDump = keysInDump + 1
           linkKeysInDb(ldata.tail, Some(h.key))
       }
@@ -125,15 +126,15 @@ class LoadDumpWorkerJava(path: String) extends FSM[FsmState, Option[ActorRef]] w
     case Event(LoadDump(_, _),_) =>
       dumpDb = LeveldbOps.open(context.system, path)
       store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
-      store ! GetSavingEntity(stob("head_of_keys"))
+      store ! DumpGet(stob("head_of_keys"))
       goto(Collecting) using Some(sender)
   }
 
   when(Collecting){
-    case Event(SavingEntity(k,v,nextKey),state) =>
+    case Event(DumpEn(k,v,nextKey),state) =>
       log.debug("saving state {} -> {}, nextKey = {}", k, v, nextKey)
       if (!nextKey.isEmpty) {
-        store ! GetSavingEntity(nextKey)
+        store ! DumpGet(nextKey)
       }
       size = size + v.size
       ksize = ksize + k.size
@@ -171,12 +172,12 @@ class IterateDumpWorker(path: String, foreach: (ByteString,ByteString) => Unit) 
     case Event(IterateDump(_,_),_) =>
       dumpDb = LeveldbOps.open(context.system, extraxtedDir)
       store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
-      store ! GetSavingEntity(stob("head_of_keys"))
+      store ! DumpGet(stob("head_of_keys"))
       goto(Collecting) using Some(sender)
   }
 
   when(Collecting){
-    case Event(SavingEntity(k,v,nextKey),state) =>
+    case Event(DumpEn(k,v,nextKey),state) =>
       log.debug(s"iterate key=$k")
       foreach(k,v)
       if (nextKey.isEmpty) {
@@ -185,7 +186,7 @@ class IterateDumpWorker(path: String, foreach: (ByteString,ByteString) => Unit) 
         log.debug("iteration ended")
         stop()
       } else {
-        store ! GetSavingEntity(nextKey)
+        store ! DumpGet(nextKey)
         stay() using state
       }
   }

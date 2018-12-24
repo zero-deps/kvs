@@ -6,7 +6,8 @@ import akka.cluster.{VectorClock}
 import com.google.protobuf.ByteString
 import leveldbjnr._
 import mws.rng.data.{Data, SeqData, BucketInfo}
-import mws.rng.msg.{StoreGet, GetResp, GetBucketData, BucketData, GetSavingEntity, SavingEntity, GetBucketVc, BucketVc, GetBucketIfNew, BucketUpToDate, NewerBucketData, BucketDataItem}
+import mws.rng.msg.{StoreGet, GetResp, GetBucketData, BucketData, GetBucketVc, BucketVc, GetBucketIfNew, BucketUpToDate, NewerBucketData, BucketDataItem}
+import mws.rng.msg_dump.{DumpGet, DumpEn}
 
 object ReadonlyStore {
   def props(leveldb: LevelDB): Props = Props(new ReadonlyStore(leveldb))
@@ -67,7 +68,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
       val vc = get(k).map(BucketInfo.parseFrom(_).vc).getOrElse(Nil)
       sender ! BucketVc(vc)
 
-    case GetSavingEntity(k) =>
+    case DumpGet(k) =>
       import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
       val key: Array[Byte] = {
         val bos = new ByteArrayOutputStream
@@ -77,14 +78,14 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
         bos.toByteArray
       }
       val data: Array[Byte] = leveldb.get(key, ro)
-      val res: SavingEntity = if (data == null) {
-        SavingEntity(k, dummy, ByteString.EMPTY)
+      val res: DumpEn = if (data == null) {
+        DumpEn(k, dummy, ByteString.EMPTY)
       } else {
         val in = new ObjectInputStream(new ByteArrayInputStream(data))
         val obj = in.readObject
         in.close()
         val decoded = obj.asInstanceOf[(akka.util.ByteString, Option[String])] 
-        SavingEntity(k, atob(decoded._1.toArray), decoded._2.fold(ByteString.EMPTY)(stob))
+        DumpEn(k, atob(decoded._1.toArray), decoded._2.fold(ByteString.EMPTY)(stob))
       }
       sender ! res
     case _ =>    

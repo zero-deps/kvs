@@ -5,7 +5,8 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{Cluster, VectorClock}
 import leveldbjnr._
 import mws.rng.data.{Data, SeqData, ValueKey, BucketInfo}
-import mws.rng.msg.{StorePut, PutSavingEntity, StoreDelete, BucketPut}
+import mws.rng.msg.{StorePut, StoreDelete, BucketPut}
+import mws.rng.msg_dump.{DumpPut}
 import scalaz.Scalaz._
 
 object WriteStore {
@@ -54,8 +55,8 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   def receive: Receive = {
     case StorePut(Some(data)) => 
       sender ! doPut(data)
-    case PutSavingEntity(k: Key, v: Value, nextKey: Key) =>
-      withBatch(batch => { batch.put(k.toByteArray, ValueKey(v=v, nextKey=nextKey).toByteArray) })
+    case DumpPut(k: Key, v: Value, nextKey: Key) =>
+      withBatch(_.put(k.toByteArray, ValueKey(v=v, nextKey=nextKey).toByteArray))
       sender() ! "done"
     case StoreDelete(data) => sender ! doDelete(data)
     case BucketPut(data, vc) => doBulkPut(data, vc)

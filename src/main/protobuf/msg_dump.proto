@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package mws.rng;
+
+message DumpPut {
+  bytes k = 1;
+  bytes v = 2;
+  bytes prev = 3;
+}
+
+message DumpGet {
+  bytes k = 1;
+}
+
+message DumpEn {
+  bytes k = 1;
+  bytes v = 2;
+  bytes nextKey = 3;
+}
