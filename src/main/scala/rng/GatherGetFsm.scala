@@ -4,7 +4,7 @@ import akka.actor._
 import scala.concurrent.duration._
 import akka.cluster.VectorClock
 import mws.rng.data.Data
-import mws.rng.msg.{GetResp, StorePut, StoreDelete}
+import mws.rng.msg.{StoreGetAck, StorePut, StoreDelete}
 
 class GatherGetFsm(client: ActorRef, N: Int, R: Int, k: Key)
   extends FSM[FsmState, FsmData] with ActorLogging{
@@ -15,7 +15,7 @@ class GatherGetFsm(client: ActorRef, N: Int, R: Int, k: Key)
   setTimer("send_by_timeout", OpsTimeout, context.system.settings.config.getInt("ring.gather-timeout").seconds)
 
   when(Collecting) {
-    case Event(GetResp(rez), state@DataCollection(perNode, nodes)) =>
+    case Event(StoreGetAck(rez), state@DataCollection(perNode, nodes)) =>
       val address = sender().path.address
       val receive: Seq[(Option[Data], Node)] = if (rez.isEmpty) {
         Seq(None -> address)

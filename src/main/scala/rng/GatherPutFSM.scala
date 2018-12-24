@@ -3,7 +3,7 @@ package mws.rng
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import akka.cluster.VectorClock
 import mws.rng.data.Data
-import mws.rng.msg.{GetResp, StorePut}
+import mws.rng.msg.{StoreGetAck, StorePut}
 import mws.rng.store.{PutStatus, Saved}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
@@ -22,7 +22,7 @@ class GatherPutFSM(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo:
   setTimer("send_by_timeout", OpsTimeout, t.seconds)
 
   when(Collecting){
-    case Event(GetResp(data), _) =>
+    case Event(StoreGetAck(data), _) =>
       val vc: VectorClock = if (data.size === 1) {
         makevc(data.head.vc)
       } else if (data.size > 1) {

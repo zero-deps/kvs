@@ -6,7 +6,7 @@ import akka.cluster.{VectorClock}
 import com.google.protobuf.ByteString
 import leveldbjnr._
 import mws.rng.data.{Data, SeqData, BucketInfo}
-import mws.rng.msg.{StoreGet, GetResp}
+import mws.rng.msg.{StoreGet, StoreGetAck}
 import mws.rng.msg_repl.{ReplGetBucketVc, ReplBucketVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplBucketDataItem}
 import mws.rng.msg_dump.{DumpGetBucketData, DumpBucketData, DumpBucketDataItem}
 import mws.rng.msg_dump.{DumpGet, DumpEn}
@@ -30,7 +30,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
     case StoreGet(key) =>
       val k = itob(hashing.findBucket(key)).concat(keyWord).concat(key)
       val result: Seq[Data] = get(k).map(SeqData.parseFrom(_).data).getOrElse(Seq.empty[Data])
-      sender ! GetResp(result)
+      sender ! StoreGetAck(result)
 
     case DumpGetBucketData(b) => 
       val k = itob(b).concat(keysWord)

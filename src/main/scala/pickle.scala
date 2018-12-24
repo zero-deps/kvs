@@ -11,7 +11,7 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
     o match {
       case a: mws.rng.ChangeState => msg.Msg(msgType=MsgType.ChangeState(mws.rng.msg.ChangeState(getQuorumState(a)))).toByteArray
 
-      case a: mws.rng.msg.GetResp => msg.Msg(msgType=MsgType.GetResp(a)).toByteArray
+      case a: mws.rng.msg.StoreGetAck => msg.Msg(msgType=MsgType.StoreGetAck(a)).toByteArray
       case a: mws.rng.msg.StoreDelete => msg.Msg(msgType=MsgType.StoreDelete(a)).toByteArray
       case a: mws.rng.msg.StoreGet => msg.Msg(msgType=MsgType.StoreGet(a)).toByteArray
       case a: mws.rng.msg.StorePut => msg.Msg(msgType=MsgType.StorePut(a)).toByteArray
@@ -66,7 +66,7 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
       case MsgType.DumpGet(m) => m
       case MsgType.DumpGetBucketData(m) => m
       case MsgType.DumpPut(m) => m
-      case MsgType.GetResp(m) => m
+      case MsgType.StoreGetAck(m) => m
       case MsgType.ReplBucketPut(m) => m
       case MsgType.ReplBucketUpToDate(m) => m
       case MsgType.ReplGetBucketIfNew(m) => m

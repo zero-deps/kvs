@@ -14,7 +14,6 @@ message Msg {
     DumpGet dumpGet = 8;
     DumpGetBucketData dumpGetBucketData = 5;
     DumpPut dumpPut = 7;
-    GetResp getResp = 6;
     ReplBucketPut replBucketPut = 4;
     ReplBucketUpToDate replBucketUpToDate = 14;
     ReplGetBucketIfNew replGetBucketIfNew = 13;
@@ -22,6 +21,7 @@ message Msg {
     Saved saved = 12;
     StoreDelete storeDelete = 3;
     StoreGet storeGet = 1;
+    StoreGetAck storeGetAck = 6;
     StorePut storePut = 2;
   }
 }
@@ -38,7 +38,7 @@ message StoreDelete {
   bytes key = 1;
 }
 
-message GetResp {
+message StoreGetAck {
   repeated Data d = 1;
 }
 
