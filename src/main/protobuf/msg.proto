@@ -4,24 +4,25 @@ package mws.rng;
 
 import "data.proto";
 import "msg_dump.proto";
+import "msg_repl.proto";
 
 message Msg {
   oneof msg_type {
-    StoreGet storeGet = 1;
-    StorePut storePut = 2;
-    StoreDelete storeDelete = 3;
-    BucketPut bucketPut = 4;
-    DumpGetBucketData dumpGetBucketData = 5;
-    GetResp getResp = 6;
-    DumpPut dumpPut = 7;
-    DumpGet dumpGet = 8;
+    ChangeState changeState = 11;
     DumpBucketData dumpBucketData = 9;
     DumpEn dumpEn = 10;
-    ChangeState changeState = 11;
+    DumpGet dumpGet = 8;
+    DumpGetBucketData dumpGetBucketData = 5;
+    DumpPut dumpPut = 7;
+    GetResp getResp = 6;
+    ReplBucketPut replBucketPut = 4;
+    ReplBucketUpToDate replBucketUpToDate = 14;
+    ReplGetBucketIfNew replGetBucketIfNew = 13;
+    ReplNewerBucketData replNewerBucketData = 15;
     Saved saved = 12;
-    GetBucketIfNew getBucketIfNew = 13;
-    BucketUpToDate bucketUpToDate = 14;
-    NewerBucketData newerBucketData = 15;
+    StoreDelete storeDelete = 3;
+    StoreGet storeGet = 1;
+    StorePut storePut = 2;
   }
 }
 
@@ -37,18 +38,8 @@ message StoreDelete {
   bytes key = 1;
 }
 
-message BucketPut {
-  repeated Data data = 1;
-  repeated Vec bucketVc = 2;
-}
-
 message GetResp {
   repeated Data d = 1;
-}
-
-message BucketDataItem {
-  bytes key = 1;
-  repeated Data data = 2;
 }
 
 message ChangeState {
@@ -56,30 +47,4 @@ message ChangeState {
 }
 
 message Saved {
-}
-
-message GetBucketVc { 
-  int32 b = 1;
-}
-
-message BucketVc {
-  repeated Vec vc = 1;
-}
-
-message GetBucketIfNew { 
-  int32 b = 1;
-  repeated Vec vc = 2;
-}
-
-message BucketUpToDate {
-  int32 b = 1;
-}
-
-message NewerBucketData {
-  int32 b = 1;
-  repeated Vec vc = 2;
-  repeated BucketDataItem items = 3;
-}
-
-message ReplFailed {
 }

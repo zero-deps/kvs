@@ -3,7 +3,7 @@ package mws.rng
 import akka.actor.{ActorLogging, Props, ActorRef, FSM}
 import akka.cluster.{Cluster, VectorClock}
 import mws.rng.data.{Data}
-import mws.rng.msg.{BucketPut, GetBucketVc, BucketVc, GetBucketIfNew, ReplFailed, BucketUpToDate, NewerBucketData}
+import mws.rng.msg_repl.{ReplBucketPut, ReplGetBucketVc, ReplBucketVc, ReplGetBucketIfNew, ReplFailed, ReplBucketUpToDate, ReplNewerBucketData}
 import ReplicationSupervisor.{State}
 import scala.collection.immutable.SortedMap
 import scala.concurrent.duration.{Duration}
@@ -41,15 +41,15 @@ class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] wi
 
   // after ask for vc of bucket
   when(Sent){
-    case Event(b: BucketVc, data) =>
+    case Event(b: ReplBucketVc, data) =>
       val replica = data.buckets.head // safe
       val worker = {
         val vc = makevc(b.vc)
         context.actorOf(ReplicationWorker.props(prefList=replica._2, vc))
       }
       replica._2.map(node => actorMem.get(node, "ring_readonly_store").fold(
-        _.tell(GetBucketIfNew(b=replica._1, b.vc), worker),
-        _.tell(GetBucketIfNew(b=replica._1, b.vc), worker),
+        _.tell(ReplGetBucketIfNew(b=replica._1, b.vc), worker),
+        _.tell(ReplGetBucketIfNew(b=replica._1, b.vc), worker),
       ))
       goto (Collecting) using data
   }
@@ -74,8 +74,8 @@ class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] wi
 
   def getBucketVc(b: Bucket): Unit = {
     actorMem.get(local, "ring_readonly_store").fold(
-      _ ! GetBucketVc(b),
-      _ ! GetBucketVc(b),
+      _ ! ReplGetBucketVc(b),
+      _ ! ReplGetBucketVc(b),
     )
   }
 }
@@ -98,15 +98,15 @@ class ReplicationWorker(_prefList: PreferenceList, _vc: VectorClock) extends FSM
   startWith(Collecting, ReplState(_prefList, info=Nil, _vc))
 
   when(Collecting){
-    case Event(NewerBucketData(b, vc, items), data) =>
+    case Event(ReplNewerBucketData(b, vc, items), data) =>
       val l: Seq[Data] = items.flatMap(_.data) //todo: replace `l` with `items`
       data.prefList - addr(sender) match {
         case empty if empty.isEmpty =>
           val all = data.info.foldLeft(l)((acc, list) => list ++ acc)
           val merged = mergeBucketData(all)
           actorMem.get(local, "ring_write_store").fold(
-            _ ! BucketPut(merged, fromvc(data.vc)),
-            _ ! BucketPut(merged, fromvc(data.vc)),
+            _ ! ReplBucketPut(merged, fromvc(data.vc)),
+            _ ! ReplBucketPut(merged, fromvc(data.vc)),
           )
           context.parent ! b
           stop()
@@ -118,14 +118,14 @@ class ReplicationWorker(_prefList: PreferenceList, _vc: VectorClock) extends FSM
           )
       }
 
-    case Event(BucketUpToDate(b), data) =>
+    case Event(ReplBucketUpToDate(b), data) =>
       data.prefList - addr(sender) match {
         case empty if empty.isEmpty =>
           val all = data.info.foldLeft(Nil: Seq[Data])((acc, list) => list ++ acc)
           val merged = mergeBucketData(all)
           actorMem.get(local, "ring_write_store").fold(
-            _ ! BucketPut(merged, fromvc(data.vc)),
-            _ ! BucketPut(merged, fromvc(data.vc)),
+            _ ! ReplBucketPut(merged, fromvc(data.vc)),
+            _ ! ReplBucketPut(merged, fromvc(data.vc)),
           )
           context.parent ! b
           stop()

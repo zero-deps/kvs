@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package mws.rng;
+
+import "data.proto";
+
+message ReplGetBucketVc { 
+  int32 b = 1;
+}
+
+message ReplBucketVc {
+  repeated Vec vc = 1;
+}
+
+message ReplGetBucketIfNew { 
+  int32 b = 1;
+  repeated Vec vc = 2;
+}
+
+message ReplBucketUpToDate {
+  int32 b = 1;
+}
+
+message ReplNewerBucketData {
+  int32 b = 1;
+  repeated Vec vc = 2;
+  repeated ReplBucketDataItem items = 3;
+}
+
+message ReplBucketDataItem {
+  bytes key = 1;
+  repeated Data data = 2;
+}
+
+message ReplBucketPut {
+  repeated Data data = 1;
+  repeated Vec bucketVc = 2;
+}
+
+message ReplFailed {
+}

@@ -6,7 +6,8 @@ import akka.cluster.{VectorClock}
 import com.google.protobuf.ByteString
 import leveldbjnr._
 import mws.rng.data.{Data, SeqData, BucketInfo}
-import mws.rng.msg.{StoreGet, GetResp, GetBucketVc, BucketVc, GetBucketIfNew, BucketUpToDate, NewerBucketData, BucketDataItem}
+import mws.rng.msg.{StoreGet, GetResp}
+import mws.rng.msg_repl.{ReplGetBucketVc, ReplBucketVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplBucketDataItem}
 import mws.rng.msg_dump.{DumpGetBucketData, DumpBucketData, DumpBucketDataItem}
 import mws.rng.msg_dump.{DumpGet, DumpEn}
 
@@ -42,7 +43,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
         )
       )
       sender ! DumpBucketData(b, items)
-    case GetBucketIfNew(b, vc) =>
+    case ReplGetBucketIfNew(b, vc) =>
       val vc_other: VectorClock = makevc(vc)
       val k = itob(b).concat(keysWord)
       val b_info = get(k).map(BucketInfo.parseFrom(_))
@@ -50,24 +51,24 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
         case Some(b_info) =>
           val vc_local: VectorClock = makevc(b_info.vc)
           vc_other == vc_local || vc_other > vc_local match {
-            case true => sender ! BucketUpToDate(b)
+            case true => sender ! ReplBucketUpToDate(b)
             case false =>
               val keys = b_info.keys
-              val items: Seq[BucketDataItem] = keys.map(key =>
-                BucketDataItem(
+              val items: Seq[ReplBucketDataItem] = keys.map(key =>
+                ReplBucketDataItem(
                   key = key,
                   data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
                 )
               )
-              sender ! NewerBucketData(b, b_info.vc, items)
+              sender ! ReplNewerBucketData(b, b_info.vc, items)
           }
         case None =>
-          sender ! BucketUpToDate(b)
+          sender ! ReplBucketUpToDate(b)
       }
-    case GetBucketVc(b) =>
+    case ReplGetBucketVc(b) =>
       val k = itob(b).concat(keysWord)
       val vc = get(k).map(BucketInfo.parseFrom(_).vc).getOrElse(Nil)
-      sender ! BucketVc(vc)
+      sender ! ReplBucketVc(vc)
 
     case DumpGet(k) =>
       import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}

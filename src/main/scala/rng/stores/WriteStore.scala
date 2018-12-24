@@ -5,7 +5,8 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{Cluster, VectorClock}
 import leveldbjnr._
 import mws.rng.data.{Data, SeqData, ValueKey, BucketInfo}
-import mws.rng.msg.{StorePut, StoreDelete, BucketPut}
+import mws.rng.msg.{StorePut, StoreDelete}
+import mws.rng.msg_repl.{ReplBucketPut}
 import mws.rng.msg_dump.{DumpPut}
 import scalaz.Scalaz._
 
@@ -59,7 +60,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
       withBatch(_.put(k.toByteArray, ValueKey(v=v, nextKey=nextKey).toByteArray))
       sender() ! "done"
     case StoreDelete(data) => sender ! doDelete(data)
-    case BucketPut(data, vc) => doBulkPut(data, vc)
+    case ReplBucketPut(data, vc) => doBulkPut(data, vc)
     case unhandled => log.warning(s"[store]unhandled message: $unhandled")
   }
 
