@@ -5,7 +5,7 @@ import akka.cluster.VectorClock
 import com.google.protobuf.{ByteString, ByteStringWrap}
 import mws.rng.data.{Data, Vec}
 import mws.rng.data.{Data, Vec}
-import mws.rng.store.PutStatus
+import mws.rng.msg.{StorePutStatus}
 import scala.annotation.tailrec
 import scala.collection.immutable.TreeMap
 import scalaz._
@@ -27,7 +27,7 @@ package object rng {
   final case object Sent extends FsmState
 
   sealed trait FsmData
-  final case class Statuses(all: List[PutStatus]) extends FsmData
+  final case class Statuses(all: List[StorePutStatus]) extends FsmData
   final case class DataCollection(perNode: Seq[(Option[Data], Node)], nodes: Int) extends FsmData
   
   final case object OpsTimeout

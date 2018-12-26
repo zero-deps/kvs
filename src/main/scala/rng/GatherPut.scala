@@ -3,8 +3,7 @@ package mws.rng
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import akka.cluster.VectorClock
 import mws.rng.data.Data
-import mws.rng.msg.{StoreGetAck, StorePut}
-import mws.rng.store.{PutStatus, Saved}
+import mws.rng.msg.{StoreGetAck, StorePut, StorePutStatus, StorePutSaved}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
 
@@ -34,9 +33,9 @@ class GatherPut(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo: Pu
       mapInPut(putInfo.nodes, updatedData)
       stay()
     
-    case Event(incomeStatus: PutStatus, Statuses(statuses)) =>
+    case Event(incomeStatus: StorePutStatus, Statuses(statuses)) =>
       val updStatuses = Statuses( incomeStatus :: statuses )
-      updStatuses.all.count(_ === Saved) match {
+      updStatuses.all.count(_.isInstanceOf[StorePutSaved]) match {
         case n if n == putInfo.N =>
           client ! AckSuccess
           stop()
@@ -53,7 +52,7 @@ class GatherPut(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo: Pu
   }
   
   when(Sent){
-    case Event(status: PutStatus, Statuses(ss)) =>
+    case Event(status: StorePutStatus, Statuses(ss)) =>
       if(ss.size + 1 == putInfo.N)
         stop()
       else

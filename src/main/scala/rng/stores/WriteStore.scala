@@ -6,7 +6,7 @@ import akka.cluster.{Cluster, VectorClock}
 import leveldbjnr._
 import mws.rng.data.{Data, SeqData, BucketInfo}
 import mws.rng.data_dump.{ValueKey}
-import mws.rng.msg.{StorePut, StoreDelete}
+import mws.rng.msg.{StorePut, StoreDelete, StorePutStatus, StorePutSaved, StorePutConflict}
 import mws.rng.msg_repl.{ReplBucketPut}
 import mws.rng.msg_dump.{DumpPut}
 import scalaz.Scalaz._
@@ -111,20 +111,20 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
     }
   }
 
-  def doPut(data: Data): PutStatus = {
+  def doPut(data: Data): StorePutStatus = {
     val keyData: Option[Seq[Data]] = get(itob(data.bucket).concat(keyWord).concat(data.key)).map(SeqData.parseFrom(_).data)
 
-    val updated: (PutStatus, Seq[Data]) = keyData match {
+    val updated: (StorePutStatus, Seq[Data]) = keyData match {
       case None => 
-        Saved -> Seq(data)
+        StorePutSaved() -> Seq(data)
       case Some(list) if list.size === 1 & descendant(makevc(list.head.vc), makevc(data.vc)) => 
-        Saved -> Seq(data)
+        StorePutSaved() -> Seq(data)
       case Some(list) if list.forall(d => descendant(makevc(d.vc), makevc(data.vc))) =>
         val newVC = list.foldLeft(makevc(data.vc))((sum, i) => sum.merge(makevc(i.vc)))
-        Saved -> Seq(data.copy(vc=fromvc(newVC)))
+        StorePutSaved() -> Seq(data.copy(vc=fromvc(newVC)))
       case Some(brokenData) => 
         val broken = data +: brokenData
-        Conflict(broken) -> broken
+        StorePutConflict(broken) -> broken
     }
     
     withBatch{ batch =>

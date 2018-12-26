@@ -27,8 +27,6 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
       case a: mws.rng.msg_repl.ReplGetBucketIfNew => msg.Msg(msgType=MsgType.ReplGetBucketIfNew(a)).toByteArray
       case a: mws.rng.msg_repl.ReplNewerBucketData => msg.Msg(msgType=MsgType.ReplNewerBucketData(a)).toByteArray
 
-      case mws.rng.store.Saved => msg.Msg(msgType=MsgType.Saved(mws.rng.msg.Saved())).toByteArray
-
       case _ => throw new IllegalArgumentException(s"${getClass.getName} can't serialize [${o}]")
     }
   }
@@ -71,7 +69,6 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
       case MsgType.ReplBucketUpToDate(m) => m
       case MsgType.ReplGetBucketIfNew(m) => m
       case MsgType.ReplNewerBucketData(m) => m
-      case MsgType.Saved(_) => mws.rng.store.Saved
       case MsgType.StoreDelete(m) => m
       case MsgType.StoreGet(m) => m
       case MsgType.StorePut(m) => m

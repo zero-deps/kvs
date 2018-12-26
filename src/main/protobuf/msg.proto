@@ -8,21 +8,20 @@ import "msg_repl.proto";
 
 message Msg {
   oneof msg_type {
-    ChangeState changeState = 11;
-    DumpBucketData dumpBucketData = 9;
-    DumpEn dumpEn = 10;
-    DumpGet dumpGet = 8;
+    ChangeState changeState = 1;
+    DumpBucketData dumpBucketData = 2;
+    DumpEn dumpEn = 3;
+    DumpGet dumpGet = 4;
     DumpGetBucketData dumpGetBucketData = 5;
-    DumpPut dumpPut = 7;
-    ReplBucketPut replBucketPut = 4;
-    ReplBucketUpToDate replBucketUpToDate = 14;
-    ReplGetBucketIfNew replGetBucketIfNew = 13;
-    ReplNewerBucketData replNewerBucketData = 15;
-    Saved saved = 12;
-    StoreDelete storeDelete = 3;
-    StoreGet storeGet = 1;
-    StoreGetAck storeGetAck = 6;
-    StorePut storePut = 2;
+    DumpPut dumpPut = 6;
+    ReplBucketPut replBucketPut = 7;
+    ReplBucketUpToDate replBucketUpToDate = 8;
+    ReplGetBucketIfNew replGetBucketIfNew = 9;
+    ReplNewerBucketData replNewerBucketData = 10;
+    StoreDelete storeDelete = 11;
+    StoreGet storeGet = 12;
+    StoreGetAck storeGetAck = 13;
+    StorePut storePut = 14;
   }
 }
 
@@ -46,5 +45,16 @@ message ChangeState {
   int32 quorumState = 1;
 }
 
-message Saved {
+message StorePutStatus {
+  oneof sealed_value {
+    StorePutSaved saved = 1;
+    StorePutConflict conflict = 2;
+  }
+}
+
+message StorePutSaved {
+}
+
+message StorePutConflict {
+  repeated Data broken = 1;
 }
