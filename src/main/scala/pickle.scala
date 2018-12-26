@@ -9,8 +9,6 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
 
   override def toBinary(o: AnyRef): Array[Byte] = {
     o match {
-      case a: mws.rng.ChangeState => msg.Msg(msgType=MsgType.ChangeState(mws.rng.msg.ChangeState(getQuorumState(a)))).toByteArray
-
       case a: mws.rng.msg.StoreGetAck => msg.Msg(msgType=MsgType.StoreGetAck(a)).toByteArray
       case a: mws.rng.msg.StoreDelete => msg.Msg(msgType=MsgType.StoreDelete(a)).toByteArray
       case a: mws.rng.msg.StoreGet => msg.Msg(msgType=MsgType.StoreGet(a)).toByteArray
@@ -31,26 +29,6 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
     }
   }
 
-  def getQuorumState(changeState: mws.rng.ChangeState): Int = {
-    changeState.s match {
-      case mws.rng.Unsatisfied => 1
-      case mws.rng.Readonly => 2
-      case mws.rng.Effective => 3
-      case mws.rng.WriteOnly => 4
-      case mws.rng.WeakReadonly => 5
-    }
-  }
-
-  def quorumState(v: Int): mws.rng.QuorumState = {
-    v match {
-      case 1 => mws.rng.Unsatisfied
-      case 2 => mws.rng.Readonly
-      case 3 => mws.rng.Effective
-      case 4 => mws.rng.WriteOnly
-      case 5 => mws.rng.WeakReadonly
-    }
-  }
-
   override val includeManifest: Boolean = false
 
   override def fromBinary(data: Array[Byte], manifest: Option[Class[_]]): AnyRef = {
@@ -58,7 +36,6 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
     def err = throw new IllegalArgumentException(s"${getClass.getName} can't deserialize [${m}]")
     m.msgType match {
       case MsgType.Empty => err
-      case MsgType.ChangeState(m) => mws.rng.ChangeState(quorumState(m.quorumState))
       case MsgType.DumpBucketData(m) => m
       case MsgType.DumpEn(m) => m
       case MsgType.DumpGet(m) => m

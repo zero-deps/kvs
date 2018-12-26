@@ -8,7 +8,6 @@ import "msg_repl.proto";
 
 message Msg {
   oneof msg_type {
-    ChangeState changeState = 1;
     DumpBucketData dumpBucketData = 2;
     DumpEn dumpEn = 3;
     DumpGet dumpGet = 4;
@@ -41,10 +40,6 @@ message StoreGetAck {
   repeated Data d = 1;
 }
 
-message ChangeState {
-  int32 quorumState = 1;
-}
-
 message StorePutStatus {
   oneof sealed_value {
     StorePutSaved saved = 1;
@@ -57,4 +52,25 @@ message StorePutSaved {
 
 message StorePutConflict {
   repeated Data broken = 1;
+}
+
+message QuorumState {
+  oneof sealed_value {
+    QuorumStateUnsatisfied quorumStateUnsatisfied = 1;
+    QuorumStateReadonly quorumStateReadonly = 2;
+    QuorumStateEffective quorumStateEffective = 3;
+  }
+}
+
+message QuorumStateUnsatisfied {
+}
+
+message QuorumStateReadonly {
+}
+
+message QuorumStateEffective {
+}
+
+message ChangeState {
+  QuorumState s = 1;
 }

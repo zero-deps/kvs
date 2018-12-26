@@ -6,14 +6,13 @@ import akka.cluster.{Member, Cluster}
 import akka.util.Timeout
 import com.google.protobuf.ByteString
 import com.typesafe.config.Config
-import mws.rng.msg.{StoreDelete, StoreGet}
-import scala.collection.{breakOut}
+import mws.rng.msg.{StoreDelete, StoreGet, QuorumState, QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective, ChangeState}
 import scala.collection.immutable.{SortedMap, SortedSet}
+import scala.collection.{breakOut}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
 
 sealed class APIMessage
-//kvs
 case class Put(k: Key, v: Value) extends APIMessage
 case class Get(k: Key) extends APIMessage
 case class Delete(k: Key) extends APIMessage
@@ -21,18 +20,9 @@ case class Dump(dumpLocation: String) extends APIMessage
 case class LoadDump(dumpPath: String, javaSer: Boolean) extends APIMessage
 case class IterateDump(dumpPath: String, foreach: (ByteString, ByteString) => Unit) extends APIMessage
 case object RestoreState extends APIMessage
-//utilities
-case object Ready
-case class ChangeState(s: QuorumState)
-case class InternalPut(k: Key, v: Value)
 
-sealed trait QuorumState
-case object Unsatisfied extends QuorumState
-case object Readonly extends QuorumState
-case object Effective extends QuorumState
-//  WriteOnly and WeakReadonly are currently ignored because rng is always readonly
-case object WriteOnly extends QuorumState
-case object WeakReadonly extends QuorumState
+case object Ready
+case class InternalPut(k: Key, v: Value)
 
 final case class HashRngData(
   nodes: Set[Node],
@@ -69,7 +59,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   log.info(s"ring.quorum.R = ${R}".blue)
   log.info(s"ring.leveldb.dir = ${config.getString("leveldb.dir")}".blue)
 
-  startWith(Unsatisfied, HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Node]))
+  startWith(QuorumStateUnsatisfied(), HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Node]))
 
   var replication: Option[ActorRef] = None
 
@@ -79,13 +69,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   
   override def postStop(): Unit = cluster.unsubscribe(self)
 
-  when(Unsatisfied){
+  when(QuorumStateUnsatisfied()){
     case Event(ignoring: APIMessage, _) =>
       log.debug(s"Not enough nodes to process ${cluster.state}: ${ignoring}")
       stay()
   }
 
-  when(Readonly){
+  when(QuorumStateReadonly()){
     case Event(Get(k), data) =>
       doGet(k, sender, data)
       stay()
@@ -101,7 +91,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
   }
 
-  when(Effective){
+  when(QuorumStateEffective()){
     case Event(Ready, _) =>
       sender ! true
       stay()
@@ -119,22 +109,22 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
     case Event(Dump(path), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(Readonly),
-        _ ! ChangeState(Readonly),
+        _ ! ChangeState(QuorumStateReadonly()),
+        _ ! ChangeState(QuorumStateReadonly()),
       ))
       system.actorOf(DumpProcessor.props, s"dump_wrkr-${now_ms()}").forward(DumpProcessor.SaveDump(data.buckets, local, path))
-      goto(Readonly)
+      goto(QuorumStateReadonly())
     case Event(LoadDump(dumpPath, javaSer), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(Readonly),
-        _ ! ChangeState(Readonly),
+        _ ! ChangeState(QuorumStateReadonly()),
+        _ ! ChangeState(QuorumStateReadonly()),
       ))
       if (javaSer) {
         system.actorOf(LoadDumpWorkerJava.props(dumpPath), s"load_wrkr-${now_ms()}").forward(LoadDump(dumpPath, true))
       } else {
         system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}").forward(DumpProcessor.LoadDump(dumpPath))
       }
-      goto(Readonly)
+      goto(QuorumStateReadonly())
     case Event(IterateDump(dumpPath, foreach), data) =>
       system.actorOf(IterateDumpWorker.props(dumpPath,foreach), s"iter_wrkr-${now_ms()}").forward(IterateDump(dumpPath,foreach))
       stay()
@@ -152,7 +142,10 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       sender ! false
       stay()
     case Event(ChangeState(s), data) =>
-      if(state(data.nodes.size) == Unsatisfied) stay() else goto(s)
+      state(data.nodes.size) match {
+        case QuorumStateUnsatisfied() => stay()
+        case _ => goto(s)
+      }
     case Event(InternalPut(k, v), data) =>
       doPut(k, v, sender, data)
       stay()
@@ -244,9 +237,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   def state(nodes: Int): QuorumState = nodes match {
-    case 0 => Unsatisfied
-    case n if n >= Seq(R,W).max => Effective
-    case _ => Readonly
+    case 0 => QuorumStateUnsatisfied()
+    case n if n >= Seq(R,W).max => QuorumStateEffective()
+    case _ => QuorumStateReadonly()
   }
 
   def bucketsToUpdate(maxBucket: Bucket, nodesNumber: Int, vNodes: SortedMap[Bucket, Node], buckets: SortedMap[Bucket, PreferenceList]): SortedMap[Bucket, PreferenceList] = {
