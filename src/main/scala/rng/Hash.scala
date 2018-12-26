@@ -12,15 +12,13 @@ import scala.collection.{breakOut}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
 
-sealed class APIMessage
-case class Put(k: Key, v: Value) extends APIMessage
-case class Get(k: Key) extends APIMessage
-case class Delete(k: Key) extends APIMessage
-case class Dump(dumpLocation: String) extends APIMessage
-case class LoadDump(dumpPath: String, javaSer: Boolean) extends APIMessage
-case class IterateDump(dumpPath: String, foreach: (ByteString, ByteString) => Unit) extends APIMessage
-case object RestoreState extends APIMessage
-
+case class Put(k: Key, v: Value)
+case class Get(k: Key)
+case class Delete(k: Key)
+case class Dump(dumpLocation: String)
+case class LoadDump(dumpPath: String, javaSer: Boolean)
+case class IterateDump(dumpPath: String, foreach: (ByteString, ByteString) => Unit)
+case object RestoreState
 case object Ready
 case class InternalPut(k: Key, v: Value)
 
@@ -70,8 +68,29 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   override def postStop(): Unit = cluster.unsubscribe(self)
 
   when(QuorumStateUnsatisfied()){
-    case Event(ignoring: APIMessage, _) =>
-      log.debug(s"Not enough nodes to process ${cluster.state}: ${ignoring}")
+    case Event(Get(_), _) =>
+      sender ! AckQuorumFailed
+      stay()
+    case Event(Put(_,_), _) =>
+      sender ! AckQuorumFailed
+      stay()
+    case Event(Delete(_), _) =>
+      sender ! AckQuorumFailed
+      stay()
+    case Event(Dump(_), _) =>
+      sender ! AckQuorumFailed
+      stay()
+    case Event(LoadDump(_,_), _) =>
+      sender ! AckQuorumFailed
+      stay()
+    case Event(IterateDump(_,_), _) =>
+      sender ! AckQuorumFailed
+      stay()
+    case Event(RestoreState, _) =>
+      log.warning("Don't know how to restore state when quorum is unsatisfied")
+      stay()
+    case Event(Ready, _) =>
+      sender ! false
       stay()
   }
 
@@ -89,24 +108,39 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Ready, _) =>
       sender ! false
       stay()
+
+    case Event(Put(_,_), _) =>
+      sender ! AckQuorumFailed
+      stay()
+    case Event(Delete(_), _) =>
+      sender ! AckQuorumFailed
+      stay()
+    case Event(Dump(_), _) =>
+      sender ! AckQuorumFailed
+      stay()
+    case Event(LoadDump(_,_), _) =>
+      sender ! AckQuorumFailed
+      stay()
+    case Event(IterateDump(_,_), _) =>
+      sender ! AckQuorumFailed
+      stay()
   }
 
   when(QuorumStateEffective()){
     case Event(Ready, _) =>
       sender ! true
       stay()
+
     case Event(Get(k), data) =>
-      val s = sender
-      doGet(k, s, data)
+      doGet(k, sender, data)
       stay()
     case Event(Put(k,v), data) =>
-      val s = sender
-      doPut(k, v, s, data)
+      doPut(k, v, sender, data)
       stay()
     case Event(Delete(k), data) =>
-      val s = sender
-      doDelete(k, s, data)
+      doDelete(k, sender, data)
       stay()
+
     case Event(Dump(path), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
         _ ! ChangeState(QuorumStateReadonly()),
@@ -127,6 +161,10 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       goto(QuorumStateReadonly())
     case Event(IterateDump(dumpPath, foreach), data) =>
       system.actorOf(IterateDumpWorker.props(dumpPath,foreach), s"iter_wrkr-${now_ms()}").forward(IterateDump(dumpPath,foreach))
+      stay()
+
+    case Event(RestoreState, _) =>
+      log.info("State is already OK")
       stay()
   }
 
@@ -177,7 +215,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     }
   }
 
-  def doGet(key: Key, client: ActorRef, data: HashRngData) : Unit = {
+  def doGet(key: Key, client: ActorRef, data: HashRngData): Unit = {
     val fromNodes = availableNodesFrom(nodesForKey(key, data))
     if (fromNodes.nonEmpty) {
       val gather = system.actorOf(Props(classOf[GatherGet], client, fromNodes.size, R, key))

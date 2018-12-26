@@ -14,7 +14,7 @@ import mws.rng.{atob, stob}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
-import scala.util.Try
+import scala.util.{Try, Success, Failure}
 import scalaz._
 import Scalaz._
 
@@ -38,22 +38,24 @@ class Ring(system: ActorSystem) extends Dba {
 
   def put(key: String, value: V): Res[V] = {
     val putF = (hash ? rng.Put(stob(key), atob(value))).mapTo[rng.Ack]
-    Try(Await.result(putF, d)).toDisjunction match {
-      case \/-(rng.AckSuccess) => value.right
-      case \/-(rng.AckQuorumFailed) => RngAskQuorumFailed.left
-      case \/-(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
-      case -\/(t) => RngThrow(t).left
+    Try(Await.result(putF, d)) match {
+      case Success(rng.AckSuccess) => value.right
+      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case Success(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
+      case Failure(t) => RngThrow(t).left
     }
   }
 
   def isReady: Future[Boolean] = hash.ask(rng.Ready).mapTo[Boolean]
 
   def get(key: String): Res[V] = {
-    val getF = hash.ask(rng.Get(stob(key))).mapTo[Option[rng.Value]]
-    Try(Await.result(getF, d)).toDisjunction match {
-      case \/-(Some(v)) => v.toByteArray.right
-      case \/-(None) => NotFound(key).left
-      case -\/(t) => RngThrow(t).left
+    val getF = hash.ask(rng.Get(stob(key)))
+    Try(Await.result(getF, d)) match {
+      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case Success(Some(v: rng.Value)) => v.toByteArray.right
+      case Success(None) => NotFound(key).left
+      case Success(v) => RngFail(s"Unexpected response: ${v}").left
+      case Failure(t) => RngThrow(t).left
     }
   }
 
@@ -67,10 +69,46 @@ class Ring(system: ActorSystem) extends Dba {
       }
     }
 
-  def save(path: String): Future[String] = (hash.ask(rng.Dump(path))(Timeout(1 hour))).mapTo[String]
-  def load(path: String): Future[Any] = hash.ask(rng.LoadDump(path, javaSer=false))(Timeout(1 hour))
-  def loadJava(path: String): Future[Any] = hash.ask(rng.LoadDump(path, javaSer=true))(Timeout(1 hour))
-  def iterate(path: String, foreach: (String, Array[Byte]) => Unit): Future[Any] = hash.ask(rng.IterateDump(path, (k, v) => foreach(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(Timeout(1 hour))
+  def save(path: String): Res[String] = {
+    val d = 1 hour
+    val x = hash.ask(rng.Dump(path))(Timeout(d))
+    Try(Await.result(x, d)) match {
+      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case Success(v: String) => v.right
+      case Success(v) => RngFail(s"Unexpected response: ${v}").left
+      case Failure(t) => RngThrow(t).left
+    }
+  }
+  def load(path: String): Res[Any] = {
+    val d = 1 hour
+    val x = hash.ask(rng.LoadDump(path, javaSer=false))(Timeout(1 hour))
+    Try(Await.result(x, d)) match {
+      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case Success(v: String) => v.right
+      case Success(v) => RngFail(s"Unexpected response: ${v}").left
+      case Failure(t) => RngThrow(t).left
+    }
+  }
+  def loadJava(path: String): Res[Any] = {
+    val d = 1 hour
+    val x = hash.ask(rng.LoadDump(path, javaSer=true))(Timeout(1 hour))
+    Try(Await.result(x, d)) match {
+      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case Success(v: String) => v.right
+      case Success(v) => RngFail(s"Unexpected response: ${v}").left
+      case Failure(t) => RngThrow(t).left
+    }
+  }
+  def iterate(path: String, foreach: (String, Array[Byte]) => Unit): Res[Any] = {
+    val d = 1 hour
+    val x = hash.ask(rng.IterateDump(path, (k, v) => foreach(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(Timeout(d))
+    Try(Await.result(x, d)) match {
+      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case Success(v: String) => v.right
+      case Success(v) => RngFail(s"Unexpected response: ${v}").left
+      case Failure(t) => RngThrow(t).left
+    }
+  }
 
   def nextid(feed: String): Res[String] = {
     import akka.cluster.sharding._
