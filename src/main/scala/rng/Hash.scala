@@ -15,11 +15,15 @@ import scalaz.Scalaz._
 case class Put(k: Key, v: Value)
 case class Get(k: Key)
 case class Delete(k: Key)
-case class Dump(dumpLocation: String)
-case class LoadDump(dumpPath: String, javaSer: Boolean)
-case class IterateDump(dumpPath: String, foreach: (ByteString, ByteString) => Unit)
+
+case class Save(path: String)
+case class Load(path: String, javaSer: Boolean)
+case class Iterate(path: String, f: (ByteString, ByteString) => Unit)
+
 case object RestoreState
+
 case object Ready
+
 case class InternalPut(k: Key, v: Value)
 
 final case class HashRngData(
@@ -77,13 +81,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Delete(_), _) =>
       sender ! AckQuorumFailed
       stay()
-    case Event(Dump(_), _) =>
+    case Event(Save(_), _) =>
       sender ! AckQuorumFailed
       stay()
-    case Event(LoadDump(_,_), _) =>
+    case Event(Load(_,_), _) =>
       sender ! AckQuorumFailed
       stay()
-    case Event(IterateDump(_,_), _) =>
+    case Event(Iterate(_,_), _) =>
       sender ! AckQuorumFailed
       stay()
     case Event(RestoreState, _) =>
@@ -115,13 +119,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Delete(_), _) =>
       sender ! AckQuorumFailed
       stay()
-    case Event(Dump(_), _) =>
+    case Event(Save(_), _) =>
       sender ! AckQuorumFailed
       stay()
-    case Event(LoadDump(_,_), _) =>
+    case Event(Load(_,_), _) =>
       sender ! AckQuorumFailed
       stay()
-    case Event(IterateDump(_,_), _) =>
+    case Event(Iterate(_,_), _) =>
       sender ! AckQuorumFailed
       stay()
   }
@@ -141,26 +145,26 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       doDelete(k, sender, data)
       stay()
 
-    case Event(Dump(path), data) =>
+    case Event(Save(path), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
         _ ! ChangeState(QuorumStateReadonly()),
         _ ! ChangeState(QuorumStateReadonly()),
       ))
       system.actorOf(DumpProcessor.props, s"dump_wrkr-${now_ms()}").forward(DumpProcessor.SaveDump(data.buckets, local, path))
       goto(QuorumStateReadonly())
-    case Event(LoadDump(dumpPath, javaSer), data) =>
+    case Event(Load(path, javaSer), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
         _ ! ChangeState(QuorumStateReadonly()),
         _ ! ChangeState(QuorumStateReadonly()),
       ))
       if (javaSer) {
-        system.actorOf(LoadDumpWorkerJava.props(dumpPath), s"load_wrkr-${now_ms()}").forward(LoadDump(dumpPath, true))
+        system.actorOf(LoadDumpWorkerJava.props(path), s"load_wrkr-${now_ms()}").forward(Load(path, javaSer=true))
       } else {
-        system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}").forward(DumpProcessor.LoadDump(dumpPath))
+        system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}").forward(DumpProcessor.LoadDump(path))
       }
       goto(QuorumStateReadonly())
-    case Event(IterateDump(dumpPath, foreach), data) =>
-      system.actorOf(IterateDumpWorker.props(dumpPath,foreach), s"iter_wrkr-${now_ms()}").forward(IterateDump(dumpPath,foreach))
+    case Event(Iterate(path, f), data) =>
+      system.actorOf(IterateDumpWorker.props(path,f), s"iter_wrkr-${now_ms()}").forward(Iterate(path, f))
       stay()
 
     case Event(RestoreState, _) =>
