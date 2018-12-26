@@ -8,6 +8,7 @@ import "msg_repl.proto";
 
 message Msg {
   oneof msg_type {
+    ChangeState changeState = 1;
     DumpBucketData dumpBucketData = 2;
     DumpEn dumpEn = 3;
     DumpGet dumpGet = 4;
@@ -21,6 +22,8 @@ message Msg {
     StoreGet storeGet = 12;
     StoreGetAck storeGetAck = 13;
     StorePut storePut = 14;
+    StorePutConflict storePutConflict = 15;
+    StorePutSaved storePutSaved = 16;
   }
 }
 

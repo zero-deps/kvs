@@ -20,7 +20,11 @@ package object rng {
   type Age = (VectorClock, Long)
   type PreferenceList = Set[Node]
 
-  //FSM
+  sealed trait Ack
+  final case object AckSuccess extends Ack
+  final case object AckQuorumFailed extends Ack
+  final case object AckTimeoutFailed extends Ack
+
   sealed trait FsmState
   final case object ReadyCollect extends FsmState
   final case object Collecting extends FsmState

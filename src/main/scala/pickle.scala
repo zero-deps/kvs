@@ -9,10 +9,14 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
 
   override def toBinary(o: AnyRef): Array[Byte] = {
     o match {
+      case a: mws.rng.msg.ChangeState => msg.Msg(msgType=MsgType.ChangeState(a)).toByteArray
+
       case a: mws.rng.msg.StoreGetAck => msg.Msg(msgType=MsgType.StoreGetAck(a)).toByteArray
       case a: mws.rng.msg.StoreDelete => msg.Msg(msgType=MsgType.StoreDelete(a)).toByteArray
       case a: mws.rng.msg.StoreGet => msg.Msg(msgType=MsgType.StoreGet(a)).toByteArray
       case a: mws.rng.msg.StorePut => msg.Msg(msgType=MsgType.StorePut(a)).toByteArray
+      case a: mws.rng.msg.StorePutSaved => msg.Msg(msgType=MsgType.StorePutSaved(a)).toByteArray
+      case a: mws.rng.msg.StorePutConflict => msg.Msg(msgType=MsgType.StorePutConflict(a)).toByteArray
 
       case a: mws.rng.msg_dump.DumpBucketData => msg.Msg(msgType=MsgType.DumpBucketData(a)).toByteArray
       case a: mws.rng.msg_dump.DumpEn => msg.Msg(msgType=MsgType.DumpEn(a)).toByteArray
@@ -35,20 +39,23 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
     val m = msg.Msg.parseFrom(data)
     def err = throw new IllegalArgumentException(s"${getClass.getName} can't deserialize [${m}]")
     m.msgType match {
-      case MsgType.Empty => err
+      case MsgType.ChangeState(m) => m
       case MsgType.DumpBucketData(m) => m
       case MsgType.DumpEn(m) => m
       case MsgType.DumpGet(m) => m
       case MsgType.DumpGetBucketData(m) => m
       case MsgType.DumpPut(m) => m
-      case MsgType.StoreGetAck(m) => m
+      case MsgType.Empty => err
       case MsgType.ReplBucketPut(m) => m
       case MsgType.ReplBucketUpToDate(m) => m
       case MsgType.ReplGetBucketIfNew(m) => m
       case MsgType.ReplNewerBucketData(m) => m
       case MsgType.StoreDelete(m) => m
       case MsgType.StoreGet(m) => m
+      case MsgType.StoreGetAck(m) => m
       case MsgType.StorePut(m) => m
+      case MsgType.StorePutConflict(m) => m
+      case MsgType.StorePutSaved(m) => m
     }
   }
 }

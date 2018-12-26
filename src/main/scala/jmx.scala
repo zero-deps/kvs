@@ -19,7 +19,7 @@ trait KvsMBean {
 
 class KvsJmx(kvs: Kvs, system: ActorSystem) {
   private val server = ManagementFactory.getPlatformMBeanServer
-  private val name = new ObjectName("akka:type=Kvs")
+  private val name = new ObjectName("wpl:type=Kvs")
   import system.log
 
   def createMBean(): Unit = {
