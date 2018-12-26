@@ -24,8 +24,8 @@ class KvsJmx(kvs: Kvs, system: ActorSystem) {
 
   def createMBean(): Unit = {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
-      def save(path: String): String = kvs.dump.save(path).toString
-      def load(path: String): Any = kvs.dump.load(path).toString
+      def save(path: String): String = kvs.dump.save(path).fold(_.toString, identity)
+      def load(path: String): Any = kvs.dump.load(path).fold(_.toString, identity)
 
       def get(k: String): String = kvs.el.get(k).getOrElse("NaN")
       def put(k: String, v: String): Unit = kvs.el.put(k, v)

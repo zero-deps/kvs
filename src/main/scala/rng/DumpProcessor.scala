@@ -15,19 +15,20 @@ import mws.rng.msg_dump.{DumpPut, DumpGet, DumpEn, DumpGetBucketData, DumpBucket
 import mws.rng.store._
 import scala.annotation.tailrec
 import scala.collection.immutable.{SortedMap, SortedSet}
+import scala.concurrent.duration._
 import scala.concurrent.{Await}
 import scala.util.Try
 import scalaz.Scalaz._
 
 object DumpProcessor {
-  def props: Props = Props(new DumpProcessor)
+  def props(): Props = Props(new DumpProcessor)
 
   final case class LoadDump(path: String)
   final case class SaveDump(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: String)
 }
 
 class DumpProcessor extends Actor with ActorLogging {
-  implicit val timeout = Timeout(120, TimeUnit.SECONDS)
+  implicit val timeout = Timeout(120 seconds)
   val maxBucket: Bucket = context.system.settings.config.getInt("ring.buckets") - 1
   val stores = SelectionMemorize(context.system)
   def receive = waitForStart
@@ -49,7 +50,7 @@ class DumpProcessor extends Actor with ActorLogging {
       context.become(saveDump(sd.buckets, sd.local, dumpIO, sender)())
   }
 
-  def loadDump(dumpIO: ActorRef, dumpInitiator: ActorRef): () => Receive = {
+  def loadDump(dumpIO: ActorRef, client: ActorRef): () => Receive = {
     var keysNumber: Long = 0L
     var size: Long = 0L
     var ksize: Long = 0L
@@ -68,14 +69,15 @@ class DumpProcessor extends Actor with ActorLogging {
         }
         if (res.last) {
           log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
-          dumpInitiator ! "done"
+          client ! "done"
           stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
+          dumpIO ! PoisonPill
           context.stop(self)
         }
     }
   }
 
-  def saveDump(buckets: SortedMap[Bucket, PreferenceList], local: Node, dumpIO: ActorRef, dumpInitiator: ActorRef): () => Receive = {
+  def saveDump(buckets: SortedMap[Bucket, PreferenceList], local: Node, dumpIO: ActorRef, client: ActorRef): () => Receive = {
     var processBucket: Int = 0
     var keysNumber: Long = 0
     var collected: Seq[Seq[Data]] = Seq.empty
@@ -128,15 +130,19 @@ class DumpProcessor extends Actor with ActorLogging {
           _ ! RestoreState,
           _ ! RestoreState,
         )
+        client ! "failed"
+        context.stop(dumpIO)
         context.stop(self)
-      case DumpIO.PutDone =>
+      case DumpIO.PutDone(path) =>
         if (putQueue.isEmpty) {
           if (processBucket == maxBucket) {
-            log.info("dump write done")
+            log.info("dump write done".green)
             stores.get(self.path.address, "ring_hash").fold(
               _ ! RestoreState,
               _ ! RestoreState
             )
+            client ! path
+            dumpIO ! PoisonPill
             context.stop(self)
           }
           readyToPut = true

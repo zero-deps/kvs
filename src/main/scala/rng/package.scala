@@ -84,6 +84,7 @@ package object rng {
 
   implicit class StringExt(value: String) {
     def blue: String = s"\u001B[34m${value}\u001B[0m"
+    def green: String = s"\u001B[32m${value}\u001B[0m"
   }
 
   implicit val ByteStringEqual: Equal[ByteString] = Equal.equalA

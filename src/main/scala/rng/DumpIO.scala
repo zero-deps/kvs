@@ -22,12 +22,11 @@ import scalaz.Scalaz._
 object DumpIO {
   def props(ioPath: String): Props = Props(new DumpIO(ioPath))
 
-  case object ReadNext
-  case class ReadNextRes(kv: Seq[(ByteString, ByteString)], last: Boolean)
+  final case object ReadNext
+  final case class ReadNextRes(kv: Seq[(ByteString, ByteString)], last: Boolean)
 
-  case class Put(kv: Seq[Data])
-  case object PutDone
-  case object PutClose
+  final case class Put(kv: Seq[Data])
+  final case class PutDone(path: String)
 }
 
 class DumpIO(ioPath: String) extends Actor with ActorLogging {
@@ -61,9 +60,8 @@ class DumpIO(ioPath: String) extends Actor with ActorLogging {
       val data = DumpKV(msg.kv.map(e => KV(e.key, e.value))).toByteArray
       channel.write(ByteBuffer.allocateDirect(4).putInt(data.size).flip.asInstanceOf[ByteBuffer])
       channel.write(ByteBuffer.wrap(data))
-      sender ! DumpIO.PutDone
-    case DumpIO.PutDone => sender ! DumpIO.PutDone
-    case DumpIO.PutClose => context.stop(self)
+      sender ! DumpIO.PutDone(ioPath)
+    case x: DumpIO.PutDone => sender ! x
   }
   override def postStop(): Unit = {
     channel.close()
