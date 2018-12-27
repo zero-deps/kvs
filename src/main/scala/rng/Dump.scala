@@ -1,30 +1,22 @@
 package mws.rng
 
-import akka.actor._
+import akka.actor.{Actor, ActorLogging, ActorRef, Props, PoisonPill}
 import akka.pattern.ask
 import akka.util.Timeout
-import com.google.protobuf.{ByteString}
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.concurrent.TimeUnit
-import leveldbjnr._
-import mws.kvs.LeveldbOps
 import mws.rng.data.{Data}
-import mws.rng.data_dump.{DumpKV, KV}
-import mws.rng.msg_dump.{DumpPut, DumpGet, DumpEn, DumpGetBucketData, DumpBucketData, DumpBucketDataItem}
-import mws.rng.store._
-import scala.annotation.tailrec
-import scala.collection.immutable.{SortedMap, SortedSet}
+import mws.rng.msg_dump.{DumpBucketData, DumpGetBucketData}
+import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration._
 import scala.concurrent.{Await}
-import scala.util.Try
 import scalaz.Scalaz._
 
 object DumpProcessor {
   def props(): Props = Props(new DumpProcessor)
 
-  final case class LoadDump(path: String)
-  final case class SaveDump(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: String)
+  final case class Load(path: String)
+  final case class Save(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: String)
 }
 
 class DumpProcessor extends Actor with ActorLogging {
@@ -34,20 +26,20 @@ class DumpProcessor extends Actor with ActorLogging {
   def receive = waitForStart
 
   def waitForStart: Receive = {
-    case ld: DumpProcessor.LoadDump =>
-      val dumpIO = context.actorOf(DumpIO.props(ld.path))
+    case DumpProcessor.Load(path) =>
+      val dumpIO = context.actorOf(DumpIO.props(path))
       dumpIO ! DumpIO.ReadNext
       context.become(loadDump(dumpIO, sender)())
 
-    case sd: DumpProcessor.SaveDump =>
+    case DumpProcessor.Save(buckets, local, path) =>
       val timestamp = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss").format(Calendar.getInstance().getTime)
-      val dumpPath = s"${sd.path}/rng_dump_${timestamp}"
+      val dumpPath = s"${path}/rng_dump_${timestamp}"
       val dumpIO = context.actorOf(DumpIO.props(dumpPath))
-      sd.buckets(0).foreach(n => stores.get(n, "ring_readonly_store").fold(
+      buckets(0).foreach(n => stores.get(n, "ring_readonly_store").fold(
         _ ! DumpGetBucketData(0),
         _ ! DumpGetBucketData(0),
       ))
-      context.become(saveDump(sd.buckets, sd.local, dumpIO, sender)())
+      context.become(saveDump(buckets, local, dumpIO, sender)())
   }
 
   def loadDump(dumpIO: ActorRef, client: ActorRef): () => Receive = {
@@ -64,11 +56,12 @@ class DumpProcessor extends Actor with ActorLogging {
           val putF = stores.get(self.path.address, "ring_hash").fold(_.ask(InternalPut(d._1, d._2)), _.ask(InternalPut(d._1, d._2)))
           Await.ready(putF, timeout.duration)
         }
-        if (keysNumber % 1000 == 0) {
-          log.info(s"load info: write done, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
+        if (res.last) {
+          log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}".green)
+        } else if (keysNumber % 1000 == 0) {
+          log.info(s"load info: write done, total keys=${keysNumber}, size=${size}, ksize=${ksize}".green)
         }
         if (res.last) {
-          log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
           client ! "done"
           stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
           dumpIO ! PoisonPill

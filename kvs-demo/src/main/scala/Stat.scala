@@ -1,9 +1,5 @@
 package mws.kvs
 
-import scala.util.Try
-
-import akka.actor.ActorSystem
-
 object Stat {
   def get(kvs: Kvs): Unit = {
     val info: java.util.Map[Key, Info] = new java.util.HashMap(100000)

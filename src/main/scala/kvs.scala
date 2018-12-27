@@ -7,7 +7,7 @@ import mws.kvs.store.IdCounter
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Try, Success}
+import scala.util.{Success}
 import scalaz._
 import scalaz.Scalaz._
 import mws.kvs.en.{En, EnHandler, Fd, FdHandler}

@@ -151,7 +151,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         _ ! ChangeState(QuorumStateReadonly()),
       ))
       val x = system.actorOf(DumpProcessor.props(), s"dump_wrkr-${now_ms()}")
-      x.forward(DumpProcessor.SaveDump(data.buckets, local, path))
+      x.forward(DumpProcessor.Save(data.buckets, local, path))
       goto(QuorumStateReadonly())
     case Event(Load(path, javaSer), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
@@ -159,10 +159,11 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         _ ! ChangeState(QuorumStateReadonly()),
       ))
       if (javaSer) {
-        system.actorOf(LoadDumpWorkerJava.props(path), s"load_wrkr-${now_ms()}").forward(Load(path, javaSer=true))
+        val x = system.actorOf(LoadDumpWorkerJava.props(), s"load_wrkr-j-${now_ms()}")
+        x.forward(DumpProcessor.Load(path))
       } else {
         val x = system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}")
-        x.forward(DumpProcessor.LoadDump(path))
+        x.forward(DumpProcessor.Load(path))
       }
       goto(QuorumStateReadonly())
     case Event(Iterate(path, f), data) =>

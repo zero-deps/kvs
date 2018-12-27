@@ -1,30 +1,22 @@
 package mws.rng
 
-import akka.actor._
+import akka.actor.{FSM, ActorLogging, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
-import com.google.protobuf.{ByteString}
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.concurrent.TimeUnit
-import leveldbjnr._
+import leveldbjnr.{LevelDB}
 import mws.kvs.LeveldbOps
-import mws.rng.data.{Data}
-import mws.rng.data_dump.{DumpKV, KV}
-import mws.rng.msg_dump.{DumpPut, DumpGet, DumpEn, DumpGetBucketData, DumpBucketData, DumpBucketDataItem}
-import mws.rng.store._
-import scala.annotation.tailrec
-import scala.collection.immutable.{SortedMap, SortedSet}
+import mws.rng.msg_dump.{DumpGet, DumpEn}
+import mws.rng.store.ReadonlyStore
+import scala.concurrent.duration._
 import scala.concurrent.{Await}
 import scala.util.Try
-import scalaz.Scalaz._
 
 object LoadDumpWorkerJava {
-  def props(path: String): Props = Props(new LoadDumpWorkerJava(path))
+  def props(): Props = Props(new LoadDumpWorkerJava)
 }
 
-class LoadDumpWorkerJava(path: String) extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
-  implicit val timeout = Timeout(120, TimeUnit.SECONDS)
+class LoadDumpWorkerJava extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
+  implicit val timeout = Timeout(120 seconds)
   var keysNumber = 0
   var size: Long = 0L
   var ksize: Long = 0L
@@ -35,9 +27,9 @@ class LoadDumpWorkerJava(path: String) extends FSM[FsmState, Option[ActorRef]] w
   startWith(ReadyCollect, None)
 
   when(ReadyCollect){
-    case Event(LoadDump(_, _),_) =>
+    case Event(DumpProcessor.Load(path),_) =>
       dumpDb = LeveldbOps.open(context.system, path)
-      store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
+      store = context.actorOf(ReadonlyStore.props(dumpDb))
       store ! DumpGet(stob("head_of_keys"))
       goto(Collecting) using Some(sender)
   }
