@@ -27,11 +27,13 @@ class DumpProcessor extends Actor with ActorLogging {
 
   def waitForStart: Receive = {
     case DumpProcessor.Load(path) =>
+      log.info(s"Loading dump: path=${path}".green)
       val dumpIO = context.actorOf(DumpIO.props(path))
       dumpIO ! DumpIO.ReadNext
-      context.become(loadDump(dumpIO, sender)())
+      context.become(load(dumpIO, sender)())
 
     case DumpProcessor.Save(buckets, local, path) =>
+      log.info(s"Saving dump: path=${path}".green)
       val timestamp = LocalDateTime.now.format(DateTimeFormatter.ofPattern("yyyy.MM.dd-HH.mm.ss"))
       val dumpPath = s"${path}/rng_dump_${timestamp}"
       val dumpIO = context.actorOf(DumpIO.props(dumpPath))
@@ -39,10 +41,10 @@ class DumpProcessor extends Actor with ActorLogging {
         _ ! DumpGetBucketData(0),
         _ ! DumpGetBucketData(0),
       ))
-      context.become(saveDump(buckets, local, dumpIO, sender)())
+      context.become(save(buckets, local, dumpIO, sender)())
   }
 
-  def loadDump(dumpIO: ActorRef, client: ActorRef): () => Receive = {
+  def load(dumpIO: ActorRef, client: ActorRef): () => Receive = {
     var keysNumber: Long = 0L
     var size: Long = 0L
     var ksize: Long = 0L
@@ -57,11 +59,12 @@ class DumpProcessor extends Actor with ActorLogging {
           Await.ready(putF, timeout.duration)
         }
         if (res.last) {
-          log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}".green)
+          log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
         } else if (keysNumber % 1000 == 0) {
-          log.info(s"load info: write done, total keys=${keysNumber}, size=${size}, ksize=${ksize}".green)
+          log.info(s"load info: write done, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
         }
         if (res.last) {
+          log.info("Dump is loaded".green)
           client ! "done"
           stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
           dumpIO ! PoisonPill
@@ -70,7 +73,7 @@ class DumpProcessor extends Actor with ActorLogging {
     }
   }
 
-  def saveDump(buckets: SortedMap[Bucket, PreferenceList], local: Node, dumpIO: ActorRef, client: ActorRef): () => Receive = {
+  def save(buckets: SortedMap[Bucket, PreferenceList], local: Node, dumpIO: ActorRef, client: ActorRef): () => Receive = {
     var processBucket: Int = 0
     var keysNumber: Long = 0
     var collected: Seq[Seq[Data]] = Seq.empty
@@ -129,7 +132,7 @@ class DumpProcessor extends Actor with ActorLogging {
       case DumpIO.PutDone(path) =>
         if (putQueue.isEmpty) {
           if (processBucket == maxBucket) {
-            log.info("dump write done".green)
+            log.info(s"Dump is saved: path=${path}".green)
             stores.get(self.path.address, "ring_hash").fold(
               _ ! RestoreState,
               _ ! RestoreState
