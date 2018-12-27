@@ -15,13 +15,11 @@ class GatherGet(client: ActorRef, N: Int, R: Int, k: Key)
   setTimer("send_by_timeout", OpsTimeout, context.system.settings.config.getInt("ring.gather-timeout").seconds)
 
   when(Collecting) {
-    case Event(StoreGetAck(rez), state@DataCollection(perNode, nodes)) =>
-      val address = sender().path.address
-      val receive: Seq[(Option[Data], Node)] = if (rez.isEmpty) {
-        Seq(None -> address)
-      } else {
-        rez.map(d => (Some(d), address))
-      }
+    case Event(StoreGetAck(rez), DataCollection(perNode, nodes)) =>
+      val address = sender.path.address
+      val receive: Seq[(Option[Data], Node)] =
+        if (rez.isEmpty) Seq(None -> address)
+        else rez.map(d => Some(d) -> address)
 
       nodes + 1 match {
         case `N` => // TODO wait for R or N nodes ?

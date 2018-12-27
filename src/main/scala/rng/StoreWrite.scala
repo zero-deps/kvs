@@ -62,7 +62,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
       sender() ! "done"
     case StoreDelete(data) => sender ! doDelete(data)
     case ReplBucketPut(data, vc) => doBulkPut(data, vc)
-    case unhandled => log.warning(s"[store]unhandled message: $unhandled")
+    case unhandled => log.warning(s"unhandled message: ${unhandled}")
   }
 
   def doBulkPut(datas: Seq[Data], vc: VectorClockList): Unit = {

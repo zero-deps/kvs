@@ -4,10 +4,9 @@ import akka.actor.Address
 import akka.cluster.VectorClock
 import com.google.protobuf.{ByteString, ByteStringWrap}
 import mws.rng.data.{Data, Vec}
-import mws.rng.data.{Data, Vec}
 import mws.rng.msg.{StorePutStatus}
 import scala.annotation.tailrec
-import scala.collection.immutable.TreeMap
+import scala.collection.immutable.{TreeMap}
 import scalaz._
 
 package object rng {
@@ -63,23 +62,6 @@ package object rng {
         val correct = itr(l.tail, l.head)
         (Some(correct), l.filterNot(age(_)._1 == age(correct)._1))
     }
-  }
-
-  def mergeBucketData(l: Seq[Data]): Seq[Data] = mergeBucketData(l, merged=Nil)
-
-  @tailrec
-  def mergeBucketData(l: Seq[Data], merged: Seq[Data]): Seq[Data] = l match {
-    case h +: t =>
-      val hvc = makevc(h.vc)
-      merged.find(_.key == h.key) match {
-        case Some(d) if hvc == makevc(d.vc) && h.lastModified > d.lastModified =>
-          mergeBucketData(t, h +: merged.filterNot(_.key == h.key))
-        case Some(d) if hvc > makevc(d.vc) =>
-          mergeBucketData(t, h +: merged.filterNot(_.key == h.key))
-        case None => mergeBucketData(t, h +: merged)
-        case _ => mergeBucketData(t, merged)
-      }
-    case xs if xs.isEmpty => merged
   }
 
   implicit class StringExt(value: String) {

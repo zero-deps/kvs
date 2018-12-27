@@ -2,12 +2,16 @@ package mws.rng
 
 import akka.actor.{ActorLogging, Props, ActorRef, FSM}
 import akka.cluster.{Cluster, VectorClock}
+import com.google.protobuf.{ByteString}
 import mws.rng.data.{Data}
 import mws.rng.msg_repl.{ReplBucketPut, ReplGetBucketVc, ReplBucketVc, ReplGetBucketIfNew, ReplFailed, ReplBucketUpToDate, ReplNewerBucketData}
-import ReplicationSupervisor.{State}
-import scala.collection.immutable.SortedMap
+import scala.annotation.tailrec
+import scala.collection.immutable
+import scala.collection.immutable.{SortedMap, HashMap}
 import scala.concurrent.duration.{Duration}
 import scalaz.Scalaz._
+
+import ReplicationSupervisor.{State}
 
 object ReplicationSupervisor {
   final case class Progress(done: Int, total: Int, step: Int)
@@ -86,9 +90,28 @@ object ReplicationWorker {
   final case class ReplState(prefList: PreferenceList, info: Seq[Seq[Data]], vc: VectorClock)
 
   def props(prefList: PreferenceList, vc: VectorClock): Props = Props(new ReplicationWorker(prefList, vc))
+
+  def mergeBucketData(l: Seq[Data]): Seq[Data] = mergeBucketData(l, merged=HashMap.empty)
+
+  //todo: Key Map Seq[Data] to save conflicts
+  @tailrec
+  private def mergeBucketData(l: Seq[Data], merged: HashMap[ByteString,Data]): immutable.Seq[Data] = l match {
+    case h +: t =>
+      val hvc = makevc(h.vc)
+      merged.get(h.key) match {
+        case Some(d) if hvc == makevc(d.vc) && h.lastModified > d.lastModified =>
+          mergeBucketData(t, merged + (h.key -> h))
+        case Some(d) if hvc > makevc(d.vc) =>
+          mergeBucketData(t, merged + (h.key -> h))
+        case Some(_) => mergeBucketData(t, merged)
+        case None => mergeBucketData(t, merged + (h.key -> h))
+      }
+    case xs if xs.isEmpty => merged.values.toVector
+  }
 }
 
 class ReplicationWorker(_prefList: PreferenceList, _vc: VectorClock) extends FSM[FsmState, ReplState] with ActorLogging {
+  import ReplicationWorker.mergeBucketData
   import context.system
   val cluster = Cluster(system)
   val local = cluster.selfAddress
