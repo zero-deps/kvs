@@ -3,8 +3,8 @@ package mws.rng
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, PoisonPill}
 import akka.pattern.ask
 import akka.util.Timeout
-import java.text.SimpleDateFormat
-import java.util.Calendar
+import java.time.format.{DateTimeFormatter}
+import java.time.{LocalDateTime}
 import mws.rng.data.{Data}
 import mws.rng.msg_dump.{DumpBucketData, DumpGetBucketData}
 import scala.collection.immutable.{SortedMap}
@@ -32,7 +32,7 @@ class DumpProcessor extends Actor with ActorLogging {
       context.become(loadDump(dumpIO, sender)())
 
     case DumpProcessor.Save(buckets, local, path) =>
-      val timestamp = new SimpleDateFormat("yyyy.MM.dd-HH.mm.ss").format(Calendar.getInstance().getTime)
+      val timestamp = LocalDateTime.now.format(DateTimeFormatter.ofPattern("yyyy.MM.dd-HH.mm.ss"))
       val dumpPath = s"${path}/rng_dump_${timestamp}"
       val dumpIO = context.actorOf(DumpIO.props(dumpPath))
       buckets(0).foreach(n => stores.get(n, "ring_readonly_store").fold(
