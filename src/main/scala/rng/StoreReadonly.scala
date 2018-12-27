@@ -51,7 +51,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
         case Some(b_info) =>
           val vc_local: VectorClock = makevc(b_info.vc)
           vc_other == vc_local || vc_other > vc_local match {
-            case true => sender ! ReplBucketUpToDate(b)
+            case true => sender ! ReplBucketUpToDate()
             case false =>
               val keys = b_info.keys
               val items: Seq[ReplBucketDataItem] = keys.map(key =>
@@ -60,10 +60,10 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
                   data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
                 )
               )
-              sender ! ReplNewerBucketData(b, b_info.vc, items)
+              sender ! ReplNewerBucketData(b_info.vc, items)
           }
         case None =>
-          sender ! ReplBucketUpToDate(b)
+          sender ! ReplBucketUpToDate()
       }
     case ReplGetBucketVc(b) =>
       val k = itob(b).concat(keysWord)

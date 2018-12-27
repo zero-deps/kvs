@@ -18,11 +18,9 @@ message ReplGetBucketIfNew {
 }
 
 message ReplBucketUpToDate {
-  int32 b = 1;
 }
 
 message ReplNewerBucketData {
-  int32 b = 1;
   repeated Vec vc = 2;
   repeated ReplBucketDataItem items = 3;
 }
@@ -33,8 +31,9 @@ message ReplBucketDataItem {
 }
 
 message ReplBucketPut {
-  repeated Data data = 1;
-  repeated Vec bucketVc = 2;
+  int32 b = 1;
+  repeated Data data = 2;
+  repeated Vec bucketVc = 3;
 }
 
 message ReplFailed {

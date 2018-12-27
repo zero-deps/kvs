@@ -61,33 +61,31 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
       withBatch(_.put(k.toByteArray, ValueKey(v=v, nextKey=nextKey).toByteArray))
       sender() ! "done"
     case StoreDelete(data) => sender ! doDelete(data)
-    case ReplBucketPut(data, vc) => doBulkPut(data, vc)
+    case ReplBucketPut(b, data, vc) => doBulkPut(b, data, vc)
     case unhandled => log.warning(s"unhandled message: ${unhandled}")
   }
 
-  def doBulkPut(datas: Seq[Data], vc: VectorClockList): Unit = {
+  def doBulkPut(b: Bucket, datas: Seq[Data], vc: VectorClockList): Unit = {
     withBatch{ batch =>
       // update bucket with provided vector clock
+      val bucket_id: Key = itob(b) ++ keysWord
+      val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_))
       val newKeys = datas.map(_.key)
-      datas.map(_.bucket).distinct.foreach{ bucket =>
-        val bucket_id: Key = itob(bucket).concat(keysWord)
-        val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_))
-        bucket_info match {
-          case Some(x) =>
-            batch.put(
-              bucket_id.toByteArray,
-              x.copy(vc = vc, keys = (newKeys ++ x.keys).distinct).toByteArray
-            )
-          case None =>
-            batch.put(
-              bucket_id.toByteArray,
-              BucketInfo(vc = vc, keys = newKeys).toByteArray
-            )
-        }
+      bucket_info match {
+        case Some(x) =>
+          batch.put(
+            bucket_id.toByteArray,
+            x.copy(vc = vc, keys = (newKeys ++ x.keys).distinct).toByteArray
+          )
+        case None =>
+          batch.put(
+            bucket_id.toByteArray,
+            BucketInfo(vc = vc, keys = newKeys).toByteArray
+          )
       }
       // save all keys' data
       val updatedDatas: Seq[(Data, Seq[Data])] = datas.map{ data =>
-        val keyData: Option[Seq[Data]] = get(itob(data.bucket).concat(keyWord).concat(data.key)).map(SeqData.parseFrom(_).data)
+        val keyData: Option[Seq[Data]] = get(itob(data.bucket) ++ keyWord ++ data.key).map(SeqData.parseFrom(_).data)
         keyData match {
           case None => 
             data -> Seq(data)
@@ -102,7 +100,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
         }
       }
       updatedDatas.foreach{ case (data, updated) =>
-        val bucket_key: Key = itob(data.bucket).concat(keyWord).concat(data.key)
+        val bucket_key: Key = itob(data.bucket) ++ keyWord ++ data.key
         batch.put(
           bucket_key.toByteArray,
           SeqData(updated).toByteArray
