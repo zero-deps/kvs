@@ -22,30 +22,30 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
   def get(k: Key): Option[Array[Byte]] = get(k.toByteArray)
   def get(k: Array[Byte]): Option[Array[Byte]] = Option(leveldb.get(k, ro))
 
-  val keyWord = stob(":key:")
-  val keysWord = stob(":keys")
-  val dummy = stob("readonly_dummy")
+  val `:key:` = stob(":key:")
+  val `:keys` = stob(":keys")
+  val `readonly_dummy` = stob("readonly_dummy")
 
   override def receive: Receive = {
     case StoreGet(key) =>
-      val k = itob(hashing.findBucket(key)).concat(keyWord).concat(key)
+      val k = itob(hashing.findBucket(key)) ++ `:key:` ++ key
       val result: Seq[Data] = get(k).map(SeqData.parseFrom(_).data).getOrElse(Seq.empty[Data])
       sender ! StoreGetAck(result)
 
     case DumpGetBucketData(b) => 
-      val k = itob(b).concat(keysWord)
+      val k = itob(b) ++ `:keys`
       val b_info = get(k).map(BucketInfo.parseFrom(_))
       val keys: Seq[Key] = b_info.map(_.keys).getOrElse(Nil)
       val items: Seq[DumpBucketDataItem] = keys.map(key =>
         DumpBucketDataItem(
           key = key,
-          data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
+          data = get(itob(b)++`:key:`++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
         )
       )
       sender ! DumpBucketData(b, items)
     case ReplGetBucketIfNew(b, vc) =>
       val vc_other: VectorClock = makevc(vc)
-      val k = itob(b).concat(keysWord)
+      val k = itob(b) ++ `:keys`
       val b_info = get(k).map(BucketInfo.parseFrom(_))
       b_info match {
         case Some(b_info) =>
@@ -57,7 +57,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
               val items: Seq[ReplBucketDataItem] = keys.map(key =>
                 ReplBucketDataItem(
                   key = key,
-                  data = get(itob(b)++keyWord++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
+                  data = get(itob(b)++`:key:`++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
                 )
               )
               sender ! ReplNewerBucketData(b_info.vc, items)
@@ -66,7 +66,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
           sender ! ReplBucketUpToDate()
       }
     case ReplGetBucketVc(b) =>
-      val k = itob(b).concat(keysWord)
+      val k = itob(b) ++ `:keys`
       val vc = get(k).map(BucketInfo.parseFrom(_).vc).getOrElse(Nil)
       sender ! ReplBucketVc(vc)
 
@@ -81,7 +81,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
       }
       val data: Array[Byte] = leveldb.get(key, ro)
       val res: DumpEn = if (data == null) {
-        DumpEn(k, dummy, ByteString.EMPTY)
+        DumpEn(k, `readonly_dummy`, ByteString.EMPTY)
       } else {
         val in = new ObjectInputStream(new ByteArrayInputStream(data))
         val obj = in.readObject

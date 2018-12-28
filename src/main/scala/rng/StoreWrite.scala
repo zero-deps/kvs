@@ -29,8 +29,8 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   def get(k: Key): Option[Array[Byte]] = get(k.toByteArray)
   def get(k: Array[Byte]): Option[Array[Byte]] = Option(leveldb.get(k, ro))
 
-  val keyWord = stob(":key:")
-  val keysWord = stob(":keys")
+  val `:key:` = stob(":key:")
+  val `:keys` = stob(":keys")
 
   override def preStart(): Unit = {
     // old style to new layout bucket -> List[Data] to bucket:key
@@ -68,7 +68,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   def doBulkPut(b: Bucket, bucketVc: VectorClockList, items: Seq[ReplBucketDataItem]): Unit = {
     withBatch{ batch =>
       { // updating bucket info
-        val bucket_id: Key = itob(b) ++ keysWord
+        val bucket_id: Key = itob(b) ++ `:keys`
         val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_))
         val newKeys = items.map(_.key)
         bucket_info match {
@@ -85,7 +85,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
         }
       }
       items.map{ case ReplBucketDataItem(key: Key, datas: Seq[Data]) =>
-        val keyPath: Key = itob(b) ++ keyWord ++ key
+        val keyPath: Key = itob(b) ++ `:key:` ++ key
         val keyData: Option[Seq[Data]] = get(keyPath).map(SeqData.parseFrom(_).data)
         datas match {
           case (data +: Seq()) =>
@@ -128,7 +128,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   }
 
   def doPut(data: Data): StorePutStatus = {
-    val keyData: Option[Seq[Data]] = get(itob(data.bucket) ++ keyWord ++ data.key).map(SeqData.parseFrom(_).data)
+    val keyData: Option[Seq[Data]] = get(itob(data.bucket) ++ `:key:` ++ data.key).map(SeqData.parseFrom(_).data)
     val (status, mergedKeyData): (StorePutStatus, Seq[Data]) = keyData match {
       case None => 
         StorePutSaved() -> Seq(data)
@@ -144,7 +144,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
     
     withBatch{ batch =>
       // updating bucket info
-      val bucket_id: Key = itob(data.bucket) ++ keysWord
+      val bucket_id: Key = itob(data.bucket) ++ `:keys`
       val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_))
       bucket_info match {
         case Some(x) if x.keys contains data.key =>
@@ -167,7 +167,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
           )
       }
       // save key's data
-      val key: Key = itob(data.bucket) ++ keyWord ++ data.key
+      val key: Key = itob(data.bucket) ++ `:key:` ++ data.key
       batch.put(
         key.toByteArray,
         SeqData(mergedKeyData).toByteArray
@@ -179,14 +179,14 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
 
   def doDelete(key: Key): String = {
     val b = hashing.findBucket(key)
-    val b_info = get(itob(b).concat(keysWord)).map(BucketInfo.parseFrom(_))
+    val b_info = get(itob(b) ++ `:keys`).map(BucketInfo.parseFrom(_))
     b_info match {
       case Some(b_info) =>
         val vc = fromvc(makevc(b_info.vc) :+ local.toString)
         val keys = b_info.keys.filterNot(_ === key)
         withBatch(batch => {
-          batch.delete(itob(b).concat(keyWord).concat(key).toByteArray)
-          batch.put(itob(b).concat(keysWord).toByteArray, BucketInfo(vc, keys).toByteArray)
+          batch.delete((itob(b) ++ `:key:` ++ key).toByteArray)
+          batch.put((itob(b) ++ `:keys`).toByteArray, BucketInfo(vc, keys).toByteArray)
         })
         "ok"
       case None => 
