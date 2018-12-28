@@ -32,8 +32,8 @@ message ReplBucketDataItem {
 
 message ReplBucketPut {
   int32 b = 1;
-  repeated Data data = 2;
-  repeated Vec bucketVc = 3;
+  repeated Vec bucketVc = 2;
+  repeated ReplBucketDataItem items = 3;
 }
 
 message ReplFailed {

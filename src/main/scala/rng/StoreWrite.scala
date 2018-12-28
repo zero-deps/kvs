@@ -7,7 +7,7 @@ import leveldbjnr._
 import mws.rng.data.{Data, SeqData, BucketInfo}
 import mws.rng.data_dump.{ValueKey}
 import mws.rng.msg.{StorePut, StoreDelete, StorePutStatus, StorePutSaved, StorePutConflict}
-import mws.rng.msg_repl.{ReplBucketPut}
+import mws.rng.msg_repl.{ReplBucketPut, ReplBucketDataItem}
 import mws.rng.msg_dump.{DumpPut}
 import scalaz.Scalaz._
 
@@ -61,73 +61,90 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
       withBatch(_.put(k.toByteArray, ValueKey(v=v, nextKey=nextKey).toByteArray))
       sender() ! "done"
     case StoreDelete(data) => sender ! doDelete(data)
-    case ReplBucketPut(b, data, vc) => doBulkPut(b, data, vc)
+    case ReplBucketPut(b, bucketVc, items) => doBulkPut(b, bucketVc, items)
     case unhandled => log.warning(s"unhandled message: ${unhandled}")
   }
 
-  def doBulkPut(b: Bucket, datas: Seq[Data], vc: VectorClockList): Unit = {
+  def doBulkPut(b: Bucket, bucketVc: VectorClockList, items: Seq[ReplBucketDataItem]): Unit = {
     withBatch{ batch =>
-      // update bucket with provided vector clock
-      val bucket_id: Key = itob(b) ++ keysWord
-      val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_))
-      val newKeys = datas.map(_.key)
-      bucket_info match {
-        case Some(x) =>
-          batch.put(
-            bucket_id.toByteArray,
-            x.copy(vc = vc, keys = (newKeys ++ x.keys).distinct).toByteArray
-          )
-        case None =>
-          batch.put(
-            bucket_id.toByteArray,
-            BucketInfo(vc = vc, keys = newKeys).toByteArray
-          )
-      }
-      // save all keys' data
-      val updatedDatas: Seq[(Data, Seq[Data])] = datas.map{ data =>
-        val keyData: Option[Seq[Data]] = get(itob(data.bucket) ++ keyWord ++ data.key).map(SeqData.parseFrom(_).data)
-        keyData match {
-          case None => 
-            data -> Seq(data)
-          case Some(list) if list.size == 1 & descendant(makevc(list.head.vc), makevc(data.vc)) => 
-            data -> Seq(data)
-          case Some(list) if list forall (d => descendant(makevc(d.vc), makevc(data.vc))) =>
-            val newVC = list.foldLeft(makevc(data.vc))((sum, i) => sum.merge(makevc(i.vc)))
-            data -> Seq(data.copy(vc = fromvc(newVC)))
-          case Some(brokenData) =>
-            val broken = data +: brokenData
-            data -> broken
+      { // updating bucket info
+        val bucket_id: Key = itob(b) ++ keysWord
+        val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_))
+        val newKeys = items.map(_.key)
+        bucket_info match {
+          case Some(x) =>
+            batch.put(
+              bucket_id.toByteArray,
+              x.copy(vc=bucketVc, keys=(newKeys++x.keys).distinct).toByteArray
+            )
+          case None =>
+            batch.put(
+              bucket_id.toByteArray,
+              BucketInfo(vc=bucketVc, keys=newKeys.distinct).toByteArray
+            )
         }
       }
-      updatedDatas.foreach{ case (data, updated) =>
-        val bucket_key: Key = itob(data.bucket) ++ keyWord ++ data.key
-        batch.put(
-          bucket_key.toByteArray,
-          SeqData(updated).toByteArray
-        )
+      items.map{ case ReplBucketDataItem(key: Key, datas: Seq[Data]) =>
+        val keyPath: Key = itob(b) ++ keyWord ++ key
+        val keyData: Option[Seq[Data]] = get(keyPath).map(SeqData.parseFrom(_).data)
+        datas match {
+          case (data +: Seq()) =>
+            keyData match {
+              case None => 
+                val updated = Seq(data)
+                batch.put(
+                  keyPath.toByteArray,
+                  SeqData(updated).toByteArray
+                )
+              case Some(h +: Seq()) if makevc(h.vc) <= makevc(data.vc) =>
+                val updated = Seq(data)
+                batch.put(
+                  keyPath.toByteArray,
+                  SeqData(updated).toByteArray
+                )
+              case Some(xs) if xs forall (d => makevc(d.vc) <= makevc(data.vc)) =>
+                val newVC = xs.foldLeft(makevc(data.vc))((sum, i) => sum.merge(makevc(i.vc)))
+                val updated = Seq(data.copy(vc=fromvc(newVC)))
+                batch.put(
+                  keyPath.toByteArray,
+                  SeqData(updated).toByteArray
+                )
+              case Some(xs) =>
+                val updated = data +: xs
+                batch.put(
+                  keyPath.toByteArray,
+                  SeqData(updated).toByteArray
+                )
+            }
+          case _ =>
+            val updated = datas ++ keyData.getOrElse(Nil)
+            batch.put(
+              keyPath.toByteArray,
+              SeqData(updated).toByteArray
+            )
+        }
       }
     }
   }
 
   def doPut(data: Data): StorePutStatus = {
-    val keyData: Option[Seq[Data]] = get(itob(data.bucket).concat(keyWord).concat(data.key)).map(SeqData.parseFrom(_).data)
-
-    val updated: (StorePutStatus, Seq[Data]) = keyData match {
+    val keyData: Option[Seq[Data]] = get(itob(data.bucket) ++ keyWord ++ data.key).map(SeqData.parseFrom(_).data)
+    val (status, mergedKeyData): (StorePutStatus, Seq[Data]) = keyData match {
       case None => 
         StorePutSaved() -> Seq(data)
-      case Some(list) if list.size === 1 & descendant(makevc(list.head.vc), makevc(data.vc)) => 
+      case Some(h +: Seq()) if makevc(h.vc) <= makevc(data.vc) =>
         StorePutSaved() -> Seq(data)
-      case Some(list) if list.forall(d => descendant(makevc(d.vc), makevc(data.vc))) =>
-        val newVC = list.foldLeft(makevc(data.vc))((sum, i) => sum.merge(makevc(i.vc)))
+      case Some(xs) if xs forall (d => makevc(d.vc) <= makevc(data.vc)) =>
+        val newVC = xs.foldLeft(makevc(data.vc))((sum, i) => sum.merge(makevc(i.vc)))
         StorePutSaved() -> Seq(data.copy(vc=fromvc(newVC)))
-      case Some(brokenData) => 
-        val broken = data +: brokenData
+      case Some(xs) => 
+        val broken = data +: xs
         StorePutConflict(broken) -> broken
     }
     
     withBatch{ batch =>
-      // update bucket info
-      val bucket_id: Key = itob(data.bucket).concat(keysWord)
+      // updating bucket info
+      val bucket_id: Key = itob(data.bucket) ++ keysWord
       val bucket_info = get(bucket_id).map(BucketInfo.parseFrom(_))
       bucket_info match {
         case Some(x) if x.keys contains data.key =>
@@ -150,14 +167,14 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
           )
       }
       // save key's data
-      val bucket_key: Key = itob(data.bucket).concat(keyWord).concat(data.key)
+      val key: Key = itob(data.bucket) ++ keyWord ++ data.key
       batch.put(
-        bucket_key.toByteArray,
-        SeqData(updated._2).toByteArray
+        key.toByteArray,
+        SeqData(mergedKeyData).toByteArray
       )
     }
     
-    updated._1
+    status
   }
 
   def doDelete(key: Key): String = {
@@ -187,7 +204,5 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
       batch.close()
     }
   }
-
- def descendant(old: VectorClock, candidat: VectorClock) = !(old <> candidat) && (old < candidat || old == candidat)
 }
 

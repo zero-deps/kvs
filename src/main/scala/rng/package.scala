@@ -76,4 +76,9 @@ package object rng {
   }
 
   def now_ms(): Long = System.currentTimeMillis
+
+  implicit class VectorClockExt(old: VectorClock) {
+    def <=(candidat: VectorClock): Boolean =
+      old < candidat || old == candidat
+  }
 }

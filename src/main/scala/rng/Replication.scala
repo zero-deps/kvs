@@ -2,11 +2,9 @@ package mws.rng
 
 import akka.actor.{ActorLogging, Props, ActorRef, FSM}
 import akka.cluster.{Cluster, VectorClock}
-import com.google.protobuf.{ByteString}
 import mws.rng.data.{Data}
-import mws.rng.msg_repl.{ReplBucketPut, ReplGetBucketVc, ReplBucketVc, ReplGetBucketIfNew, ReplFailed, ReplBucketUpToDate, ReplNewerBucketData}
+import mws.rng.msg_repl.{ReplBucketPut, ReplGetBucketVc, ReplBucketVc, ReplGetBucketIfNew, ReplFailed, ReplBucketUpToDate, ReplNewerBucketData, ReplBucketDataItem}
 import scala.annotation.tailrec
-import scala.collection.immutable
 import scala.collection.immutable.{SortedMap, HashMap}
 import scala.concurrent.duration.{Duration}
 import scalaz.Scalaz._
@@ -23,7 +21,6 @@ object ReplicationSupervisor {
   }
 }
 
-/** Sequentially update buckets */
 class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] with ActorLogging {
   val actorMem = SelectionMemorize(context.system)
   val local: Node = Cluster(context.system).selfAddress
@@ -91,22 +88,25 @@ object ReplicationWorker {
 
   def props(b: Bucket, prefList: PreferenceList, vc: VectorClock): Props = Props(new ReplicationWorker(b, prefList, vc))
 
-  def mergeBucketData(l: Seq[Data]): Seq[Data] = mergeBucketData(l, merged=HashMap.empty)
+  def mergeBucketData(l: Seq[Data]): Seq[ReplBucketDataItem] = mergeBucketData(l, acc=HashMap.empty[Key,Seq[Data]])
 
-  //todo: Key Map Seq[Data] to save conflicts
   @tailrec
-  private def mergeBucketData(l: Seq[Data], merged: HashMap[ByteString,Data]): immutable.Seq[Data] = l match {
+  private def mergeBucketData(l: Seq[Data], acc: Key Map Seq[Data]): Seq[ReplBucketDataItem] = l match {
     case h +: t =>
-      val hvc = makevc(h.vc)
-      merged.get(h.key) match {
-        case Some(d) if hvc == makevc(d.vc) && h.lastModified > d.lastModified =>
-          mergeBucketData(t, merged + (h.key -> h))
-        case Some(d) if hvc > makevc(d.vc) =>
-          mergeBucketData(t, merged + (h.key -> h))
-        case Some(_) => mergeBucketData(t, merged)
-        case None => mergeBucketData(t, merged + (h.key -> h))
+      acc.get(h.key) match {
+        case Some(x +: Seq()) if makevc(h.vc) == makevc(x.vc) =>
+          if (h.lastModified > x.lastModified) mergeBucketData(t, acc + (h.key -> Seq(h)))
+          else mergeBucketData(t, acc)
+        case Some(x +: Seq()) if makevc(h.vc) > makevc(x.vc) =>
+          mergeBucketData(t, acc + (h.key -> Seq(h)))
+        case Some(x +: Seq()) if makevc(h.vc) < makevc(x.vc) =>
+          mergeBucketData(t, acc)
+        case Some(xs) =>
+          mergeBucketData(t, acc + (h.key -> (xs :+ h)))
+        case None =>
+          mergeBucketData(t, acc + (h.key -> Seq(h)))
       }
-    case xs if xs.isEmpty => merged.values.toVector
+    case xs if xs.isEmpty => acc.map{ case (k,v) => ReplBucketDataItem(k,v) }.toSeq
   }
 }
 
@@ -128,8 +128,8 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClock) 
           val all = data.info.foldLeft(l)((acc, list) => list ++ acc)
           val merged = mergeBucketData(all)
           actorMem.get(local, "ring_write_store").fold(
-            _ ! ReplBucketPut(b, merged, fromvc(data.vc)),
-            _ ! ReplBucketPut(b, merged, fromvc(data.vc)),
+            _ ! ReplBucketPut(b, fromvc(data.vc), merged),
+            _ ! ReplBucketPut(b, fromvc(data.vc), merged),
           )
           context.parent ! b
           stop()
@@ -147,8 +147,8 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClock) 
           val all = data.info.foldLeft(Nil: Seq[Data])((acc, list) => list ++ acc)
           val merged = mergeBucketData(all)
           actorMem.get(local, "ring_write_store").fold(
-            _ ! ReplBucketPut(b, merged, fromvc(data.vc)),
-            _ ! ReplBucketPut(b, merged, fromvc(data.vc)),
+            _ ! ReplBucketPut(b, fromvc(data.vc), merged),
+            _ ! ReplBucketPut(b, fromvc(data.vc), merged),
           )
           context.parent ! b
           stop()

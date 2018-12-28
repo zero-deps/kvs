@@ -3,13 +3,11 @@ package mws.rng
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, PoisonPill}
 import akka.pattern.ask
 import akka.util.Timeout
-import com.google.protobuf.{ByteString}
 import java.time.format.{DateTimeFormatter}
 import java.time.{LocalDateTime}
 import mws.rng.data.{Data}
 import mws.rng.msg_dump.{DumpBucketData, DumpGetBucketData}
 import scala.annotation.tailrec
-import scala.collection.immutable
 import scala.collection.immutable.{SortedMap, HashMap}
 import scala.concurrent.duration._
 import scala.concurrent.{Await}
@@ -25,7 +23,7 @@ object DumpProcessor {
 
   // this method doesn't save conflicts. change implementation to save conflicts in dump
   @tailrec
-  private def mergeBucketData(l: Seq[Data], merged: HashMap[ByteString,Data]): immutable.Seq[Data] = l match {
+  private def mergeBucketData(l: Seq[Data], merged: Key Map Data): Seq[Data] = l match {
     case h +: t =>
       val hvc = makevc(h.vc)
       merged.get(h.key) match {
