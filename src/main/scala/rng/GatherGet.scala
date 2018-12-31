@@ -4,6 +4,7 @@ import akka.actor._
 import akka.cluster.VectorClock
 import mws.rng.data.Data
 import mws.rng.msg.{StoreGetAck, StorePut, StoreDelete}
+import scala.annotation.tailrec
 import scala.collection.breakOut
 import scala.concurrent.duration._
 
@@ -40,6 +41,26 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) ext
     case Event(OpsTimeout, _) =>
       client ! AckTimeoutFailed
       stop()
+  }
+
+  /* returns (actual data, list of outdated nodes) */
+  def order[E](l: Seq[E], age: E => Age): (Option[E], Seq[E]) = {
+    @tailrec
+    def itr(l: Seq[E], newest: E): E = l match {
+      case xs if xs.isEmpty => newest
+      case h +: t if t.exists(age(h)._1 < age(_)._1) => itr(t, newest)
+      case h +: t if age(h)._1 > age(newest)._1 => itr(t, h)
+      case h +: t if age(h)._1 <> age(newest)._1 && age(h)._2 > age(newest)._2 => itr(t, h)
+      case _ => itr(l.tail, newest)
+    }
+
+    l.map(age(_)._1).toSet.size match {
+      case 0 => None -> Nil
+      case 1 => Some(l.head) -> Nil
+      case n =>
+        val correct = itr(l.tail, l.head)
+        Some(correct) -> l.filterNot(age(_)._1 == age(correct)._1)
+    }
   }
 
   def update(correct: Option[Data], nodes: Seq[Node]) = {
