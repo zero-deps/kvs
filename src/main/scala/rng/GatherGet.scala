@@ -14,26 +14,27 @@ object GatherGet {
 
 class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) extends FSM[FsmState, FsmData] with ActorLogging {
   val stores = SelectionMemorize(context.system)
-  val ZERO: Age = (new VectorClock, 0L)
 
   startWith(Collecting, DataCollection(Vector.empty, 0))
   setTimer("send_by_timeout", OpsTimeout, t)
 
+  type AddrOfData = (Option[Data], Node)
+
   when(Collecting) {
     case Event(StoreGetAck(rez), DataCollection(perNode, nodes)) =>
       val address = sender.path.address
-      val receive: Vector[(Option[Data], Node)] =
+      val receive: Vector[AddrOfData] =
         if (rez.isEmpty) Vector(None -> address)
         else rez.map(d => Some(d) -> address)(breakOut)
 
       nodes + 1 match {
         case `M` => // TODO wait for R or M nodes ?
           cancelTimer("send_by_timeout")
-          val response = order[(Option[Data], Node)](receive ++ perNode, age)
-          if (response._2.nonEmpty) {
-            response._1.foreach(freshData => update(freshData._1, response._2.map(_._2)))
+          val (correct, outdated) = order(receive ++ perNode)
+          if (outdated.nonEmpty) {
+            correct.foreach(freshData => update(freshData._1, outdated.map(_._2)))
           }
-          client ! AckSuccess(response._1.fold[Option[Value]](None)(d => d._1.fold[Option[Value]](None)(v => Some(v.value))))
+          client ! AckSuccess(correct.fold[Option[Value]](None)(d => d._1.fold[Option[Value]](None)(v => Some(v.value))))
           stop()
         case ns => stay() using DataCollection(receive ++ perNode, ns)
       }
@@ -44,26 +45,32 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) ext
   }
 
   /* returns (actual data, list of outdated nodes) */
-  def order[E](l: Seq[E], age: E => Age): (Option[E], Seq[E]) = {
+  def order(l: Vector[AddrOfData]): (Option[AddrOfData], Vector[AddrOfData]) = {
     @tailrec
-    def itr(l: Seq[E], newest: E): E = l match {
+    def findCorrect(l: Vector[AddrOfData], newest: AddrOfData): AddrOfData = l match {
       case xs if xs.isEmpty => newest
-      case h +: t if t.exists(age(h)._1 < age(_)._1) => itr(t, newest)
-      case h +: t if age(h)._1 > age(newest)._1 => itr(t, h)
-      case h +: t if age(h)._1 <> age(newest)._1 && age(h)._2 > age(newest)._2 => itr(t, h)
-      case _ => itr(l.tail, newest)
+      case h +: t if t.exists(age(h)._1 < age(_)._1) =>
+        findCorrect(t, newest)
+      case h +: t if age(h)._1 > age(newest)._1 =>
+        findCorrect(t, h)
+      case h +: t if age(h)._1 <> age(newest)._1 && age(h)._2 > age(newest)._2 => 
+        findCorrect(t, h)
+      case _ =>
+        findCorrect(l.tail, newest)
     }
-
+    def age(d: AddrOfData): Age = {
+      d._1.fold((new VectorClock, 0L))(e => (makevc(e.vc), e.lastModified))
+    }
     l.map(age(_)._1).toSet.size match {
-      case 0 => None -> Nil
-      case 1 => Some(l.head) -> Nil
+      case 0 => None -> Vector.empty
+      case 1 => Some(l.head) -> Vector.empty
       case n =>
-        val correct = itr(l.tail, l.head)
+        val correct = findCorrect(l.tail, l.head)
         Some(correct) -> l.filterNot(age(_)._1 == age(correct)._1)
     }
   }
 
-  def update(correct: Option[Data], nodes: Seq[Node]) = {
+  def update(correct: Option[Data], nodes: Seq[Node]): Unit = {
     val msg = correct match {
       case Some(d) => StorePut(Some(d))
       case None => StoreDelete(k)
@@ -71,9 +78,5 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) ext
     nodes foreach {
       stores.get(_, "ring_write_store").fold(_ ! msg, _ ! msg)
     }
-  }
-
-  def age(d: (Option[Data], Node)): Age = {
-    d._1.fold(ZERO)(e => (makevc(e.vc), e.lastModified))
   }
 }
