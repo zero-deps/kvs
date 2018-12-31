@@ -47,7 +47,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   val N: Int = quorum.get(0)
   val W: Int = quorum.get(1)
   val R: Int = quorum.get(2)
-  val gatherTimeout = config.getInt("gather-timeout")
+  val gatherTimeout = config.getInt("gather-timeout") seconds
   val vNodesNum = config.getInt("virtual-nodes")
   val bucketsNum = config.getInt("buckets")
   val cluster = Cluster(system)
@@ -200,16 +200,17 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     val nodes = nodesForKey(k, data)
     val gather = system.actorOf(Props(classOf[GatherDel], nodes, client))
     val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
-    stores.foreach(s => s.fold(
+    stores.foreach(_.fold(
       _.tell(StoreDelete(k), gather), 
       _.tell(StoreDelete(k), gather),
     ))
   }
 
-  def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData):Unit = {
-    val bucket = hashing findBucket k
+  def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData): Unit = {
     val nodes = availableNodesFrom(nodesForKey(k, data))
-    if (nodes.size >= W) {
+    val M = nodes.size
+    if (M >= W) {
+      val bucket = hashing findBucket k
       val info = PutInfo(k, v, N, W, bucket, local, data.nodes)
       val gather = system.actorOf(GatherPut.props(client, gatherTimeout, actorsMem, info))
       val node = if (nodes contains local) local else nodes.head
@@ -222,17 +223,18 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     }
   }
 
-  def doGet(key: Key, client: ActorRef, data: HashRngData): Unit = {
-    val fromNodes = availableNodesFrom(nodesForKey(key, data))
-    if (fromNodes.nonEmpty) {
-      val gather = system.actorOf(Props(classOf[GatherGet], client, fromNodes.size, R, key))
-      val stores = fromNodes map { actorsMem.get(_, "ring_readonly_store") }
-      stores foreach (store => store.fold(
-        _.tell(StoreGet(key), gather),
-        _.tell(StoreGet(key), gather),
+  def doGet(k: Key, client: ActorRef, data: HashRngData): Unit = {
+    val nodes = availableNodesFrom(nodesForKey(k, data))
+    val M = nodes.size
+    if (M >= R) {
+      val gather = system.actorOf(GatherGet.props(client, gatherTimeout, M, R, k))
+      val stores = nodes map { actorsMem.get(_, "ring_readonly_store") }
+      stores foreach (_.fold(
+        _.tell(StoreGet(k), gather),
+        _.tell(StoreGet(k), gather),
       ))
     } else {
-      client ! None
+      client ! AckQuorumFailed
     }
   }
 

@@ -7,18 +7,16 @@ import mws.rng.msg.{StoreGetAck, StorePut, StorePutStatus, StorePutSaved}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
 
-case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
-case class PutInfoBulk(b: List[(Key, Value)], N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
+final case class PutInfo(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node])
 
 object GatherPut {
-  def props(client: ActorRef, t: Int, actorsMem: SelectionMemorize, putInfo: PutInfo): Props = Props(new GatherPut(client, t, actorsMem, putInfo))
+  def props(client: ActorRef, t: FiniteDuration, actorsMem: SelectionMemorize, putInfo: PutInfo): Props = Props(new GatherPut(client, t, actorsMem, putInfo))
 }
 
-class GatherPut(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo: PutInfo)
-  extends FSM[FsmState, FsmData] with ActorLogging {
+class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, putInfo: PutInfo) extends FSM[FsmState, Statuses] with ActorLogging {
 
-  startWith(Collecting, Statuses(Nil))
-  setTimer("send_by_timeout", OpsTimeout, t.seconds)
+  startWith(Collecting, Statuses(Vector.empty))
+  setTimer("send_by_timeout", OpsTimeout, t)
 
   when(Collecting){
     case Event(StoreGetAck(data), _) =>
@@ -34,31 +32,28 @@ class GatherPut(client: ActorRef, t: Int, stores: SelectionMemorize, putInfo: Pu
       stay()
     
     case Event(incomeStatus: StorePutStatus, Statuses(statuses)) =>
-      val updStatuses = Statuses( incomeStatus :: statuses )
+      val updStatuses = Statuses(incomeStatus +: statuses)
       updStatuses.all.count(_.isInstanceOf[StorePutSaved]) match {
-        case n if n == putInfo.N =>
-          client ! AckSuccess
+        case n if n === putInfo.N =>
+          client ! AckSuccess(None)
           stop()
-        case w if w == putInfo.W =>
-          client ! AckSuccess
+        case w if w === putInfo.W =>
+          client ! AckSuccess(None)
           goto(Sent) using updStatuses
         case _ => stay using updStatuses
       }
 
     case Event(OpsTimeout, _) =>
       client ! AckTimeoutFailed
-      cancelTimer("send_by_timeout")
       stop()
   }
   
+  // keep fsm running to avoid dead letter warnings
   when(Sent){
     case Event(status: StorePutStatus, Statuses(ss)) =>
-      if(ss.size + 1 == putInfo.N)
-        stop()
-      else
-        stay using Statuses(status :: ss)
-    case Event(OpsTimeout, _ ) =>
-      cancelTimer("send_by_timeout")
+      if (ss.size + 1 === putInfo.N) stop()
+      else stay() using Statuses(status +: ss)
+    case Event(OpsTimeout, _) =>
       stop()
   }
 

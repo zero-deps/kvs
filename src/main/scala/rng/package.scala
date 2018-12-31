@@ -20,7 +20,7 @@ package object rng {
   type PreferenceList = Set[Node]
 
   sealed trait Ack
-  final case object AckSuccess extends Ack
+  final case class AckSuccess(v: Option[Value]) extends Ack
   final case object AckQuorumFailed extends Ack
   final case object AckTimeoutFailed extends Ack
 
@@ -30,8 +30,8 @@ package object rng {
   final case object Sent extends FsmState
 
   sealed trait FsmData
-  final case class Statuses(all: List[StorePutStatus]) extends FsmData
-  final case class DataCollection(perNode: Seq[(Option[Data], Node)], nodes: Int) extends FsmData
+  final case class Statuses(all: Vector[StorePutStatus]) extends FsmData
+  final case class DataCollection(perNode: Vector[(Option[Data], Node)], nodes: Int) extends FsmData
   
   final case object OpsTimeout
 
@@ -78,7 +78,7 @@ package object rng {
   def now_ms(): Long = System.currentTimeMillis
 
   implicit class VectorClockExt(old: VectorClock) {
-    def <=(candidat: VectorClock): Boolean =
-      old < candidat || old == candidat
+    def <=(candidate: VectorClock): Boolean =
+      old < candidate || old == candidate
   }
 }

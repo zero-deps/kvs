@@ -20,7 +20,7 @@ class GatherDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, Set
     case Event("ok", nodesLeft) =>
       nodesLeft - addrs(sender()) match {
         case enough if prefList.size - enough.size === W => // W nodes removed key
-          client ! AckSuccess
+          client ! AckSuccess(None)
           goto(Sent) using(enough)
         case less => stay using(less)
       }

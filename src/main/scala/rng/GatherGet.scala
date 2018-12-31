@@ -1,41 +1,44 @@
 package mws.rng
 
 import akka.actor._
-import scala.concurrent.duration._
 import akka.cluster.VectorClock
 import mws.rng.data.Data
 import mws.rng.msg.{StoreGetAck, StorePut, StoreDelete}
+import scala.collection.breakOut
+import scala.concurrent.duration._
 
-class GatherGet(client: ActorRef, N: Int, R: Int, k: Key)
-  extends FSM[FsmState, FsmData] with ActorLogging{
+object GatherGet {
+  def props(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key): Props = Props(new GatherGet(client, t, M, R, k))
+}
+
+class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) extends FSM[FsmState, FsmData] with ActorLogging {
   val stores = SelectionMemorize(context.system)
-  val ZERO:Age = (new VectorClock, 0L)
+  val ZERO: Age = (new VectorClock, 0L)
 
-  startWith(Collecting, DataCollection(Seq.empty[(Option[Data], Node)], 0))
-  setTimer("send_by_timeout", OpsTimeout, context.system.settings.config.getInt("ring.gather-timeout").seconds)
+  startWith(Collecting, DataCollection(Vector.empty, 0))
+  setTimer("send_by_timeout", OpsTimeout, t)
 
   when(Collecting) {
     case Event(StoreGetAck(rez), DataCollection(perNode, nodes)) =>
       val address = sender.path.address
-      val receive: Seq[(Option[Data], Node)] =
-        if (rez.isEmpty) Seq(None -> address)
-        else rez.map(d => Some(d) -> address)
+      val receive: Vector[(Option[Data], Node)] =
+        if (rez.isEmpty) Vector(None -> address)
+        else rez.map(d => Some(d) -> address)(breakOut)
 
       nodes + 1 match {
-        case `N` => // TODO wait for R or N nodes ?
+        case `M` => // TODO wait for R or M nodes ?
           cancelTimer("send_by_timeout")
           val response = order[(Option[Data], Node)](receive ++ perNode, age)
-          if (response._2.nonEmpty){ response._1.foreach(freshData => update(freshData._1, response._2.map(_._2))) }
-          client ! response._1.fold[Option[Value]](None)(d => d._1.fold[Option[Value]](None)(v => Some(v.value)))
+          if (response._2.nonEmpty) {
+            response._1.foreach(freshData => update(freshData._1, response._2.map(_._2)))
+          }
+          client ! AckSuccess(response._1.fold[Option[Value]](None)(d => d._1.fold[Option[Value]](None)(v => Some(v.value))))
           stop()
         case ns => stay() using DataCollection(receive ++ perNode, ns)
       }
 
-    case Event(OpsTimeout, DataCollection(l, ns)) =>
-      val response = order(l, age)
-      client ! response._1.fold[Option[Value]](None)(d => d._1.fold[Option[Value]](None)(v => Some(v.value)))
-      // cannot fix inconsistent because quorum not satisfied. But check what can do
-      cancelTimer("send_by_timeout")
+    case Event(OpsTimeout, _) =>
+      client ! AckTimeoutFailed
       stop()
   }
 

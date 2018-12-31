@@ -39,7 +39,7 @@ class Ring(system: ActorSystem) extends Dba {
   def put(key: String, value: V): Res[V] = {
     val putF = (hash ? rng.Put(stob(key), atob(value))).mapTo[rng.Ack]
     Try(Await.result(putF, d)) match {
-      case Success(rng.AckSuccess) => value.right
+      case Success(rng.AckSuccess(_)) => value.right
       case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
       case Success(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
       case Failure(t) => RngThrow(t).left
@@ -49,23 +49,24 @@ class Ring(system: ActorSystem) extends Dba {
   def isReady: Future[Boolean] = hash.ask(rng.Ready).mapTo[Boolean]
 
   def get(key: String): Res[V] = {
-    val getF = hash.ask(rng.Get(stob(key)))
-    Try(Await.result(getF, d)) match {
+    val fut = hash.ask(rng.Get(stob(key))).mapTo[rng.Ack]
+    Try(Await.result(fut, d)) match {
+      case Success(rng.AckSuccess(Some(v))) => v.toByteArray.right
+      case Success(rng.AckSuccess(None)) => NotFound(key).left
       case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
-      case Success(Some(v: rng.Value)) => v.toByteArray.right
-      case Success(None) => NotFound(key).left
-      case Success(v) => RngFail(s"Unexpected response: ${v}").left
+      case Success(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
       case Failure(t) => RngThrow(t).left
     }
   }
 
   def delete(key: String): Res[V] =
     get(key).flatMap{ r =>
-      Try(Await.result((hash ? rng.Delete(stob(key))).mapTo[rng.Ack], d)).toDisjunction match {
-        case \/-(rng.AckSuccess) => r.right
-        case \/-(rng.AckQuorumFailed) => RngAskQuorumFailed.left
-        case \/-(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
-        case -\/(t) => RngThrow(t).left
+      val fut = hash.ask(rng.Delete(stob(key))).mapTo[rng.Ack]
+      Try(Await.result(fut, d)) match {
+        case Success(rng.AckSuccess(_)) => r.right
+        case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+        case Success(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
+        case Failure(t) => RngThrow(t).left
       }
     }
 
