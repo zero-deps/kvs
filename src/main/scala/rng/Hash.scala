@@ -30,6 +30,7 @@ final case class HashRngData(
   nodes: Set[Node],
   buckets: SortedMap[Bucket, PreferenceList],
   vNodes: SortedMap[Bucket, Node],
+  replication: Option[ActorRef],
 )
 
 object Hash {
@@ -61,9 +62,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   log.info(s"ring.quorum.R = ${R}".blue)
   log.info(s"ring.leveldb.dir = ${config.getString("leveldb.dir")}".blue)
 
-  startWith(QuorumStateUnsatisfied(), HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Node]))
-
-  var replication: Option[ActorRef] = None
+  startWith(QuorumStateUnsatisfied(), HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Node], replication=None))
 
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
@@ -250,8 +249,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     val updvNodes = data.vNodes ++ newvNodes
     val nodes = data.nodes + member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
-    syncNodes(moved)
-    val updData = HashRngData(nodes, data.buckets++moved, updvNodes)
+    data.replication map (context stop _)
+    val repl = syncNodes(moved)
+    val updData = HashRngData(nodes, data.buckets++moved, updvNodes, repl.some)
     log.info(s"Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
     state(updData.nodes.size) -> updData
   }
@@ -263,12 +263,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     val nodes = data.nodes - member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
     log.info(s"Will update ${moved.size} buckets")
-    val updData = HashRngData(nodes, data.buckets++moved, updvNodes)
-    syncNodes(moved)
+    data.replication map (context stop _)
+    val repl = syncNodes(moved)
+    val updData = HashRngData(nodes, data.buckets++moved, updvNodes, repl.some)
     state(updData.nodes.size) -> updData
   }
 
-  def syncNodes(_buckets: SortedMap[Bucket,PreferenceList]): Unit = {
+  def syncNodes(_buckets: SortedMap[Bucket,PreferenceList]): ActorRef = {
     val empty = SortedMap.empty[Bucket,PreferenceList]
     val buckets = _buckets.foldLeft(empty){ case (acc, (b, prefList)) =>
       if (prefList contains local) {
@@ -278,9 +279,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         }
       } else acc
     }
-    replication foreach (_ ! PoisonPill)
-    replication = context.actorOf(ReplicationSupervisor.props(buckets), s"repl-${now_ms()}").some
-    replication foreach (_ ! "go-repl")
+    val replication = context.actorOf(ReplicationSupervisor.props(buckets), s"repl-${now_ms()}")
+    replication ! "go-repl"
+    replication
   }
 
   def state(nodes: Int): QuorumState = nodes match {
