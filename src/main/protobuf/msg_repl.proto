@@ -4,12 +4,16 @@ package mws.rng;
 
 import "data.proto";
 
-message ReplGetBucketVc { 
-  int32 b = 1;
+message ReplGetBucketsVc { 
+  repeated int32 bs = 1;
 }
 
-message ReplBucketVc {
-  repeated Vec vc = 1;
+message ReplBucketsVc {
+  map<int32, ReplVectorClock> bvcs = 1;
+}
+
+message ReplVectorClock {
+  repeated Vec vs = 1;
 }
 
 message ReplGetBucketIfNew { 
@@ -34,7 +38,4 @@ message ReplBucketPut {
   int32 b = 1;
   repeated Vec bucketVc = 2;
   repeated ReplBucketDataItem items = 3;
-}
-
-message ReplFailed {
 }

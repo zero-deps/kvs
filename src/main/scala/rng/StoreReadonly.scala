@@ -7,9 +7,10 @@ import com.google.protobuf.ByteString
 import leveldbjnr._
 import mws.rng.data.{Data, SeqData, BucketInfo}
 import mws.rng.msg.{StoreGet, StoreGetAck}
-import mws.rng.msg_repl.{ReplGetBucketVc, ReplBucketVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplBucketDataItem}
-import mws.rng.msg_dump.{DumpGetBucketData, DumpBucketData, DumpBucketDataItem}
 import mws.rng.msg_dump.{DumpGet, DumpEn}
+import mws.rng.msg_dump.{DumpGetBucketData, DumpBucketData, DumpBucketDataItem}
+import mws.rng.msg_repl.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplBucketDataItem, ReplVectorClock}
+import scala.collection.{breakOut}
 
 object ReadonlyStore {
   def props(leveldb: LevelDB): Props = Props(new ReadonlyStore(leveldb))
@@ -65,10 +66,12 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
         case None =>
           sender ! ReplBucketUpToDate()
       }
-    case ReplGetBucketVc(b) =>
-      val k = itob(b) ++ `:keys`
-      val vc = get(k).map(BucketInfo.parseFrom(_).vc).getOrElse(Nil)
-      sender ! ReplBucketVc(vc)
+    case ReplGetBucketsVc(bs) =>
+      val bvcs: Bucket Map ReplVectorClock = bs.flatMap{ b =>
+        val k = itob(b) ++ `:keys`
+        get(k).map(x => b -> ReplVectorClock(BucketInfo.parseFrom(x).vc))
+      }(breakOut)
+      sender ! ReplBucketsVc(bvcs)
 
     case DumpGet(k) =>
       import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
