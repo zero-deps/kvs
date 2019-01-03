@@ -15,10 +15,6 @@ message Data {
   bytes value = 5;
 }
 
-message SeqData {
-  repeated Data data = 1;
-}
-
 message Vec {
   string key = 1;
   int64 value = 2;

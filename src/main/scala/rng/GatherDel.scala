@@ -43,7 +43,7 @@ class GatherDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, Set
     case Event(OpsTimeout, nodesLeft) => stop()
   }
 
-  def addrs(s: ActorRef) = if(s.path.address.hasLocalScope) local else s.path.address
+  def addrs(s: ActorRef) = if (addr(s).hasLocalScope) local else addr(s)
   
   initialize()
 }

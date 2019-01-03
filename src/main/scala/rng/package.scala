@@ -1,10 +1,9 @@
 package mws
 
-import akka.actor.Address
+import akka.actor.{Address, ActorRef}
 import akka.cluster.VectorClock
 import com.google.protobuf.{ByteString, ByteStringWrap}
-import mws.rng.data.{Data, Vec}
-import mws.rng.msg.{StorePutStatus}
+import mws.rng.data.{Vec}
 import scala.collection.immutable.{TreeMap}
 import scalaz._
 
@@ -27,10 +26,6 @@ package object rng {
   final case object ReadyCollect extends FsmState
   final case object Collecting extends FsmState
   final case object Sent extends FsmState
-
-  sealed trait FsmData
-  final case class Statuses(all: Vector[StorePutStatus]) extends FsmData
-  final case class DataCollection(perNode: Vector[(Option[Data], Node)], nodes: Int) extends FsmData
   
   final case object OpsTimeout
 
@@ -59,4 +54,6 @@ package object rng {
     def <=(candidate: VectorClock): Boolean =
       old < candidate || old == candidate
   }
+  
+  def addr(s: ActorRef): Node = s.path.address
 }

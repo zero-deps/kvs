@@ -74,7 +74,7 @@ class DumpProcessor extends Actor with ActorLogging {
         res.kv.foreach { d =>
           ksize = ksize + d._1.size
           size = size + d._2.size
-          val putF = stores.get(self.path.address, "ring_hash").fold(_.ask(InternalPut(d._1, d._2)), _.ask(InternalPut(d._1, d._2)))
+          val putF = stores.get(addr(self), "ring_hash").fold(_.ask(InternalPut(d._1, d._2)), _.ask(InternalPut(d._1, d._2)))
           Await.ready(putF, timeout.duration)
         }
         if (res.last) {
@@ -85,7 +85,7 @@ class DumpProcessor extends Actor with ActorLogging {
         if (res.last) {
           log.info("Dump is loaded".green)
           client ! "done"
-          stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
+          stores.get(addr(self), "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
           dumpIO ! PoisonPill
           context.stop(self)
         }
@@ -122,8 +122,7 @@ class DumpProcessor extends Actor with ActorLogging {
 
     () => {
       case res: (DumpBucketData) if processBucket === res.b =>
-        val res_l: Seq[Data] = res.items.flatMap(_.data) //todo: replace `res_l` with `items`
-        collected = res_l +: collected
+        collected = res.items +: collected
         if (collected.size === buckets(processBucket).size) {
           pullWorking = false
           pull
@@ -141,7 +140,7 @@ class DumpProcessor extends Actor with ActorLogging {
         }
       case res: DumpBucketData =>
         log.error(s"wrong bucket response, expected=${processBucket}, actual=${res.b}")
-        stores.get(self.path.address, "ring_hash").fold(
+        stores.get(addr(self), "ring_hash").fold(
           _ ! RestoreState,
           _ ! RestoreState,
         )
@@ -152,7 +151,7 @@ class DumpProcessor extends Actor with ActorLogging {
         if (putQueue.isEmpty) {
           if (processBucket == maxBucket) {
             log.info(s"Dump is saved: path=${path}".green)
-            stores.get(self.path.address, "ring_hash").fold(
+            stores.get(addr(self), "ring_hash").fold(
               _ ! RestoreState,
               _ ! RestoreState
             )

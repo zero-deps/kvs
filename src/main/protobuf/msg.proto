@@ -22,8 +22,6 @@ message Msg {
     StoreGet storeGet = 12;
     StoreGetAck storeGetAck = 13;
     StorePut storePut = 14;
-    StorePutConflict storePutConflict = 15;
-    StorePutSaved storePutSaved = 16;
   }
 }
 
@@ -40,21 +38,7 @@ message StoreDelete {
 }
 
 message StoreGetAck {
-  repeated Data d = 1;
-}
-
-message StorePutStatus {
-  oneof sealed_value {
-    StorePutSaved saved = 1;
-    StorePutConflict conflict = 2;
-  }
-}
-
-message StorePutSaved {
-}
-
-message StorePutConflict {
-  repeated Data broken = 1;
+  Data data = 1;
 }
 
 message QuorumState {

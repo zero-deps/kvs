@@ -48,7 +48,7 @@ class Monitor(storage: ActorRefStorage) extends Actor {
       context.watch(ref)
       storage.put((n.asInstanceOf[Node], ref.path.name), ref)
     case Terminated(actor) => 
-      storage.remove((actor.path.address, actor.path.name))
+      storage.remove((addr(actor), actor.path.name))
     case _ =>
   }
 }

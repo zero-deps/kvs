@@ -26,10 +26,5 @@ message DumpGetBucketData {
 
 message DumpBucketData {
   int32 b = 1;
-  repeated DumpBucketDataItem items = 2;
-}
-
-message DumpBucketDataItem {
-  bytes key = 1;
-  repeated Data data = 2;
+  repeated Data items = 2;
 }

@@ -42,13 +42,13 @@ class LoadDumpWorkerJava extends FSM[FsmState, Option[ActorRef]] with ActorLoggi
       }
       size = size + v.size
       ksize = ksize + k.size
-      val putF = stores.get(self.path.address, "ring_hash").fold(
+      val putF = stores.get(addr(self), "ring_hash").fold(
         _.ask(InternalPut(k,v)),
         _.ask(InternalPut(k,v)),
       )
       Await.ready(putF, timeout.duration)
       if (nextKey.isEmpty) {
-        stores.get(self.path.address, "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
+        stores.get(addr(self), "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
         Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
         log.info("load is completed, keys={}", keysNumber)
         state.map(_ ! "done")

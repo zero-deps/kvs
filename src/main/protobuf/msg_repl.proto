@@ -25,17 +25,12 @@ message ReplBucketUpToDate {
 }
 
 message ReplNewerBucketData {
-  repeated Vec vc = 2;
-  repeated ReplBucketDataItem items = 3;
-}
-
-message ReplBucketDataItem {
-  bytes key = 1;
-  repeated Data data = 2;
+  repeated Vec vc = 1;
+  repeated Data items = 2;
 }
 
 message ReplBucketPut {
   int32 b = 1;
   repeated Vec bucketVc = 2;
-  repeated ReplBucketDataItem items = 3;
+  repeated Data items = 3;
 }

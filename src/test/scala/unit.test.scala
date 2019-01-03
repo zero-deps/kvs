@@ -10,7 +10,6 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
 
   "merge buckets" - {
     import mws.rng.ReplicationWorker.mergeBucketData
-    import mws.rng.msg_repl.{ReplBucketDataItem}
     "empty" in {
       val xs = Nil
       mergeBucketData(xs) should be (empty)
@@ -20,7 +19,7 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
         Data(stob("k1"), bucket=1, lastModified=1, vc=Seq(vc1(1), vc2(1)), stob("v1")),
       )
       val ys = Set(
-        ReplBucketDataItem(xs(0).key, Seq(xs(0))),
+        xs(0),
       )
       mergeBucketData(xs).toSet should be (ys)
     }
@@ -31,9 +30,9 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
         Data(stob("k3"), bucket=1, lastModified=1, vc=Seq(vc1(1), vc2(1)), stob("v3")),
       )
       val ys = Set(
-        ReplBucketDataItem(xs(0).key, Seq(xs(0))),
-        ReplBucketDataItem(xs(1).key, Seq(xs(1))),
-        ReplBucketDataItem(xs(2).key, Seq(xs(2))),
+        xs(0),
+        xs(1),
+        xs(2),
       )
       mergeBucketData(xs).toSet should be (ys)
     }
@@ -46,8 +45,8 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           Data(stob("k2"), bucket=1, lastModified=1, vcs, stob("v2")),
         )
         val ys = Set(
-          ReplBucketDataItem(xs(1).key, Seq(xs(1))),
-          ReplBucketDataItem(xs(2).key, Seq(xs(2))),
+          xs(1),
+          xs(2),
         )
         mergeBucketData(xs).toSet should be (ys)
       }
@@ -58,8 +57,8 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           Data(stob("k2"), bucket=1, lastModified=1, vcs, stob("v2")),
         )
         val ys = Set(
-          ReplBucketDataItem(xs(0).key, Seq(xs(0))),
-          ReplBucketDataItem(xs(2).key, Seq(xs(2))),
+          xs(0),
+          xs(2),
         )
         mergeBucketData(xs).toSet should be (ys)
       }
@@ -74,8 +73,8 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           Data(stob("k2"), bucket=1, lastModified=1, vc1s, stob("v2")),
         )
         val ys = Set(
-          ReplBucketDataItem(xs(1).key, Seq(xs(1))),
-          ReplBucketDataItem(xs(2).key, Seq(xs(2))),
+          xs(1),
+          xs(2),
         )
         mergeBucketData(xs).toSet should be (ys)
       }
@@ -86,8 +85,8 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           Data(stob("k2"), bucket=1, lastModified=1, vc1s, stob("v2")),
         )
         val ys = Set(
-          ReplBucketDataItem(xs(0).key, Seq(xs(0))),
-          ReplBucketDataItem(xs(2).key, Seq(xs(2))),
+          xs(0),
+          xs(2),
         )
         mergeBucketData(xs).toSet should be (ys)
       }
@@ -102,8 +101,8 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           Data(stob("k2"), bucket=1, lastModified=1, vc1s, stob("v2")),
         )
         val ys = Set(
-          ReplBucketDataItem(xs(0).key, Seq(xs(0), xs(1))),
-          ReplBucketDataItem(xs(2).key, Seq(xs(2))),
+          xs(0),
+          xs(2),
         )
         mergeBucketData(xs).toSet should be (ys)
       }
@@ -114,8 +113,8 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           Data(stob("k2"), bucket=1, lastModified=1, vc1s, stob("v2")),
         )
         val ys = Set(
-          ReplBucketDataItem(xs(0).key, Seq(xs(0), xs(1))),
-          ReplBucketDataItem(xs(2).key, Seq(xs(2))),
+          xs(1),
+          xs(2),
         )
         mergeBucketData(xs).toSet should be (ys)
       }

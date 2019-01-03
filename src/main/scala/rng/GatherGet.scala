@@ -5,37 +5,34 @@ import akka.cluster.VectorClock
 import mws.rng.data.Data
 import mws.rng.msg.{StoreGetAck, StorePut, StoreDelete}
 import scala.annotation.tailrec
-import scala.collection.breakOut
 import scala.concurrent.duration._
 
-class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) extends FSM[FsmState, FsmData] with ActorLogging {
-  import GatherGet.{AddrOfData, order}
+import GatherGet.DataCollection
+
+class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) extends FSM[FsmState, DataCollection] with ActorLogging {
+  import GatherGet.{order}
   val stores = SelectionMemorize(context.system)
 
   startWith(Collecting, DataCollection(Vector.empty, 0))
   setTimer("send_by_timeout", OpsTimeout, t)
 
   when(Collecting) {
-    case Event(StoreGetAck(rez), DataCollection(perNode, nodes)) =>
-      val address = sender.path.address
-      val receive: Vector[AddrOfData] =
-        if (rez.isEmpty) Vector(None -> address)
-        else rez.map(d => Some(d) -> address)(breakOut)
-
+    case Event(StoreGetAck(data), DataCollection(perNode, nodes)) =>
+      val xs = (data -> addr(sender)) +: perNode
       nodes + 1 match {
         case `M` => //todo: wait for first R same answers?
           cancelTimer("send_by_timeout")
-          val (correct: Option[Data], outdated: Vector[Node]) = order(receive ++ perNode);
-          { // update outdated nodes with correct data
+          val (correct: Option[Data], outdated: Vector[Node]) = order(xs)
+          ;{ // update outdated nodes with correct data
             val msg = correct.fold[Any](StoreDelete(k))(d => StorePut(Some(d)))
             outdated foreach { node =>
               stores.get(node, "ring_write_store").fold(_ ! msg, _ ! msg)
             }
           }
-          //todo: return to client conflict if any
           client ! AckSuccess(correct.map(_.value))
           stop()
-        case ns => stay() using DataCollection(receive ++ perNode, ns)
+        case ns =>
+          stay using DataCollection(xs, ns)
       }
 
     case Event(OpsTimeout, _) =>
@@ -49,31 +46,36 @@ object GatherGet {
 
   type AddrOfData = (Option[Data], Node)
 
+  final case class DataCollection(perNode: Vector[AddrOfData], nodes: Int)
+
   /* returns (actual data, list of outdated nodes) */
-  def order(l: Vector[AddrOfData]): (Option[Data], Vector[Node]) = {
+  def order(xs: Vector[AddrOfData]): (Option[Data], Vector[Node]) = {
     @tailrec
-    def findCorrect(l: Vector[AddrOfData], newest: AddrOfData): AddrOfData = {
-      l match {
+    def findCorrect(xs: Vector[AddrOfData], newest: AddrOfData): AddrOfData = {
+      xs match {
         case xs if xs.isEmpty => newest
-        case h +: t if t.exists(age(h)._1 < age(_)._1) => //todo: remove case (unit test)
+        case h +: t if t.exists(age1(h) < age1(_)) => //todo: remove case (unit test)
           findCorrect(t, newest)
-        case h +: t if age(h)._1 > age(newest)._1 =>
+        case h +: t if age1(h) > age1(newest) =>
           findCorrect(t, h)
-        case h +: t if age(h)._1 <> age(newest)._1 && age(h)._2 > age(newest)._2 => 
+        case h +: t if age1(h) <> age1(newest) && age2(h) > age2(newest) => 
           findCorrect(t, h)
-        case _ =>
-          findCorrect(l.tail, newest)
+        case xs =>
+          findCorrect(xs.tail, newest)
       }
     }
-    def age(d: AddrOfData): Age = {
-      d._1.fold(new VectorClock -> 0L)(e => makevc(e.vc) -> e.lastModified)
+    def age1(d: AddrOfData): VectorClock = {
+      d._1.fold(new VectorClock)(e => makevc(e.vc))
     }
-    l.map(age(_)._1).toSet.size match {
+    def age2(d: AddrOfData): Long = {
+      d._1.fold(0L)(_.lastModified)
+    }
+    xs.map(age1(_)).toSet.size match {
       case 0 => None -> Vector.empty
-      case 1 => l.head._1 -> Vector.empty
+      case 1 => xs.head._1 -> Vector.empty
       case n =>
-        val correct = findCorrect(l.tail, l.head)
-        correct._1 -> l.filterNot(age(_)._1 == age(correct)._1).map(_._2)
+        val correct = findCorrect(xs.tail, xs.head)
+        correct._1 -> xs.filterNot(age1(_) == age1(correct)).map(_._2)
     }
   }
 }

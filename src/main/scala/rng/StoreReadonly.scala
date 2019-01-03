@@ -5,11 +5,11 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{VectorClock}
 import com.google.protobuf.ByteString
 import leveldbjnr._
-import mws.rng.data.{Data, SeqData, BucketInfo}
+import mws.rng.data.{Data, BucketInfo}
 import mws.rng.msg.{StoreGet, StoreGetAck}
 import mws.rng.msg_dump.{DumpGet, DumpEn}
-import mws.rng.msg_dump.{DumpGetBucketData, DumpBucketData, DumpBucketDataItem}
-import mws.rng.msg_repl.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplBucketDataItem, ReplVectorClock}
+import mws.rng.msg_dump.{DumpGetBucketData, DumpBucketData}
+import mws.rng.msg_repl.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplVectorClock}
 import scala.collection.{breakOut}
 
 object ReadonlyStore {
@@ -30,18 +30,15 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
   override def receive: Receive = {
     case StoreGet(key) =>
       val k = itob(hashing.findBucket(key)) ++ `:key:` ++ key
-      val result: Seq[Data] = get(k).map(SeqData.parseFrom(_).data).getOrElse(Seq.empty[Data])
+      val result: Option[Data] = get(k).map(Data.parseFrom(_))
       sender ! StoreGetAck(result)
 
     case DumpGetBucketData(b) => 
       val k = itob(b) ++ `:keys`
       val b_info = get(k).map(BucketInfo.parseFrom(_))
       val keys: Seq[Key] = b_info.map(_.keys).getOrElse(Nil)
-      val items: Seq[DumpBucketDataItem] = keys.map(key =>
-        DumpBucketDataItem(
-          key = key,
-          data = get(itob(b)++`:key:`++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
-        )
+      val items: Seq[Data] = keys.flatMap(key =>
+        get(itob(b)++`:key:`++key).map(Data.parseFrom(_))
       )
       sender ! DumpBucketData(b, items)
     case ReplGetBucketIfNew(b, vc) =>
@@ -55,11 +52,8 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
             case true => sender ! ReplBucketUpToDate()
             case false =>
               val keys = b_info.keys
-              val items: Seq[ReplBucketDataItem] = keys.map(key =>
-                ReplBucketDataItem(
-                  key = key,
-                  data = get(itob(b)++`:key:`++key).map(SeqData.parseFrom(_).data).getOrElse(Vector.empty)
-                )
+              val items: Seq[Data] = keys.flatMap(key =>
+                get(itob(b)++`:key:`++key).map(Data.parseFrom(_))
               )
               sender ! ReplNewerBucketData(b_info.vc, items)
           }

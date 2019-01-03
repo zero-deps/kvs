@@ -15,8 +15,6 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
       case a: mws.rng.msg.StoreDelete => msg.Msg(msgType=MsgType.StoreDelete(a)).toByteArray
       case a: mws.rng.msg.StoreGet => msg.Msg(msgType=MsgType.StoreGet(a)).toByteArray
       case a: mws.rng.msg.StorePut => msg.Msg(msgType=MsgType.StorePut(a)).toByteArray
-      case a: mws.rng.msg.StorePutSaved => msg.Msg(msgType=MsgType.StorePutSaved(a)).toByteArray
-      case a: mws.rng.msg.StorePutConflict => msg.Msg(msgType=MsgType.StorePutConflict(a)).toByteArray
 
       case a: mws.rng.msg_dump.DumpBucketData => msg.Msg(msgType=MsgType.DumpBucketData(a)).toByteArray
       case a: mws.rng.msg_dump.DumpEn => msg.Msg(msgType=MsgType.DumpEn(a)).toByteArray
@@ -54,8 +52,6 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
       case MsgType.StoreGet(m) => m
       case MsgType.StoreGetAck(m) => m
       case MsgType.StorePut(m) => m
-      case MsgType.StorePutConflict(m) => m
-      case MsgType.StorePutSaved(m) => m
     }
   }
 }

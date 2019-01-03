@@ -1,9 +1,9 @@
 package mws.rng
 
-import akka.actor.{ActorLogging, Props, ActorRef, FSM}
+import akka.actor.{ActorLogging, Props, FSM}
 import akka.cluster.{Cluster, VectorClock}
 import mws.rng.data.{Data}
-import mws.rng.msg_repl.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplBucketDataItem, ReplVectorClock}
+import mws.rng.msg_repl.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplVectorClock}
 import scala.annotation.tailrec
 import scala.collection.immutable.{SortedMap, HashMap}
 import scala.concurrent.duration.{Duration}
@@ -89,26 +89,38 @@ object ReplicationWorker {
 
   def props(b: Bucket, prefList: PreferenceList, vc: VectorClockList): Props = Props(new ReplicationWorker(b, prefList, vc))
 
-  def mergeBucketData(l: Seq[Data]): Seq[ReplBucketDataItem] = mergeBucketData(l, acc=HashMap.empty[Key,Seq[Data]])
+  def mergeBucketData(xs: Seq[Data]): Seq[Data] = mergeBucketData(xs, acc=HashMap.empty[Key,Data])
 
   @tailrec
-  private def mergeBucketData(l: Seq[Data], acc: Key Map Seq[Data]): Seq[ReplBucketDataItem] = l match {
-    case h +: t =>
-      acc.get(h.key) match {
-        case Some(x +: Seq()) if makevc(h.vc) == makevc(x.vc) =>
-          if (h.lastModified > x.lastModified) mergeBucketData(t, acc + (h.key -> Seq(h)))
-          else mergeBucketData(t, acc)
-        case Some(x +: Seq()) if makevc(h.vc) > makevc(x.vc) =>
-          mergeBucketData(t, acc + (h.key -> Seq(h)))
-        case Some(x +: Seq()) if makevc(h.vc) < makevc(x.vc) =>
-          mergeBucketData(t, acc)
-        case Some(xs) =>
-          mergeBucketData(t, acc + (h.key -> (xs :+ h)))
-        case None =>
-          mergeBucketData(t, acc + (h.key -> Seq(h)))
-      }
-    case xs if xs.isEmpty => acc.map{ case (k,v) => ReplBucketDataItem(k,v) }.toSeq
-  }
+  private def mergeBucketData(xs: Seq[Data], acc: Key HashMap Data): Seq[Data] = 
+    xs match {
+      case xs if xs.isEmpty => acc.values.toSeq
+      case h +: t =>
+        acc.get(h.key) match {
+          case None =>
+            mergeBucketData(t, acc + (h.key -> h))
+          case Some(s) => // stored
+            val hvc = makevc(h.vc)
+            val svc = makevc(s.vc)
+            if (hvc < svc) {
+              mergeBucketData(t, acc)
+            } else if (hvc == svc) {
+              if (s.lastModified <= h.lastModified) {
+                mergeBucketData(t, acc + (h.key -> h))
+              } else { // s.lastModified > h.lastModified
+                mergeBucketData(t, acc)
+              }
+            } else if (hvc > svc) {
+              mergeBucketData(t, acc + (h.key -> h))
+            } else { // hvc <> svc
+              if (s.lastModified <= h.lastModified) {
+                mergeBucketData(t, acc + (h.key -> h))
+              } else { // s.lastModified > h.lastModified
+                mergeBucketData(t, acc)
+              }
+            }
+        }
+    }
 }
 
 class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockList) extends FSM[FsmState, ReplState] with ActorLogging {
@@ -131,11 +143,10 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
       stay using state
 
     case Event(ReplNewerBucketData(vc, items), state) =>
-      val l: Seq[Data] = items.flatMap(_.data) //todo: replace `l` with `items`
       if (state.prefList contains addr(sender)) {
         state.prefList - addr(sender) match {
           case empty if empty.isEmpty =>
-            val all = state.info.foldLeft(l)((acc, list) => list ++ acc)
+            val all = state.info.foldLeft(items)((acc, list) => list ++ acc)
             val merged = mergeBucketData(all)
             actorMem.get(local, "ring_write_store").fold(
               _ ! ReplBucketPut(b, fromvc(state.vc merge makevc(vc)), merged),
@@ -146,7 +157,7 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
           case nodes =>
             stay using state.copy(
               prefList = nodes,
-              info = l +: state.info, 
+              info = items +: state.info, 
               vc = state.vc merge makevc(vc),
             )
         }
@@ -164,8 +175,6 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
       self ! "start"
       stay using state
   }
-
-  def addr(s: ActorRef): Node = s.path.address
 
   initialize()
 }

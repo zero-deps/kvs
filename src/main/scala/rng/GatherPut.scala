@@ -3,7 +3,7 @@ package mws.rng
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import akka.cluster.VectorClock
 import mws.rng.data.Data
-import mws.rng.msg.{StoreGetAck, StorePut, StorePutStatus, StorePutSaved}
+import mws.rng.msg.{StoreGetAck, StorePut}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
 
@@ -13,14 +13,14 @@ object GatherPut {
   def props(client: ActorRef, t: FiniteDuration, actorsMem: SelectionMemorize, putInfo: PutInfo): Props = Props(new GatherPut(client, t, actorsMem, putInfo))
 }
 
-class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, putInfo: PutInfo) extends FSM[FsmState, Statuses] with ActorLogging {
+class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, putInfo: PutInfo) extends FSM[FsmState, Int] with ActorLogging {
 
-  startWith(Collecting, Statuses(Vector.empty))
+  startWith(Collecting, 0)
   setTimer("send_by_timeout", OpsTimeout, t)
 
   when(Collecting){
     case Event(StoreGetAck(data), _) =>
-      val vc: VectorClock = if (data.size === 1) {
+      val vc = if (data.size === 1) {
         makevc(data.head.vc)
       } else if (data.size > 1) {
         data.map(_.vc).foldLeft(new VectorClock)((sum, i) => sum.merge(makevc(i)))
@@ -31,16 +31,16 @@ class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, 
       mapInPut(putInfo.nodes, updatedData)
       stay()
     
-    case Event(incomeStatus: StorePutStatus, Statuses(statuses)) =>
-      val updStatuses = Statuses(incomeStatus +: statuses)
-      updStatuses.all.count(_.isInstanceOf[StorePutSaved]) match {
-        case n if n === putInfo.N =>
-          client ! AckSuccess(None)
-          stop()
-        case w if w === putInfo.W =>
-          client ! AckSuccess(None)
-          goto(Sent) using updStatuses
-        case _ => stay using updStatuses
+    case Event("ok", n) =>
+      val n1 = n + 1
+      if (n1 === putInfo.N) {
+        client ! AckSuccess(None)
+        stop()
+      } else if (n1 === putInfo.W) {
+        client ! AckSuccess(None)
+        goto (Sent) using n1
+      } else {
+        stay using n1
       }
 
     case Event(OpsTimeout, _) =>
@@ -50,9 +50,10 @@ class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, 
   
   // keep fsm running to avoid dead letter warnings
   when(Sent){
-    case Event(status: StorePutStatus, Statuses(ss)) =>
-      if (ss.size + 1 === putInfo.N) stop()
-      else stay() using Statuses(status +: ss)
+    case Event("ok", n) =>
+      val n1 = n + 1
+      if (n1 === putInfo.N) stop()
+      else stay using n1
     case Event(OpsTimeout, _) =>
       stop()
   }
