@@ -37,7 +37,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
   }
 
   def receive: Receive = {
-    case StorePut(Some(data)) => 
+    case StorePut(data) => 
       doPut(data)
       sender ! "ok"
     case DumpPut(k: Key, v: Value, nextKey: Key) =>

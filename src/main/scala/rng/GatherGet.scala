@@ -24,7 +24,7 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) ext
           cancelTimer("send_by_timeout")
           val (correct: Option[Data], outdated: Vector[Node]) = order(xs)
           ;{ // update outdated nodes with correct data
-            val msg = correct.fold[Any](StoreDelete(k))(d => StorePut(Some(d)))
+            val msg = correct.fold[Any](StoreDelete(k))(d => StorePut(d))
             outdated foreach { node =>
               stores.get(node, "ring_write_store").fold(_ ! msg, _ ! msg)
             }

@@ -60,7 +60,7 @@ class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, 
 
   def mapInPut(nodes: Set[Node], d: Data) = {
     val storeList = nodes.map(n => RootActorPath(n) / "user" / "ring_write_store")
-      storeList.foreach(ref => context.system.actorSelection(ref).tell(StorePut(Some(d)), self))
+      storeList.foreach(ref => context.system.actorSelection(ref).tell(StorePut(d), self))
   }
   
   initialize()

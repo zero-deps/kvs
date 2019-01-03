@@ -1,4 +1,4 @@
-syntax = "proto3";
+syntax = "proto2";
 
 package mws.rng;
 
@@ -7,11 +7,11 @@ message DumpKV {
 }
 
 message KV {
-  bytes k = 1;
-  bytes v = 2;
+  required bytes k = 1;
+  required bytes v = 2;
 }
 
 message ValueKey {
-  bytes v = 1;
-  bytes nextKey = 2;
+  required bytes v = 1;
+  required bytes nextKey = 2;
 }
