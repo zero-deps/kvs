@@ -14,7 +14,7 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) ext
   val stores = SelectionMemorize(context.system)
 
   startWith(Collecting, DataCollection(Vector.empty, 0))
-  setTimer("send_by_timeout", OpsTimeout, t)
+  setTimer("send_by_timeout", "timeout", t)
 
   when(Collecting) {
     case Event(StoreGetAck(data), DataCollection(perNode, nodes)) =>
@@ -35,7 +35,7 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) ext
           stay using DataCollection(xs, ns)
       }
 
-    case Event(OpsTimeout, _) =>
+    case Event("timeout", _) =>
       client ! AckTimeoutFailed
       stop()
   }

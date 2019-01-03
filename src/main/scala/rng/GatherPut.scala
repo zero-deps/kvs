@@ -16,7 +16,7 @@ object GatherPut {
 class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, putInfo: PutInfo) extends FSM[FsmState, Int] with ActorLogging {
 
   startWith(Collecting, 0)
-  setTimer("send_by_timeout", OpsTimeout, t)
+  setTimer("send_by_timeout", "timeout", t)
 
   when(Collecting){
     case Event(StoreGetAck(data), _) =>
@@ -43,7 +43,7 @@ class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, 
         stay using n1
       }
 
-    case Event(OpsTimeout, _) =>
+    case Event("timeout", _) =>
       client ! AckTimeoutFailed
       stop()
   }
@@ -54,7 +54,7 @@ class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, 
       val n1 = n + 1
       if (n1 === putInfo.N) stop()
       else stay using n1
-    case Event(OpsTimeout, _) =>
+    case Event("timeout", _) =>
       stop()
   }
 

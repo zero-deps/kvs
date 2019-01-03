@@ -12,7 +12,7 @@ class GatherDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, Set
   val quorum = config.getIntList("quorum")
   val W: Int = quorum.get(1)
   val local: Address = Cluster(context.system).selfAddress
-  setTimer("send_by_timeout", OpsTimeout, config.getInt("gather-timeout").seconds)
+  setTimer("send_by_timeout", "timeout", config.getInt("gather-timeout").seconds)
 
   startWith(Collecting, prefList)
 
@@ -25,7 +25,7 @@ class GatherDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, Set
         case less => stay using(less)
       }
       
-    case Event(OpsTimeout, nodesLeft) =>
+    case Event("timeout", nodesLeft) =>
       //politic of revert is not needed because on read opperation removed data will be saved again,
       //only notify client about failed opperation.
       //deleted on other nodes but we don't know about it ? sorry, eventually consistency
@@ -40,7 +40,7 @@ class GatherDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, Set
       case nodes => stay using(nodes)
     }
 
-    case Event(OpsTimeout, nodesLeft) => stop()
+    case Event("timeout", nodesLeft) => stop()
   }
 
   def addrs(s: ActorRef) = if (addr(s).hasLocalScope) local else addr(s)

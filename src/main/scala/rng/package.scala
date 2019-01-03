@@ -4,6 +4,7 @@ import akka.actor.{Address, ActorRef}
 import akka.cluster.VectorClock
 import com.google.protobuf.{ByteString, ByteStringWrap}
 import mws.rng.data.{Vec}
+import scala.collection.breakOut
 import scala.collection.immutable.{TreeMap}
 import scalaz._
 
@@ -27,10 +28,8 @@ package object rng {
   final case object Collecting extends FsmState
   final case object Sent extends FsmState
   
-  final case object OpsTimeout
-
   def makevc(l: VectorClockList): VectorClock = new VectorClock(TreeMap.empty[String, Long] ++ l.map(a => a.key -> a.value))
-  def fromvc(vc: VectorClock): VectorClockList = vc.versions.toSeq.map(a => Vec(a._1, a._2))
+  def fromvc(vc: VectorClock): VectorClockList = vc.versions.map((Vec.apply _).tupled)(breakOut)
 
   def stob(s: String): ByteString = ByteString.copyFrom(s, "UTF-8")
   def itoa(v: Int): Array[Byte] = Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte)
@@ -49,11 +48,6 @@ package object rng {
   }
 
   def now_ms(): Long = System.currentTimeMillis
-
-  implicit class VectorClockExt(old: VectorClock) {
-    def <=(candidate: VectorClock): Boolean =
-      old < candidate || old == candidate
-  }
   
   def addr(s: ActorRef): Node = s.path.address
 }
