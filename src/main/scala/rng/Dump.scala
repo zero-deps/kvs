@@ -7,8 +7,7 @@ import java.time.format.{DateTimeFormatter}
 import java.time.{LocalDateTime}
 import mws.rng.data.{Data}
 import mws.rng.msg_dump.{DumpBucketData, DumpGetBucketData}
-import scala.annotation.tailrec
-import scala.collection.immutable.{SortedMap, HashMap}
+import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration._
 import scala.concurrent.{Await}
 import scalaz.Scalaz._
@@ -18,24 +17,6 @@ object DumpProcessor {
 
   final case class Load(path: String)
   final case class Save(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: String)
-
-  def mergeBucketData(l: Seq[Data]): Seq[Data] = mergeBucketData(l, merged=HashMap.empty)
-
-  // this method doesn't save conflicts. change implementation to save conflicts in dump
-  @tailrec
-  private def mergeBucketData(l: Seq[Data], merged: Key Map Data): Seq[Data] = l match {
-    case h +: t =>
-      val hvc = makevc(h.vc)
-      merged.get(h.key) match {
-        case Some(d) if hvc == makevc(d.vc) && h.lastModified > d.lastModified =>
-          mergeBucketData(t, merged + (h.key -> h))
-        case Some(d) if hvc > makevc(d.vc) =>
-          mergeBucketData(t, merged + (h.key -> h))
-        case Some(_) => mergeBucketData(t, merged)
-        case None => mergeBucketData(t, merged + (h.key -> h))
-      }
-    case xs if xs.isEmpty => merged.values.toVector
-  }
 }
 
 class DumpProcessor extends Actor with ActorLogging {
@@ -127,7 +108,7 @@ class DumpProcessor extends Actor with ActorLogging {
           pullWorking = false
           pull
 
-          val merged: Seq[Data] = DumpProcessor.mergeBucketData(collected.flatten)
+          val merged: Seq[Data] = MergeOps.forDump(collected.flatten)
           collected = Seq.empty
           keysNumber = keysNumber + merged.size
           if (readyToPut) {

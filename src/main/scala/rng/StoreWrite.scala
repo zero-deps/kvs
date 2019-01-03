@@ -12,7 +12,6 @@ import mws.rng.msg_dump.{DumpPut}
 import scalaz.Scalaz._
 
 class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
-  import WriteStore.mergeData
   import context.system
   val config = system.settings.config.getConfig("ring.leveldb")
 
@@ -66,7 +65,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
       items.map{ data =>
         val keyPath: Key = itob(b) ++ `:key:` ++ data.key
         val keyData: Option[Data] = get(keyPath).map(Data.parseFrom(_))
-        val v: Option[Data] = mergeData(stored=keyData, received=data)
+        val v: Option[Data] = MergeOps.forPut(stored=keyData, received=data)
         v.map(v => batch.put(keyPath.toByteArray, v.toByteArray))
       }
     }
@@ -93,7 +92,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
       // saving key data
       val keyPath: Key = itob(data.bucket) ++ `:key:` ++ data.key
       val keyData: Option[Data] = get(keyPath).map(Data.parseFrom(_))
-      val v: Option[Data] = mergeData(stored=keyData, received=data)
+      val v: Option[Data] = MergeOps.forPut(stored=keyData, received=data)
       v.map(v => batch.put(keyPath.toByteArray, v.toByteArray))
     }
   }
@@ -129,33 +128,5 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
 
 object WriteStore {
   def props(leveldb: LevelDB): Props = Props(new WriteStore(leveldb))
-
-  def mergeData(stored: Option[Data], received: Data): Option[Data] = {
-    stored match {
-      case None => 
-        received.some
-      case Some(s) =>
-        val svc = makevc(s.vc)
-        val rvc = makevc(received.vc)
-        if (svc < rvc) {
-          received.some
-        } else if (svc == rvc) {
-          if (s.lastModified <= received.lastModified) {
-            received.some
-          } else { // s.lastModified > received.lastModified
-            None
-          }
-        } else if (svc > rvc) {
-          None // ignore received
-        } else { // svc <> rvc
-          val mergedVc = fromvc(svc merge rvc)
-          if (s.lastModified <= received.lastModified) {
-            received.copy(vc=mergedVc).some
-          } else { // s.lastModified > received.lastModified
-            s.copy(vc=mergedVc).some // keep stored
-          }
-        }
-    }
-  }
 }
 

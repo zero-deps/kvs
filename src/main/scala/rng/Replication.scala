@@ -4,8 +4,7 @@ import akka.actor.{ActorLogging, Props, FSM}
 import akka.cluster.{Cluster, VectorClock}
 import mws.rng.data.{Data}
 import mws.rng.msg_repl.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplVectorClock}
-import scala.annotation.tailrec
-import scala.collection.immutable.{SortedMap, HashMap}
+import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration.{Duration}
 import scalaz.Scalaz._
 
@@ -88,43 +87,9 @@ object ReplicationWorker {
   final case class ReplState(prefList: PreferenceList, info: Seq[Seq[Data]], vc: VectorClock)
 
   def props(b: Bucket, prefList: PreferenceList, vc: VectorClockList): Props = Props(new ReplicationWorker(b, prefList, vc))
-
-  def mergeBucketData(xs: Seq[Data]): Seq[Data] = mergeBucketData(xs, acc=HashMap.empty[Key,Data])
-
-  @tailrec
-  private def mergeBucketData(xs: Seq[Data], acc: Key HashMap Data): Seq[Data] = 
-    xs match {
-      case xs if xs.isEmpty => acc.values.toSeq
-      case h +: t =>
-        acc.get(h.key) match {
-          case None =>
-            mergeBucketData(t, acc + (h.key -> h))
-          case Some(s) => // stored
-            val hvc = makevc(h.vc)
-            val svc = makevc(s.vc)
-            if (hvc < svc) {
-              mergeBucketData(t, acc)
-            } else if (hvc == svc) {
-              if (s.lastModified <= h.lastModified) {
-                mergeBucketData(t, acc + (h.key -> h))
-              } else { // s.lastModified > h.lastModified
-                mergeBucketData(t, acc)
-              }
-            } else if (hvc > svc) {
-              mergeBucketData(t, acc + (h.key -> h))
-            } else { // hvc <> svc
-              if (s.lastModified <= h.lastModified) {
-                mergeBucketData(t, acc + (h.key -> h))
-              } else { // s.lastModified > h.lastModified
-                mergeBucketData(t, acc)
-              }
-            }
-        }
-    }
 }
 
 class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockList) extends FSM[FsmState, ReplState] with ActorLogging {
-  import ReplicationWorker.mergeBucketData
   import context.system
   val cluster = Cluster(system)
   val local = cluster.selfAddress
@@ -147,7 +112,7 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
         state.prefList - addr(sender) match {
           case empty if empty.isEmpty =>
             val all = state.info.foldLeft(items)((acc, list) => list ++ acc)
-            val merged = mergeBucketData(all)
+            val merged = MergeOps.forRepl(all)
             actorMem.get(local, "ring_write_store").fold(
               _ ! ReplBucketPut(b, fromvc(state.vc merge makevc(vc)), merged),
               _ ! ReplBucketPut(b, fromvc(state.vc merge makevc(vc)), merged),

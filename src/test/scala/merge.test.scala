@@ -4,15 +4,15 @@ import mws.rng._
 import org.scalatest._
 import mws.rng.data._
 
-class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
+class MergeTest extends FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
   def vc1(v: Long): Vec = Vec("n1", v) 
   def vc2(v: Long): Vec = Vec("n2", v) 
 
   "merge buckets" - {
-    import mws.rng.ReplicationWorker.mergeBucketData
+    import mws.rng.MergeOps.forRepl
     "empty" in {
       val xs = Nil
-      mergeBucketData(xs) should be (empty)
+      forRepl(xs) should be (empty)
     }
     "single item" in {
       val xs = Seq(
@@ -21,7 +21,7 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
       val ys = Set(
         xs(0),
       )
-      mergeBucketData(xs).toSet should be (ys)
+      forRepl(xs).toSet should be (ys)
     }
     "no conflict" in {
       val xs = Seq(
@@ -34,7 +34,7 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
         xs(1),
         xs(2),
       )
-      mergeBucketData(xs).toSet should be (ys)
+      forRepl(xs).toSet should be (ys)
     }
     "same vc" - {
       val vcs = Seq(vc1(1), vc2(1))
@@ -48,7 +48,7 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           xs(1),
           xs(2),
         )
-        mergeBucketData(xs).toSet should be (ys)
+        forRepl(xs).toSet should be (ys)
       }
       "new then old" in {
         val xs = Seq(
@@ -60,7 +60,7 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           xs(0),
           xs(2),
         )
-        mergeBucketData(xs).toSet should be (ys)
+        forRepl(xs).toSet should be (ys)
       }
     }
     "new vc" - {
@@ -76,7 +76,7 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           xs(1),
           xs(2),
         )
-        mergeBucketData(xs).toSet should be (ys)
+        forRepl(xs).toSet should be (ys)
       }
       "new then old" in {
         val xs = Seq(
@@ -88,7 +88,7 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           xs(0),
           xs(2),
         )
-        mergeBucketData(xs).toSet should be (ys)
+        forRepl(xs).toSet should be (ys)
       }
     }
     "conflict" - {
@@ -104,7 +104,7 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           xs(0),
           xs(2),
         )
-        mergeBucketData(xs).toSet should be (ys)
+        forRepl(xs).toSet should be (ys)
       }
       "reversed" in {
         val xs = Seq(
@@ -116,7 +116,7 @@ class UnitTest extends FreeSpecLike with Matchers with EitherValues with BeforeA
           xs(1),
           xs(2),
         )
-        mergeBucketData(xs).toSet should be (ys)
+        forRepl(xs).toSet should be (ys)
       }
     }
   }
