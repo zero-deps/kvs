@@ -76,9 +76,9 @@ class DumpProcessor extends Actor with ActorLogging {
   def save(buckets: SortedMap[Bucket, PreferenceList], local: Node, dumpIO: ActorRef, client: ActorRef): () => Receive = {
     var processBucket: Int = 0
     var keysNumber: Long = 0
-    var collected: Seq[Seq[Data]] = Seq.empty
+    var collected: Vector[Vector[Data]] = Vector.empty
     
-    var putQueue: Seq[DumpIO.Put] = Seq.empty
+    var putQueue: Vector[DumpIO.Put] = Vector.empty
     var readyToPut: Boolean = true
     var pullWorking: Boolean = false
 
@@ -103,13 +103,13 @@ class DumpProcessor extends Actor with ActorLogging {
 
     () => {
       case res: (DumpBucketData) if processBucket === res.b =>
-        collected = res.items +: collected
+        collected = res.items.toVector +: collected
         if (collected.size === buckets(processBucket).size) {
           pullWorking = false
           pull
 
-          val merged: Seq[Data] = MergeOps.forDump(collected.flatten)
-          collected = Seq.empty
+          val merged: Vector[Data] = MergeOps.forDump(collected.flatten)
+          collected = Vector.empty
           keysNumber = keysNumber + merged.size
           if (readyToPut) {
             readyToPut = false

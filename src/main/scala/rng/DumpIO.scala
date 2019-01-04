@@ -2,6 +2,7 @@ package mws.rng
 
 import akka.actor.{Actor, ActorLogging, Props}
 import com.google.protobuf.{ByteString}
+import scala.collection.{breakOut}
 import mws.rng.data.{Data}
 import mws.rng.data_dump.{DumpKV, KV}
 
@@ -9,9 +10,9 @@ object DumpIO {
   def props(ioPath: String): Props = Props(new DumpIO(ioPath))
 
   final case object ReadNext
-  final case class ReadNextRes(kv: Seq[(ByteString, ByteString)], last: Boolean)
+  final case class ReadNextRes(kv: Vector[(ByteString, ByteString)], last: Boolean)
 
-  final case class Put(kv: Seq[Data])
+  final case class Put(kv: Vector[Data])
   final case class PutDone(path: String)
 }
 
@@ -32,17 +33,17 @@ class DumpIO(ioPath: String) extends Actor with ActorLogging {
         val value: Array[Byte] = new Array[Byte](blockSize)
         val valueRead: Int = channel.read(ByteBuffer.wrap(value))
         if (valueRead == blockSize) {
-          val kv = DumpKV.parseFrom(value).kv.map(d => d.k -> d.v)
+          val kv: Vector[(ByteString, ByteString)] = DumpKV.parseFrom(value).kv.map(d => d.k -> d.v)(breakOut)
           sender ! DumpIO.ReadNextRes(kv, false)
         } else {
           log.error(s"failed to read dump io, blockSize=${blockSize}, valueRead=${valueRead}")
-          sender ! DumpIO.ReadNextRes(Seq.empty, true)
+          sender ! DumpIO.ReadNextRes(Vector.empty, true)
         }
       } else if (keyRead == -1) {
-        sender ! DumpIO.ReadNextRes(Seq.empty, true)
+        sender ! DumpIO.ReadNextRes(Vector.empty, true)
       } else {
         log.error(s"failed to read dump io, keyRead=${keyRead}")
-        sender ! DumpIO.ReadNextRes(Seq.empty, true)
+        sender ! DumpIO.ReadNextRes(Vector.empty, true)
       }
     case msg: DumpIO.Put => 
       val data = DumpKV(msg.kv.map(e => KV(e.key, e.value))).toByteArray

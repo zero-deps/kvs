@@ -36,8 +36,8 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
     case DumpGetBucketData(b) => 
       val k = itob(b) ++ `:keys`
       val b_info = get(k).map(BucketInfo.parseFrom(_))
-      val keys: Seq[Key] = b_info.map(_.keys).getOrElse(Nil)
-      val items: Seq[Data] = keys.flatMap(key =>
+      val keys: Vector[Key] = b_info.map(_.keys.toVector).getOrElse(Vector.empty)
+      val items: Vector[Data] = keys.flatMap(key =>
         get(itob(b)++`:key:`++key).map(Data.parseFrom(_))
       )
       sender ! DumpBucketData(b, items)
@@ -52,9 +52,9 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
             case true => sender ! ReplBucketUpToDate()
             case false =>
               val keys = b_info.keys
-              val items: Seq[Data] = keys.flatMap(key =>
+              val items: Vector[Data] = keys.flatMap(key =>
                 get(itob(b)++`:key:`++key).map(Data.parseFrom(_))
-              )
+              )(breakOut)
               sender ! ReplNewerBucketData(b_info.vc, items)
           }
         case None =>

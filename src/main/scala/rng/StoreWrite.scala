@@ -43,11 +43,11 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
       withBatch(_.put(k.toByteArray, ValueKey(v=v, nextKey=nextKey).toByteArray))
       sender ! "done"
     case StoreDelete(data) => sender ! doDelete(data)
-    case ReplBucketPut(b, bucketVc, items) => replBucketPut(b, bucketVc, items)
+    case ReplBucketPut(b, bucketVc, items) => replBucketPut(b, bucketVc, items.toVector)
     case unhandled => log.warning(s"unhandled message: ${unhandled}")
   }
 
-  def replBucketPut(b: Bucket, bucketVc: VectorClockList, items: Seq[Data]): Unit = {
+  def replBucketPut(b: Bucket, bucketVc: VectorClockList, items: Vector[Data]): Unit = {
     withBatch{ batch =>
       { // updating bucket info
         val bucketId: Key = itob(b) ++ `:keys`
@@ -62,7 +62,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
         batch.put(bucketId.toByteArray, v.toByteArray)
       }
       // saving keys data
-      items.map{ data =>
+      items.foreach{ data =>
         val keyPath: Key = itob(b) ++ `:key:` ++ data.key
         val keyData: Option[Data] = get(keyPath).map(Data.parseFrom(_))
         val v: Option[Data] = MergeOps.forPut(stored=keyData, received=data)
@@ -85,7 +85,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
             x.copy(vc=vc, keys=(data.key +: x.keys))
           case None =>
             val vc = fromvc(new VectorClock() :+ local.toString)
-            BucketInfo(vc=vc, keys=Seq(data.key))
+            BucketInfo(vc=vc, keys=Vector(data.key))
         }
         batch.put(bucketId.toByteArray, v.toByteArray)
       }

@@ -8,9 +8,9 @@ import scala.collection.immutable.{HashMap}
 import scalaz.Scalaz._
 
 object MergeOps {
-  def forDump(l: Seq[Data]): Seq[Data] = {
+  def forDump(l: Vector[Data]): Vector[Data] = {
     @tailrec
-    def loop(l: Seq[Data], merged: Key Map Data): Seq[Data] = l match {
+    def loop(l: Vector[Data], merged: Key Map Data): Vector[Data] = l match {
       case h +: t =>
         val hvc = makevc(h.vc)
         merged.get(h.key) match {
@@ -26,11 +26,11 @@ object MergeOps {
     loop(l, merged=HashMap.empty)
   }
 
-  def forRepl(xs: Seq[Data]): Seq[Data] = {
+  def forRepl(xs: Vector[Data]): Vector[Data] = {
     @tailrec
-    def loop(xs: Seq[Data], acc: Key HashMap Data): Seq[Data] = {
+    def loop(xs: Vector[Data], acc: Key HashMap Data): Vector[Data] = {
       xs match {
-        case xs if xs.isEmpty => acc.values.toSeq
+        case xs if xs.isEmpty => acc.values.toVector
         case h +: t =>
           acc.get(h.key) match {
             case None =>

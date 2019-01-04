@@ -33,7 +33,7 @@ class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] wi
         log.info("nothing to sync".green)
         stop()
       } else {
-        val bs: Seq[Bucket] = state.buckets.keys.toSeq
+        val bs: Vector[Bucket] = state.buckets.keys.toVector
         log.info("asking for vector clocks for buckets")
         actorMem.get(local, "ring_readonly_store").fold(
           _ ! ReplGetBucketsVc(bs),
@@ -59,7 +59,7 @@ class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] wi
   }
 
   def getBucketIfNew(b: Bucket, prefList: PreferenceList, _bvc: Option[ReplVectorClock]): Unit = {
-    val bvc = _bvc.map(_.vs).getOrElse(Nil)
+    val bvc = _bvc.map(_.vs.toVector).getOrElse(Vector.empty)
     val worker = context.actorOf(ReplicationWorker.props(b, prefList, bvc))
     worker ! "start"
   }
@@ -84,7 +84,7 @@ class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] wi
 import ReplicationWorker.{ReplState}
 
 object ReplicationWorker {
-  final case class ReplState(prefList: PreferenceList, info: Seq[Seq[Data]], vc: VectorClock)
+  final case class ReplState(prefList: PreferenceList, info: Vector[Vector[Data]], vc: VectorClock)
 
   def props(b: Bucket, prefList: PreferenceList, vc: VectorClockList): Props = Props(new ReplicationWorker(b, prefList, vc))
 }
@@ -96,7 +96,7 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
   val actorMem = SelectionMemorize(system)
 
   setTimer("send_by_timeout", "timeout", Duration.fromNanos(context.system.settings.config.getDuration("ring.replication-timeout").toNanos), repeat=true)
-  startWith(Collecting, ReplState(_prefList, info=Nil, makevc(_vc)))
+  startWith(Collecting, ReplState(_prefList, info=Vector.empty, makevc(_vc)))
 
   when(Collecting){
     case Event("start", state) =>
@@ -107,7 +107,8 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
       ))
       stay using state
 
-    case Event(ReplNewerBucketData(vc, items), state) =>
+    case Event(ReplNewerBucketData(vc, _items), state) =>
+      val items = _items.toVector
       if (state.prefList contains addr(sender)) {
         state.prefList - addr(sender) match {
           case empty if empty.isEmpty =>

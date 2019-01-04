@@ -286,7 +286,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def state(nodes: Int): QuorumState = nodes match {
     case 0 => QuorumStateUnsatisfied()
-    case n if n >= Seq(R,W).max => QuorumStateEffective()
+    case n if n >= Math.max(R, W) => QuorumStateEffective()
     case _ => QuorumStateReadonly()
   }
 
