@@ -48,7 +48,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   val N: Int = quorum.get(0)
   val W: Int = quorum.get(1)
   val R: Int = quorum.get(2)
-  val gatherTimeout = config.getInt("gather-timeout") seconds
+  val gatherTimeout = Duration.fromNanos(config.getDuration("gather-timeout").toNanos)
   val vNodesNum = config.getInt("virtual-nodes")
   val bucketsNum = config.getInt("buckets")
   val cluster = Cluster(system)
@@ -197,7 +197,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
     val nodes = nodesForKey(k, data)
-    val gather = system.actorOf(Props(classOf[GatherDel], nodes, client))
+    val gather = system.actorOf(GatherDel.props(client, gatherTimeout, nodes))
     val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
     stores.foreach(_.fold(
       _.tell(StoreDelete(k), gather), 

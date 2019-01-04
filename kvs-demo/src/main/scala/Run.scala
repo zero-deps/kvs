@@ -28,6 +28,9 @@ object Run extends App {
 
     log.warning(kvs.nextid("fid").toString)
 
+    // Thread.sleep(240000)
+    // kvs.dump.load("/home/anle/perf_data/rng_dump_2018.12.10-16.00.57")
+
     // system.log.info("start!!!")
     // (1 to 1000).map { i =>
     // (1 to 100000).map { i =>

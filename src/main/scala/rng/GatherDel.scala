@@ -5,20 +5,20 @@ import akka.cluster.Cluster
 import scala.concurrent.duration._
 import scalaz.Scalaz._
 
-class GatherDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, Set[Node]] with ActorLogging{
+class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node]) extends FSM[FsmState, Set[Node]] with ActorLogging {
   import context.system
 
   val config = system.settings.config.getConfig("ring")
   val quorum = config.getIntList("quorum")
   val W: Int = quorum.get(1)
   val local: Address = Cluster(context.system).selfAddress
-  setTimer("send_by_timeout", "timeout", config.getInt("gather-timeout").seconds)
+  setTimer("send_by_timeout", "timeout", t)
 
   startWith(Collecting, prefList)
 
   when(Collecting){
     case Event("ok", nodesLeft) =>
-      nodesLeft - addrs(sender()) match {
+      nodesLeft - addr1(sender) match {
         case enough if prefList.size - enough.size === W => // W nodes removed key
           client ! AckSuccess(None)
           goto(Sent) using(enough)
@@ -35,15 +35,19 @@ class GatherDel(prefList: Set[Node], client: ActorRef) extends FSM[FsmState, Set
 
   when(Sent){
     case Event("ok", data) =>
-      data - addrs(sender())match {
+      data - addr1(sender) match {
       case none if none.isEmpty => stop()
       case nodes => stay using(nodes)
     }
 
-    case Event("timeout", nodesLeft) => stop()
+    case Event("timeout", _) => stop()
   }
 
-  def addrs(s: ActorRef) = if (addr(s).hasLocalScope) local else addr(s)
+  def addr1(s: ActorRef) = if (addr(s).hasLocalScope) local else addr(s)
   
   initialize()
+}
+
+object GatherDel {
+  def props(client: ActorRef, t: FiniteDuration, prefList: Set[Node]): Props = Props(new GatherDel(client, t, prefList))
 }
