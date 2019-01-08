@@ -114,10 +114,12 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
           case empty if empty.isEmpty =>
             val all = state.info.foldLeft(items)((acc, list) => list ++ acc)
             val merged = MergeOps.forRepl(all)
-            actorMem.get(local, "ring_write_store").fold(
-              _ ! ReplBucketPut(b, fromvc(state.vc merge makevc(vc)), merged),
-              _ ! ReplBucketPut(b, fromvc(state.vc merge makevc(vc)), merged),
-            )
+            if (merged.nonEmpty) {
+              actorMem.get(local, "ring_write_store").fold(
+                _ ! ReplBucketPut(b, fromvc(state.vc merge makevc(vc)), merged),
+                _ ! ReplBucketPut(b, fromvc(state.vc merge makevc(vc)), merged),
+              )
+            }
             context.parent ! b
             stop()
           case nodes =>
