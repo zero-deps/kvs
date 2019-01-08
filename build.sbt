@@ -1,8 +1,8 @@
 val scalaVersion_ = "2.12.8"
 val scalazVersion = "7.2.27"
-val akkaVersion = "2.5.18"
+val akkaVersion = "2.5.19"
 
-lazy val root = (project in file(".")).withId("kvs")
+lazy val root = project.in(file(".")).withId("kvs")
   .settings(
     inThisBuild(
       publishSettings ++ Seq(
