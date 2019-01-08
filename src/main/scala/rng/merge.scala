@@ -41,17 +41,17 @@ object MergeOps {
               if (hvc < svc) {
                 loop(t, acc)
               } else if (hvc == svc) {
-                if (s.lastModified <= h.lastModified) {
+                if (s.lastModified < h.lastModified) {
                   loop(t, acc + (h.key -> h))
-                } else { // s.lastModified > h.lastModified
+                } else { // s.lastModified >= h.lastModified
                   loop(t, acc)
                 }
               } else if (hvc > svc) {
                 loop(t, acc + (h.key -> h))
               } else { // hvc <> svc
-                if (s.lastModified <= h.lastModified) {
+                if (s.lastModified < h.lastModified) {
                   loop(t, acc + (h.key -> h))
-                } else { // s.lastModified > h.lastModified
+                } else { // s.lastModified >= h.lastModified
                   loop(t, acc)
                 }
               }

@@ -26,7 +26,7 @@ To configure RNG application on your cluster the next config options are availab
   if quorum fails on write operation, data will not be saved. So in case if 2 nodes and [2,2,1] after 1 node down the cluster becomes not writeable and readable.
   \item[buckets] Number of buckets for key. Think about this as about size of HashMap. In current implementation this value should not be changed after first setup.
   \item[virtual-nodes] Number of virtual nodes for each physical. In current implementation this value should not be changed after first setup.
-  \item[hashLength] Lengths of hash from key. In current implementation this value should not be changed after first setup.
+  \item[hash-length] Lengths of hash from key. In current implementation this value should not be changed after first setup.
   \item[gather-timeout] Number of seconds that requested cluster will wait for response from another nodes.
   \item[ring-node-name] Role name that mark node as part of ring.
   \item[leveldb] Configuration of levelDB database used as backend for ring.
@@ -44,7 +44,7 @@ ring {
   quorum = [1, 1, 1]  //N,R,W
   buckets = 1024
   virtual-nodes = 128
-  hashLength = 32
+  hash-length = 32
   gather-timeout = 3
   leveldb {
     dir = "rng_data_"${akka.remote.netty.tcp.hostname}"_"${akka.remote.netty.tcp.port}
