@@ -96,27 +96,32 @@ object MergeOps {
     stored match {
       case None => 
         received.some
-      case Some(s) =>
-        val svc = makevc(s.vc)
-        val rvc = makevc(received.vc)
-        if (svc < rvc) {
-          received.some
-        } else if (svc == rvc) {
-          if (s.lastModified <= received.lastModified) {
-            received.some
-          } else { // s.lastModified > received.lastModified
-            None
-          }
-        } else if (svc > rvc) {
-          None // ignore received
-        } else { // svc <> rvc
-          val mergedVc = fromvc(svc merge rvc)
-          if (s.lastModified <= received.lastModified) {
-            received.copy(vc=mergedVc).some
-          } else { // s.lastModified > received.lastModified
-            s.copy(vc=mergedVc).some // keep stored
-          }
+      case Some(stored) =>
+        (stored < received) match {
+          case OkLess(true) => received.some
+          case OkLess(false) => None
+          case ConflictLess(true, vc) => received.copy(vc=vc).some
+          case ConflictLess(false, vc) => stored.copy(vc=vc).some
         }
+    }
+  }
+
+  sealed trait LessComp
+  final case class OkLess(res: Boolean) extends LessComp
+  final case class ConflictLess(res: Boolean, vc: VectorClockList) extends LessComp
+
+  implicit class DataExt(x: Data) {
+    def <(o: Data): LessComp = {
+      val xvc = makevc(x.vc)
+      val ovc = makevc(o.vc)
+      if (xvc < ovc) OkLess(true)
+      else if (xvc == ovc) OkLess(x.lastModified < o.lastModified)
+      else if (xvc > ovc) OkLess(false)
+      else { // xvc <> ovc
+        val mergedvc = fromvc(xvc merge ovc)
+        if (x.lastModified < o.lastModified) ConflictLess(true, mergedvc)
+        else ConflictLess(false, mergedvc)
+      }
     }
   }
 }
