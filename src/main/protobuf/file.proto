@@ -3,8 +3,8 @@ syntax = "proto3";
 package mws.kvs;
 
 message File {
-  // id – filepath or whatever uniquely identifies this file
-  string id = 1;
+  // name – unique value inside directory
+  string name = 1;
   // count – number of chunks
   int32 count = 2;
   // size - size of file in bytes
