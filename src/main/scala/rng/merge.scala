@@ -4,26 +4,32 @@ import akka.cluster.VectorClock
 import mws.rng.data.{Data}
 import mws.rng.GatherGet.AddrOfData
 import scala.annotation.tailrec
-import scala.collection.immutable.{HashMap}
+import scala.collection.breakOut
+import scala.collection.immutable.{HashMap, HashSet}
 import scalaz.Scalaz._
 
 object MergeOps {
-  def forDump(l: Vector[Data]): Vector[Data] = {
+  def forDump(xs: Vector[Data]): Vector[Data] = {
     @tailrec
-    def loop(l: Vector[Data], merged: Key Map Data): Vector[Data] = l match {
-      case h +: t =>
-        val hvc = makevc(h.vc)
-        merged.get(h.key) match {
-          case Some(d) if hvc == makevc(d.vc) && h.lastModified > d.lastModified =>
-            loop(t, merged + (h.key -> h))
-          case Some(d) if hvc > makevc(d.vc) =>
-            loop(t, merged + (h.key -> h))
-          case Some(_) => loop(t, merged)
-          case None => loop(t, merged + (h.key -> h))
-        }
-      case xs if xs.isEmpty => merged.values.toVector
+    def loop(xs: Vector[Data], acc: Key HashMap Data): Vector[Data] = {
+      xs match {
+        case xs if xs.isEmpty => acc.values.toVector
+        case received +: t =>
+          val k = received.key
+          acc.get(k) match {
+            case None =>
+              loop(t, acc + (k -> received))
+            case Some(stored) =>
+              (stored < received) match {
+                case OkLess(true) => loop(t, acc + (k -> received))
+                case OkLess(false) => loop(t, acc)
+                case ConflictLess(true, vc) => loop(t, acc + (k -> received.copy(vc=vc)))
+                case ConflictLess(false, vc) => loop(t, acc + (k -> stored.copy(vc=vc)))
+              }
+          }
+      }
     }
-    loop(l, merged=HashMap.empty)
+    loop(xs, acc=HashMap.empty)
   }
 
   def forRepl(xs: Vector[Data]): Vector[Data] = {
@@ -31,64 +37,51 @@ object MergeOps {
     def loop(xs: Vector[Data], acc: Key HashMap Data): Vector[Data] = {
       xs match {
         case xs if xs.isEmpty => acc.values.toVector
-        case h +: t =>
-          acc.get(h.key) match {
+        case received +: t =>
+          val k = received.key
+          acc.get(k) match {
             case None =>
-              loop(t, acc + (h.key -> h))
-            case Some(s) => // stored
-              val hvc = makevc(h.vc)
-              val svc = makevc(s.vc)
-              if (hvc < svc) {
-                loop(t, acc)
-              } else if (hvc == svc) {
-                if (s.lastModified < h.lastModified) {
-                  loop(t, acc + (h.key -> h))
-                } else { // s.lastModified >= h.lastModified
-                  loop(t, acc)
-                }
-              } else if (hvc > svc) {
-                loop(t, acc + (h.key -> h))
-              } else { // hvc <> svc
-                if (s.lastModified < h.lastModified) {
-                  loop(t, acc + (h.key -> h))
-                } else { // s.lastModified >= h.lastModified
-                  loop(t, acc)
-                }
+              loop(t, acc + (k -> received))
+            case Some(stored) =>
+              (stored < received) match {
+                case OkLess(true) => loop(t, acc + (k -> received))
+                case OkLess(false) => loop(t, acc)
+                case ConflictLess(true, vc) => loop(t, acc + (k -> received.copy(vc=vc)))
+                case ConflictLess(false, vc) => loop(t, acc + (k -> stored.copy(vc=vc)))
               }
           }
       }
     }
-    loop(xs, acc=HashMap.empty[Key,Data])
+    loop(xs, acc=HashMap.empty)
   }
 
   /* returns (actual data, list of outdated nodes) */
-  def forGatherGet(xs: Vector[AddrOfData]): (Option[Data], Vector[Node]) = {
+  def forGatherGet(xs: Vector[AddrOfData]): (Option[Data], HashSet[Node]) = {
     @tailrec
-    def findCorrect(xs: Vector[AddrOfData], newest: AddrOfData): AddrOfData = {
+    def loop(xs: Vector[Option[Data]], newest: Option[Data]): Option[Data] = {
       xs match {
         case xs if xs.isEmpty => newest
-        case h +: t if t.exists(age1(h) < age1(_)) => //todo: remove case (unit test)
-          findCorrect(t, newest)
-        case h +: t if age1(h) > age1(newest) =>
-          findCorrect(t, h)
-        case h +: t if age1(h) <> age1(newest) && age2(h) > age2(newest) => 
-          findCorrect(t, h)
-        case xs =>
-          findCorrect(xs.tail, newest)
+        case None +: t => loop(t, newest)
+        case (r@Some(received)) +: t =>
+          newest match {
+            case None => loop(t, r)
+            case s@Some(saved) =>
+              (saved < received) match {
+                case OkLess(true) => loop(t, r)
+                case OkLess(false) => loop(t, s)
+                case ConflictLess(true, _) => loop(t, r)
+                case ConflictLess(false, _) => loop(t, s)
+              }
+          }
       }
     }
-    def age1(d: AddrOfData): VectorClock = {
-      d._1.fold(new VectorClock)(e => makevc(e.vc))
-    }
-    def age2(d: AddrOfData): Long = {
-      d._1.fold(0L)(_.lastModified)
-    }
-    xs.map(age1(_)).toSet.size match {
-      case 0 => None -> Vector.empty
-      case 1 => xs.head._1 -> Vector.empty
-      case n =>
-        val correct = findCorrect(xs.tail, xs.head)
-        correct._1 -> xs.filterNot(age1(_) == age1(correct)).map(_._2)
+    xs match {
+      case Seq() => None -> HashSet.empty
+      case h +: t =>
+        val correct = loop(t.map(_._1), h._1)
+        def makevc1(x: Option[Data]): VectorClock = makevc(x.map(_.vc).getOrElse(Vector.empty))
+        val correct_vc = makevc1(correct)
+        correct -> xs.filterNot(x => makevc1(x._1) == correct_vc).map(_._2)(breakOut)
     }
   }
 

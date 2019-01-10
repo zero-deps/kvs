@@ -1,14 +1,15 @@
 package mws.kvs
 
 import mws.rng._
-import org.scalatest._
 import mws.rng.data._
+import org.scalatest._
+import scala.collection.immutable.{HashSet}
 
 class MergeTest extends FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
   def v1(v: Long): Vec = Vec("n1", v) 
   def v2(v: Long): Vec = Vec("n2", v) 
 
-  "merge buckets" - {
+  "forRepl" - {
     import mws.rng.MergeOps.forRepl
     "empty" in {
       val xs = Vector.empty
@@ -101,7 +102,7 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
           Data(stob("k2"), bucket=1, lastModified=1, vc1s, stob("v2")),
         )
         val ys = Set(
-          xs(0),
+          xs(0).copy(vc=Vector(v1(2), v2(2))),
           xs(2),
         )
         forRepl(xs).toSet should be (ys)
@@ -113,7 +114,7 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
           Data(stob("k2"), bucket=1, lastModified=1, vc1s, stob("v2")),
         )
         val ys = Set(
-          xs(1),
+          xs(1).copy(vc=Vector(v1(2), v2(2))),
           xs(2),
         )
         forRepl(xs).toSet should be (ys)
@@ -169,6 +170,37 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
         val y = Data(stob("k2"), bucket=1, lastModified=1, vc1, stob("v2"))
         forPut(Some(x), y) should be (Some(x.copy(vc=mergedvc)))
       }
+    }
+  }
+
+  "forGatherGet" - {
+    import mws.rng.MergeOps.forGatherGet
+    import akka.actor.{Address}
+    def addr(n: Int): Address = Address("","","",n)
+    "empty" in {
+      forGatherGet(Vector.empty) should be (None -> HashSet.empty)
+    }
+    "newer in tail" in {
+      val xs = Vector(
+        Some(Data(stob("k1"), bucket=1, lastModified=1, Vector(v1(2)), stob("v1"))) -> addr(1),
+        Some(Data(stob("k2"), bucket=1, lastModified=1, Vector(v1(3)), stob("v2"))) -> addr(2),
+        Some(Data(stob("k3"), bucket=1, lastModified=1, Vector(v1(1)), stob("v3"))) -> addr(3),
+      )
+      forGatherGet(xs) should be (xs(1)._1 -> HashSet(addr(1), addr(3)))
+    }
+    "conflict" in {
+      val xs = Vector(
+        Some(Data(stob("k1"), bucket=1, lastModified=1, Vector(v1(1)), stob("v1"))) -> addr(1),
+        Some(Data(stob("k2"), bucket=1, lastModified=2, Vector(v2(1)), stob("v2"))) -> addr(2),
+      )
+      forGatherGet(xs) should be (xs(1)._1 -> HashSet(addr(1)))
+    }
+    "none" in {
+      val xs = Vector(
+        None -> addr(1),
+        Some(Data(stob("k2"), bucket=1, lastModified=1, Vector(v1(3)), stob("v2"))) -> addr(2),
+      )
+      forGatherGet(xs) should be (xs(1)._1 -> HashSet(addr(1)))
     }
   }
 }
