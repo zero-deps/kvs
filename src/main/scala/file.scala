@@ -6,18 +6,11 @@ import scalaz._
 import scalaz.Scalaz._
 import scala.annotation.tailrec
 
-/**
- * id – filepath or whatever uniquely identifies this file
- * count – number of chunks
- * size - size of file in bytes
- */
-final case class File(name: String, count: Int, size: Long)
-
 trait FileHandler {
   protected val chunkLength: Int
 
-  protected def pickle(e: File): Res[Array[Byte]]
-  protected def unpickle(a: Array[Byte]): Res[File]
+  private def pickle(e: File): Res[Array[Byte]] = e.toByteArray.right
+  private def unpickle(a: Array[Byte]): Res[File] = File.parseFrom(a).right
 
   private def get(dir: String, name: String)(implicit dba: Dba): Res[File] = dba.get(s"${dir}/${name}").fold(
     l => l match {

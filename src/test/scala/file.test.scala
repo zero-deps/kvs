@@ -6,7 +6,6 @@ import mws.kvs.file._
 import org.scalatest._
 import scala.annotation.tailrec
 import scalaz._
-import scalaz.Scalaz._
 
 class FileHandlerTest extends TestKit(ActorSystem("Test"))
   with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
@@ -22,10 +21,6 @@ class FileHandlerTest extends TestKit(ActorSystem("Test"))
 
   implicit val fh: FileHandler = new FileHandler {
     override val chunkLength = 5
-
-    import scala.pickling._, Defaults._, binary._
-    override def pickle(e: File): Res[Array[Byte]] = e.pickle.value.right
-    override def unpickle(a: Array[Byte]): Res[File] = a.unpickle[File].right
   }
 
   "file" - {
