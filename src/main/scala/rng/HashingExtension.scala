@@ -7,7 +7,7 @@ import java.security.MessageDigest
 import scala.annotation.tailrec
 import scala.collection.{SortedMap}
 
-class HashingImpl(config: Config) extends  Extension {
+class HashingImpl(config: Config) extends Extension {
   val hashLen = config.getInt("hash-length")
   val bucketsNum = config.getInt("buckets")
   val bucketRange = (math.pow(2, hashLen) / bucketsNum).ceil.toInt

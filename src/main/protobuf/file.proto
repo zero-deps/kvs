@@ -1,12 +1,12 @@
-syntax = "proto3";
+syntax = "proto2";
 
 package mws.kvs;
 
 message File {
   // name – unique value inside directory
-  string name = 1;
+  required string name = 1;
   // count – number of chunks
-  int32 count = 2;
+  required int32 count = 2;
   // size - size of file in bytes
-  int64 size = 3;
+  required int64 size = 3;
 }

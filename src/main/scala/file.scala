@@ -2,15 +2,19 @@ package mws.kvs
 package file
 
 import mws.kvs.store.Dba
+import scala.annotation.tailrec
+import scala.util.{Try, Success, Failure}
 import scalaz._
 import scalaz.Scalaz._
-import scala.annotation.tailrec
 
 trait FileHandler {
   protected val chunkLength: Int
 
   private def pickle(e: File): Res[Array[Byte]] = e.toByteArray.right
-  private def unpickle(a: Array[Byte]): Res[File] = File.parseFrom(a).right
+  private def unpickle(a: Array[Byte]): Res[File] = Try(File.parseFrom(a)) match {
+    case Success(x) => x.right
+    case Failure(x) => UnpickleFail(x.toString).left
+  }
 
   private def get(dir: String, name: String)(implicit dba: Dba): Res[File] = dba.get(s"${dir}/${name}").fold(
     l => l match {

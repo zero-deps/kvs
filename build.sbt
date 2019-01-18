@@ -114,5 +114,4 @@ lazy val publishSettings = Seq(
   publishMavenStyle := true,
   pomIncludeRepository := (_ => false),
   isSnapshot := true,
-  // crossScalaVersions := Seq("2.11.12", scalaVersion)
 )
