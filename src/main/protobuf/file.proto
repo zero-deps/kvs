@@ -9,4 +9,6 @@ message File {
   required int32 count = 2;
   // size - size of file in bytes
   required int64 size = 3;
+  // true if directory
+  required bool dir = 4;
 }

@@ -27,7 +27,7 @@ trait FileHandler {
   def create(dir: String, name: String)(implicit dba: Dba): Res[File] = dba.get(s"${dir}/${name}").fold(
     l => l match {
       case _: NotFound =>
-        val f = File(name, count=0, size=0L)
+        val f = File(name, count=0, size=0L, dir=false)
         for {
           x <- pickle(f)
           r <- dba.put(s"${dir}/${name}", x).map(_ => f)
@@ -94,7 +94,7 @@ trait FileHandler {
         x <- dba.get(s"${dir}/${fromName}_chunk_${i}")
         _ <- dba.put(s"${dir}/${toName}_chunk_${i}", x)
       } yield ()).sequence_
-      to = File(toName, from.count, from.size)
+      to = File(toName, from.count, from.size, from.dir)
       x <- pickle(to)
       _ <- dba.put(s"${dir}/${toName}", x)
     } yield to
