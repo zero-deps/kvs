@@ -20,8 +20,8 @@ package object rng {
 
   sealed trait Ack
   final case class AckSuccess(v: Option[Value]) extends Ack
-  final case object AckQuorumFailed extends Ack
-  final case object AckTimeoutFailed extends Ack
+  final case class AckQuorumFailed(why: String) extends Ack
+  final case class AckTimeoutFailed(on: String) extends Ack
 
   sealed trait FsmState
   final case object ReadyCollect extends FsmState

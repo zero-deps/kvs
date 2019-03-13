@@ -44,7 +44,7 @@ class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, 
       }
 
     case Event("timeout", _) =>
-      client ! AckTimeoutFailed
+      client ! AckTimeoutFailed(s"put=${putInfo.key}")
       stop()
   }
   

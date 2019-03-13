@@ -40,8 +40,8 @@ class Ring(system: ActorSystem) extends Dba {
     val putF = (hash ? rng.Put(stob(key), atob(value))).mapTo[rng.Ack]
     Try(Await.result(putF, d)) match {
       case Success(rng.AckSuccess(_)) => value.right
-      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
-      case Success(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
+      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
+      case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
       case Failure(t) => RngThrow(t).left
     }
   }
@@ -53,8 +53,8 @@ class Ring(system: ActorSystem) extends Dba {
     Try(Await.result(fut, d)) match {
       case Success(rng.AckSuccess(Some(v))) => v.toByteArray.right
       case Success(rng.AckSuccess(None)) => NotFound(key).left
-      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
-      case Success(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
+      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
+      case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
       case Failure(t) => RngThrow(t).left
     }
   }
@@ -64,8 +64,8 @@ class Ring(system: ActorSystem) extends Dba {
       val fut = hash.ask(rng.Delete(stob(key))).mapTo[rng.Ack]
       Try(Await.result(fut, d)) match {
         case Success(rng.AckSuccess(_)) => r.right
-        case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
-        case Success(rng.AckTimeoutFailed) => RngAskTimeoutFailed.left
+        case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
+        case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
         case Failure(t) => RngThrow(t).left
       }
     }
@@ -74,7 +74,7 @@ class Ring(system: ActorSystem) extends Dba {
     val d = 1 hour
     val x = hash.ask(rng.Save(path))(Timeout(d))
     Try(Await.result(x, d)) match {
-      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(v: String) => v.right
       case Success(v) => RngFail(s"Unexpected response: ${v}").left
       case Failure(t) => RngThrow(t).left
@@ -84,7 +84,7 @@ class Ring(system: ActorSystem) extends Dba {
     val d = 1 hour
     val x = hash.ask(rng.Load(path))(Timeout(d))
     Try(Await.result(x, d)) match {
-      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(v: String) => v.right
       case Success(v) => RngFail(s"Unexpected response: ${v}").left
       case Failure(t) => RngThrow(t).left
@@ -94,7 +94,7 @@ class Ring(system: ActorSystem) extends Dba {
     val d = 1 hour
     val x = hash.ask(it)(Timeout(d))
     Try(Await.result(x, d)) match {
-      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(v: String) => v.right
       case Success(v) => RngFail(s"Unexpected response: ${v}").left
       case Failure(t) => RngThrow(t).left
