@@ -1,4 +1,5 @@
-package mws.kvs
+package mws
+package kvs
 package store
 
 import scala.concurrent.Future
@@ -14,8 +15,7 @@ trait Dba {
   def delete(key: K): Res[V]
   def save(path: String): Res[String]
   def load(path: String): Res[Any]
-  def loadJava(path: String): Res[Any]
-  def iterate(path: String, f: (K, V) => Unit): Res[Any]
+  def iterate(it: rng.Iterate): Res[Any]
   def isReady: Future[Boolean]
   def nextid(fid: String): Res[String]
   def compact(): Unit

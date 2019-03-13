@@ -82,7 +82,7 @@ class Ring(system: ActorSystem) extends Dba {
   }
   def load(path: String): Res[Any] = {
     val d = 1 hour
-    val x = hash.ask(rng.Load(path, javaSer=false))(Timeout(d))
+    val x = hash.ask(rng.Load(path))(Timeout(d))
     Try(Await.result(x, d)) match {
       case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
       case Success(v: String) => v.right
@@ -90,19 +90,9 @@ class Ring(system: ActorSystem) extends Dba {
       case Failure(t) => RngThrow(t).left
     }
   }
-  def loadJava(path: String): Res[Any] = {
+  def iterate(it: rng.Iterate): Res[Any] = {
     val d = 1 hour
-    val x = hash.ask(rng.Load(path, javaSer=true))(Timeout(d))
-    Try(Await.result(x, d)) match {
-      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
-      case Success(v: String) => v.right
-      case Success(v) => RngFail(s"Unexpected response: ${v}").left
-      case Failure(t) => RngThrow(t).left
-    }
-  }
-  def iterate(path: String, f: (String, Array[Byte]) => Unit): Res[Any] = {
-    val d = 1 hour
-    val x = hash.ask(rng.Iterate(path, (k, v) => f(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(Timeout(d))
+    val x = hash.ask(it)(Timeout(d))
     Try(Await.result(x, d)) match {
       case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
       case Success(v: String) => v.right

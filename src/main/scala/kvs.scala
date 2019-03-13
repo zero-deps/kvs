@@ -1,4 +1,5 @@
-package mws.kvs
+package mws
+package kvs
 
 import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import akka.cluster.sharding._
@@ -42,7 +43,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   }
 
   object el {
-    def put[A: ElHandler](k: String,el: A): Res[A] = implicitly[ElHandler[A]].put(k,el)
+    def put[A: ElHandler](k: String, el: A): Res[A] = implicitly[ElHandler[A]].put(k,el)
     def get[A: ElHandler](k: String): Res[A] = implicitly[ElHandler[A]].get(k)
     def delete[A: ElHandler](k: String): Res[A] = implicitly[ElHandler[A]].delete(k)
   }
@@ -58,7 +59,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   def add[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.add(el)
   def put[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.put(el)
   def stream_safe[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[Stream[Res[H]]] = h.stream(fid, from)
-  def stream_unsafe[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[Stream[H]] = stream_safe[H](fid, from).map(_.takeWhile(_.isRight).flatMap(_.toOption))
+  def stream_unsafe[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[Stream[H]] = stream_safe[H](fid, from).map(_.collect{ case \/-(x) => x })
   def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.get(fid, id)
   def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.remove(fid, id)
 
@@ -74,8 +75,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   object dump {
     def save(path: String): Res[String] = dba.save(path)
     def load(path: String): Res[Any] = dba.load(path)
-    def loadJava(path: String): Res[Any] = dba.loadJava(path)
-    def iterate(path: String, f: (String, Array[Byte]) => Unit): Res[Any] = dba.iterate(path, f)
+    def iterate(it: rng.Iterate): Res[Any] = dba.iterate(it)
   }
 
   def onReady: Future[Unit] = {

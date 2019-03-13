@@ -5,7 +5,7 @@ import akka.cluster.VectorClock
 import com.google.protobuf.{ByteString, ByteStringWrap}
 import mws.rng.data.{Vec}
 import scala.collection.breakOut
-import scala.collection.immutable.{TreeMap}
+import scala.collection.immutable.{SortedMap, TreeMap}
 import scalaz._
 
 package object rng {
@@ -27,6 +27,31 @@ package object rng {
   final case object ReadyCollect extends FsmState
   final case object Collecting extends FsmState
   final case object Sent extends FsmState
+
+  final case class Put(k: Key, v: Value)
+  final case class Get(k: Key)
+  final case class Delete(k: Key)
+
+  final case class Save(path: String)
+  final case class Load(path: String)
+
+  type ItPut = (Key, Value) => Unit
+  type ItMap = (Key, Value, ItPut) => Unit
+  type ItAfterAll = ItPut => Unit
+  final case class Iterate(path: String, mapF: ItMap, afterAllF: ItAfterAll)
+
+  final case object RestoreState
+
+  final case object Ready
+
+  final case class InternalPut(k: Key, v: Value)
+
+  final case class HashRngData(
+    nodes: Set[Node],
+    buckets: SortedMap[Bucket, PreferenceList],
+    vNodes: SortedMap[Bucket, Node],
+    replication: Option[ActorRef],
+  )
   
   def makevc(l: VectorClockList): VectorClock = new VectorClock(TreeMap.empty[String, Long] ++ l.map(a => a.key -> a.value))
   def fromvc(vc: VectorClock): VectorClockList = vc.versions.map((Vec.apply _).tupled)(breakOut)
