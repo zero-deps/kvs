@@ -23,6 +23,7 @@ class IterateDumpWorker(dumpDb: LevelDB, it: Iterate) extends FSM[FsmState, Opti
 
   when(ReadyCollect){
     case Event("go", _) =>
+      log.info("iteration started")
       store = context.actorOf(ReadonlyStore.props(dumpDb))
       store ! DumpGet(stob("head_of_keys"))
       goto(Collecting) using Some(sender)
@@ -38,7 +39,7 @@ class IterateDumpWorker(dumpDb: LevelDB, it: Iterate) extends FSM[FsmState, Opti
       }
       it.mapF(k, v, putF)
       if (nextKey.isEmpty) {
-        Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
+        Try(dumpDb.close()).recover{ case t => log.info(t.getMessage, t) }
         it.afterAllF(putF)
         stores.get(addr(self), "ring_hash").fold(
           _ ! RestoreState,

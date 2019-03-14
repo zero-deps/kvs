@@ -11,6 +11,7 @@ import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.collection.{breakOut}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
+import scala.util.{Try, Success, Failure}
 
 object Hash {
   def props(): Props = Props(new Hash)
@@ -140,14 +141,19 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       x.forward(DumpProcessor.Load(path))
       goto(QuorumStateReadonly())
     case Event(it: Iterate, data) =>
-      val dumpDb = LeveldbOps.open(system, it.path)
-      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(QuorumStateReadonly()),
-        _ ! ChangeState(QuorumStateReadonly()),
-      ))
-      val x = system.actorOf(IterateDumpWorker.props(dumpDb, it), s"iter_wrkr-${now_ms()}")
-      x.forward("go")
-      goto(QuorumStateReadonly())
+      Try(LeveldbOps.open(system, it.path)) match {
+        case Success(dumpDb) =>
+          data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
+            _ ! ChangeState(QuorumStateReadonly()),
+            _ ! ChangeState(QuorumStateReadonly()),
+          ))
+          val x = system.actorOf(IterateDumpWorker.props(dumpDb, it), s"iter_wrkr-${now_ms()}")
+          x.forward("go")
+          goto(QuorumStateReadonly())
+        case Failure(t) =>
+          log.error(t.getMessage, t)
+          stay
+      }
 
     case Event(RestoreState, _) =>
       log.info("State is already OK")
