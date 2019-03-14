@@ -1,52 +1,38 @@
 package mws.rng
 
-import akka.actor.{FSM, ActorLogging, ActorRef, Props}
-import akka.pattern.ask
-import akka.util.Timeout
-import leveldbjnr.{LevelDB}
+import akka.actor.{FSM, ActorRef, ActorLogging, Props}
+import com.google.protobuf.{ByteString}
+import leveldbjnr._
+import mws.kvs.LeveldbOps
 import mws.rng.msg_dump.{DumpGet, DumpEn}
 import mws.rng.store._
-import mws.rng.store.ReadonlyStore
-import scala.concurrent.duration._
-import scala.concurrent.{Await}
 import scala.util.Try
 
 object IterateDumpWorker {
-  def props(dumpDb: LevelDB, it: Iterate): Props = Props(new IterateDumpWorker(dumpDb, it))
+  def props(path: String, f: (ByteString,ByteString) => Unit): Props = Props(new IterateDumpWorker(path, f))
 }
-
-class IterateDumpWorker(dumpDb: LevelDB, it: Iterate) extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
-  implicit val timeout = Timeout(120 seconds)
+class IterateDumpWorker(path: String, f: (ByteString,ByteString) => Unit) extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
+  var dumpDb: LevelDB = _
   var store: ActorRef = _
   val stores = SelectionMemorize(context.system)
   startWith(ReadyCollect, None)
 
   when(ReadyCollect){
-    case Event("go", _) =>
-      log.info("iteration started")
-      store = context.actorOf(ReadonlyStore.props(dumpDb))
+    case Event(Iterate(_,_),_) =>
+      dumpDb = LeveldbOps.open(context.system, path)
+      store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
       store ! DumpGet(stob("head_of_keys"))
       goto(Collecting) using Some(sender)
   }
 
   when(Collecting){
-    case Event(DumpEn(k, v, nextKey), state) =>
-      val putF: ItPut = (k, v) => {
-        Await.ready(stores.get(addr(self), "ring_hash").fold(
-          _.ask(InternalPut(k,v)),
-          _.ask(InternalPut(k,v)),
-        ), timeout.duration)
-      }
-      it.mapF(k, v, putF)
+    case Event(DumpEn(k,v,nextKey),state) =>
+      log.debug(s"iterate key=$k")
+      f(k,v)
       if (nextKey.isEmpty) {
-        Try(dumpDb.close()).recover{ case t => log.info(t.getMessage, t) }
-        it.afterAllF(putF)
-        stores.get(addr(self), "ring_hash").fold(
-          _ ! RestoreState,
-          _ ! RestoreState,
-        )
+        Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
         state.map(_ ! "done")
-        log.info("iteration ended")
+        log.debug("iteration ended")
         stop()
       } else {
         store ! DumpGet(nextKey)

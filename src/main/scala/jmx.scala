@@ -1,5 +1,4 @@
-package mws
-package kvs
+package mws.kvs
 
 import akka.actor.ActorSystem
 import java.lang.management.ManagementFactory
@@ -28,7 +27,7 @@ class KvsJmx(kvs: Kvs, system: ActorSystem) {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
       def save(path: String): String = kvs.dump.save(path).fold(_.toString, identity)
       def load(path: String): Any = kvs.dump.load(path).fold(_.toString, identity)
-      def loadJava(path: String): Any = kvs.dump.iterate(rng.Iterate(path, mapF = (k,v,w) => w(k,v), afterAllF = _ => ())).fold(_.toString, identity)
+      def loadJava(path: String): Any = kvs.dump.loadJava(path).fold(_.toString, identity)
 
       def get(k: String): String = kvs.el.get(k).getOrElse("NaN")
       def put(k: String, v: String): Unit = kvs.el.put(k, v)

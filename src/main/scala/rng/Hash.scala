@@ -4,14 +4,34 @@ import akka.actor._
 import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import akka.util.Timeout
+import com.google.protobuf.ByteString
 import com.typesafe.config.Config
-import mws.kvs.LeveldbOps
 import mws.rng.msg.{StoreDelete, StoreGet, QuorumState, QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective, ChangeState}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.collection.{breakOut}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
-import scala.util.{Try, Success, Failure}
+
+case class Put(k: Key, v: Value)
+case class Get(k: Key)
+case class Delete(k: Key)
+
+case class Save(path: String)
+case class Load(path: String, javaSer: Boolean)
+case class Iterate(path: String, f: (ByteString, ByteString) => Unit)
+
+case object RestoreState
+
+case object Ready
+
+case class InternalPut(k: Key, v: Value)
+
+final case class HashRngData(
+  nodes: Set[Node],
+  buckets: SortedMap[Bucket, PreferenceList],
+  vNodes: SortedMap[Bucket, Node],
+  replication: Option[ActorRef],
+)
 
 object Hash {
   def props(): Props = Props(new Hash)
@@ -52,22 +72,22 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   when(QuorumStateUnsatisfied()){
     case Event(Get(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+      sender ! AckQuorumFailed
       stay()
     case Event(Put(_,_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+      sender ! AckQuorumFailed
       stay()
     case Event(Delete(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+      sender ! AckQuorumFailed
       stay()
     case Event(Save(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+      sender ! AckQuorumFailed
       stay()
-    case Event(_: Load, _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+    case Event(Load(_,_), _) =>
+      sender ! AckQuorumFailed
       stay()
-    case Event(_: Iterate, _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+    case Event(Iterate(_,_), _) =>
+      sender ! AckQuorumFailed
       stay()
     case Event(RestoreState, _) =>
       log.warning("Don't know how to restore state when quorum is unsatisfied")
@@ -93,19 +113,19 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
 
     case Event(Put(_,_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
+      sender ! AckQuorumFailed
       stay()
     case Event(Delete(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
+      sender ! AckQuorumFailed
       stay()
     case Event(Save(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
+      sender ! AckQuorumFailed
       stay()
-    case Event(_: Load, _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
+    case Event(Load(_,_), _) =>
+      sender ! AckQuorumFailed
       stay()
-    case Event(_: Iterate, _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
+    case Event(Iterate(_,_), _) =>
+      sender ! AckQuorumFailed
       stay()
   }
 
@@ -132,28 +152,22 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       val x = system.actorOf(DumpProcessor.props(), s"dump_wrkr-${now_ms()}")
       x.forward(DumpProcessor.Save(data.buckets, local, path))
       goto(QuorumStateReadonly())
-    case Event(Load(path), data) =>
+    case Event(Load(path, javaSer), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
         _ ! ChangeState(QuorumStateReadonly()),
         _ ! ChangeState(QuorumStateReadonly()),
       ))
-      val x = system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}")
-      x.forward(DumpProcessor.Load(path))
-      goto(QuorumStateReadonly())
-    case Event(it: Iterate, data) =>
-      Try(LeveldbOps.open(system, it.path)) match {
-        case Success(dumpDb) =>
-          data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-            _ ! ChangeState(QuorumStateReadonly()),
-            _ ! ChangeState(QuorumStateReadonly()),
-          ))
-          val x = system.actorOf(IterateDumpWorker.props(dumpDb, it), s"iter_wrkr-${now_ms()}")
-          x.forward("go")
-          goto(QuorumStateReadonly())
-        case Failure(t) =>
-          log.error(t.getMessage, t)
-          stay
+      if (javaSer) {
+        val x = system.actorOf(LoadDumpWorkerJava.props(), s"load_wrkr-j-${now_ms()}")
+        x.forward(DumpProcessor.Load(path))
+      } else {
+        val x = system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}")
+        x.forward(DumpProcessor.Load(path))
       }
+      goto(QuorumStateReadonly())
+    case Event(Iterate(path, f), data) =>
+      system.actorOf(IterateDumpWorker.props(path,f), s"iter_wrkr-${now_ms()}").forward(Iterate(path, f))
+      stay()
 
     case Event(RestoreState, _) =>
       log.info("State is already OK")
@@ -183,7 +197,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
     val nodes = nodesForKey(k, data)
-    val gather = system.actorOf(GatherDel.props(client, gatherTimeout, nodes, k))
+    val gather = system.actorOf(GatherDel.props(client, gatherTimeout, nodes))
     val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
     stores.foreach(_.fold(
       _.tell(StoreDelete(k), gather), 
@@ -204,7 +218,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         _.tell(StoreGet(k), gather),
       )
     } else {
-      client ! AckQuorumFailed("M >= W")
+      client ! AckQuorumFailed
     }
   }
 
@@ -219,7 +233,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         _.tell(StoreGet(k), gather),
       ))
     } else {
-      client ! AckQuorumFailed("M >= R")
+      client ! AckQuorumFailed
     }
   }
 

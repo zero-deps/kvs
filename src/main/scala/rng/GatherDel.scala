@@ -5,7 +5,7 @@ import akka.cluster.Cluster
 import scala.concurrent.duration._
 import scalaz.Scalaz._
 
-class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Key) extends FSM[FsmState, Set[Node]] with ActorLogging {
+class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node]) extends FSM[FsmState, Set[Node]] with ActorLogging {
   import context.system
 
   val config = system.settings.config.getConfig("ring")
@@ -29,7 +29,7 @@ class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Key
       //politic of revert is not needed because on read opperation removed data will be saved again,
       //only notify client about failed opperation.
       //deleted on other nodes but we don't know about it ? sorry, eventually consistency
-      client ! AckTimeoutFailed(s"del=${k}")
+      client ! AckTimeoutFailed
       stop()
   }
 
@@ -49,5 +49,5 @@ class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Key
 }
 
 object GatherDel {
-  def props(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Key): Props = Props(new GatherDel(client, t, prefList, k))
+  def props(client: ActorRef, t: FiniteDuration, prefList: Set[Node]): Props = Props(new GatherDel(client, t, prefList))
 }
