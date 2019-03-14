@@ -5,6 +5,7 @@ import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import akka.util.Timeout
 import com.typesafe.config.Config
+import mws.kvs.LeveldbOps
 import mws.rng.msg.{StoreDelete, StoreGet, QuorumState, QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective, ChangeState}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.collection.{breakOut}
@@ -139,11 +140,12 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       x.forward(DumpProcessor.Load(path))
       goto(QuorumStateReadonly())
     case Event(it: Iterate, data) =>
+      val dumpDb = LeveldbOps.open(system, it.path)
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
         _ ! ChangeState(QuorumStateReadonly()),
         _ ! ChangeState(QuorumStateReadonly()),
       ))
-      val x = system.actorOf(IterateDumpWorker.props(it), s"iter_wrkr-${now_ms()}")
+      val x = system.actorOf(IterateDumpWorker.props(dumpDb, it), s"iter_wrkr-${now_ms()}")
       x.forward("go")
       goto(QuorumStateReadonly())
 
