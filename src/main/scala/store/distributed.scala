@@ -94,7 +94,7 @@ class Ring(system: ActorSystem) extends Dba {
     val d = 1 hour
     val x = hash.ask(rng.Load(path, javaSer=true))(Timeout(d))
     Try(Await.result(x, d)) match {
-      case Success(rng.AckQuorumFailed) => RngAskQuorumFailed.left
+      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(v: String) => v.right
       case Success(v) => RngFail(s"Unexpected response: ${v}").left
       case Failure(t) => RngThrow(t).left
