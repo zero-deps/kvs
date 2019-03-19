@@ -1,10 +1,9 @@
 package mws.kvs
 
-import akka.actor.{ActorSystem}
 import leveldbjnr.{LevelDB, LevelDBOptions}
 
 object LeveldbOps {
-  def open(s: ActorSystem, path: String): LevelDB = {
+  def open(path: String): LevelDB = {
     val leveldbOptions = new LevelDBOptions() {
       val bloom = LevelDB.lib.leveldb_filterpolicy_create_bloom(10)
       LevelDB.lib.leveldb_options_set_filter_policy(options, bloom)

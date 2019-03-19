@@ -25,7 +25,7 @@ class Ring(system: ActorSystem) extends Dba {
 
   system.eventStream
 
-  val leveldb: LevelDB = LeveldbOps.open(system, cfg.getString("leveldb.dir"))
+  val leveldb: LevelDB = LeveldbOps.open(cfg.getString("leveldb.dir"))
 
   system.actorOf(WriteStore.props(leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb)).withDeploy(Deploy.local), name="ring_readonly_store")

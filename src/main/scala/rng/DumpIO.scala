@@ -2,12 +2,19 @@ package mws.rng
 
 import akka.actor.{Actor, ActorLogging, Props}
 import com.google.protobuf.{ByteString}
-import scala.collection.{breakOut}
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.nio.file.Paths
+import java.nio.file.StandardOpenOption.{READ, WRITE, CREATE}
 import mws.rng.data.{Data}
 import mws.rng.data_dump.{DumpKV, KV}
+import scala.collection.{breakOut}
+import scala.util.Try
 
 object DumpIO {
-  def props(ioPath: String): Props = Props(new DumpIO(ioPath))
+  def props(ioPath: String): Throwable Either Props = {
+    Try(FileChannel.open(Paths.get(ioPath), READ, WRITE, CREATE)).toEither.map(channel => Props(new DumpIO(ioPath, channel)))
+  }
 
   final case object ReadNext
   final case class ReadNextRes(kv: Vector[(ByteString, ByteString)], last: Boolean)
@@ -16,13 +23,7 @@ object DumpIO {
   final case class PutDone(path: String)
 }
 
-class DumpIO(ioPath: String) extends Actor with ActorLogging {
-  import java.nio.ByteBuffer
-  import java.nio.channels.FileChannel
-  import java.nio.file.Paths
-  import java.nio.file.StandardOpenOption.{READ, WRITE, CREATE}
-
-  val channel: FileChannel = FileChannel.open(Paths.get(ioPath), READ, WRITE, CREATE)
+class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLogging {
 
   def receive = {
     case DumpIO.ReadNext =>

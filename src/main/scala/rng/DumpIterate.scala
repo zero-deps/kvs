@@ -6,7 +6,7 @@ import leveldbjnr._
 import mws.kvs.LeveldbOps
 import mws.rng.msg_dump.{DumpGet, DumpEn}
 import mws.rng.store._
-import scala.util.Try
+import scala.util.{Try, Success, Failure}
 
 object IterateDumpWorker {
   def props(path: String, f: (ByteString,ByteString) => Unit): Props = Props(new IterateDumpWorker(path, f))
@@ -19,10 +19,17 @@ class IterateDumpWorker(path: String, f: (ByteString,ByteString) => Unit) extend
 
   when(ReadyCollect){
     case Event(Iterate(_,_),_) =>
-      dumpDb = LeveldbOps.open(context.system, path)
-      store = context.actorOf(Props(classOf[ReadonlyStore], dumpDb))
-      store ! DumpGet(stob("head_of_keys"))
-      goto(Collecting) using Some(sender)
+      Try(LeveldbOps.open(path)) match {
+        case Success(a) =>
+          dumpDb = a
+          store = context.actorOf(ReadonlyStore.props(dumpDb))
+          store ! DumpGet(stob("head_of_keys"))
+          goto(Collecting) using Some(sender)
+        case Failure(t) =>
+          sender ! "done"
+          log.error(cause=t, message=s"Invalid path of dump=${path}")
+          stop()
+      }
   }
 
   when(Collecting){
@@ -32,7 +39,7 @@ class IterateDumpWorker(path: String, f: (ByteString,ByteString) => Unit) extend
       if (nextKey.isEmpty) {
         Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
         state.map(_ ! "done")
-        log.debug("iteration ended")
+        log.info("iteration ended")
         stop()
       } else {
         store ! DumpGet(nextKey)

@@ -28,20 +28,42 @@ class DumpProcessor extends Actor with ActorLogging {
   def waitForStart: Receive = {
     case DumpProcessor.Load(path) =>
       log.info(s"Loading dump: path=${path}".green)
-      val dumpIO = context.actorOf(DumpIO.props(path))
-      dumpIO ! DumpIO.ReadNext
-      context.become(load(dumpIO, sender)())
+      DumpIO.props(path) match {
+        case Left(t) =>
+          log.error(cause=t, message=s"Invalid path=${path}")
+          sender ! "done"
+          stores.get(addr(self), "ring_hash").fold(
+            _ ! RestoreState,
+            _ ! RestoreState,
+          )
+          context.stop(self)
+        case Right(a) =>
+          val dumpIO = context.actorOf(a)
+          dumpIO ! DumpIO.ReadNext
+          context.become(load(dumpIO, sender)())
+      }
 
     case DumpProcessor.Save(buckets, local, path) =>
       log.info(s"Saving dump: path=${path}".green)
       val timestamp = LocalDateTime.now.format(DateTimeFormatter.ofPattern("yyyy.MM.dd-HH.mm.ss"))
       val dumpPath = s"${path}/rng_dump_${timestamp}"
-      val dumpIO = context.actorOf(DumpIO.props(dumpPath))
-      buckets(0).foreach(n => stores.get(n, "ring_readonly_store").fold(
-        _ ! DumpGetBucketData(0),
-        _ ! DumpGetBucketData(0),
-      ))
-      context.become(save(buckets, local, dumpIO, sender)())
+      DumpIO.props(dumpPath) match {
+        case Left(t) =>
+          log.error(cause=t, message=s"Invalid path=${path}")
+          stores.get(addr(self), "ring_hash").fold(
+            _ ! RestoreState,
+            _ ! RestoreState,
+          )
+          sender ! path
+          context.stop(self)
+        case Right(a) =>
+          val dumpIO = context.actorOf(a)
+          buckets(0).foreach(n => stores.get(n, "ring_readonly_store").fold(
+            _ ! DumpGetBucketData(0),
+            _ ! DumpGetBucketData(0),
+          ))
+          context.become(save(buckets, local, dumpIO, sender)())
+      }
   }
 
   def load(dumpIO: ActorRef, client: ActorRef): () => Receive = {
@@ -55,7 +77,10 @@ class DumpProcessor extends Actor with ActorLogging {
         res.kv.foreach { d =>
           ksize = ksize + d._1.size
           size = size + d._2.size
-          val putF = stores.get(addr(self), "ring_hash").fold(_.ask(InternalPut(d._1, d._2)), _.ask(InternalPut(d._1, d._2)))
+          val putF = stores.get(addr(self), "ring_hash").fold(
+            _.ask(InternalPut(d._1, d._2)),
+            _.ask(InternalPut(d._1, d._2)),
+          )
           Await.ready(putF, timeout.duration)
         }
         if (res.last) {
@@ -66,7 +91,10 @@ class DumpProcessor extends Actor with ActorLogging {
         if (res.last) {
           log.info("Dump is loaded".green)
           client ! "done"
-          stores.get(addr(self), "ring_hash").fold(_ ! RestoreState, _ ! RestoreState)
+          stores.get(addr(self), "ring_hash").fold(
+            _ ! RestoreState,
+            _ ! RestoreState,
+          )
           dumpIO ! PoisonPill
           context.stop(self)
         }
