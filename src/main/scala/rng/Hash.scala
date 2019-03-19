@@ -3,9 +3,9 @@ package mws.rng
 import akka.actor._
 import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
-import com.google.protobuf.ByteString
 import com.typesafe.config.Config
-import mws.rng.msg.{StoreDelete, StoreGet, QuorumState, QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective, ChangeState}
+import mws.rng.model.{StoreDelete, StoreGet, QuorumState, ChangeState}
+import mws.rng.model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.collection.{breakOut}
 import scala.concurrent.duration._
@@ -17,7 +17,7 @@ case class Delete(k: Key)
 
 case class Save(path: String)
 case class Load(path: String, javaSer: Boolean)
-case class Iterate(path: String, f: (ByteString, ByteString) => Unit)
+case class Iterate(path: String, f: (Key, Value) => Unit)
 
 case object RestoreState
 
@@ -60,7 +60,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   log.info(s"ring.quorum.R = ${R}".blue)
   log.info(s"ring.leveldb.dir = ${config.getString("leveldb.dir")}".blue)
 
-  startWith(QuorumStateUnsatisfied(), HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Node], replication=None))
+  startWith(QuorumStateUnsatisfied, HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Node], replication=None))
 
   override def preStart() = {
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents, classOf[MemberUp], classOf[MemberRemoved])
@@ -68,7 +68,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   
   override def postStop(): Unit = cluster.unsubscribe(self)
 
-  when(QuorumStateUnsatisfied()){
+  when(QuorumStateUnsatisfied){
     case Event(Get(_), _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
@@ -95,7 +95,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
   }
 
-  when(QuorumStateReadonly()){
+  when(QuorumStateReadonly){
     case Event(Get(k), data) =>
       doGet(k, sender, data)
       stay()
@@ -127,7 +127,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
   }
 
-  when(QuorumStateEffective()){
+  when(QuorumStateEffective){
     case Event(Ready, _) =>
       sender ! true
       stay()
@@ -144,16 +144,16 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
     case Event(Save(path), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(QuorumStateReadonly()),
-        _ ! ChangeState(QuorumStateReadonly()),
+        _ ! ChangeState(QuorumStateReadonly),
+        _ ! ChangeState(QuorumStateReadonly),
       ))
       val x = system.actorOf(DumpProcessor.props(), s"dump_wrkr-${now_ms()}")
       x.forward(DumpProcessor.Save(data.buckets, local, path))
-      goto(QuorumStateReadonly())
+      goto(QuorumStateReadonly)
     case Event(Load(path, javaSer), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(QuorumStateReadonly()),
-        _ ! ChangeState(QuorumStateReadonly()),
+        _ ! ChangeState(QuorumStateReadonly),
+        _ ! ChangeState(QuorumStateReadonly),
       ))
       if (javaSer) {
         val x = system.actorOf(LoadDumpWorkerJava.props(), s"load_wrkr-j-${now_ms()}")
@@ -162,7 +162,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         val x = system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}")
         x.forward(DumpProcessor.Load(path))
       }
-      goto(QuorumStateReadonly())
+      goto(QuorumStateReadonly)
     case Event(Iterate(path, f), data) =>
       system.actorOf(IterateDumpWorker.props(path,f), s"iter_wrkr-${now_ms()}").forward(Iterate(path, f))
       stay()
@@ -185,7 +185,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
     case Event(ChangeState(s), data) =>
       state(data.nodes.size) match {
-        case QuorumStateUnsatisfied() => stay()
+        case QuorumStateUnsatisfied => stay()
         case _ => goto(s)
       }
     case Event(InternalPut(k, v), data) =>
@@ -242,7 +242,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
     val newvNodes: Map[VNode, Node] = (1 to vNodesNum).map(vnode => {
-      hashing.hash(stob(member.address.hostPort).concat(itob(vnode))) -> member.address
+      hashing.hash(stob(member.address.hostPort).++(itob(vnode))) -> member.address
     })(breakOut)
     val updvNodes = data.vNodes ++ newvNodes
     val nodes = data.nodes + member.address
@@ -256,7 +256,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def removeNodeFromRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
     log.info(s"Removing ${member} from ring")
-    val unusedvNodes: Set[VNode] = (1 to vNodesNum).map(vnode => hashing.hash(stob(member.address.hostPort).concat(itob(vnode))))(breakOut)
+    val unusedvNodes: Set[VNode] = (1 to vNodesNum).map(vnode => hashing.hash(stob(member.address.hostPort).++(itob(vnode))))(breakOut)
     val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
     val nodes = data.nodes - member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
@@ -283,9 +283,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   def state(nodes: Int): QuorumState = nodes match {
-    case 0 => QuorumStateUnsatisfied()
-    case n if n >= Math.max(R, W) => QuorumStateEffective()
-    case _ => QuorumStateReadonly()
+    case 0 => QuorumStateUnsatisfied
+    case n if n >= Math.max(R, W) => QuorumStateEffective
+    case _ => QuorumStateReadonly
   }
 
   def bucketsToUpdate(maxBucket: Bucket, nodesNumber: Int, vNodes: SortedMap[Bucket, Node], buckets: SortedMap[Bucket, PreferenceList]): SortedMap[Bucket, PreferenceList] = {

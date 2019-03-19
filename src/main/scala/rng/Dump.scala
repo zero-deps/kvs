@@ -6,7 +6,7 @@ import akka.util.Timeout
 import java.time.format.{DateTimeFormatter}
 import java.time.{LocalDateTime}
 import mws.rng.data.{Data}
-import mws.rng.msg_dump.{DumpBucketData, DumpGetBucketData}
+import mws.rng.model.{DumpBucketData, DumpGetBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration._
 import scala.concurrent.{Await}

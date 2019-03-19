@@ -33,15 +33,13 @@ lazy val root = project.in(file(".")).withId("kvs")
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
       "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
       "org.scalaz" %% "scalaz-core" % scalazVersion,
+      "io.github.zero-deps" %% "proto-macros" % "1.0" % Compile,
+      "io.github.zero-deps" %% "proto-runtime" % "1.0",
 
       "com.playtech.mws" %% "scala-pickling" % "1.0-2-gb05b7b9" % Test,
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion       % Test,
       "org.scalatest" %% "scalatest" % "3.0.1"                  % Test,
-    ),
-    libraryDependencies += "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
-    PB.targets in Compile := Seq(
-      scalapb.gen() -> (sourceManaged in Compile).value
-    ),
+    )
   )
 
 import deployssh.DeploySSH.{ServerConfig, ArtifactSSH}

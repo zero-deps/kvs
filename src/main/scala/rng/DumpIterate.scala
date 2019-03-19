@@ -1,17 +1,16 @@
 package mws.rng
 
 import akka.actor.{FSM, ActorRef, ActorLogging, Props}
-import com.google.protobuf.{ByteString}
 import leveldbjnr._
 import mws.kvs.LeveldbOps
-import mws.rng.msg_dump.{DumpGet, DumpEn}
+import mws.rng.model.{DumpGet, DumpEn}
 import mws.rng.store._
 import scala.util.{Try, Success, Failure}
 
 object IterateDumpWorker {
-  def props(path: String, f: (ByteString,ByteString) => Unit): Props = Props(new IterateDumpWorker(path, f))
+  def props(path: String, f: (Key,Value) => Unit): Props = Props(new IterateDumpWorker(path, f))
 }
-class IterateDumpWorker(path: String, f: (ByteString,ByteString) => Unit) extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
+class IterateDumpWorker(path: String, f: (Key,Value) => Unit) extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
   var dumpDb: LevelDB = _
   var store: ActorRef = _
   val stores = SelectionMemorize(context.system)

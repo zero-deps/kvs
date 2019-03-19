@@ -1,7 +1,6 @@
 package mws.rng
 
 import akka.actor._
-import com.google.protobuf.ByteString
 import com.typesafe.config.Config
 import java.security.MessageDigest
 import scala.annotation.tailrec
@@ -12,9 +11,9 @@ class HashingImpl(config: Config) extends Extension {
   val bucketsNum = config.getInt("buckets")
   val bucketRange = (math.pow(2, hashLen) / bucketsNum).ceil.toInt
 
-  def hash(word: ByteString): Int = {
+  def hash(word: Array[Byte]): Int = {
     implicit val digester = MessageDigest.getInstance("MD5")
-    digester update word.toByteArray
+    digester update word
     val digest = digester.digest
 
     (0 to hashLen / 8 - 1).foldLeft(0)((acc, i) =>

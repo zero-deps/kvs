@@ -1,15 +1,16 @@
 package mws.rng
 
 import akka.actor.{Actor, ActorLogging, Props}
-import com.google.protobuf.{ByteString}
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption.{READ, WRITE, CREATE}
 import mws.rng.data.{Data}
-import mws.rng.data_dump.{DumpKV, KV}
+import mws.rng.dump.codec._
+import mws.rng.dump.{DumpKV, KV}
 import scala.collection.{breakOut}
 import scala.util.Try
+import zd.proto.api.{encode, decode}
 
 object DumpIO {
   def props(ioPath: String): Throwable Either Props = {
@@ -17,7 +18,7 @@ object DumpIO {
   }
 
   final case object ReadNext
-  final case class ReadNextRes(kv: Vector[(ByteString, ByteString)], last: Boolean)
+  final case class ReadNextRes(kv: Vector[(Key, Value)], last: Boolean)
 
   final case class Put(kv: Vector[Data])
   final case class PutDone(path: String)
@@ -34,7 +35,7 @@ class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLoggi
         val value: Array[Byte] = new Array[Byte](blockSize)
         val valueRead: Int = channel.read(ByteBuffer.wrap(value))
         if (valueRead == blockSize) {
-          val kv: Vector[(ByteString, ByteString)] = DumpKV.parseFrom(value).kv.map(d => d.k -> d.v)(breakOut)
+          val kv: Vector[(Key, Value)] = decode[DumpKV](value).kv.map(d => d.k -> d.v)(breakOut)
           sender ! DumpIO.ReadNextRes(kv, false)
         } else {
           log.error(s"failed to read dump io, blockSize=${blockSize}, valueRead=${valueRead}")
@@ -47,7 +48,7 @@ class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLoggi
         sender ! DumpIO.ReadNextRes(Vector.empty, true)
       }
     case msg: DumpIO.Put => 
-      val data = DumpKV(msg.kv.map(e => KV(e.key, e.value))).toByteArray
+      val data = encode(DumpKV(msg.kv.map(e => KV(e.key, e.value))))
       channel.write(ByteBuffer.allocateDirect(4).putInt(data.size).flip.asInstanceOf[ByteBuffer])
       channel.write(ByteBuffer.wrap(data))
       sender ! DumpIO.PutDone(ioPath)

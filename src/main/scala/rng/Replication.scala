@@ -3,7 +3,7 @@ package mws.rng
 import akka.actor.{ActorLogging, Props, FSM}
 import akka.cluster.{Cluster, VectorClock}
 import mws.rng.data.{Data}
-import mws.rng.msg_repl.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplVectorClock}
+import mws.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplVectorClock}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration.{Duration}
 import scalaz.Scalaz._
@@ -134,8 +134,8 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
         stay using state
       }
 
-    case Event(ReplBucketUpToDate(), state) =>
-      self forward ReplNewerBucketData(vc=Nil, items=Nil)
+    case Event(ReplBucketUpToDate, state) =>
+      self forward ReplNewerBucketData(vc=Vector.empty, items=Vector.empty)
       stay using state
 
     case Event("timeout", state) =>

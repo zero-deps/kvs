@@ -2,7 +2,7 @@ package mws.rng
 
 import akka.actor._
 import mws.rng.data.Data
-import mws.rng.msg.{StoreGetAck, StorePut, StoreDelete}
+import mws.rng.model.{StoreGetAck, StorePut, StoreDelete}
 import scala.concurrent.duration._
 import scala.collection.immutable.{HashSet}
 

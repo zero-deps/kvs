@@ -55,7 +55,7 @@ class Ring(system: ActorSystem) extends Dba {
     val t = Timeout(d)
     val fut = hash.ask(rng.Get(stob(key)))(t).mapTo[rng.Ack]
     Try(Await.result(fut, d)) match {
-      case Success(rng.AckSuccess(Some(v))) => v.toByteArray.right
+      case Success(rng.AckSuccess(Some(v))) => v.right
       case Success(rng.AckSuccess(None)) => NotFound(key).left
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
@@ -112,7 +112,7 @@ class Ring(system: ActorSystem) extends Dba {
   def iterate(path: String, f: (String, Array[Byte]) => Unit): Res[Any] = {
     val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
     val t = Timeout(d)
-    val x = hash.ask(rng.Iterate(path, (k, v) => f(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(t)
+    val x = hash.ask(rng.Iterate(path, (k, v) => f(new String(k, "UTF-8"), v)))(t)
     Try(Await.result(x, d)) match {
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(v: String) => v.right

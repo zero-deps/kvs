@@ -5,7 +5,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import leveldbjnr.{LevelDB}
 import mws.kvs.LeveldbOps
-import mws.rng.msg_dump.{DumpGet, DumpEn}
+import mws.rng.model.{DumpGet, DumpEn}
 import mws.rng.store.ReadonlyStore
 import scala.concurrent.duration._
 import scala.concurrent.{Await}

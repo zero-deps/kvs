@@ -3,7 +3,7 @@ package mws.rng
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import akka.cluster.VectorClock
 import mws.rng.data.Data
-import mws.rng.msg.{StoreGetAck, StorePut}
+import mws.rng.model.{StoreGetAck, StorePut}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
 

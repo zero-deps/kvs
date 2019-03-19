@@ -6,12 +6,16 @@ import scala.annotation.tailrec
 import scala.util.{Try, Success, Failure}
 import scalaz._
 import scalaz.Scalaz._
+import zd.proto.api.{MessageCodec, encode, decode}
+import zd.proto.macrosapi.messageCodecAuto
 
 trait FileHandler {
   protected val chunkLength: Int
 
-  private def pickle(e: File): Res[Array[Byte]] = e.toByteArray.right
-  private def unpickle(a: Array[Byte]): Res[File] = Try(File.parseFrom(a)) match {
+  private implicit val fileCodec: MessageCodec[File] = messageCodecAuto[File]
+
+  private def pickle(e: File): Res[Array[Byte]] = encode(e).right
+  private def unpickle(a: Array[Byte]): Res[File] = Try(decode[File](a)) match {
     case Success(x) => x.right
     case Failure(x) => UnpickleFail(x.toString).left
   }

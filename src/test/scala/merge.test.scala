@@ -49,7 +49,8 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
           xs(1),
           xs(2),
         )
-        forRepl(xs).toSet should be (ys)
+        assert(forRepl(xs).toSet.size == ys.size)
+        forRepl(xs).toSet.zip(ys).foreach{ case (e1, e2) => assert(e1 == e2) }
       }
       "new then old" in {
         val xs = Vector(
@@ -61,7 +62,8 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
           xs(0),
           xs(2),
         )
-        forRepl(xs).toSet should be (ys)
+        assert(forRepl(xs).toSet.size == ys.size)
+        forRepl(xs).toSet.zip(ys).foreach{ case (e1, e2) => assert(e1 == e2) }
       }
     }
     "new vc" - {
@@ -77,7 +79,8 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
           xs(1),
           xs(2),
         )
-        forRepl(xs).toSet should be (ys)
+        assert(forRepl(xs).toSet.size == ys.size)
+        forRepl(xs).toSet.zip(ys).foreach{ case (e1, e2) => assert(e1 == e2) }
       }
       "new then old" in {
         val xs = Vector(
@@ -89,7 +92,8 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
           xs(0),
           xs(2),
         )
-        forRepl(xs).toSet should be (ys)
+        assert(forRepl(xs).toSet.size == ys.size)
+        forRepl(xs).toSet.zip(ys).foreach{ case (e1, e2) => assert(e1 == e2) }
       }
     }
     "conflict" - {
@@ -105,7 +109,8 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
           xs(0).copy(vc=Vector(v1(2), v2(2))),
           xs(2),
         )
-        forRepl(xs).toSet should be (ys)
+        assert(forRepl(xs).toSet.size == ys.size)
+        forRepl(xs).toSet.zip(ys).foreach{ case (e1, e2) => assert(e1 == e2) }
       }
       "reversed" in {
         val xs = Vector(
@@ -117,7 +122,8 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
           xs(1).copy(vc=Vector(v1(2), v2(2))),
           xs(2),
         )
-        forRepl(xs).toSet should be (ys)
+        assert(forRepl(xs).toSet.size == ys.size)
+        forRepl(xs).toSet.zip(ys).foreach{ case (e1, e2) => assert(e1 == e2) }
       }
     }
   }
