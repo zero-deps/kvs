@@ -21,15 +21,11 @@ import Scalaz._
 class Ring(system: ActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")
 
-  val d = 5 seconds
-  implicit val timeout = Timeout(d)
+  val cfg = system.settings.config.getConfig("ring")
 
-  val config = system.settings.config
-
-  lazy val clusterConfig = config.getConfig("akka.cluster")
   system.eventStream
 
-  val leveldb: LevelDB = LeveldbOps.open(system, config.getString("ring.leveldb.dir"))
+  val leveldb: LevelDB = LeveldbOps.open(system, cfg.getString("leveldb.dir"))
 
   system.actorOf(WriteStore.props(leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb)).withDeploy(Deploy.local), name="ring_readonly_store")
@@ -37,7 +33,9 @@ class Ring(system: ActorSystem) extends Dba {
   val hash = system.actorOf(rng.Hash.props().withDeploy(Deploy.local), name="ring_hash")
 
   def put(key: String, value: V): Res[V] = {
-    val putF = (hash ? rng.Put(stob(key), atob(value))).mapTo[rng.Ack]
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val t = Timeout(d)
+    val putF = hash.ask(rng.Put(stob(key), atob(value)))(t).mapTo[rng.Ack]
     Try(Await.result(putF, d)) match {
       case Success(rng.AckSuccess(_)) => value.right
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
@@ -46,10 +44,16 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  def isReady: Future[Boolean] = hash.ask(rng.Ready).mapTo[Boolean]
+  def isReady: Future[Boolean] = {
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val t = Timeout(d)
+    hash.ask(rng.Ready)(t).mapTo[Boolean]
+  }
 
   def get(key: String): Res[V] = {
-    val fut = hash.ask(rng.Get(stob(key))).mapTo[rng.Ack]
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val t = Timeout(d)
+    val fut = hash.ask(rng.Get(stob(key)))(t).mapTo[rng.Ack]
     Try(Await.result(fut, d)) match {
       case Success(rng.AckSuccess(Some(v))) => v.toByteArray.right
       case Success(rng.AckSuccess(None)) => NotFound(key).left
@@ -59,9 +63,11 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  def delete(key: String): Res[V] =
+  def delete(key: String): Res[V] = {
     get(key).flatMap{ r =>
-      val fut = hash.ask(rng.Delete(stob(key))).mapTo[rng.Ack]
+      val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+      val t = Timeout(d)
+      val fut = hash.ask(rng.Delete(stob(key)))(t).mapTo[rng.Ack]
       Try(Await.result(fut, d)) match {
         case Success(rng.AckSuccess(_)) => r.right
         case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
@@ -69,6 +75,7 @@ class Ring(system: ActorSystem) extends Dba {
         case Failure(t) => RngThrow(t).left
       }
     }
+  }
 
   def save(path: String): Res[String] = {
     val d = 1 hour
@@ -81,8 +88,9 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
   def load(path: String): Res[Any] = {
-    val d = 1 hour
-    val x = hash.ask(rng.Load(path, javaSer=false))(Timeout(d))
+    val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
+    val t = Timeout(d)
+    val x = hash.ask(rng.Load(path, javaSer=false))(t)
     Try(Await.result(x, d)) match {
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(v: String) => v.right
@@ -91,8 +99,9 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
   def loadJava(path: String): Res[Any] = {
-    val d = 1 hour
-    val x = hash.ask(rng.Load(path, javaSer=true))(Timeout(d))
+    val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
+    val t = Timeout(d)
+    val x = hash.ask(rng.Load(path, javaSer=true))(t)
     Try(Await.result(x, d)) match {
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(v: String) => v.right
@@ -101,8 +110,9 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
   def iterate(path: String, f: (String, Array[Byte]) => Unit): Res[Any] = {
-    val d = 1 hour
-    val x = hash.ask(rng.Iterate(path, (k, v) => f(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(Timeout(d))
+    val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
+    val t = Timeout(d)
+    val x = hash.ask(rng.Iterate(path, (k, v) => f(new String(k.toByteArray, "UTF-8"), v.toByteArray)))(t)
     Try(Await.result(x, d)) match {
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(v: String) => v.right
@@ -113,7 +123,9 @@ class Ring(system: ActorSystem) extends Dba {
 
   def nextid(feed: String): Res[String] = {
     import akka.cluster.sharding._
-    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed).mapTo[String],d)).toDisjunction.leftMap(RngThrow)
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val t = Timeout(d)
+    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed)(t).mapTo[String],d)).toDisjunction.leftMap(RngThrow)
   }
 
   def compact(): Unit = {

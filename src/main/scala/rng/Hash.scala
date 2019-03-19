@@ -3,7 +3,6 @@ package mws.rng
 import akka.actor._
 import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
-import akka.util.Timeout
 import com.google.protobuf.ByteString
 import com.typesafe.config.Config
 import mws.rng.msg.{StoreDelete, StoreGet, QuorumState, QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective, ChangeState}
@@ -40,7 +39,6 @@ object Hash {
 // TODO available/not avaiable nodes
 class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
-  implicit val timeout = Timeout(5 seconds)
 
   val config: Config = system.settings.config.getConfig("ring")
 
