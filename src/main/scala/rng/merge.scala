@@ -9,13 +9,21 @@ import scala.collection.immutable.{HashMap, HashSet}
 import scalaz.Scalaz._
 
 object MergeOps {
+  case class ArrayWrap(a: Array[Byte]) {
+    override def equals(other: Any): Boolean = {
+      if (!other.isInstanceOf[ArrayWrap]) false 
+      else java.util.Arrays.equals(a, other.asInstanceOf[ArrayWrap].a)
+    }
+    override def hashCode(): Int = java.util.Arrays.hashCode(a)
+  }
+
   def forDump(xs: Vector[Data]): Vector[Data] = {
     @tailrec
-    def loop(xs: Vector[Data], acc: Key HashMap Data): Vector[Data] = {
+    def loop(xs: Vector[Data], acc: ArrayWrap HashMap Data): Vector[Data] = {
       xs match {
         case xs if xs.isEmpty => acc.values.toVector
         case received +: t =>
-          val k = received.key
+          val k = ArrayWrap(received.key)
           acc.get(k) match {
             case None =>
               loop(t, acc + (k -> received))
@@ -34,11 +42,11 @@ object MergeOps {
 
   def forRepl(xs: Vector[Data]): Vector[Data] = {
     @tailrec
-    def loop(xs: Vector[Data], acc: Key HashMap Data): Vector[Data] = {
+    def loop(xs: Vector[Data], acc: ArrayWrap HashMap Data): Vector[Data] = {
       xs match {
         case xs if xs.isEmpty => acc.values.toVector
         case received +: t =>
-          val k = received.key
+          val k = ArrayWrap(received.key)
           acc.get(k) match {
             case None =>
               loop(t, acc + (k -> received))
