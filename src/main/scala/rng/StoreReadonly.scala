@@ -84,7 +84,7 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
         val obj = in.readObject
         in.close()
         val decoded = obj.asInstanceOf[(akka.util.ByteString, Option[String])] 
-        DumpEn(k, atob(decoded._1.toArray), decoded._2.fold(Array.empty[Byte])(stob))
+        DumpEn(k, decoded._1.toArray, decoded._2.fold(Array.empty[Byte])(stob))
       }
       sender ! res
     case _ =>    

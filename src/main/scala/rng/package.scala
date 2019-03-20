@@ -32,9 +32,7 @@ package object rng {
   def fromvc(vc: VectorClock): VectorClockList = vc.versions.map((Vec.apply _).tupled)(breakOut)
 
   def stob(s: String): Array[Byte] = ByteString.copyFrom(s, "UTF-8").toByteArray
-  def itoa(v: Int): Array[Byte] = Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte)
   def itob(v: Int): Array[Byte] = Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte)
-  def atob(a: Array[Byte]): Array[Byte] = a
 
   implicit class StringExt(value: String) {
     def blue: String = s"\u001B[34m${value}\u001B[0m"

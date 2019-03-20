@@ -10,7 +10,7 @@ import leveldbjnr.LevelDB
 import mws.kvs.el.ElHandler
 import mws.rng
 import mws.rng.store.{ReadonlyStore, WriteStore}
-import mws.rng.{atob, stob}
+import mws.rng.{stob}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
@@ -35,7 +35,7 @@ class Ring(system: ActorSystem) extends Dba {
   def put(key: String, value: V): Res[V] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
-    val putF = hash.ask(rng.Put(stob(key), atob(value)))(t).mapTo[rng.Ack]
+    val putF = hash.ask(rng.Put(stob(key), value))(t).mapTo[rng.Ack]
     Try(Await.result(putF, d)) match {
       case Success(rng.AckSuccess(_)) => value.right
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
