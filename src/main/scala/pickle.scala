@@ -30,7 +30,6 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
     implicit val replBucketPutCodec: MessageCodec[ReplBucketPut] = messageCodecAuto[ReplBucketPut]
     implicit val replGetBucketIfNewCodec: MessageCodec[ReplGetBucketIfNew] = messageCodecAuto[ReplGetBucketIfNew]
     implicit val replNewerBucketDataCodec: MessageCodec[ReplNewerBucketData] = messageCodecAuto[ReplNewerBucketData]
-    implicit val replVectorClockCodec: MessageCodec[ReplVectorClock] = messageCodecAuto[ReplVectorClock]
     implicit val replBucketsVcCodec: MessageCodec[ReplBucketsVc] = messageCodecAuto[ReplBucketsVc]
     implicit val storeDeleteCodec: MessageCodec[StoreDelete] = messageCodecAuto[StoreDelete]
     implicit val storeGetCodec: MessageCodec[StoreGet] = messageCodecAuto[StoreGet]

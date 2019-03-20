@@ -1,4 +1,5 @@
-package mws.rng.model
+package mws.rng
+package model
 
 import zd.proto.api.N
 import mws.rng.data._
@@ -36,7 +37,7 @@ sealed trait Msg
 
 @N(7) final case class ReplBucketPut
   ( @N(1) b: Int
-  , @N(2) bucketVc: Vector[Vec]
+  , @N(2) bucketVc: VectorClock
   , @N(3) items: Vector[Data]
   ) extends Msg
 
@@ -44,20 +45,16 @@ sealed trait Msg
 
 @N(9) final case class ReplGetBucketIfNew
   ( @N(1) b: Int
-  , @N(2) vc: Vector[Vec]
+  , @N(2) vc: VectorClock
   ) extends Msg
 
 @N(10) final case class ReplNewerBucketData
-  ( @N(1) vc: Vector[Vec]
+  ( @N(1) vc: VectorClock
   , @N(2) items: Vector[Data]
   ) extends Msg
 
 final case class ReplBucketsVc
-  ( @N(1) bvcs: Map[Int, ReplVectorClock]
-  )
-
-final case class ReplVectorClock
-  ( @N(1) vs: Vector[Vec]
+  ( @N(1) bvcs: Map[Int, VectorClock]
   )
 
 @N(11) final case class StoreDelete

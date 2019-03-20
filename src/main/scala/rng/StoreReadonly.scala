@@ -9,7 +9,7 @@ import mws.rng.data.codec._
 import mws.rng.model.{StoreGet, StoreGetAck}
 import mws.rng.model.{DumpGet, DumpEn}
 import mws.rng.model.{DumpGetBucketData, DumpBucketData}
-import mws.rng.model.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplVectorClock}
+import mws.rng.model.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
 import scala.collection.{breakOut}
 import zd.proto.api.decode
 
@@ -42,12 +42,12 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
       )
       sender ! DumpBucketData(b, items)
     case ReplGetBucketIfNew(b, vc) =>
-      val vc_other: VectorClock = makevc(vc)
+      val vc_other: VectorClock = vc
       val k = itob(b) ++ `:keys`
       val b_info = get(k).map(decode[BucketInfo](_))
       b_info match {
         case Some(b_info) =>
-          val vc_local: VectorClock = makevc(b_info.vc)
+          val vc_local: VectorClock = b_info.vc
           vc_other == vc_local || vc_other > vc_local match {
             case true => sender ! ReplBucketUpToDate
             case false =>
@@ -61,9 +61,9 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
           sender ! ReplBucketUpToDate
       }
     case ReplGetBucketsVc(bs) =>
-      val bvcs: Bucket Map ReplVectorClock = bs.flatMap{ b =>
+      val bvcs: Bucket Map VectorClock = bs.flatMap{ b =>
         val k = itob(b) ++ `:keys`
-        get(k).map(x => b -> ReplVectorClock(decode[BucketInfo](x).vc))
+        get(k).map(x => b -> decode[BucketInfo](x).vc)
       }(breakOut)
       sender ! ReplBucketsVc(bvcs)
 

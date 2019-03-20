@@ -49,7 +49,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
     case unhandled => log.warning(s"unhandled message: ${unhandled}")
   }
 
-  def replBucketPut(b: Bucket, bucketVc: VectorClockList, items: Vector[Data]): Unit = {
+  def replBucketPut(b: Bucket, bucketVc: VectorClock, items: Vector[Data]): Unit = {
     withBatch{ batch =>
       { // updating bucket info
         val bucketId: Key = itob(b) ++ `:keys`
@@ -80,13 +80,13 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
         val bucketInfo = get(bucketId).map(decode[BucketInfo](_))
         val v = bucketInfo match {
           case Some(x) if x.keys contains data.key =>
-            val vc = fromvc(makevc(x.vc) :+ local.toString)
+            val vc = x.vc :+ local.toString
             x.copy(vc=vc)
           case Some(x) =>
-            val vc = fromvc(makevc(x.vc) :+ local.toString)
+            val vc = x.vc :+ local.toString
             x.copy(vc=vc, keys=(data.key +: x.keys))
           case None =>
-            val vc = fromvc(new VectorClock() :+ local.toString)
+            val vc = emptyVC :+ local.toString
             BucketInfo(vc=vc, keys=Vector(data.key))
         }
         batch.put(bucketId, encode(v))
@@ -104,7 +104,7 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
     val b_info = get(itob(b) ++ `:keys`).map(decode[BucketInfo](_))
     b_info match {
       case Some(b_info) =>
-        val vc = fromvc(makevc(b_info.vc) :+ local.toString)
+        val vc = b_info.vc :+ local.toString
         val keys = b_info.keys.filterNot(_ === key)
         withBatch(batch => {
           batch.delete((itob(b) ++ `:key:` ++ key))

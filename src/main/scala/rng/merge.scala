@@ -1,6 +1,5 @@
 package mws.rng
 
-import akka.cluster.VectorClock
 import mws.rng.data.{Data}
 import mws.rng.GatherGet.AddrOfData
 import scala.annotation.tailrec
@@ -87,7 +86,7 @@ object MergeOps {
       case Seq() => None -> HashSet.empty
       case h +: t =>
         val correct = loop(t.map(_._1), h._1)
-        def makevc1(x: Option[Data]): VectorClock = makevc(x.map(_.vc).getOrElse(Vector.empty))
+        def makevc1(x: Option[Data]): VectorClock = x.map(_.vc).getOrElse(emptyVC)
         val correct_vc = makevc1(correct)
         correct -> xs.filterNot(x => makevc1(x._1) == correct_vc).map(_._2)(breakOut)
     }
@@ -109,17 +108,17 @@ object MergeOps {
 
   sealed trait LessComp
   final case class OkLess(res: Boolean) extends LessComp
-  final case class ConflictLess(res: Boolean, vc: VectorClockList) extends LessComp
+  final case class ConflictLess(res: Boolean, vc: VectorClock) extends LessComp
 
   implicit class DataExt(x: Data) {
     def <(o: Data): LessComp = {
-      val xvc = makevc(x.vc)
-      val ovc = makevc(o.vc)
+      val xvc = x.vc
+      val ovc = o.vc
       if (xvc < ovc) OkLess(true)
       else if (xvc == ovc) OkLess(x.lastModified < o.lastModified)
       else if (xvc > ovc) OkLess(false)
       else { // xvc <> ovc
-        val mergedvc = fromvc(xvc merge ovc)
+        val mergedvc = xvc merge ovc
         if (x.lastModified < o.lastModified) ConflictLess(true, mergedvc)
         else ConflictLess(false, mergedvc)
       }

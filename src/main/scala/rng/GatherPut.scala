@@ -1,7 +1,6 @@
 package mws.rng
 
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
-import akka.cluster.VectorClock
 import mws.rng.data.Data
 import mws.rng.model.{StoreGetAck, StorePut}
 import scala.concurrent.duration._
@@ -21,13 +20,13 @@ class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, 
   when(Collecting){
     case Event(StoreGetAck(data), _) =>
       val vc = if (data.size === 1) {
-        makevc(data.head.vc)
+        data.head.vc
       } else if (data.size > 1) {
-        data.map(_.vc).foldLeft(new VectorClock)((sum, i) => sum.merge(makevc(i)))
+        data.map(_.vc).foldLeft(emptyVC)((sum, i) => sum.merge(i))
       } else {
-        new VectorClock
+        emptyVC
       }
-      val updatedData = Data(putInfo.key, putInfo.bucket, now_ms(), fromvc(vc.:+(putInfo.localAdr.toString)), putInfo.v)
+      val updatedData = Data(putInfo.key, putInfo.bucket, now_ms(), vc.:+(putInfo.localAdr.toString), putInfo.v)
       mapInPut(putInfo.nodes, updatedData)
       stay()
     

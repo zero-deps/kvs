@@ -1,18 +1,19 @@
 package mws.rng
 
 import akka.actor.{ActorLogging, Props, FSM}
-import akka.cluster.{Cluster, VectorClock}
+import akka.cluster.{Cluster}
 import mws.rng.data.{Data}
-import mws.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, ReplVectorClock}
+import mws.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration.{Duration}
 import scalaz.Scalaz._
+// import akka.cluster.emptyVC
 
 import ReplicationSupervisor.{State}
 
 object ReplicationSupervisor {
   final case class Progress(done: Int, total: Int, step: Int)
-  final case class State(buckets: SortedMap[Bucket, PreferenceList], bvcs: Map[Bucket, ReplVectorClock], progress: Progress)
+  final case class State(buckets: SortedMap[Bucket, PreferenceList], bvcs: Map[Bucket, VectorClock], progress: Progress)
 
   def props(buckets: SortedMap[Bucket, PreferenceList]): Props = {
     val len = buckets.size
@@ -58,9 +59,8 @@ class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] wi
       }
   }
 
-  def getBucketIfNew(b: Bucket, prefList: PreferenceList, _bvc: Option[ReplVectorClock]): Unit = {
-    val bvc = _bvc.map(_.vs.toVector).getOrElse(Vector.empty)
-    val worker = context.actorOf(ReplicationWorker.props(b, prefList, bvc))
+  def getBucketIfNew(b: Bucket, prefList: PreferenceList, bvc: Option[VectorClock]): Unit = {
+    val worker = context.actorOf(ReplicationWorker.props(b, prefList, bvc.getOrElse(emptyVC)))
     worker ! "start"
   }
 
@@ -86,17 +86,17 @@ import ReplicationWorker.{ReplState}
 object ReplicationWorker {
   final case class ReplState(prefList: PreferenceList, info: Vector[Vector[Data]], vc: VectorClock)
 
-  def props(b: Bucket, prefList: PreferenceList, vc: VectorClockList): Props = Props(new ReplicationWorker(b, prefList, vc))
+  def props(b: Bucket, prefList: PreferenceList, vc: VectorClock): Props = Props(new ReplicationWorker(b, prefList, vc))
 }
 
-class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockList) extends FSM[FsmState, ReplState] with ActorLogging {
+class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClock) extends FSM[FsmState, ReplState] with ActorLogging {
   import context.system
   val cluster = Cluster(system)
   val local = cluster.selfAddress
   val actorMem = SelectionMemorize(system)
 
   setTimer("send_by_timeout", "timeout", Duration.fromNanos(context.system.settings.config.getDuration("ring.repl-timeout").toNanos), repeat=true)
-  startWith(Collecting, ReplState(_prefList, info=Vector.empty, makevc(_vc)))
+  startWith(Collecting, ReplState(_prefList, info=Vector.empty, _vc))
 
   when(Collecting){
     case Event("start", state) =>
@@ -116,8 +116,8 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
             val merged = MergeOps.forRepl(all)
             if (merged.nonEmpty) {
               actorMem.get(local, "ring_write_store").fold(
-                _ ! ReplBucketPut(b, fromvc(state.vc merge makevc(vc)), merged),
-                _ ! ReplBucketPut(b, fromvc(state.vc merge makevc(vc)), merged),
+                _ ! ReplBucketPut(b, state.vc merge vc, merged),
+                _ ! ReplBucketPut(b, state.vc merge vc, merged),
               )
             }
             context.parent ! b
@@ -126,7 +126,7 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
             stay using state.copy(
               prefList = nodes,
               info = items +: state.info, 
-              vc = state.vc merge makevc(vc),
+              vc = state.vc merge vc,
             )
         }
       } else {
@@ -135,7 +135,7 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClockLi
       }
 
     case Event(ReplBucketUpToDate, state) =>
-      self forward ReplNewerBucketData(vc=Vector.empty, items=Vector.empty)
+      self forward ReplNewerBucketData(vc=emptyVC, items=Vector.empty)
       stay using state
 
     case Event("timeout", state) =>
