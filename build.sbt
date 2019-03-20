@@ -2,30 +2,39 @@ val scalaVersion_ = "2.12.8"
 val scalazVersion = "7.2.27"
 val akkaVersion = "2.5.19"
 
-lazy val root = project.in(file(".")).withId("kvs")
+ThisBuild / organization := "com.playtech.mws"
+ThisBuild / description := "Abstract Scala Types Key-Value Storage"
+ThisBuild / version := {
+  val repo = org.eclipse.jgit.api.Git.open(file("."))
+  val desc = repo.describe.call
+  val dirty = if (repo.status.call.isClean) "" else "-dirty"
+  s"${desc}${dirty}"
+}
+ThisBuild / scalaVersion := scalaVersion_
+ThisBuild / resolvers += "releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases"
+ThisBuild / resolvers += "jcenter-proxy" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/jcenter-proxy"
+ThisBuild / cancelable in Global := true
+ThisBuild / javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
+ThisBuild / scalacOptions in Compile ++= Seq(
+  "-target:jvm-1.8",
+  "-feature",
+  "-unchecked",
+  "-deprecation",
+  "-language:_",
+  "-encoding", "UTF-8",
+  "-Ypartial-unification",
+  "-Xfatal-warnings",
+  "-Ywarn-unused-import",
+)
+ThisBuild / publishTo := Some("releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases")
+ThisBuild / credentials += Credentials(Path.userHome / ".sbt" / ".credentials")
+ThisBuild / publishArtifact := true
+ThisBuild / publishMavenStyle := true
+ThisBuild / pomIncludeRepository := (_ => false)
+ThisBuild / isSnapshot := true
+
+lazy val kvs = project.in(file("."))
   .settings(
-    inThisBuild(
-      publishSettings ++ Seq(
-        organization := "com.playtech.mws",
-        description := "Abstract Scala Types Key-Value Storage",
-        version := org.eclipse.jgit.api.Git.open(file(".")).describe().call(),
-        scalaVersion := scalaVersion_,
-        resolvers += "releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases",
-        cancelable in Global := true,
-        javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
-        scalacOptions in Compile ++= Seq(
-          "-target:jvm-1.8",
-          "-feature",
-          "-unchecked",
-          "-deprecation",
-          "-language:_",
-          "-encoding", "UTF-8",
-          "-Ypartial-unification",
-          "-Xfatal-warnings",
-          "-Ywarn-unused-import",
-        ),
-      ),
-    ),
     fork in Test := true,
     libraryDependencies ++= Seq(
       "ch.qos.logback" % "logback-classic" % "1.2.3",
@@ -48,12 +57,6 @@ import fr.janalyse.ssh._
 lazy val demo = (project in file("kvs-demo")).settings(
   mainClass in (Compile, run) := Some("mws.kvs.Run"),
   fork in run := true,
-  // javaOptions ++= Seq(
-  //   "-Dcom.sun.management.jmxremote",
-  //   "-Dcom.sun.management.jmxremote.ssl=false",
-  //   "-Dcom.sun.management.jmxremote.authenticate=false",
-  //   "-Dcom.sun.management.jmxremote.port=9000",
-  // ),
   javaOptions in Universal ++= Seq(
     "-J-XX:+PreserveFramePointer"
   ),
@@ -97,19 +100,10 @@ lazy val demo = (project in file("kvs-demo")).settings(
       }
     }
   )
-).dependsOn(root).enablePlugins(JavaAppPackaging, DeploySSH, JmhPlugin)
+).dependsOn(kvs).enablePlugins(JavaAppPackaging, DeploySSH, JmhPlugin)
 
 lazy val leveldbTest = (project in file("leveldb-test")).settings(
   testOptions += Tests.Argument(TestFrameworks.JUnit),
   libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test,
   libraryDependencies += "junit" % "junit" % "4.12" % Test,
-).dependsOn(root)
-
-lazy val publishSettings = Seq(
-  publishTo := Some("releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases"),
-  credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
-  publishArtifact := true,
-  publishMavenStyle := true,
-  pomIncludeRepository := (_ => false),
-  isSnapshot := true,
-)
+).dependsOn(kvs)
