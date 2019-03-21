@@ -17,7 +17,7 @@ case class Delete(k: Key)
 
 case class Save(path: String)
 case class Load(path: String, javaSer: Boolean)
-case class Iterate(path: String, f: (Key, Value) => Unit)
+case class Iterate(path: String, f: (Key, Value) => Option[(Key, Value)])
 
 case object RestoreState
 
@@ -164,9 +164,12 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       }
       goto(QuorumStateReadonly)
     case Event(Iterate(path, f), data) =>
+      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
+        _ ! ChangeState(QuorumStateReadonly),
+        _ ! ChangeState(QuorumStateReadonly),
+      ))
       system.actorOf(IterateDumpWorker.props(path,f), s"iter_wrkr-${now_ms()}").forward(Iterate(path, f))
-      stay()
-
+      goto(QuorumStateReadonly)
     case Event(RestoreState, _) =>
       log.info("State is already OK")
       stay()

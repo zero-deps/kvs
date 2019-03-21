@@ -109,10 +109,10 @@ class Ring(system: ActorSystem) extends Dba {
       case Failure(t) => RngThrow(t).left
     }
   }
-  def iterate(path: String, f: (String, Array[Byte]) => Unit): Res[Any] = {
+  def iterate(path: String, f: (String, Array[Byte]) => Option[(String, Array[Byte])]): Res[Any] = {
     val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
     val t = Timeout(d)
-    val x = hash.ask(rng.Iterate(path, (k, v) => f(new String(k, "UTF-8"), v)))(t)
+    val x = hash.ask(rng.Iterate(path, (k, v) => f(new String(k, "UTF-8"), v).map{case (k, v) => stob(k) -> v } ))(t)
     Try(Await.result(x, d)) match {
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(v: String) => v.right
