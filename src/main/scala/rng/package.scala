@@ -1,7 +1,6 @@
 package mws
 
 import akka.actor.{Address, ActorRef}
-import com.google.protobuf.ByteString
 import scalaz._
 
 package object rng {
@@ -26,7 +25,7 @@ package object rng {
 
   val emptyVC = akka.cluster.emptyVC
 
-  def stob(s: String): Array[Byte] = ByteString.copyFrom(s, "UTF-8").toByteArray
+  def stob(s: String): Array[Byte] = s.getBytes("UTF-8")
   def itob(v: Int): Array[Byte] = Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte)
 
   implicit class StringExt(value: String) {

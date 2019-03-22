@@ -1,7 +1,7 @@
 package mws.rng.dump
 
 import zd.proto.api.{MessageCodec, N}
-import zd.proto.macrosapi.messageCodecAuto
+import zd.proto.macrosapi.caseCodecAuto
 
 final case class DumpKV
   ( @N(1) kv: Vector[KV]
@@ -18,7 +18,7 @@ final case class ValueKey
   )
 
 object codec {
-  implicit val dumpKVCodec: MessageCodec[DumpKV] = messageCodecAuto[DumpKV]
-  implicit val kVCodec: MessageCodec[KV] = messageCodecAuto[KV]
-  implicit val valueKeyCodec: MessageCodec[ValueKey] = messageCodecAuto[ValueKey]
+  implicit val dumpKVCodec: MessageCodec[DumpKV] = caseCodecAuto[DumpKV]
+  implicit val kVCodec: MessageCodec[KV] = caseCodecAuto[KV]
+  implicit val valueKeyCodec: MessageCodec[ValueKey] = caseCodecAuto[ValueKey]
 }

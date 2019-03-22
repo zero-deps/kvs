@@ -42,8 +42,8 @@ lazy val kvs = project.in(file("."))
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
       "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
       "org.scalaz" %% "scalaz-core" % scalazVersion,
-      "io.github.zero-deps" %% "proto-macros" % "1.0" % Compile,
-      "io.github.zero-deps" %% "proto-runtime" % "1.0",
+      "io.github.zero-deps" %% "proto-macros" % "1.1.2" % Compile,
+      "io.github.zero-deps" %% "proto-runtime" % "1.1.2",
 
       "com.playtech.mws" %% "scala-pickling" % "1.0-2-gb05b7b9" % Test,
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion       % Test,

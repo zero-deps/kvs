@@ -7,12 +7,12 @@ import scala.util.{Try, Success, Failure}
 import scalaz._
 import scalaz.Scalaz._
 import zd.proto.api.{MessageCodec, encode, decode}
-import zd.proto.macrosapi.messageCodecAuto
+import zd.proto.macrosapi.caseCodecAuto
 
 trait FileHandler {
   protected val chunkLength: Int
 
-  private implicit val fileCodec: MessageCodec[File] = messageCodecAuto[File]
+  private implicit val fileCodec: MessageCodec[File] = caseCodecAuto[File]
 
   private def pickle(e: File): Res[Array[Byte]] = encode(e).right
   private def unpickle(a: Array[Byte]): Res[File] = Try(decode[File](a)) match {

@@ -4,38 +4,38 @@ import akka.actor.{ExtendedActorSystem}
 import akka.serialization.{BaseSerializer}
 import mws.rng.model._
 import zd.proto.api.{MessageCodec, encode, decode}
-import zd.proto.macrosapi.{sealedTraitCodecAuto, messageCodecAuto, messageCodecIdx}
+import zd.proto.macrosapi.{sealedTraitCodecAuto, caseCodecAuto, caseCodecIdx}
 
 class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
 
 
   implicit val msgCodec: MessageCodec[Msg] = {
     import mws.rng.data.codec._
-    implicit def tuple2IntACodec[A:MessageCodec]: MessageCodec[Tuple2[Int, A]] = messageCodecIdx[Tuple2[Int, A]]
+    implicit def tuple2IntACodec[A:MessageCodec]: MessageCodec[Tuple2[Int, A]] = caseCodecIdx[Tuple2[Int, A]]
 
-    implicit val replBucketUpToDateCodec: MessageCodec[ReplBucketUpToDate.type] = messageCodecAuto[ReplBucketUpToDate.type]
+    implicit val replBucketUpToDateCodec: MessageCodec[ReplBucketUpToDate.type] = caseCodecAuto[ReplBucketUpToDate.type]
     implicit val quorumStateCodec: MessageCodec[QuorumState] = {
       import QuorumState._
-      implicit val quorumStateUnsatisfiedCodec: MessageCodec[QuorumStateUnsatisfied.type] = messageCodecAuto[QuorumStateUnsatisfied.type]
-      implicit val quorumStateReadonlyCodec: MessageCodec[QuorumStateReadonly.type] = messageCodecAuto[QuorumStateReadonly.type]
-      implicit val quorumStateEffectiveCodec: MessageCodec[QuorumStateEffective.type] = messageCodecAuto[QuorumStateEffective.type]
+      implicit val quorumStateUnsatisfiedCodec: MessageCodec[QuorumStateUnsatisfied.type] = caseCodecAuto[QuorumStateUnsatisfied.type]
+      implicit val quorumStateReadonlyCodec: MessageCodec[QuorumStateReadonly.type] = caseCodecAuto[QuorumStateReadonly.type]
+      implicit val quorumStateEffectiveCodec: MessageCodec[QuorumStateEffective.type] = caseCodecAuto[QuorumStateEffective.type]
       sealedTraitCodecAuto[QuorumState]
     }
-    implicit val changeStateCodec: MessageCodec[ChangeState] = messageCodecAuto[ChangeState]
-    implicit val dumpBucketDataCodec: MessageCodec[DumpBucketData] = messageCodecAuto[DumpBucketData]
-    implicit val dumpEnCodec: MessageCodec[DumpEn] = messageCodecAuto[DumpEn]
-    implicit val dumpGetCodec: MessageCodec[DumpGet] = messageCodecAuto[DumpGet]
-    implicit val dumpGetBucketDataCodec: MessageCodec[DumpGetBucketData] = messageCodecAuto[DumpGetBucketData]
-    implicit val dumpPutCodec: MessageCodec[DumpPut] = messageCodecAuto[DumpPut]
-    implicit val replBucketPutCodec: MessageCodec[ReplBucketPut] = messageCodecAuto[ReplBucketPut]
-    implicit val replGetBucketIfNewCodec: MessageCodec[ReplGetBucketIfNew] = messageCodecAuto[ReplGetBucketIfNew]
-    implicit val replNewerBucketDataCodec: MessageCodec[ReplNewerBucketData] = messageCodecAuto[ReplNewerBucketData]
-    implicit val replBucketsVcCodec: MessageCodec[ReplBucketsVc] = messageCodecAuto[ReplBucketsVc]
-    implicit val storeDeleteCodec: MessageCodec[StoreDelete] = messageCodecAuto[StoreDelete]
-    implicit val storeGetCodec: MessageCodec[StoreGet] = messageCodecAuto[StoreGet]
-    implicit val storeGetAckCodec: MessageCodec[StoreGetAck] = messageCodecAuto[StoreGetAck]
-    implicit val storePutCodec: MessageCodec[StorePut] = messageCodecAuto[StorePut]
-    implicit val replGetBucketsVcCodec: MessageCodec[ReplGetBucketsVc] = messageCodecAuto[ReplGetBucketsVc]  
+    implicit val changeStateCodec: MessageCodec[ChangeState] = caseCodecAuto[ChangeState]
+    implicit val dumpBucketDataCodec: MessageCodec[DumpBucketData] = caseCodecAuto[DumpBucketData]
+    implicit val dumpEnCodec: MessageCodec[DumpEn] = caseCodecAuto[DumpEn]
+    implicit val dumpGetCodec: MessageCodec[DumpGet] = caseCodecAuto[DumpGet]
+    implicit val dumpGetBucketDataCodec: MessageCodec[DumpGetBucketData] = caseCodecAuto[DumpGetBucketData]
+    implicit val dumpPutCodec: MessageCodec[DumpPut] = caseCodecAuto[DumpPut]
+    implicit val replBucketPutCodec: MessageCodec[ReplBucketPut] = caseCodecAuto[ReplBucketPut]
+    implicit val replGetBucketIfNewCodec: MessageCodec[ReplGetBucketIfNew] = caseCodecAuto[ReplGetBucketIfNew]
+    implicit val replNewerBucketDataCodec: MessageCodec[ReplNewerBucketData] = caseCodecAuto[ReplNewerBucketData]
+    implicit val replBucketsVcCodec: MessageCodec[ReplBucketsVc] = caseCodecAuto[ReplBucketsVc]
+    implicit val storeDeleteCodec: MessageCodec[StoreDelete] = caseCodecAuto[StoreDelete]
+    implicit val storeGetCodec: MessageCodec[StoreGet] = caseCodecAuto[StoreGet]
+    implicit val storeGetAckCodec: MessageCodec[StoreGetAck] = caseCodecAuto[StoreGetAck]
+    implicit val storePutCodec: MessageCodec[StorePut] = caseCodecAuto[StorePut]
+    implicit val replGetBucketsVcCodec: MessageCodec[ReplGetBucketsVc] = caseCodecAuto[ReplGetBucketsVc]  
 
     sealedTraitCodecAuto[Msg]
   }
