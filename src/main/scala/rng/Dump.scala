@@ -88,7 +88,7 @@ class DumpProcessor extends Actor with ActorLogging {
           case \/-(_) =>
             if (res.last) {
               log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
-            } else if (keysNumber % 1000 == 0) {
+            } else if (keysNumber % 1000 == 0L) {
               log.info(s"load info: write done, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
             }
             if (res.last) {
@@ -137,7 +137,7 @@ class DumpProcessor extends Actor with ActorLogging {
     def showInfo(msg: String): Unit = {
       if (processBucket === maxBucket && putQueue.isEmpty) {
         log.info(s"dump done: msg=${msg}, bucket=${processBucket}/${maxBucket}, total=${keysNumber}, putQueue=${putQueue.size}")
-      } else if (keysNumber % 10000 == 0) {
+      } else if (keysNumber % 10000 == 0L) {
         log.info(s"dump info: msg=${msg}, bucket=${processBucket}/${maxBucket}, total=${keysNumber}, putQueue=${putQueue.size}")
       }
     }
