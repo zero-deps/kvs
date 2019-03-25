@@ -1,35 +1,37 @@
 package mws.kvs
 package en
 
-import scala.util.Try
-import scalaz._, Scalaz._
 import akka.actor.ActorSystem
 import akka.testkit._
 import org.scalatest._
-// import EnHandlerTest._
 import scala.concurrent.Await
-import scala.util.Try
 import scala.concurrent.duration._
+import scala.util.Try
+import scalaz._
+import scalaz.Scalaz._
 
 object EnHandlerTest {
   val fid = "fid" + java.util.UUID.randomUUID.toString
 
-  final case class FeedEntry(string: String, twoDimVector: Vector[Vector[(String, String)]], anotherVector: Vector[String])
-  final case class EnType(fid: String, id: String = empty, prev: String = empty, data: FeedEntry) extends En
+  final case class En(fid: String, id: String = empty, prev: String = empty, data: String) extends mws.kvs.en.En
 
-  implicit val h = new EnHandler[EnType] {
+  implicit val h = new EnHandler[En] {
     val fh = feedHandler
-    import scala.pickling._,Defaults._,binary._
-    def pickle(e: EnType): Res[Array[Byte]] = e.pickle.value.right
-    def unpickle(a: Array[Byte]): Res[EnType] = Try(a.unpickle[EnType]).toDisjunction.leftMap(UnpickleFail)
-    override protected def update(en: EnType, id: String, prev: String): EnType = en.copy(id = id, prev = prev)
-    override protected def update(en: EnType, prev: String): EnType = en.copy(prev = prev)
+    def pickle(e: En): Res[Array[Byte]] = s"${e.fid}^${e.id}^${e.prev}^${e.data}".getBytes.right
+    def unpickle(a: Array[Byte]): Res[En] = new String(a).split('^') match {
+      case Array(fid, id, prev, data) => En(fid, id, prev, data).right
+      case _ => UnpickleFail(new Exception("bad data")).left
+    }
+    override protected def update(en: En, id: String, prev: String): En = en.copy(id = id, prev = prev)
+    override protected def update(en: En, prev: String): En = en.copy(prev = prev)
   }
 
   implicit object feedHandler extends FdHandler {
-    import scala.pickling._,Defaults._,binary._
-    def pickle(e:Fd):Res[Array[Byte]] = e.pickle.value.right
-    def unpickle(a:Array[Byte]):Res[Fd] = Try(a.unpickle[Fd]).toDisjunction.leftMap(UnpickleFail)
+    def pickle(e: Fd): Res[Array[Byte]] = s"${e.id}^${e.top}^${e.count}".getBytes.right
+    def unpickle(a: Array[Byte]): Res[Fd] = new String(a).split('^') match {
+      case Array(id, top, count) => Fd(id, top, count.toInt).right
+      case _ => UnpickleFail(new Exception("bad data")).left
+    }
   }
 }
 
@@ -43,7 +45,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
   Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
 
   val mod = 50
-  def entry(n:Int):EnType = EnType(fid,data=FeedEntry(s"string$n", Vector.fill(n % mod,n % mod)((s"string$n",s"string$n")), Vector.fill(n % mod)(s"string$n")))
+  def entry(n: Int): En = En(fid, data="value=${n}")
 
   val e1 = entry(1)
   val e2 = entry(2)
@@ -54,7 +56,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
   "Feed should" - {
     "be empty at creation" in {
-      kvs.stream_safe[EnType](fid) shouldBe (-\/(FeedNotExists(fid)))
+      kvs.stream_safe[En](fid) shouldBe (-\/(FeedNotExists(fid)))
     }
 
     "should save e1" in {
@@ -76,7 +78,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get e1 and e2 from feed" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 2
 
-      val stream = kvs.stream_safe[EnType](fid)
+      val stream = kvs.stream_safe[En](fid)
       stream.map(_.toList) shouldBe List(e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
     }
 
@@ -92,7 +94,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get 3 values from feed" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 3
 
-      val stream = kvs.stream_safe[EnType](fid)
+      val stream = kvs.stream_safe[En](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="2").right, e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
     }
 
@@ -109,7 +111,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get 2 values from feed" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 2
 
-      val stream = kvs.stream_safe[EnType](fid)
+      val stream = kvs.stream_safe[En](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="1").right, e1.copy(id="1").right).right
     }
 
@@ -122,7 +124,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
     "should get 1 values from feed" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 1
 
-      val stream = kvs.stream_safe[EnType](fid)
+      val stream = kvs.stream_safe[En](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3").right).right
     }
 
@@ -134,7 +136,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
     "should be empty" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 0
-      kvs.stream_safe[EnType](fid).toEither.right.get shouldBe empty
+      kvs.stream_safe[En](fid).toEither.right.get shouldBe empty
     }
 
     "should not create stack overflow" in {
@@ -159,9 +161,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test"))
 
     "feed should be empty at the end test" in {
       kvs.fd.get(Fd(fid)).toEither.right.get.count shouldBe 0
-      kvs.stream_safe[EnType](fid).toEither.right.value shouldBe empty
+      kvs.stream_safe[En](fid).toEither.right.value shouldBe empty
       kvs.fd.delete(Fd(fid))
-      kvs.stream_safe[EnType](fid) shouldBe ('left)
+      kvs.stream_safe[En](fid) shouldBe ('left)
     }
   }
 }

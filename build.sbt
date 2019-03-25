@@ -46,9 +46,8 @@ lazy val kvs = project.in(file("."))
       "io.github.zero-deps" %% "proto-runtime" % "1.1.3",
       compilerPlugin("io.github.zero-deps" %% "gs-plug" % "0-10-g6f2f17b"),
 
-      "com.playtech.mws" %% "scala-pickling" % "1.0-2-gb05b7b9" % Test,
-      "com.typesafe.akka" %% "akka-testkit" % akkaVersion       % Test,
-      "org.scalatest" %% "scalatest" % "3.0.1"                  % Test,
+      "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
+      "org.scalatest" %% "scalatest" % "3.0.1" % Test,
     )
   )
 
