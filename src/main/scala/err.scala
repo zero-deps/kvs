@@ -8,8 +8,8 @@ final case class FeedNotExists(key: String) extends Err
 final case class FileNotExists(dir: String, name: String) extends Err
 final case class FileAlreadyExists(dir: String, name: String) extends Err
 final case class Fail(r: String) extends Err
-final case class PickleFail(r: String) extends Err
-final case class UnpickleFail(r: String) extends Err
+final case class PickleFail(t: Throwable) extends Err
+final case class UnpickleFail(t: Throwable) extends Err
 final case class InvalidArgument(d: String) extends Err
 
 final case class RngAskQuorumFailed(why: String) extends Err

@@ -39,7 +39,7 @@ class LoadDumpWorkerJava extends FSM[FsmState, Option[ActorRef]] with ActorLoggi
             _ ! RestoreState,
             _ ! RestoreState,
           )
-          sender ! "done"
+          sender ! "invalid path"
           log.error(cause=t, message=s"Invalid path of dump=${path}")
           stop()
       }
@@ -54,21 +54,32 @@ class LoadDumpWorkerJava extends FSM[FsmState, Option[ActorRef]] with ActorLoggi
         _.ask(InternalPut(k,v)),
         _.ask(InternalPut(k,v)),
       )
-      Await.ready(putF, timeout.duration)
-      if (nextKey.isEmpty) {
-        stores.get(addr(self), "ring_hash").fold(
-          _ ! RestoreState,
-          _ ! RestoreState,
-        )
-        Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
-        log.info("load is completed, keys={}", keysNumber)
-        state.map(_ ! "done")
-        stop()
-      } else {
-        store ! DumpGet(nextKey)
-        keysNumber = keysNumber + 1
-        if (keysNumber % 10000 == 0) log.info(s"load info: write keys=${keysNumber}, size=${size}, ksize=${ksize}, nextKey=${nextKey}")
-        stay() using state
+      Try(Await.result(putF, timeout.duration)) match {
+        case Success(_) =>
+          if (nextKey.isEmpty) {
+            stores.get(addr(self), "ring_hash").fold(
+              _ ! RestoreState,
+              _ ! RestoreState,
+            )
+            Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
+            log.info("load is completed, keys={}", keysNumber)
+            state.map(_ ! "done")
+            stop()
+          } else {
+            store ! DumpGet(nextKey)
+            keysNumber = keysNumber + 1
+            if (keysNumber % 10000 == 0) log.info(s"load info: write keys=${keysNumber}, size=${size}, ksize=${ksize}, nextKey=${nextKey}")
+            stay() using state
+          }
+        case Failure(t) =>
+          log.error(cause=t, message="can't put")
+          stores.get(addr(self), "ring_hash").fold(
+            _ ! RestoreState,
+            _ ! RestoreState,
+          )
+          Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
+          state.map(_ ! "can't put")
+          stop()
       }
   }
 }

@@ -17,7 +17,7 @@ trait FileHandler {
   private def pickle(e: File): Res[Array[Byte]] = encode(e).right
   private def unpickle(a: Array[Byte]): Res[File] = Try(decode[File](a)) match {
     case Success(x) => x.right
-    case Failure(x) => UnpickleFail(x.toString).left
+    case Failure(x) => UnpickleFail(x).left
   }
 
   private def get(dir: String, name: String)(implicit dba: Dba): Res[File] = dba.get(s"${dir}/${name}").fold(

@@ -42,7 +42,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) e
           goto(Collecting) using Some(sender)
         case Failure(t) =>
           log.error(cause=t, message=s"Invalid path of dump=${path}")
-          sender ! "done"
+          sender ! "invalid path"
           restoreState
           stop()
       }
@@ -57,7 +57,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) e
       def next = 
         if (nextKey.isEmpty) {
           log.info("load is completed, keys={}, size={}, ksize={}", keysNumber, size, ksize)
-          Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
+          Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db=${err}")}
           state.map(_ ! "done")
           restoreState
           stop()
@@ -74,12 +74,13 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) e
             _.ask(InternalPut(newK, newV)),
             _.ask(InternalPut(newK, newV)),
           )
-          Try(Await.ready(putF, timeout.duration)) match {
-            case Success(a) =>
+          Try(Await.result(putF, timeout.duration)) match {
+            case Success(_) =>
               log.debug("iterate update {} to {} -> {}", k, newK, newV)
               next
             case Failure(err) =>
               log.error("stop iterate. failed to put", err)
+              state.map(_ ! "failed to put")
               restoreState
               stop()
           }

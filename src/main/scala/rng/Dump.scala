@@ -10,7 +10,9 @@ import mws.rng.model.{DumpBucketData, DumpGetBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration._
 import scala.concurrent.{Await}
+import scala.util.{Try}
 import scalaz.Scalaz._
+import scalaz._
 
 object DumpProcessor {
   def props(): Props = Props(new DumpProcessor)
@@ -31,7 +33,7 @@ class DumpProcessor extends Actor with ActorLogging {
       DumpIO.props(path) match {
         case Left(t) =>
           log.error(cause=t, message=s"Invalid path=${path}")
-          sender ! "done"
+          sender ! "invalid path"
           stores.get(addr(self), "ring_hash").fold(
             _ ! RestoreState,
             _ ! RestoreState,
@@ -74,29 +76,40 @@ class DumpProcessor extends Actor with ActorLogging {
       case res: DumpIO.ReadNextRes =>
         if (!res.last) dumpIO ! DumpIO.ReadNext
         keysNumber = keysNumber + res.kv.size
-        res.kv.foreach { d =>
+        res.kv.toStream.map{ d =>
           ksize = ksize + d._1.size
           size = size + d._2.size
           val putF = stores.get(addr(self), "ring_hash").fold(
             _.ask(InternalPut(d._1, d._2)),
             _.ask(InternalPut(d._1, d._2)),
           )
-          Await.ready(putF, timeout.duration)
-        }
-        if (res.last) {
-          log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
-        } else if (keysNumber % 1000 == 0) {
-          log.info(s"load info: write done, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
-        }
-        if (res.last) {
-          log.info("Dump is loaded".green)
-          client ! "done"
-          stores.get(addr(self), "ring_hash").fold(
-            _ ! RestoreState,
-            _ ! RestoreState,
-          )
-          dumpIO ! PoisonPill
-          context.stop(self)
+          Try(Await.result(putF, timeout.duration)).toDisjunction
+        }.sequence_ match {
+          case \/-(_) =>
+            if (res.last) {
+              log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
+            } else if (keysNumber % 1000 == 0) {
+              log.info(s"load info: write done, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
+            }
+            if (res.last) {
+              log.info("Dump is loaded".green)
+              client ! "done"
+              stores.get(addr(self), "ring_hash").fold(
+                _ ! RestoreState,
+                _ ! RestoreState,
+              )
+              dumpIO ! PoisonPill
+              context.stop(self)
+            }
+          case -\/(t) =>
+            log.error(cause=t, message="can't put")
+            client ! "can't put"
+            stores.get(addr(self), "ring_hash").fold(
+              _ ! RestoreState,
+              _ ! RestoreState,
+            )
+            context.stop(dumpIO)
+            context.stop(self)
         }
     }
   }
