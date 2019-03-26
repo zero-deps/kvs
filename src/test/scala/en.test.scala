@@ -3,6 +3,7 @@ package en
 
 import akka.actor.ActorSystem
 import akka.testkit._
+import com.typesafe.config.{ConfigFactory}
 import org.scalatest._
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -35,7 +36,7 @@ object EnHandlerTest {
   }
 }
 
-class EnHandlerTest extends TestKit(ActorSystem("Test"))
+class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4002))))
   with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
   import EnHandlerTest._

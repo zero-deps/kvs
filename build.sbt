@@ -35,10 +35,8 @@ ThisBuild / isSnapshot := true
 
 lazy val kvs = project.in(file("."))
   .settings(
-    fork in Test := true,
     libraryDependencies ++= Seq(
       "ch.qos.logback" % "logback-classic" % "1.2.3",
-      "com.github.jnr" % "jnr-ffi" % "2.1.7",
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
       "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
       "org.scalaz" %% "scalaz-core" % scalazVersion,
@@ -49,7 +47,15 @@ lazy val kvs = project.in(file("."))
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
       "org.scalatest" %% "scalatest" % "3.0.1" % Test,
     )
-  )
+  ).dependsOn(leveldb).aggregate(leveldb)
+
+lazy val leveldb = (project in file("leveldb")).settings(
+  fork in Test := true,
+  testOptions += Tests.Argument(TestFrameworks.JUnit, "-v"),
+  libraryDependencies += "com.github.jnr" % "jnr-ffi" % "2.1.7",
+  libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test,
+  libraryDependencies += "junit" % "junit" % "4.12" % Test,
+)
 
 import deployssh.DeploySSH.{ServerConfig, ArtifactSSH}
 import fr.janalyse.ssh._
@@ -101,9 +107,3 @@ lazy val demo = (project in file("kvs-demo")).settings(
     }
   )
 ).dependsOn(kvs).enablePlugins(JavaAppPackaging, DeploySSH, JmhPlugin)
-
-lazy val leveldbTest = (project in file("leveldb-test")).settings(
-  testOptions += Tests.Argument(TestFrameworks.JUnit),
-  libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test,
-  libraryDependencies += "junit" % "junit" % "4.12" % Test,
-).dependsOn(kvs)

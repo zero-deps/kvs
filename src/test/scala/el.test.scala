@@ -1,13 +1,14 @@
 package mws.kvs
 
-import org.scalatest._
 import akka.actor._
 import akka.testkit._
+import com.typesafe.config.{ConfigFactory}
+import org.scalatest._
 import scala.concurrent.Await
-import scala.util.Try
 import scala.concurrent.duration._
+import scala.util.Try
 
-class ElHandlerTest extends TestKit(ActorSystem("Test"))
+class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4001))))
   with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
   val kvs = Kvs(system)

@@ -2,12 +2,13 @@ package mws.kvs
 
 import akka.actor._
 import akka.testkit._
+import com.typesafe.config.{ConfigFactory}
 import mws.kvs.file._
 import org.scalatest._
 import scala.annotation.tailrec
 import scalaz._
 
-class FileHandlerTest extends TestKit(ActorSystem("Test"))
+class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4003))))
   with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
   val kvs = Kvs(system)
