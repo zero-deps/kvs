@@ -6,7 +6,7 @@ import akka.event.Logging
 import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.{Timeout}
-import leveldbjnr.LevelDB
+import leveldbjnr.LevelDb
 import mws.kvs.el.ElHandler
 import mws.rng
 import mws.rng.store.{ReadonlyStore, WriteStore}
@@ -25,7 +25,7 @@ class Ring(system: ActorSystem) extends Dba {
 
   system.eventStream
 
-  val leveldb: LevelDB = LeveldbOps.open(cfg.getString("leveldb.dir"))
+  val leveldb: LevelDb = LevelDb.open(cfg.getString("leveldb.dir")).fold(l => throw l, r => r)
 
   system.actorOf(WriteStore.props(leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb)).withDeploy(Deploy.local), name="ring_readonly_store")
@@ -129,7 +129,7 @@ class Ring(system: ActorSystem) extends Dba {
   }
 
   def compact(): Unit = {
-    leveldb.compactRange(null, null)
+    leveldb.compact()
   }
 }
 

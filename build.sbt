@@ -14,7 +14,7 @@ ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / resolvers += "releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases"
 ThisBuild / resolvers += "jcenter-proxy" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/jcenter-proxy"
 ThisBuild / cancelable in Global := true
-ThisBuild / javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
+ThisBuild / javacOptions ++= Seq("-source", "12", "-target", "12")
 ThisBuild / scalacOptions in Compile ++= Seq(
   "-target:jvm-1.8",
   "-feature",
@@ -50,11 +50,10 @@ lazy val kvs = project.in(file("."))
   ).dependsOn(leveldb).aggregate(leveldb)
 
 lazy val leveldb = (project in file("leveldb")).settings(
-  fork in Test := true,
-  testOptions += Tests.Argument(TestFrameworks.JUnit, "-v"),
-  libraryDependencies += "com.github.jnr" % "jnr-ffi" % "2.1.7",
-  libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test,
-  libraryDependencies += "junit" % "junit" % "4.12" % Test,
+  libraryDependencies ++= Seq(
+    "com.github.jnr" % "jnr-ffi" % "2.1.7",
+    "org.scalatest" %% "scalatest" % "3.0.1" % Test,
+  )
 )
 
 import deployssh.DeploySSH.{ServerConfig, ArtifactSSH}

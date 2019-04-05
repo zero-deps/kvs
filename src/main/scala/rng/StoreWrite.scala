@@ -14,18 +14,17 @@ import mws.rng.model.{DumpPut}
 import scalaz.Scalaz._
 import zd.proto.api.{encode, decode}
 
-class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
+class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   import context.system
   val config = system.settings.config.getConfig("ring.leveldb")
 
-  val ro = new LevelDBReadOptions
-  val wo = new LevelDBWriteOptions
-  wo.setSync(config.getBoolean("fsync"))
+  val ro = ReadOpts()
+  val wo = WriteOpts(config.getBoolean("fsync"))
   val hashing = HashingExtension(system)
 
   val local: Node = Cluster(system).selfAddress
 
-  def get(k: Key): Option[Array[Byte]] = Option(leveldb.get(k, ro))
+  def get(k: Key): Option[Array[Byte]] = leveldb.get(k, ro).fold(l => throw l, r => r)
 
   val `:key:` = stob(":key:")
   val `:keys` = stob(":keys")
@@ -116,11 +115,11 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
     }
   }
 
-  def withBatch[R](body: LevelDBWriteBatch ⇒ R): R = {
-    val batch = new LevelDBWriteBatch
+  def withBatch[R](body: WriteBatch ⇒ R): R = {
+    val batch = new WriteBatch
     try {
       val r = body(batch)
-      leveldb.write(batch,wo)
+      leveldb.write(batch, wo)
       r
     } finally {
       batch.close()
@@ -129,6 +128,6 @@ class WriteStore(leveldb: LevelDB) extends Actor with ActorLogging {
 }
 
 object WriteStore {
-  def props(leveldb: LevelDB): Props = Props(new WriteStore(leveldb))
+  def props(leveldb: LevelDb): Props = Props(new WriteStore(leveldb))
 }
 

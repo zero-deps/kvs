@@ -3,8 +3,7 @@ package mws.rng
 import akka.actor.{FSM, ActorLogging, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
-import leveldbjnr.{LevelDB}
-import mws.kvs.LeveldbOps
+import leveldbjnr.{LevelDb}
 import mws.rng.model.{DumpGet, DumpEn}
 import mws.rng.store.ReadonlyStore
 import scala.concurrent.duration._
@@ -21,20 +20,20 @@ class LoadDumpWorkerJava extends FSM[FsmState, Option[ActorRef]] with ActorLoggi
   var size: Long = 0L
   var ksize: Long = 0L
 
-  var dumpDb: LevelDB = _
+  var dumpDb: LevelDb = _
   var store: ActorRef = _
   val stores = SelectionMemorize(context.system)
   startWith(ReadyCollect, None)
 
   when(ReadyCollect){
     case Event(DumpProcessor.Load(path),_) =>
-      Try(LeveldbOps.open(path)) match {
-        case Success(a) => 
+      LevelDb.open(path) match {
+        case Right(a) => 
           dumpDb = a
           store = context.actorOf(ReadonlyStore.props(dumpDb))
           store ! DumpGet(stob("head_of_keys"))
           goto(Collecting) using Some(sender)
-        case Failure(t) =>
+        case Left(t) =>
           stores.get(addr(self), "ring_hash").fold(
             _ ! RestoreState,
             _ ! RestoreState,
@@ -61,7 +60,7 @@ class LoadDumpWorkerJava extends FSM[FsmState, Option[ActorRef]] with ActorLoggi
               _ ! RestoreState,
               _ ! RestoreState,
             )
-            Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
+            dumpDb.close()
             log.info("load is completed, keys={}", keysNumber)
             state.map(_ ! "done")
             stop()
@@ -77,7 +76,7 @@ class LoadDumpWorkerJava extends FSM[FsmState, Option[ActorRef]] with ActorLoggi
             _ ! RestoreState,
             _ ! RestoreState,
           )
-          Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db $err")}
+          dumpDb.close()
           state.map(_ ! "can't put")
           stop()
       }

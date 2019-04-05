@@ -4,7 +4,6 @@ import akka.actor.{FSM, ActorRef, ActorLogging, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import leveldbjnr._
-import mws.kvs.LeveldbOps
 import mws.rng.model.{DumpGet, DumpEn}
 import mws.rng.store._
 import scala.concurrent.duration._
@@ -21,7 +20,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) e
   var size: Long = 0L
   var ksize: Long = 0L
 
-  var dumpDb: LevelDB = _
+  var dumpDb: LevelDb = _
   var store: ActorRef = _
   val stores = SelectionMemorize(context.system)
   startWith(ReadyCollect, None)
@@ -34,13 +33,13 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) e
 
   when(ReadyCollect){
     case Event(Iterate(_,_),_) =>
-      Try(LeveldbOps.open(path)) match {
-        case Success(a) =>
+      LevelDb.open(path) match {
+        case Right(a) =>
           dumpDb = a
           store = context.actorOf(ReadonlyStore.props(dumpDb))
           store ! DumpGet(stob("head_of_keys"))
           goto(Collecting) using Some(sender)
-        case Failure(t) =>
+        case Left(t) =>
           log.error(cause=t, message=s"Invalid path of dump=${path}")
           sender ! "invalid path"
           restoreState
@@ -57,7 +56,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) e
       def next = 
         if (nextKey.isEmpty) {
           log.info("load is completed, keys={}, size={}, ksize={}", keysNumber, size, ksize)
-          Try(dumpDb.close()).recover{ case err => log.info(s"Error closing db=${err}")}
+          dumpDb.close()
           state.map(_ ! "done")
           restoreState
           stop()
@@ -80,6 +79,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) e
               next
             case Failure(err) =>
               log.error("stop iterate. failed to put", err)
+              dumpDb.close()
               state.map(_ ! "failed to put")
               restoreState
               stop()

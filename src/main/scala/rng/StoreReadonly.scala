@@ -14,14 +14,14 @@ import scala.collection.{breakOut}
 import zd.proto.api.decode
 
 object ReadonlyStore {
-  def props(leveldb: LevelDB): Props = Props(new ReadonlyStore(leveldb))
+  def props(leveldb: LevelDb): Props = Props(new ReadonlyStore(leveldb))
 }
 
-class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
+class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
   val hashing = HashingExtension(context.system)
-  val ro = new LevelDBReadOptions
+  val ro = ReadOpts()
 
-  def get(k: Key): Option[Array[Byte]] = Option(leveldb.get(k, ro))
+  def get(k: Key): Option[Array[Byte]] = leveldb.get(k, ro).fold(l => throw l, r => r)
 
   val `:key:` = stob(":key:")
   val `:keys` = stob(":keys")
@@ -76,15 +76,16 @@ class ReadonlyStore(leveldb: LevelDB) extends Actor with ActorLogging {
         out.close()
         bos.toByteArray
       }
-      val data: Array[Byte] = leveldb.get(key, ro)
-      val res: DumpEn = if (data == null) {
-        DumpEn(k, `readonly_dummy`, Array.empty[Byte])
-      } else {
-        val in = new ObjectInputStream(new ByteArrayInputStream(data))
-        val obj = in.readObject
-        in.close()
-        val decoded = obj.asInstanceOf[(akka.util.ByteString, Option[String])] 
-        DumpEn(k, decoded._1.toArray, decoded._2.fold(Array.empty[Byte])(stob))
+      val data: Option[Array[Byte]] = leveldb.get(key, ro).fold(l => throw l, r => r)
+      val res: DumpEn = data match {
+        case None =>
+          DumpEn(k, `readonly_dummy`, Array.empty[Byte])
+        case Some(data) =>
+          val in = new ObjectInputStream(new ByteArrayInputStream(data))
+          val obj = in.readObject
+          in.close()
+          val decoded = obj.asInstanceOf[(akka.util.ByteString, Option[String])] 
+          DumpEn(k, decoded._1.toArray, decoded._2.fold(Array.empty[Byte])(stob))
       }
       sender ! res
     case _ =>    
