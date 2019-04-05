@@ -1,8 +1,6 @@
 .DS_Store
 /kvs-demo/rng_data_*/
 /kvs-demo/tmp/
-/leveldb/tmp/
-/leveldb_test/
 /rng_data_*/
 /tmp/
 target/
