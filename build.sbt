@@ -13,7 +13,7 @@ ThisBuild / version := {
 ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / resolvers += "releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases"
 ThisBuild / resolvers += "jcenter-proxy" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/jcenter-proxy"
-ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
+// ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
 ThisBuild / cancelable in Global := true
 ThisBuild / javacOptions ++= Seq("-source", "12", "-target", "12")
 ThisBuild / scalacOptions in Compile ++= Seq(
@@ -44,7 +44,7 @@ lazy val kvs = project.in(file("."))
       "io.github.zero-deps" %% "proto-macros" % "1.1.3" % Compile,
       "io.github.zero-deps" %% "proto-runtime" % "1.1.3",
       compilerPlugin("io.github.zero-deps" %% "gs-plug" % "0-10-g6f2f17b"),
-      "io.github.zero-deps" %% "leveldb-jnr" % "1.0-1-g9db6138",
+      "io.github.zero-deps" %% "leveldb-jnr" % "0-8-ge8a3b4a",
 
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
       "org.scalatest" %% "scalatest" % "3.0.1" % Test,

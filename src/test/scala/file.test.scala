@@ -6,15 +6,19 @@ import com.typesafe.config.{ConfigFactory}
 import mws.kvs.file._
 import org.scalatest._
 import scala.annotation.tailrec
+import scala.concurrent.Await
+import scala.concurrent.duration._
+import scala.util.Try
 import scalaz._
 
-class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4003))))
+class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4013))))
   with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
-  val kvs = Kvs(system)
-
-  Thread.sleep(2000)
-
+  var kvs: Kvs = null
+  override def beforeAll = {
+    kvs = Kvs(system)
+    Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
+  }
   override def afterAll = TestKit.shutdownActorSystem(system)
 
   val dir = "dir"

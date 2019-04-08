@@ -8,13 +8,14 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
 
-class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4001))))
+class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4011))))
   with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
-  val kvs = Kvs(system)
-
-  Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
-
+  var kvs: Kvs = null
+  override def beforeAll = {
+    kvs = Kvs(system)
+    Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
+  }
   override def afterAll = TestKit.shutdownActorSystem(system)
 
   "el handler should" - {

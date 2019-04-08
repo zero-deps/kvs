@@ -36,14 +36,10 @@ object EnHandlerTest {
   }
 }
 
-class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4002))))
+class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4012))))
   with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
   import EnHandlerTest._
-
-  val kvs = Kvs(system)
-
-  Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
 
   val mod = 50
   def entry(n: Int): En = En(fid, data="value=${n}")
@@ -53,6 +49,11 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
   val e3 = entry(3)
   val e5 = entry(5)
 
+  var kvs: Kvs = null
+  override def beforeAll = {
+    kvs = Kvs(system)
+    Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
+  }
   override def afterAll = TestKit.shutdownActorSystem(system)
 
   "Feed should" - {
