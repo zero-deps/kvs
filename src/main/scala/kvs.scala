@@ -17,11 +17,7 @@ import mws.kvs.file.{File, FileHandler}
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
   override def lookup = Kvs
-  override def createExtension(system: ExtendedActorSystem): Kvs = {
-    val ver = leveldbjnr.LevelDb.version
-    if (ver == (1,21)) new Kvs(system)
-    else throw new Exception(s"leveldb version ${ver} is not equals to (1,21)")
-  }
+  override def createExtension(system: ExtendedActorSystem): Kvs = new Kvs(system)
 }
 class Kvs(system: ExtendedActorSystem) extends Extension {
   { /* start sharding */

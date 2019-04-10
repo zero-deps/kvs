@@ -2,4 +2,5 @@
 /kvs-demo/rng_data_*/
 /kvs-demo/tmp/
 /rng_data_*/
+/tmp/
 target/
