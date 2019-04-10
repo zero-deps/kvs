@@ -19,23 +19,6 @@ import scalaz._
 import Scalaz._
 
 class Ring(system: ActorSystem) extends Dba {
-  import java.io.File
-  import java.nio.file.{Files, StandardCopyOption}
-
-  private def copyLib(name: String): Throwable Either Long = {    
-     val is = classOf[Ring].getResourceAsStream(s"/bin/${name}")   
-     val dest = new File(s"./tmp/${name}")    
-     Try {    
-       dest.mkdirs()    
-       Files.copy(is, dest.toPath(), StandardCopyOption.REPLACE_EXISTING)   
-     }.toEither   
-   }    
- 
-  copyLib("libleveldb.so")
-  copyLib("libsnappy.so")
-  copyLib("leveldb.dll")
-  sys.props += "java.library.path" -> "./tmp/"
-
   lazy val log = Logging(system, "hash-ring")
 
   val cfg = system.settings.config.getConfig("ring")
@@ -43,12 +26,6 @@ class Ring(system: ActorSystem) extends Dba {
   system.eventStream
 
   val leveldb: LevelDb = LevelDb.open(cfg.getString("leveldb.dir")).fold(l => throw l, r => r)
-
-  val ver = LevelDb.version
-  if (ver._1 < 1 || (ver._1 == 1 && ver._2 < 21))
-    log.warning(s"LevelDB version ${ver._1}.${ver._2} is outdated")
-  else
-    log.info(s"LevelDB version ${ver._1}.${ver._2}")
 
   system.actorOf(WriteStore.props(leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb)).withDeploy(Deploy.local), name="ring_readonly_store")

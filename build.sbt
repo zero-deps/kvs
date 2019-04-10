@@ -45,8 +45,8 @@ lazy val kvs = project.in(file("."))
       "io.github.zero-deps" %% "proto-macros" % "1.1.3" % Compile,
       "io.github.zero-deps" %% "proto-runtime" % "1.1.3",
       compilerPlugin("io.github.zero-deps" %% "gs-plug" % "0-10-g6f2f17b"),
-      "io.github.zero-deps" %% "leveldb-jnr" % "0-9-g8740e59",
-      "io.github.zero-deps" %% "leveldb-jnr" % "0-9-g8740e59" % Test classifier "tests",
+      "io.github.zero-deps" %% "leveldb-jnr" % "0-11-g9d137ce",
+      "io.github.zero-deps" %% "leveldb-jnr" % "0-11-g9d137ce" % Test classifier "tests",
 
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
       "org.scalatest" %% "scalatest" % "3.0.1" % Test,
