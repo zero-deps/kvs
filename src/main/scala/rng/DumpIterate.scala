@@ -11,10 +11,10 @@ import scala.concurrent.Await
 import scala.util.{Try, Success, Failure}
 
 object IterateDumpWorker {
-  def props(path: String, f: (Key,Value) => Option[(Key, Value)]): Props = Props(new IterateDumpWorker(path, f))
+  def props(path: String, f: (Key,Value) => Option[(Key, Value)], afterIterate: () => Unit): Props = Props(new IterateDumpWorker(path, f, afterIterate))
 }
 
-class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
+class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)], afterIterate: () => Unit) extends FSM[FsmState, Option[ActorRef]] with ActorLogging {
   implicit val timeout = Timeout(120 seconds)
   var keysNumber = 0
   var size: Long = 0L
@@ -32,7 +32,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) e
     )
 
   when(ReadyCollect){
-    case Event(Iterate(_,_),_) =>
+    case Event(Iterate(_,_,_),_) =>
       LevelDb.open(path) match {
         case Right(a) =>
           dumpDb = a
@@ -59,6 +59,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) e
           dumpDb.close()
           state.map(_ ! "done")
           restoreState
+          afterIterate()
           stop()
         } else {
           store ! DumpGet(nextKey)
@@ -82,6 +83,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)]) e
               dumpDb.close()
               state.map(_ ! "failed to put")
               restoreState
+              afterIterate()
               stop()
           }
         case None =>

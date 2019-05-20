@@ -17,7 +17,7 @@ case class Delete(k: Key)
 
 case class Save(path: String)
 case class Load(path: String, javaSer: Boolean)
-case class Iterate(path: String, f: (Key, Value) => Option[(Key, Value)])
+case class Iterate(path: String, f: (Key, Value) => Option[(Key, Value)], afterIterate: () => Unit)
 
 case object RestoreState
 
@@ -84,7 +84,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Load(_,_), _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
-    case Event(Iterate(_,_), _) =>
+    case Event(Iterate(_,_,_), _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
     case Event(RestoreState, _) =>
@@ -122,7 +122,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Load(_,_), _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
-    case Event(Iterate(_,_), _) =>
+    case Event(Iterate(_,_,_), _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
   }
@@ -163,12 +163,12 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         x.forward(DumpProcessor.Load(path))
       }
       goto(QuorumStateReadonly)
-    case Event(Iterate(path, f), data) =>
+    case Event(Iterate(path, f, afterIterate), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
         _ ! ChangeState(QuorumStateReadonly),
         _ ! ChangeState(QuorumStateReadonly),
       ))
-      system.actorOf(IterateDumpWorker.props(path,f), s"iter_wrkr-${now_ms()}").forward(Iterate(path, f))
+      system.actorOf(IterateDumpWorker.props(path,f, afterIterate), s"iter_wrkr-${now_ms()}").forward(Iterate(path, f, afterIterate))
       goto(QuorumStateReadonly)
     case Event(RestoreState, _) =>
       log.info("State is already OK")
