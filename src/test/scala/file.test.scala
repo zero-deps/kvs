@@ -1,9 +1,9 @@
-package mws.kvs
+package zd.kvs
 
 import akka.actor._
 import akka.testkit._
 import com.typesafe.config.{ConfigFactory}
-import mws.kvs.file._
+import zd.kvs.file._
 import org.scalatest._
 import scala.annotation.tailrec
 import scala.concurrent.Await

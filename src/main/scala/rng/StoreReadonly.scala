@@ -1,15 +1,15 @@
-package mws.rng
+package zd.rng
 package store
 
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{VectorClock}
 import leveldbjnr._
-import mws.rng.data.{Data, BucketInfo}
-import mws.rng.data.codec._
-import mws.rng.model.{StoreGet, StoreGetAck}
-import mws.rng.model.{DumpGet, DumpEn}
-import mws.rng.model.{DumpGetBucketData, DumpBucketData}
-import mws.rng.model.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
+import zd.rng.data.{Data, BucketInfo}
+import zd.rng.data.codec._
+import zd.rng.model.{StoreGet, StoreGetAck}
+import zd.rng.model.{DumpGet, DumpEn}
+import zd.rng.model.{DumpGetBucketData, DumpBucketData}
+import zd.rng.model.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
 import scala.collection.{breakOut}
 import zd.proto.api.decode
 

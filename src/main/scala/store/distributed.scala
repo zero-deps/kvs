@@ -1,4 +1,4 @@
-package mws.kvs
+package zd.kvs
 package store
 
 import akka.actor._
@@ -7,10 +7,10 @@ import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.{Timeout}
 import leveldbjnr.LevelDb
-import mws.kvs.el.ElHandler
-import mws.rng
-import mws.rng.store.{ReadonlyStore, WriteStore}
-import mws.rng.{stob}
+import zd.kvs.el.ElHandler
+import zd.rng
+import zd.rng.store.{ReadonlyStore, WriteStore}
+import zd.rng.{stob}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
@@ -138,7 +138,7 @@ object IdCounter {
   val shardName = "nextid"
 }
 class IdCounter extends Actor with ActorLogging {
-  val kvs = mws.kvs.Kvs(context.system)
+  val kvs = zd.kvs.Kvs(context.system)
 
   implicit val strHandler: ElHandler[String] = new ElHandler[String] {
     def pickle(e: String): Res[Array[Byte]] = e.getBytes("UTF-8").right

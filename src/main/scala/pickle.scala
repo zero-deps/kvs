@@ -1,8 +1,8 @@
-package mws.kvs    
+package zd.kvs    
 
 import akka.actor.{ExtendedActorSystem}
 import akka.serialization.{BaseSerializer}
-import mws.rng.model._
+import zd.rng.model._
 import zd.proto.api.{MessageCodec, encode, decode}
 import zd.proto.macrosapi.{sealedTraitCodecAuto, caseCodecAuto, caseCodecIdx}
 
@@ -10,7 +10,7 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
 
 
   implicit val msgCodec: MessageCodec[Msg] = {
-    import mws.rng.data.codec._
+    import zd.rng.data.codec._
     implicit def tuple2IntACodec[A:MessageCodec]: MessageCodec[Tuple2[Int, A]] = caseCodecIdx[Tuple2[Int, A]]
 
     implicit val replBucketUpToDateCodec: MessageCodec[ReplBucketUpToDate.type] = caseCodecAuto[ReplBucketUpToDate.type]

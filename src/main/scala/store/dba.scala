@@ -1,4 +1,4 @@
-package mws.kvs
+package zd.kvs
 package store
 
 import scala.concurrent.Future

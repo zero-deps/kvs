@@ -1,9 +1,9 @@
-package mws.kvs
+package zd.kvs
 package en
 
 import scalaz._
 import scalaz.Scalaz._
-import mws.kvs.store._
+import zd.kvs.store._
 import store.Dba
 
 trait En {

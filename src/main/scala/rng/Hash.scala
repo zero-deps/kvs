@@ -1,11 +1,11 @@
-package mws.rng
+package zd.rng
 
 import akka.actor._
 import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import com.typesafe.config.Config
-import mws.rng.model.{StoreDelete, StoreGet, QuorumState, ChangeState}
-import mws.rng.model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
+import zd.rng.model.{StoreDelete, StoreGet, QuorumState, ChangeState}
+import zd.rng.model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.collection.{breakOut}
 import scala.concurrent.duration._

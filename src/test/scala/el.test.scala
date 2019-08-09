@@ -1,4 +1,4 @@
-package mws.kvs
+package zd.kvs
 
 import akka.actor._
 import akka.testkit._

@@ -1,4 +1,4 @@
-package mws.kvs
+package zd.kvs
 package el
 
 import scalaz._, Scalaz._

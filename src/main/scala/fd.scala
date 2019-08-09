@@ -1,7 +1,7 @@
-package mws.kvs
+package zd.kvs
 package en
 
-import mws.kvs.store._
+import zd.kvs.store._
 import scalaz.Scalaz._
 
 final case class Fd(id: String, top: String = empty, count: Int = 0)

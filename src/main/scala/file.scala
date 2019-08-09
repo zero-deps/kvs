@@ -1,7 +1,7 @@
-package mws.kvs
+package zd.kvs
 package file
 
-import mws.kvs.store.Dba
+import zd.kvs.store.Dba
 import scala.annotation.tailrec
 import scala.util.{Try, Success, Failure}
 import scalaz._

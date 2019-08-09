@@ -1,4 +1,4 @@
-package mws.kvs
+package zd.kvs
 
 import scala.util.Try
 

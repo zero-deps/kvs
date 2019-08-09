@@ -1,4 +1,4 @@
-package mws.kvs
+package zd.kvs
 package en
 
 import akka.actor.ActorSystem
@@ -14,7 +14,7 @@ import scalaz.Scalaz._
 object EnHandlerTest {
   val fid = "fid" + java.util.UUID.randomUUID.toString
 
-  final case class En(fid: String, id: String = empty, prev: String = empty, data: String) extends mws.kvs.en.En
+  final case class En(fid: String, id: String = empty, prev: String = empty, data: String) extends zd.kvs.en.En
 
   implicit val h = new EnHandler[En] {
     val fh = feedHandler

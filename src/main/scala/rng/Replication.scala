@@ -1,9 +1,9 @@
-package mws.rng
+package zd.rng
 
 import akka.actor.{ActorLogging, Props, FSM}
 import akka.cluster.{Cluster}
-import mws.rng.data.{Data}
-import mws.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
+import zd.rng.data.{Data}
+import zd.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration.{Duration}
 import scalaz.Scalaz._

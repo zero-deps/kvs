@@ -1,8 +1,8 @@
-package mws.rng
+package zd.rng
 package model
 
 import zd.proto.api.N
-import mws.rng.data._
+import zd.rng.data._
 
 sealed trait Msg
 

@@ -1,4 +1,4 @@
-package mws.kvs
+package zd.kvs
 
 sealed trait Err
 

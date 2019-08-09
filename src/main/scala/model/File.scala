@@ -1,4 +1,4 @@
-package mws.kvs
+package zd.kvs
 package file
 
 import zd.proto.api.N

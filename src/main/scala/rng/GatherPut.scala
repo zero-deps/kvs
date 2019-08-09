@@ -1,8 +1,8 @@
-package mws.rng
+package zd.rng
 
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
-import mws.rng.data.Data
-import mws.rng.model.{StoreGetAck, StorePut}
+import zd.rng.data.Data
+import zd.rng.model.{StoreGetAck, StorePut}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
 

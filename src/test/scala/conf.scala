@@ -1,4 +1,4 @@
-package mws.kvs
+package zd.kvs
 
 object conf {
   def tmpl(port: Int) = s"""

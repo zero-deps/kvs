@@ -1,7 +1,7 @@
-package mws.kvs
+package zd.kvs
 
-import mws.rng._
-import mws.rng.data._
+import zd.rng._
+import zd.rng.data._
 import org.scalatest._
 import scala.collection.immutable.{HashSet, TreeMap}
 
@@ -11,7 +11,7 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
   def vc(v: Tuple2[String,Long]*) = new VectorClock(TreeMap.empty[String,Long] ++ v)
 
   "forRepl" - {
-    import mws.rng.MergeOps.forRepl
+    import zd.rng.MergeOps.forRepl
     "empty" in {
       val xs = Vector.empty
       forRepl(xs) should be (empty)
@@ -130,7 +130,7 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
   }
 
   "forPut" - {
-    import mws.rng.MergeOps.forPut
+    import zd.rng.MergeOps.forPut
     "stored is none" in {
       val vc1 = vc(v1(1))
       val x = Data(stob("k1"), bucket=1, lastModified=1, vc1, stob("v1"))
@@ -181,7 +181,7 @@ class MergeTest extends FreeSpecLike with Matchers with EitherValues with Before
   }
 
   "forGatherGet" - {
-    import mws.rng.MergeOps.forGatherGet
+    import zd.rng.MergeOps.forGatherGet
     import akka.actor.{Address}
     def addr(n: Int): Address = Address("","","",n)
     "empty" in {

@@ -1,7 +1,7 @@
-package mws.rng
+package zd.rng
 
-import mws.rng.data.{Data}
-import mws.rng.GatherGet.AddrOfData
+import zd.rng.data.{Data}
+import zd.rng.GatherGet.AddrOfData
 import scala.annotation.tailrec
 import scala.collection.breakOut
 import scala.collection.immutable.{HashMap, HashSet}

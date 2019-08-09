@@ -13,6 +13,5 @@ Key Value Storage.
 
 ```bash
 sbt test
-sbt 'project leveldbTest' test
-sbt 'project kvsDemo' run
+sbt 'project demo' run
 ```

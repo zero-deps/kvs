@@ -1,13 +1,13 @@
-package mws.rng
+package zd.rng
 
 import akka.actor.{Actor, ActorLogging, Props}
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption.{READ, WRITE, CREATE}
-import mws.rng.data.{Data}
-import mws.rng.dump.codec._
-import mws.rng.dump.{DumpKV, KV}
+import zd.rng.data.{Data}
+import zd.rng.dump.codec._
+import zd.rng.dump.{DumpKV, KV}
 import scala.collection.{breakOut}
 import scala.util.Try
 import zd.proto.api.{encode, decode}

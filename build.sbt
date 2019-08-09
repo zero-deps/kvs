@@ -2,7 +2,7 @@ val scalaVersion_ = "2.12.8"
 val scalazVersion = "7.2.27"
 val akkaVersion = "2.5.19"
 
-ThisBuild / organization := "com.playtech.mws"
+ThisBuild / organization := "io.github.zero-deps"
 ThisBuild / description := "Abstract Scala Types Key-Value Storage"
 ThisBuild / version := {
   val repo = org.eclipse.jgit.api.Git.open(file("."))
@@ -11,10 +11,7 @@ ThisBuild / version := {
   s"${desc}${dirty}"
 }
 ThisBuild / scalaVersion := scalaVersion_
-ThisBuild / resolvers += "releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases"
-ThisBuild / resolvers += "jcenter-proxy" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/jcenter-proxy"
-// ThisBuild / resolvers += Resolver.jcenterRepo
-// ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")0
+ThisBuild / resolvers += Resolver.jcenterRepo
 ThisBuild / cancelable in Global := true
 ThisBuild / javacOptions ++= Seq("-source", "12", "-target", "12")
 ThisBuild / scalacOptions in Compile ++= Seq(
@@ -28,12 +25,7 @@ ThisBuild / scalacOptions in Compile ++= Seq(
   "-Xfatal-warnings",
   "-Ywarn-unused-import",
 )
-ThisBuild / publishTo := Some("releases" at "http://nexus.mobile.playtechgaming.com/nexus3/repository/releases")
-ThisBuild / credentials += Credentials(Path.userHome / ".sbt" / ".credentials")
-ThisBuild / publishArtifact := true
-ThisBuild / publishMavenStyle := true
-ThisBuild / pomIncludeRepository := (_ => false)
-ThisBuild / isSnapshot := true
+ThisBuild / isSnapshot := true // override local artifacts
 
 lazy val kvs = project.in(file("."))
   .settings(
@@ -57,15 +49,13 @@ import deployssh.DeploySSH.{ServerConfig, ArtifactSSH}
 import fr.janalyse.ssh._
 
 lazy val demo = (project in file("kvs-demo")).settings(
-  mainClass in (Compile, run) := Some("mws.kvs.Run"),
+  mainClass in (Compile, run) := Some("zd.kvs.Run"),
   fork in run := true,
   javaOptions in Universal ++= Seq(
     "-J-XX:+PreserveFramePointer"
   ),
   deployConfigs ++= Seq(
-    ServerConfig(name="cms1", host="ua-mws-newcms1.ee.playtech.corp", user=Some("anle")),
-    ServerConfig(name="cms2", host="ua-mws-newcms2.ee.playtech.corp", user=Some("anle")),
-    ServerConfig(name="cms3", host="ua-mws-newcms3.ee.playtech.corp", user=Some("anle")),
+    ServerConfig(name="env1", host="host1", user=Some("user1")),
   ),
   deployArtifacts ++= Seq(
     ArtifactSSH((packageBin in Universal).value, s"perf_data")

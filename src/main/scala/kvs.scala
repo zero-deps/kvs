@@ -1,18 +1,18 @@
-package mws.kvs
+package zd.kvs
 
 import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import akka.cluster.sharding._
-import mws.kvs.store._
-import mws.kvs.store.IdCounter
+import zd.kvs.store._
+import zd.kvs.store.IdCounter
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Success}
 import scalaz._
 import scalaz.Scalaz._
-import mws.kvs.en.{En, EnHandler, Fd, FdHandler}
-import mws.kvs.el.ElHandler
-import mws.kvs.file.{File, FileHandler}
+import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
+import zd.kvs.el.ElHandler
+import zd.kvs.file.{File, FileHandler}
 
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {

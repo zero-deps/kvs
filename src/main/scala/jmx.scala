@@ -1,9 +1,9 @@
-package mws.kvs
+package zd.kvs
 
 import akka.actor.ActorSystem
 import java.lang.management.ManagementFactory
 import javax.management.{ObjectName,StandardMBean}
-import mws.kvs.el.ElHandler.strHandler
+import zd.kvs.el.ElHandler.strHandler
 import scala.util._
 
 /** Kvs management access */
@@ -20,7 +20,7 @@ trait KvsMBean {
 
 class KvsJmx(kvs: Kvs, system: ActorSystem) {
   private val server = ManagementFactory.getPlatformMBeanServer
-  private val name = new ObjectName("com.playtech.mws:type=Kvs")
+  private val name = new ObjectName("zd:type=Kvs")
   import system.log
 
   def createMBean(): Unit = {

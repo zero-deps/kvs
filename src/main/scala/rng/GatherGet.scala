@@ -1,8 +1,8 @@
-package mws.rng
+package zd.rng
 
 import akka.actor._
-import mws.rng.data.Data
-import mws.rng.model.{StoreGetAck, StorePut, StoreDelete}
+import zd.rng.data.Data
+import zd.rng.model.{StoreGetAck, StorePut, StoreDelete}
 import scala.concurrent.duration._
 import scala.collection.immutable.{HashSet}
 

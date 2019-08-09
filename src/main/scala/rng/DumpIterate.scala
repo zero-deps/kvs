@@ -1,11 +1,11 @@
-package mws.rng
+package zd.rng
 
 import akka.actor.{FSM, ActorRef, ActorLogging, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import leveldbjnr._
-import mws.rng.model.{DumpGet, DumpEn}
-import mws.rng.store._
+import zd.rng.model.{DumpGet, DumpEn}
+import zd.rng.store._
 import scala.concurrent.duration._
 import scala.concurrent.Await
 import scala.util.{Try, Success, Failure}

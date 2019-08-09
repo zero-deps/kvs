@@ -1,4 +1,4 @@
-// package mws.kvs
+// package zd.kvs
 
 // object Stat {
 //   def get(kvs: Kvs): Unit = {

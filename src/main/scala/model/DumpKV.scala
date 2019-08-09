@@ -1,4 +1,4 @@
-package mws.rng.dump
+package zd.rng.dump
 
 import zd.proto.api.{MessageCodec, N}
 import zd.proto.macrosapi.caseCodecAuto

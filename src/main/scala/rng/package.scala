@@ -1,4 +1,4 @@
-package mws
+package zd
 
 import akka.actor.{Address, ActorRef}
 import scalaz._
