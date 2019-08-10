@@ -4,7 +4,7 @@ val akkaVersion = "2.5.23"
 
 ThisBuild / organization := "io.github.zero-deps"
 ThisBuild / description := "Abstract Scala Types Key-Value Storage"
-ThisBuild / licenses := "MIT" -> url("https://raw.githubusercontent.com/zero-deps/leveldb-jnr/master/LICENSE") :: Nil
+ThisBuild / licenses := "MIT" -> url("https://raw.githubusercontent.com/zero-deps/kvs/master/LICENSE") :: Nil
 ThisBuild / version := {
   val repo = org.eclipse.jgit.api.Git.open(file("."))
   val desc = repo.describe.call
