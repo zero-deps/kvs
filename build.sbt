@@ -1,6 +1,6 @@
-val scalaVersion_ = "2.12.8"
+val scalaVersion_ = "2.12.9"
 val scalazVersion = "7.2.27"
-val akkaVersion = "2.5.19"
+val akkaVersion = "2.5.23"
 
 ThisBuild / organization := "io.github.zero-deps"
 ThisBuild / description := "Abstract Scala Types Key-Value Storage"
@@ -34,11 +34,11 @@ lazy val kvs = project.in(file("."))
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
       "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
       "org.scalaz" %% "scalaz-core" % scalazVersion,
-      "io.github.zero-deps" %% "proto-macros" % "1.1.4" % Compile,
-      "io.github.zero-deps" %% "proto-runtime" % "1.1.4",
-      compilerPlugin("io.github.zero-deps" %% "gs-plug" % "0-10-g6f2f17b"),
-      "io.github.zero-deps" %% "leveldb-jnr" % "0-11-g9d137ce",
-      "io.github.zero-deps" %% "leveldb-jnr" % "0-11-g9d137ce" % Test classifier "tests",
+      "io.github.zero-deps" %% "proto-macros" % "1.2.2" % Compile,
+      "io.github.zero-deps" %% "proto-runtime" % "1.2.2",
+      compilerPlugin("io.github.zero-deps" %% "gs-plug" % "1.0.0"),
+      "io.github.zero-deps" %% "leveldb-jnr" % "1.0.0",
+      "io.github.zero-deps" %% "leveldb-jnr" % "1.0.0" % Test classifier "tests",
 
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
       "org.scalatest" %% "scalatest" % "3.0.1" % Test,
