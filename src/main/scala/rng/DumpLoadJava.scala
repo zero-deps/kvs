@@ -45,17 +45,17 @@ class LoadDumpWorkerJava extends FSM[FsmState, Option[ActorRef]] with ActorLoggi
   }
 
   when(Collecting){
-    case Event(DumpEn(k,v,nextKey),state) =>
-      log.debug("saving state {} -> {}, nextKey = {}", k, v, nextKey)
-      size = size + v.size
-      ksize = ksize + k.size
+    case Event(x: DumpEn, state) =>
+      log.debug("saving state {} -> {}, nextKey = {}", x.k, x.v, x.nextKey)
+      size = size + x.v.size
+      ksize = ksize + x.k.size
       val putF = stores.get(addr(self), "ring_hash").fold(
-        _.ask(InternalPut(k,v)),
-        _.ask(InternalPut(k,v)),
+        _.ask(InternalPut(x.k, x.v)),
+        _.ask(InternalPut(x.k, x.v)),
       )
       Try(Await.result(putF, timeout.duration)) match {
         case Success(_) =>
-          if (nextKey.isEmpty) {
+          if (x.nextKey.isEmpty) {
             stores.get(addr(self), "ring_hash").fold(
               _ ! RestoreState,
               _ ! RestoreState,
@@ -65,9 +65,9 @@ class LoadDumpWorkerJava extends FSM[FsmState, Option[ActorRef]] with ActorLoggi
             state.map(_ ! "done")
             stop()
           } else {
-            store ! DumpGet(nextKey)
+            store ! DumpGet(x.nextKey)
             keysNumber = keysNumber + 1
-            if (keysNumber % 10000 == 0) log.info(s"load info: write keys=${keysNumber}, size=${size}, ksize=${ksize}, nextKey=${nextKey}")
+            if (keysNumber % 10000 == 0) log.info(s"load info: write keys=${keysNumber}, size=${size}, ksize=${ksize}, nextKey=${x.nextKey}")
             stay() using state
           }
         case Failure(t) =>

@@ -3,16 +3,16 @@ package store
 
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{Cluster, VectorClock}
+import java.util.Arrays
 import leveldbjnr._
-import zd.rng.data.{Data, BucketInfo}
-import zd.rng.data.codec._
-import zd.rng.dump.ValueKey
-import zd.rng.dump.codec._
-import zd.rng.model.{StorePut, StoreDelete}
-import zd.rng.model.{ReplBucketPut}
-import zd.rng.model.{DumpPut}
-import scalaz.Scalaz._
 import zd.proto.api.{encode, decode}
+import zd.rng.data.codec._
+import zd.rng.data.{Data, BucketInfo}
+import zd.rng.dump.codec._
+import zd.rng.dump.ValueKey
+import zd.rng.model.{DumpPut}
+import zd.rng.model.{ReplBucketPut}
+import zd.rng.model.{StorePut, StoreDelete}
 
 class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   import context.system
@@ -40,10 +40,10 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
     case StorePut(data) => 
       doPut(data)
       sender ! "ok"
-    case DumpPut(k: Key, v: Value, nextKey: Key) =>
-      withBatch(_.put(k, encode(ValueKey(v=v, nextKey=nextKey))))
+    case x: DumpPut =>
+      withBatch(_.put(x.k, encode(ValueKey(v=x.v, nextKey=x.prev))))
       sender ! "done"
-    case StoreDelete(data) => sender ! doDelete(data)
+    case x: StoreDelete => sender ! doDelete(x.key)
     case ReplBucketPut(b, bucketVc, items) => replBucketPut(b, bucketVc, items.toVector)
     case unhandled => log.warning(s"unhandled message: ${unhandled}")
   }
@@ -104,7 +104,7 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
     b_info match {
       case Some(b_info) =>
         val vc = b_info.vc :+ local.toString
-        val keys = b_info.keys.filterNot(_ === key)
+        val keys = b_info.keys.filterNot(xs => Arrays.equals(xs, key))
         withBatch(batch => {
           batch.delete((itob(b) ++ `:key:` ++ key))
           batch.put((itob(b) ++ `:keys`), encode(BucketInfo(vc, keys)))

@@ -42,7 +42,7 @@ trait EnHandler[A <: En] {
       l => fh.put(Fd(en.fid)), // create feed if it doesn't exist
       r => r.right
     ).flatMap{ fd: Fd =>
-      ( if (en.id === empty)
+      ( if (en.id == empty)
           dba.nextid(en.fid) // generate ID if it is empty
         else
           get(en.fid, en.id).fold( // id of entry must be unique

@@ -1,7 +1,6 @@
 package zd
 
 import akka.actor.{Address, ActorRef}
-import scalaz._
 
 package object rng {
   type Bucket = Int
@@ -32,8 +31,6 @@ package object rng {
     def blue: String = s"\u001B[34m${value}\u001B[0m"
     def green: String = s"\u001B[32m${value}\u001B[0m"
   }
-
-  implicit val equalArrayByte: Equal[Array[Byte]] = Equal.equalA
 
   def now_ms(): Long = System.currentTimeMillis
   

@@ -45,7 +45,7 @@ trait FileHandler {
     @tailrec
     def writeChunks(count: Int, rem: Array[Byte]): Res[Int] = {
       rem.splitAt(chunkLength) match {
-        case (xs, _) if xs.length === 0 => count.right
+        case (xs, _) if xs.length == 0 => count.right
         case (xs, ys) =>
           dba.put(s"${dir}/${name}_chunk_${count+1}", xs) match {
             case r @ \/-(_) => writeChunks(count+1, rem=ys)
@@ -54,7 +54,7 @@ trait FileHandler {
       }
     }
     for {
-      _ <- (data.length === 0).fold(InvalidArgument("data is empty").left, ().right)
+      _ <- (data.length == 0).fold(InvalidArgument("data is empty").left, ().right)
       file <- get(dir, name)
       count <- writeChunks(file.count, rem=data)
       file1 = file.copy(count=count, size=file.size+data.length)

@@ -48,13 +48,13 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)], a
   }
 
   when(Collecting){
-    case Event(DumpEn(k,v,nextKey),state) =>
-      log.debug("iterate state {} -> {}, nextKey = {}", k, v, nextKey)
-      size = size + v.size
-      ksize = ksize + k.size
+    case Event(x: DumpEn, state) =>
+      log.debug("iterate state {} -> {}, nextKey = {}", x.k, x.v, x.nextKey)
+      size = size + x.v.size
+      ksize = ksize + x.k.size
 
       def next = 
-        if (nextKey.isEmpty) {
+        if (x.nextKey.isEmpty) {
           log.info("load is completed, keys={}, size={}, ksize={}", keysNumber, size, ksize)
           dumpDb.close()
           state.map(_ ! "done")
@@ -62,13 +62,13 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)], a
           afterIterate()
           stop()
         } else {
-          store ! DumpGet(nextKey)
+          store ! DumpGet(x.nextKey)
           keysNumber = keysNumber + 1
           if (keysNumber % 10000 == 0) log.info("iteration info: write keys=${}, size={}, ksize={}", keysNumber, size, ksize)
           stay() using state
         }
 
-      f(k,v) match {
+      f(x.k, x.v) match {
         case Some((newK, newV)) =>
           val putF = stores.get(addr(self), "ring_hash").fold(
             _.ask(InternalPut(newK, newV)),
@@ -76,7 +76,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)], a
           )
           Try(Await.result(putF, timeout.duration)) match {
             case Success(_) =>
-              log.debug("iterate update {} to {} -> {}", k, newK, newV)
+              log.debug("iterate update {} to {} -> {}", x.k, newK, newV)
               next
             case Failure(err) =>
               log.error("stop iterate. failed to put", err)
@@ -87,7 +87,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)], a
               stop()
           }
         case None =>
-          log.debug("skip {}", k)
+          log.debug("skip {}", x.k)
           next
       }
   }

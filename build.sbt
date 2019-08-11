@@ -1,16 +1,11 @@
-val scalaVersion_ = "2.12.9"
+val scalaVersion_ = "2.12.8"
 val scalazVersion = "7.2.27"
 val akkaVersion = "2.5.23"
 
 ThisBuild / organization := "io.github.zero-deps"
 ThisBuild / description := "Abstract Scala Types Key-Value Storage"
 ThisBuild / licenses := "MIT" -> url("https://raw.githubusercontent.com/zero-deps/kvs/master/LICENSE") :: Nil
-ThisBuild / version := {
-  val repo = org.eclipse.jgit.api.Git.open(file("."))
-  val desc = repo.describe.call
-  val dirty = if (repo.status.call.isClean) "" else "-dirty"
-  s"${desc}${dirty}"
-}
+ThisBuild / version := zd.gs.git.GitOps.version
 ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / resolvers += Resolver.jcenterRepo
 ThisBuild / cancelable in Global := true
@@ -35,9 +30,9 @@ lazy val kvs = project.in(file("."))
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
       "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
       "org.scalaz" %% "scalaz-core" % scalazVersion,
-      "io.github.zero-deps" %% "proto-macros" % "1.2.2" % Compile,
-      "io.github.zero-deps" %% "proto-runtime" % "1.2.2",
-      compilerPlugin("io.github.zero-deps" %% "gs-plug" % "1.0.0"),
+      "io.github.zero-deps" %% "proto-macros" % "1.3.0" % Compile,
+      "io.github.zero-deps" %% "proto-runtime" % "1.3.0",
+      compilerPlugin("io.github.zero-deps" %% "gs-plug" % "1.1.0"),
       "io.github.zero-deps" %% "leveldb-jnr" % "1.0.0",
       "io.github.zero-deps" %% "leveldb-jnr" % "1.0.0" % Test classifier "tests",
 

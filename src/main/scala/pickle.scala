@@ -4,7 +4,7 @@ import akka.actor.{ExtendedActorSystem}
 import akka.serialization.{BaseSerializer}
 import zd.rng.model._
 import zd.proto.api.{MessageCodec, encode, decode}
-import zd.proto.macrosapi.{sealedTraitCodecAuto, caseCodecAuto, caseCodecIdx}
+import zd.proto.macrosapi.{sealedTraitCodecAuto, caseCodecAuto, classCodecAuto, caseCodecIdx}
 
 class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
 
@@ -23,20 +23,19 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
     }
     implicit val changeStateCodec: MessageCodec[ChangeState] = caseCodecAuto[ChangeState]
     implicit val dumpBucketDataCodec: MessageCodec[DumpBucketData] = caseCodecAuto[DumpBucketData]
-    implicit val dumpEnCodec: MessageCodec[DumpEn] = caseCodecAuto[DumpEn]
-    implicit val dumpGetCodec: MessageCodec[DumpGet] = caseCodecAuto[DumpGet]
+    implicit val dumpEnCodec: MessageCodec[DumpEn] = classCodecAuto[DumpEn]
+    implicit val dumpGetCodec: MessageCodec[DumpGet] = classCodecAuto[DumpGet]
     implicit val dumpGetBucketDataCodec: MessageCodec[DumpGetBucketData] = caseCodecAuto[DumpGetBucketData]
-    implicit val dumpPutCodec: MessageCodec[DumpPut] = caseCodecAuto[DumpPut]
+    implicit val dumpPutCodec: MessageCodec[DumpPut] = classCodecAuto[DumpPut]
     implicit val replBucketPutCodec: MessageCodec[ReplBucketPut] = caseCodecAuto[ReplBucketPut]
     implicit val replGetBucketIfNewCodec: MessageCodec[ReplGetBucketIfNew] = caseCodecAuto[ReplGetBucketIfNew]
     implicit val replNewerBucketDataCodec: MessageCodec[ReplNewerBucketData] = caseCodecAuto[ReplNewerBucketData]
     implicit val replBucketsVcCodec: MessageCodec[ReplBucketsVc] = caseCodecAuto[ReplBucketsVc]
-    implicit val storeDeleteCodec: MessageCodec[StoreDelete] = caseCodecAuto[StoreDelete]
-    implicit val storeGetCodec: MessageCodec[StoreGet] = caseCodecAuto[StoreGet]
+    implicit val storeDeleteCodec: MessageCodec[StoreDelete] = classCodecAuto[StoreDelete]
+    implicit val storeGetCodec: MessageCodec[StoreGet] = classCodecAuto[StoreGet]
     implicit val storeGetAckCodec: MessageCodec[StoreGetAck] = caseCodecAuto[StoreGetAck]
     implicit val storePutCodec: MessageCodec[StorePut] = caseCodecAuto[StorePut]
-    implicit val replGetBucketsVcCodec: MessageCodec[ReplGetBucketsVc] = caseCodecAuto[ReplGetBucketsVc]  
-
+    implicit val replGetBucketsVcCodec: MessageCodec[ReplGetBucketsVc] = caseCodecAuto[ReplGetBucketsVc]
     sealedTraitCodecAuto[Msg]
   }
 

@@ -6,10 +6,7 @@ import zd.rng.data.{Data}
 import zd.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration.{Duration}
-import scalaz.Scalaz._
-// import akka.cluster.emptyVC
-
-import ReplicationSupervisor.{State}
+import zd.rng.ReplicationSupervisor.{State}
 
 object ReplicationSupervisor {
   final case class Progress(done: Int, total: Int, step: Int)
@@ -72,7 +69,7 @@ class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] wi
           stop()
         case remaining =>
           val pr = state.progress
-          if (pr.done % pr.step === 0) log.info(s"${pr.done*100/pr.total}%")
+          if (pr.done % pr.step == 0) log.info(s"${pr.done*100/pr.total}%")
           val (b, prefList) = remaining.head // safe
           val bvc = state.bvcs.get(b)
           getBucketIfNew(b, prefList, bvc)

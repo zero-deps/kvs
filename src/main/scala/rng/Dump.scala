@@ -135,7 +135,7 @@ class DumpProcessor extends Actor with ActorLogging {
     }
 
     def showInfo(msg: String): Unit = {
-      if (processBucket === maxBucket && putQueue.isEmpty) {
+      if (processBucket == maxBucket && putQueue.isEmpty) {
         log.info(s"dump done: msg=${msg}, bucket=${processBucket}/${maxBucket}, total=${keysNumber}, putQueue=${putQueue.size}")
       } else if (keysNumber % 10000 == 0L) {
         log.info(s"dump info: msg=${msg}, bucket=${processBucket}/${maxBucket}, total=${keysNumber}, putQueue=${putQueue.size}")
@@ -143,9 +143,9 @@ class DumpProcessor extends Actor with ActorLogging {
     }
 
     () => {
-      case res: (DumpBucketData) if processBucket === res.b =>
+      case res: (DumpBucketData) if processBucket == res.b =>
         collected = res.items.toVector +: collected
-        if (collected.size === buckets(processBucket).size) {
+        if (collected.size == buckets(processBucket).size) {
           pullWorking = false
           pull
 

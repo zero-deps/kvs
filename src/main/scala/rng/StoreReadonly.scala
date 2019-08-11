@@ -28,8 +28,8 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
   val `readonly_dummy` = stob("readonly_dummy")
 
   override def receive: Receive = {
-    case StoreGet(key) =>
-      val k = itob(hashing.findBucket(key)) ++ `:key:` ++ key
+    case x: StoreGet =>
+      val k = itob(hashing.findBucket(x.key)) ++ `:key:` ++ x.key
       val result: Option[Data] = get(k).map(decode[Data](_))
       sender ! StoreGetAck(result)
 
@@ -67,25 +67,25 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
       }(breakOut)
       sender ! ReplBucketsVc(bvcs)
 
-    case DumpGet(k) =>
+    case x: DumpGet =>
       import java.io.{ByteArrayOutputStream, ObjectOutputStream, ObjectInputStream, ByteArrayInputStream}
       val key: Array[Byte] = {
         val bos = new ByteArrayOutputStream
         val out = new ObjectOutputStream(bos)
-        out.writeObject(new String(k, "UTF-8"))
+        out.writeObject(new String(x.k, "UTF-8"))
         out.close()
         bos.toByteArray
       }
       val data: Option[Array[Byte]] = leveldb.get(key, ro).fold(l => throw l, r => r)
       val res: DumpEn = data match {
         case None =>
-          DumpEn(k, `readonly_dummy`, Array.empty[Byte])
+          DumpEn(x.k, `readonly_dummy`, Array.empty[Byte])
         case Some(data) =>
           val in = new ObjectInputStream(new ByteArrayInputStream(data))
           val obj = in.readObject
           in.close()
           val decoded = obj.asInstanceOf[(akka.util.ByteString, Option[String])] 
-          DumpEn(k, decoded._1.toArray, decoded._2.fold(Array.empty[Byte])(stob))
+          DumpEn(x.k, decoded._1.toArray, decoded._2.fold(Array.empty[Byte])(stob))
       }
       sender ! res
     case _ =>    

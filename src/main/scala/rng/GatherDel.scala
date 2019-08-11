@@ -3,7 +3,6 @@ package zd.rng
 import akka.actor._
 import akka.cluster.Cluster
 import scala.concurrent.duration._
-import scalaz.Scalaz._
 
 class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Key) extends FSM[FsmState, Set[Node]] with ActorLogging {
   import context.system
@@ -19,7 +18,7 @@ class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Key
   when(Collecting){
     case Event("ok", nodesLeft) =>
       nodesLeft - addr1(sender) match {
-        case enough if prefList.size - enough.size === W => // W nodes removed key
+        case enough if prefList.size - enough.size == W => // W nodes removed key
           client ! AckSuccess(None)
           goto(Sent) using(enough)
         case less => stay using(less)

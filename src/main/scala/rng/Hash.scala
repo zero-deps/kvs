@@ -10,20 +10,93 @@ import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.collection.{breakOut}
 import scala.concurrent.duration._
 import scalaz.Scalaz._
+import java.util.Arrays
 
-case class Put(k: Key, v: Value)
-case class Get(k: Key)
-case class Delete(k: Key)
+final class Put(val k: Key, val v: Value) {
+  override def equals(other: Any): Boolean = other match {
+    case that: Put =>
+      Arrays.equals(k, that.k) &&
+      Arrays.equals(v, that.v)
+    case _ => false
+  }
+  override def hashCode(): Int = {
+    val state = Seq(k, v)
+    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
+  }
+  override def toString = s"Put(k=$k, v=$v)"
+}
 
-case class Save(path: String)
-case class Load(path: String, javaSer: Boolean)
-case class Iterate(path: String, f: (Key, Value) => Option[(Key, Value)], afterIterate: () => Unit)
+object Put {
+  def apply(k: Key, v: Value): Put = {
+    new Put(k=k, v=v)
+  }
+}
 
-case object RestoreState
+final class Get(val k: Key) {
+  override def equals(other: Any): Boolean = other match {
+    case that: Get =>
+      Arrays.equals(k, that.k)
+    case _ => false
+  }
+  override def hashCode(): Int = {
+    val state = Seq(k)
+    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
+  }
+  override def toString = s"Get(k=$k)"
+}
 
-case object Ready
+object Get {
+  def apply(k: Key): Get = {
+    new Get(k=k)
+  }
+}
 
-case class InternalPut(k: Key, v: Value)
+final class Delete(val k: Key) {
+  override def equals(other: Any): Boolean = other match {
+    case that: Delete =>
+      Arrays.equals(k, that.k)
+    case _ => false
+  }
+  override def hashCode(): Int = {
+    val state = Seq(k)
+    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
+  }
+  override def toString = s"Delete(k=$k)"
+}
+
+object Delete {
+  def apply(k: Key): Delete = {
+    new Delete(k=k)
+  }
+}
+
+final case class Save(path: String)
+final case class Load(path: String, javaSer: Boolean)
+final case class Iterate(path: String, f: (Key, Value) => Option[(Key, Value)], afterIterate: () => Unit)
+
+final case object RestoreState
+
+final case object Ready
+
+final class InternalPut(val k: Key, val v: Value) {
+  override def equals(other: Any): Boolean = other match {
+    case that: InternalPut =>
+      Arrays.equals(k, that.k) &&
+      Arrays.equals(v, that.v)
+    case _ => false
+  }
+  override def hashCode(): Int = {
+    val state = Seq(k, v)
+    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
+  }
+  override def toString = s"InternalPut(k=$k, v=$v)"
+}
+
+object InternalPut {
+  def apply(k: Key, v: Value): InternalPut = {
+    new InternalPut(k=k, v=v)
+  }
+}
 
 final case class HashRngData(
   nodes: Set[Node],
@@ -69,13 +142,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   override def postStop(): Unit = cluster.unsubscribe(self)
 
   when(QuorumStateUnsatisfied){
-    case Event(Get(_), _) =>
+    case Event(_: Get, _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
-    case Event(Put(_,_), _) =>
+    case Event(_: Put, _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
-    case Event(Delete(_), _) =>
+    case Event(_: Delete, _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
     case Event(Save(_), _) =>
@@ -96,8 +169,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   when(QuorumStateReadonly){
-    case Event(Get(k), data) =>
-      doGet(k, sender, data)
+    case Event(x: Get, data) =>
+      doGet(x.k, sender, data)
       stay()
     case Event(RestoreState, data) =>
       val s = state(data.nodes.size)
@@ -110,10 +183,10 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       sender ! false
       stay()
 
-    case Event(Put(_,_), _) =>
+    case Event(_: Put, _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
-    case Event(Delete(_), _) =>
+    case Event(_: Delete, _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
     case Event(Save(_), _) =>
@@ -132,14 +205,14 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       sender ! true
       stay()
 
-    case Event(Get(k), data) =>
-      doGet(k, sender, data)
+    case Event(x: Get, data) =>
+      doGet(x.k, sender, data)
       stay()
-    case Event(Put(k,v), data) =>
-      doPut(k, v, sender, data)
+    case Event(x: Put, data) =>
+      doPut(x.k, x.v, sender, data)
       stay()
-    case Event(Delete(k), data) =>
-      doDelete(k, sender, data)
+    case Event(x: Delete, data) =>
+      doDelete(x.k, sender, data)
       stay()
 
     case Event(Save(path), data) =>
@@ -191,8 +264,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         case QuorumStateUnsatisfied => stay()
         case _ => goto(s)
       }
-    case Event(InternalPut(k, v), data) =>
-      doPut(k, v, sender, data)
+    case Event(x: InternalPut, data) =>
+      doPut(x.k, x.v, sender, data)
       stay()
   }
 
