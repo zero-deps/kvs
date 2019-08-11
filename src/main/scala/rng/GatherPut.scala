@@ -4,7 +4,6 @@ import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import zd.rng.data.Data
 import zd.rng.model.{StoreGetAck, StorePut}
 import scala.concurrent.duration._
-import scalaz.Scalaz._
 import java.util.Arrays
 
 final class PutInfo(

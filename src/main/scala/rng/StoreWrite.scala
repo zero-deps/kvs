@@ -10,9 +10,7 @@ import zd.rng.data.codec._
 import zd.rng.data.{Data, BucketInfo}
 import zd.rng.dump.codec._
 import zd.rng.dump.ValueKey
-import zd.rng.model.{DumpPut}
-import zd.rng.model.{ReplBucketPut}
-import zd.rng.model.{StorePut, StoreDelete}
+import zd.rng.model.{DumpPut, ReplBucketPut, StorePut, StoreDelete}
 
 class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   import context.system

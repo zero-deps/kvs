@@ -4,10 +4,9 @@ package file
 import zd.kvs.store.Dba
 import scala.annotation.tailrec
 import scala.util.{Try, Success, Failure}
-import scalaz._
-import scalaz.Scalaz._
 import zd.proto.api.{MessageCodec, encode, decode}
 import zd.proto.macrosapi.caseCodecAuto
+import zd.gs.z._
 
 trait FileHandler {
   protected val chunkLength: Int
@@ -48,8 +47,8 @@ trait FileHandler {
         case (xs, _) if xs.length == 0 => count.right
         case (xs, ys) =>
           dba.put(s"${dir}/${name}_chunk_${count+1}", xs) match {
-            case r @ \/-(_) => writeChunks(count+1, rem=ys)
-            case l @ -\/(_) => l
+            case r @ Right(_) => writeChunks(count+1, rem=ys)
+            case l @ Left(_) => l.coerceRight
           }
       }
     }

@@ -1,8 +1,8 @@
 package zd.kvs
 package el
 
-import scalaz._, Scalaz._
-import store._
+import zd.kvs.store.Dba
+import zd.gs.z._
 
 trait ElHandler[T] {
   def pickle(e: T): Res[Array[Byte]]

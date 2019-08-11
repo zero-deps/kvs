@@ -1,8 +1,8 @@
 package zd.kvs
 package en
 
-import zd.kvs.store._
-import scalaz.Scalaz._
+import zd.kvs.store.Dba
+import zd.gs.z._
 
 final case class Fd(id: String, top: String = empty, count: Int = 0)
 

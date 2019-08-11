@@ -7,8 +7,6 @@ import zd.proto.api.{MessageCodec, encode, decode}
 import zd.proto.macrosapi.{sealedTraitCodecAuto, caseCodecAuto, classCodecAuto, caseCodecIdx}
 
 class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
-
-
   implicit val msgCodec: MessageCodec[Msg] = {
     import zd.rng.data.codec._
     implicit def tuple2IntACodec[A:MessageCodec]: MessageCodec[Tuple2[Int, A]] = caseCodecIdx[Tuple2[Int, A]]

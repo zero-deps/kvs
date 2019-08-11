@@ -15,8 +15,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
 import scala.util.{Try, Success, Failure}
-import scalaz._
-import Scalaz._
+import zd.gs.z._
 
 class Ring(system: ActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")
@@ -125,7 +124,7 @@ class Ring(system: ActorSystem) extends Dba {
     import akka.cluster.sharding._
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
-    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed)(t).mapTo[String],d)).toDisjunction.leftMap(RngThrow)
+    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed)(t).mapTo[String],d)).toEither.leftMap(RngThrow)
   }
 
   def compact(): Unit = {

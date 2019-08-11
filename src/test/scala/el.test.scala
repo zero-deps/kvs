@@ -23,16 +23,16 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.el.get[String]("key").isLeft should be (true)
     }
     "save value" in {
-      kvs.el.put("key","value").toEither.right.value should be ("value")
+      kvs.el.put("key","value").right.value should be ("value")
     }
     "retrieve value" in {
-      kvs.el.get[String]("key").toEither.right.value should be ("value")
+      kvs.el.get[String]("key").right.value should be ("value")
     }
     "override value" in {
-      kvs.el.put("key","value2").toEither.right.value should be ("value2")
+      kvs.el.put("key","value2").right.value should be ("value2")
     }
     "delete value" in {
-      kvs.el.delete[String]("key").toEither.right.value should be ("value2")
+      kvs.el.delete[String]("key").right.value should be ("value2")
     }
     "clean up" in {
       kvs.el.get[String]("key") should be ('left)

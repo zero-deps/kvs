@@ -1,5 +1,4 @@
 val scalaVersion_ = "2.12.8"
-val scalazVersion = "7.2.27"
 val akkaVersion = "2.5.23"
 
 ThisBuild / organization := "io.github.zero-deps"
@@ -29,10 +28,10 @@ lazy val kvs = project.in(file("."))
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
       "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
-      "org.scalaz" %% "scalaz-core" % scalazVersion,
       "io.github.zero-deps" %% "proto-macros" % "1.3.0" % Compile,
       "io.github.zero-deps" %% "proto-runtime" % "1.3.0",
-      compilerPlugin("io.github.zero-deps" %% "gs-plug" % "1.1.0"),
+      compilerPlugin("io.github.zero-deps" %% "gs-plug" % "1.2.1"),
+      "io.github.zero-deps" %% "gs-z" % "1.2.1",
       "io.github.zero-deps" %% "leveldb-jnr" % "1.0.0",
       "io.github.zero-deps" %% "leveldb-jnr" % "1.0.0" % Test classifier "tests",
 

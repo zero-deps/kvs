@@ -1,10 +1,8 @@
 package zd.kvs
 package en
 
-import scalaz._
-import scalaz.Scalaz._
-import zd.kvs.store._
-import store.Dba
+import zd.kvs.store.Dba
+import zd.gs.z._
 
 trait En {
   val fid: String
@@ -91,7 +89,7 @@ trait EnHandler[A <: En] {
               .takeWhile(_.isRight)
               .flatMap(_.toOption)
               .find(_.prev==id)
-              .\/>(NotFound(key(fid, id)))
+              .toRight(NotFound(key(fid, id)))
               .flatMap{ next =>
                 // change link
                 _put(update(next, prev=prev)).flatMap{ _ =>
@@ -115,7 +113,7 @@ trait EnHandler[A <: En] {
         case _ =>
           val en = get(fid, id)
           en match {
-            case \/-(e) => Stream.cons(en, _stream(e.prev))
+            case Right(e) => Stream.cons(en, _stream(e.prev))
             case _ => Stream(en)
           }
       }

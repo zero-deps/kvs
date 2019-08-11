@@ -8,8 +8,6 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Success}
-import scalaz._
-import scalaz.Scalaz._
 import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
 import zd.kvs.el.ElHandler
 import zd.kvs.file.{File, FileHandler}

@@ -11,8 +11,7 @@ import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration._
 import scala.concurrent.{Await}
 import scala.util.{Try}
-import scalaz.Scalaz._
-import scalaz._
+import zd.gs.z._
 
 object DumpProcessor {
   def props(): Props = Props(new DumpProcessor)
@@ -83,9 +82,9 @@ class DumpProcessor extends Actor with ActorLogging {
             _.ask(InternalPut(d._1, d._2)),
             _.ask(InternalPut(d._1, d._2)),
           )
-          Try(Await.result(putF, timeout.duration)).toDisjunction
+          Try(Await.result(putF, timeout.duration)).toEither
         }.sequence_ match {
-          case \/-(_) =>
+          case Right(_) =>
             if (res.last) {
               log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
             } else if (keysNumber % 1000 == 0L) {
@@ -101,7 +100,7 @@ class DumpProcessor extends Actor with ActorLogging {
               dumpIO ! PoisonPill
               context.stop(self)
             }
-          case -\/(t) =>
+          case Left(t) =>
             log.error(cause=t, message="can't put")
             client ! "can't put"
             stores.get(addr(self), "ring_hash").fold(
