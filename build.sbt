@@ -21,6 +21,7 @@ ThisBuild / scalacOptions in Compile ++= Seq(
   "-Ywarn-unused-import",
 )
 ThisBuild / isSnapshot := true // override local artifacts
+ThisBuild / publishArtifact in Test := true
 
 lazy val kvs = project.in(file("."))
   .settings(
