@@ -7,7 +7,6 @@ import com.typesafe.config.Config
 import zd.rng.model.{StoreDelete, StoreGet, QuorumState, ChangeState}
 import zd.rng.model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
 import scala.collection.immutable.{SortedMap, SortedSet}
-import scala.collection.{breakOut}
 import scala.concurrent.duration._
 import java.util.Arrays
 import zd.gs.z._
@@ -317,9 +316,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
-    val newvNodes: Map[VNode, Node] = (1 to vNodesNum).map(vnode => {
+    val newvNodes: Map[VNode, Node] = (1 to vNodesNum).view.map(vnode => {
       hashing.hash(stob(member.address.hostPort).++(itob(vnode))) -> member.address
-    })(breakOut)
+    }).to(Map)
     val updvNodes = data.vNodes ++ newvNodes
     val nodes = data.nodes + member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
@@ -332,7 +331,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def removeNodeFromRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
     log.info(s"Removing ${member} from ring")
-    val unusedvNodes: Set[VNode] = (1 to vNodesNum).map(vnode => hashing.hash(stob(member.address.hostPort).++(itob(vnode))))(breakOut)
+    val unusedvNodes: Set[VNode] = (1 to vNodesNum).view.map(vnode => hashing.hash(stob(member.address.hostPort).++(itob(vnode)))).to(Set)
     val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
     val nodes = data.nodes - member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)

@@ -15,7 +15,7 @@ object SelectionMemorize extends ExtensionId[SelectionMemorize] with ExtensionId
 
 trait ActorRefStorage {
   def get(node: Node, path: String): Either[ActorRef, ActorSelection]
-  def put(n: (Node, String), actor: ActorRef)
+  def put(n: (Node, String), actor: ActorRef): Unit
   def remove(node: (Node, String)): Unit
 }
 

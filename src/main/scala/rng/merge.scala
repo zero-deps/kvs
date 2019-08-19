@@ -3,7 +3,6 @@ package zd.rng
 import zd.rng.data.{Data}
 import zd.rng.GatherGet.AddrOfData
 import scala.annotation.tailrec
-import scala.collection.breakOut
 import scala.collection.immutable.{HashMap, HashSet}
 import zd.gs.z._
 
@@ -88,7 +87,7 @@ object MergeOps {
         val correct = loop(t.map(_._1), h._1)
         def makevc1(x: Option[Data]): VectorClock = x.map(_.vc).getOrElse(emptyVC)
         val correct_vc = makevc1(correct)
-        correct -> xs.filterNot(x => makevc1(x._1) == correct_vc).map(_._2)(breakOut)
+        correct -> xs.view.filterNot(x => makevc1(x._1) == correct_vc).map(_._2).to(HashSet)
     }
   }
 

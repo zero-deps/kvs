@@ -2,10 +2,11 @@ package zd.kvs
 
 import zd.rng._
 import zd.rng.data._
+import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest._
 import scala.collection.immutable.{HashSet, TreeMap}
 
-class MergeTest extends FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
+class MergeTest extends AnyFreeSpec with Matchers with EitherValues with BeforeAndAfterAll {
   def v1(v: Long) = "n1" -> v
   def v2(v: Long) = "n2" -> v
   def vc(v: Tuple2[String,Long]*) = new VectorClock(TreeMap.empty[String,Long] ++ v)

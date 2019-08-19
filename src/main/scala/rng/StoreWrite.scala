@@ -113,7 +113,7 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
     }
   }
 
-  def withBatch[R](body: WriteBatch ⇒ R): R = {
+  def withBatch[R](body: WriteBatch => R): R = {
     val batch = new WriteBatch
     try {
       val r = body(batch)

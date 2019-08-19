@@ -1,4 +1,4 @@
-val scalaVersion_ = "2.12.8"
+val scalaVersion_ = "2.13.0"
 val akkaVersion = "2.5.23"
 
 ThisBuild / organization := "io.github.zero-deps"
@@ -16,9 +16,8 @@ ThisBuild / scalacOptions in Compile ++= Seq(
   "-deprecation",
   "-language:_",
   "-encoding", "UTF-8",
-  "-Ypartial-unification",
   "-Xfatal-warnings",
-  "-Ywarn-unused-import",
+  "-Ywarn-unused:imports",
 )
 ThisBuild / isSnapshot := true // override local artifacts
 ThisBuild / publishArtifact in Test := true
@@ -29,15 +28,15 @@ lazy val kvs = project.in(file("."))
       "ch.qos.logback" % "logback-classic" % "1.2.3",
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
       "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
-      "io.github.zero-deps" %% "proto-macros" % "1.3.0" % Compile,
-      "io.github.zero-deps" %% "proto-runtime" % "1.3.0",
-      compilerPlugin("io.github.zero-deps" %% "gs-plug" % "1.2.1"),
-      "io.github.zero-deps" %% "gs-z" % "1.2.1",
-      "io.github.zero-deps" %% "leveldb-jnr" % "1.0.0",
-      "io.github.zero-deps" %% "leveldb-jnr" % "1.0.0" % Test classifier "tests",
+      "io.github.zero-deps" %% "proto-macros" % "1.3.1" % Compile,
+      "io.github.zero-deps" %% "proto-runtime" % "1.3.1",
+      compilerPlugin("io.github.zero-deps" %% "gs-plug" % "1.4.2"),
+      "io.github.zero-deps" %% "gs-z" % "1.4.2",
+      "io.github.zero-deps" %% "leveldb-jnr" % "1.0.2",
+      "io.github.zero-deps" %% "leveldb-jnr" % "1.0.2" % Test classifier "tests",
 
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
-      "org.scalatest" %% "scalatest" % "3.0.1" % Test,
+      "org.scalatest" %% "scalatest" % "3.1.0-SNAP13" % Test,
     )
   )
 

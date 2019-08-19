@@ -13,7 +13,6 @@ import zd.rng.store.{ReadonlyStore, WriteStore}
 import zd.rng.{stob}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
-import scala.language.postfixOps
 import scala.util.{Try, Success, Failure}
 import zd.gs.z._
 

@@ -66,18 +66,18 @@ trait FileHandler {
     get(dir, name).map(_.size)
   }
 
-  def stream(dir: String, name: String)(implicit dba: Dba): Res[Stream[Res[Array[Byte]]]] = {
+  def stream(dir: String, name: String)(implicit dba: Dba): Res[LazyList[Res[Array[Byte]]]] = {
     get(dir, name).map(_.count).flatMap{
       case n if n < 0 => Fail(s"impossible count=${n}").left
-      case 0 => Stream.empty.right
-      case n if n > 0 => Stream.range(1, n+1).map(i => dba.get(s"${dir}/${name}_chunk_${i}")).right
+      case 0 => LazyList.empty.right
+      case n if n > 0 => LazyList.range(1, n+1).map(i => dba.get(s"${dir}/${name}_chunk_${i}")).right
     }
   }
 
   def delete(dir: String, name: String)(implicit dba: Dba): Res[File] = {
     for {
       file <- get(dir, name)
-      _ <- Stream.range(1, file.count+1).map(i => dba.delete(s"${dir}/${name}_chunk_${i}")).sequence_
+      _ <- LazyList.range(1, file.count+1).map(i => dba.delete(s"${dir}/${name}_chunk_${i}")).sequence_
       _ <- dba.delete(s"${dir}/${name}")
     } yield file
   }
@@ -93,7 +93,7 @@ trait FileHandler {
         },
         r => FileAlreadyExists(dir, toName).left
       )
-      _ <- Stream.range(1, from.count+1).map(i => for {
+      _ <- LazyList.range(1, from.count+1).map(i => for {
         x <- dba.get(s"${dir}/${fromName}_chunk_${i}")
         _ <- dba.put(s"${dir}/${toName}_chunk_${i}", x)
       } yield ()).sequence_

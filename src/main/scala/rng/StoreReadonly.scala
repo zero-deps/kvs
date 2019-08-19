@@ -10,7 +10,6 @@ import zd.rng.model.{StoreGet, StoreGetAck}
 import zd.rng.model.{DumpGet, DumpEn}
 import zd.rng.model.{DumpGetBucketData, DumpBucketData}
 import zd.rng.model.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
-import scala.collection.{breakOut}
 import zd.proto.api.decode
 
 object ReadonlyStore {
@@ -52,19 +51,19 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
             case true => sender ! ReplBucketUpToDate
             case false =>
               val keys = b_info.keys
-              val items: Vector[Data] = keys.flatMap(key =>
+              val items: Vector[Data] = keys.view.flatMap(key =>
                 get(itob(b)++`:key:`++key).map(decode[Data](_))
-              )(breakOut)
+              ).to(Vector)
               sender ! ReplNewerBucketData(b_info.vc, items)
           }
         case None =>
           sender ! ReplBucketUpToDate
       }
     case ReplGetBucketsVc(bs) =>
-      val bvcs: Bucket Map VectorClock = bs.flatMap{ b =>
+      val bvcs: Bucket Map VectorClock = bs.view.flatMap{ b =>
         val k = itob(b) ++ `:keys`
         get(k).map(x => b -> decode[BucketInfo](x).vc)
-      }(breakOut)
+      }.to(Map)
       sender ! ReplBucketsVc(bvcs)
 
     case x: DumpGet =>

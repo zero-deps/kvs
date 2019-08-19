@@ -6,7 +6,6 @@ import zd.kvs.store._
 import zd.kvs.store.IdCounter
 import scala.concurrent._
 import scala.concurrent.duration._
-import scala.language.postfixOps
 import scala.util.{Success}
 import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
 import zd.kvs.el.ElHandler
@@ -55,15 +54,15 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
 
   def add[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.add(el)
   def put[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.put(el)
-  def stream_safe[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[Stream[Res[H]]] = h.stream(fid, from)
-  def stream_unsafe[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[Stream[H]] = stream_safe[H](fid, from).map(_.takeWhile(_.isRight).flatMap(_.toOption))
+  def stream_safe[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[Res[H]]] = h.stream(fid, from)
+  def stream_unsafe[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[H]] = stream_safe[H](fid, from).map(_.takeWhile(_.isRight).flatMap(_.toOption))
   def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.get(fid, id)
   def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.remove(fid, id)
 
   object file {
     def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)
     def append(dir: String, name: String, chunk: Array[Byte])(implicit h: FileHandler): Res[File] = h.append(dir, name, chunk)
-    def stream(dir: String, name: String)(implicit h: FileHandler): Res[Stream[Res[Array[Byte]]]] = h.stream(dir, name)
+    def stream(dir: String, name: String)(implicit h: FileHandler): Res[LazyList[Res[Array[Byte]]]] = h.stream(dir, name)
     def size(dir: String, name: String)(implicit h: FileHandler): Res[Long] = h.size(dir, name)
     def delete(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.delete(dir, name)
     def copy(dir: String, name: (String, String))(implicit h: FileHandler): Res[File] = h.copy(dir, name)

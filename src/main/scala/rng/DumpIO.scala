@@ -8,7 +8,6 @@ import java.nio.file.StandardOpenOption.{READ, WRITE, CREATE}
 import zd.rng.data.{Data}
 import zd.rng.dump.codec._
 import zd.rng.dump.{DumpKV, KV}
-import scala.collection.{breakOut}
 import scala.util.Try
 import zd.proto.api.{encode, decode}
 
@@ -35,7 +34,7 @@ class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLoggi
         val value: Array[Byte] = new Array[Byte](blockSize)
         val valueRead: Int = channel.read(ByteBuffer.wrap(value))
         if (valueRead == blockSize) {
-          val kv: Vector[(Key, Value)] = decode[DumpKV](value).kv.map(d => d.k -> d.v)(breakOut)
+          val kv: Vector[(Key, Value)] = decode[DumpKV](value).kv.view.map(d => d.k -> d.v).to(Vector)
           sender ! DumpIO.ReadNextRes(kv, false)
         } else {
           log.error(s"failed to read dump io, blockSize=${blockSize}, valueRead=${valueRead}")

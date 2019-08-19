@@ -75,7 +75,7 @@ class DumpProcessor extends Actor with ActorLogging {
       case res: DumpIO.ReadNextRes =>
         if (!res.last) dumpIO ! DumpIO.ReadNext
         keysNumber = keysNumber + res.kv.size
-        res.kv.toStream.map{ d =>
+        res.kv.to(LazyList).map{ d =>
           ksize = ksize + d._1.size
           size = size + d._2.size
           val putF = stores.get(addr(self), "ring_hash").fold(

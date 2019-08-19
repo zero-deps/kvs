@@ -85,7 +85,7 @@ trait EnHandler[A <: En] {
             fh.put(fd.copy(top=prev,count=fd.count-1))
           else
             // find entry which points to this one (next)
-            Stream.iterate(start=get(fid,top))(_.flatMap(x=>get(fid,x.prev)))
+            LazyList.iterate(start=get(fid,top))(_.flatMap(x=>get(fid,x.prev)))
               .takeWhile(_.isRight)
               .flatMap(_.toOption)
               .find(_.prev==id)
@@ -106,15 +106,15 @@ trait EnHandler[A <: En] {
    * Stream is FILO ordered (most recent is first).
    * @param from if specified then return entries after this entry
    */
-  def stream(fid: String, from: Option[A])(implicit dba: Dba): Res[Stream[Res[A]]] = {
-    def _stream(id: String): Stream[Res[A]] = {
+  def stream(fid: String, from: Option[A])(implicit dba: Dba): Res[LazyList[Res[A]]] = {
+    def _stream(id: String): LazyList[Res[A]] = {
       id match {
-        case `empty` => Stream.empty
+        case `empty` => LazyList.empty
         case _ =>
           val en = get(fid, id)
           en match {
-            case Right(e) => Stream.cons(en, _stream(e.prev))
-            case _ => Stream(en)
+            case Right(e) => LazyList.cons(en, _stream(e.prev))
+            case _ => LazyList(en)
           }
       }
     }

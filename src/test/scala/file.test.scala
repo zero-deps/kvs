@@ -4,6 +4,7 @@ import akka.actor._
 import akka.testkit._
 import com.typesafe.config.{ConfigFactory}
 import zd.kvs.file._
+import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest._
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -11,7 +12,7 @@ import scala.util.Try
 import zd.gs.z._
 
 class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4013))))
-  with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
+  with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
   var kvs: Kvs = null
   override def beforeAll = {
@@ -37,13 +38,13 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
     "append" in {
       val r = kvs.file.append(dir, name, Array(1, 2, 3, 4, 5, 6))
       r.isRight should be (true)
-      r.right.value.size should be (6)
-      r.right.value.count should be (2)
+      r.getOrElse(???).size should be (6)
+      r.getOrElse(???).count should be (2)
     }
     "size" in {
       val r = kvs.file.size(dir, name)
       r.isRight should be (true)
-      r.right.value should be (6)
+      r.getOrElse(???) should be (6)
     }
     "size if absent" in {
       kvs.file.size(dir, name + "1").left.value should be (FileNotExists(dir, name + "1"))
@@ -51,9 +52,9 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
     "content" in {
       val r = kvs.file.stream(dir, name)
       r.isRight should be (true)
-      val r1 = r.right.value.sequenceU
+      val r1 = r.getOrElse(???).sequenceU
       r1.isRight should be (true)
-      r1.right.value.toArray.flatten should be (Array(1, 2, 3, 4, 5, 6))
+      r1.getOrElse(???).toArray.flatten should be (Array(1, 2, 3, 4, 5, 6))
     }
     "content if absent" in {
       kvs.file.stream(dir, name + "1").left.value should be (FileNotExists(dir, name + "1"))

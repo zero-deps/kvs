@@ -3,13 +3,14 @@ package zd.kvs
 import akka.actor._
 import akka.testkit._
 import com.typesafe.config.{ConfigFactory}
+import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
 
 class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4011))))
-  with FreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
+  with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
   var kvs: Kvs = null
   override def beforeAll = {
@@ -23,19 +24,19 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.el.get[String]("key").isLeft should be (true)
     }
     "save value" in {
-      kvs.el.put("key","value").right.value should be ("value")
+      kvs.el.put("key","value").getOrElse(???) should be ("value")
     }
     "retrieve value" in {
-      kvs.el.get[String]("key").right.value should be ("value")
+      kvs.el.get[String]("key").getOrElse(???) should be ("value")
     }
     "override value" in {
-      kvs.el.put("key","value2").right.value should be ("value2")
+      kvs.el.put("key","value2").getOrElse(???) should be ("value2")
     }
     "delete value" in {
-      kvs.el.delete[String]("key").right.value should be ("value2")
+      kvs.el.delete[String]("key").getOrElse(???) should be ("value2")
     }
     "clean up" in {
-      kvs.el.get[String]("key") should be ('left)
+      kvs.el.get[String]("key") should be (Symbol("left"))
     }
   }
 }

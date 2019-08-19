@@ -4,6 +4,8 @@ object conf {
   def tmpl(port: Int) = s"""
     |akka {
     |  loglevel = off
+    |
+    |  actor.provider = cluster
     |  
     |  remote {
     |    netty.tcp {
@@ -12,7 +14,7 @@ object conf {
     |    }
     |  }
     |
-    |  cluster {
+    |  cluster {  
     |    seed-nodes = [
     |      "akka.tcp://Test@127.0.0.1:${port}",
     |    ]
