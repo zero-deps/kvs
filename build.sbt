@@ -1,5 +1,10 @@
 val scalaVersion_ = "2.13.0"
 val akkaVersion = "2.5.23"
+val gsVersion = "1.5.1"
+val leveldbVersion = "1.0.3"
+val protoVersion = "1.3.2"
+val logbackVersion = "1.2.3"
+val scalatestVersion = "3.1.0-SNAP13"
 
 ThisBuild / organization := "io.github.zero-deps"
 ThisBuild / description := "Abstract Scala Types Key-Value Storage"
@@ -19,24 +24,30 @@ ThisBuild / scalacOptions in Compile ++= Seq(
   "-Xfatal-warnings",
   "-Ywarn-unused:imports",
 )
+
 ThisBuild / isSnapshot := true // override local artifacts
+ThisBuild / publishArtifact := true
 ThisBuild / publishArtifact in Test := true
+
+ThisBuild / turbo := true
+ThisBuild / useCoursier := true
+Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val kvs = project.in(file("."))
   .settings(
     libraryDependencies ++= Seq(
-      "ch.qos.logback" % "logback-classic" % "1.2.3",
+      "ch.qos.logback" % "logback-classic" % logbackVersion,
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
       "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
-      "io.github.zero-deps" %% "proto-macros" % "1.3.1" % Compile,
-      "io.github.zero-deps" %% "proto-runtime" % "1.3.1",
-      compilerPlugin("io.github.zero-deps" %% "gs-plug" % "1.4.2"),
-      "io.github.zero-deps" %% "gs-z" % "1.4.2",
-      "io.github.zero-deps" %% "leveldb-jnr" % "1.0.2",
-      "io.github.zero-deps" %% "leveldb-jnr" % "1.0.2" % Test classifier "tests",
+      "io.github.zero-deps" %% "proto-macros" % protoVersion % Compile,
+      "io.github.zero-deps" %% "proto-runtime" % protoVersion,
+      compilerPlugin("io.github.zero-deps" %% "gs-plug" % gsVersion),
+      "io.github.zero-deps" %% "gs-z" % gsVersion,
+      "io.github.zero-deps" %% "leveldb-jnr" % leveldbVersion,
+      "io.github.zero-deps" %% "leveldb-jnr" % leveldbVersion % Test classifier "tests",
 
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
-      "org.scalatest" %% "scalatest" % "3.1.0-SNAP13" % Test,
+      "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     )
   )
 
