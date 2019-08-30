@@ -48,13 +48,12 @@ class Ring(system: ActorSystem) extends Dba {
     hash.ask(rng.Ready)(t).mapTo[Boolean]
   }
 
-  def get(key: String): Res[V] = {
+  def get(key: String): Res[Option[V]] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Get(stob(key)))(t).mapTo[rng.Ack]
     Try(Await.result(fut, d)) match {
-      case Success(rng.AckSuccess(Some(v))) => v.right
-      case Success(rng.AckSuccess(None)) => NotFound(key).left
+      case Success(rng.AckSuccess(v)) => v.right
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
       case Failure(t) => RngThrow(t).left
@@ -62,7 +61,7 @@ class Ring(system: ActorSystem) extends Dba {
   }
 
   def delete(key: String): Res[V] = {
-    get(key).flatMap{ r =>
+    get(key).flatMap(_.cata(_.right, NotFound(key).left)).flatMap{ r =>
       val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
       val t = Timeout(d)
       val fut = hash.ask(rng.Delete(stob(key)))(t).mapTo[rng.Ack]
@@ -146,8 +145,8 @@ class IdCounter extends Actor with ActorLogging {
   def receive: Receive = {
     case name: String =>
       kvs.el.get[String](s"IdCounter.${name}").fold(
-        empty => put(name, prev="0"),
-        prev => put(name, prev)
+        l => log.error("can't get counter for name={} err={}", name, l)
+      , r => r.cata(prev => put(name, prev), put(name, prev="0"))
       )
   }
 

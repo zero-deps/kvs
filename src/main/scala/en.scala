@@ -24,7 +24,14 @@ trait EnHandler[A <: En] {
 
   private def key(fid:String,id:String):String = s"${fid}.${id}"
   private def _put(en:A)(implicit dba:Dba):Res[A] = pickle(en).flatMap(x => dba.put(key(en.fid,en.id),x)).map(_=>en)
-  def get(fid:String,id:String)(implicit dba:Dba):Res[A] = dba.get(key(fid,id)).flatMap(unpickle)
+  def get(fid: String, id: String)(implicit dba: Dba): Res[A] = {
+    val k = key(fid,id)
+    dba.get(k) match {
+      case Right(Some(x)) => unpickle(x)
+      case Right(None) => NotFound(k).left
+      case x@Left(_) => x.coerceRight
+    }
+  }
   private def delete(fid:String,id:String)(implicit dba:Dba):Res[A] = dba.delete(key(fid,id)).flatMap(unpickle)
 
   protected def update(en: A, id: String, prev: String): A
@@ -35,17 +42,14 @@ trait EnHandler[A <: En] {
    * Creates the container if it's absent
    * @param en entry to add (prev is ignored). If id is empty it will be generated
    */
-  def add(en: A)(implicit dba: Dba): Res[A] =
-    fh.get(Fd(en.fid)).fold(
-      l => fh.put(Fd(en.fid)), // create feed if it doesn't exist
-      r => r.right
-    ).flatMap{ fd: Fd =>
+  def add(en: A)(implicit dba: Dba): Res[A] = {
+    fh.get(Fd(en.fid)).flatMap(_.cata(_.right, fh.put(Fd(en.fid)))).flatMap{ fd: Fd =>
       ( if (en.id == empty)
           dba.nextid(en.fid) // generate ID if it is empty
         else
           get(en.fid, en.id).fold( // id of entry must be unique
-            l => en.id.right,
-            r => EntryExists(key(en.fid, en.id)).left
+            _ => en.id.right,
+            _ => EntryExists(key(en.fid, en.id)).left
           )
       ).map(id => update(en, id=id, prev=fd.top)).flatMap{ en =>
         // add new entry with prev pointer
@@ -55,6 +59,7 @@ trait EnHandler[A <: En] {
         }
       }
     }
+  }
 
   /**
    * Puts the entry to the container
@@ -64,7 +69,7 @@ trait EnHandler[A <: En] {
    */
   def put(en: A)(implicit dba: Dba): Res[A] =
     get(en.fid, en.id).fold(
-      l => add(en),
+      _ => add(en),
       r => _put(update(en, r.prev))
     )
 
@@ -78,7 +83,7 @@ trait EnHandler[A <: En] {
       val id = en.id
       val fid = en.fid
       val prev = en.prev
-      fh.get(Fd(fid)).flatMap{ fd =>
+      fh.get(Fd(fid)).flatMap(_.cata(_.right, NotFound(fid).left)).flatMap{ fd =>
         val top = fd.top
         ( if (id == top)
             // change top and decrement
@@ -119,7 +124,7 @@ trait EnHandler[A <: En] {
       }
     }
     from match {
-      case None => fh.get(Fd(fid)).map(r => _stream(r.top))
+      case None => fh.get(Fd(fid)).flatMap(_.cata(_.right, NotFound(fid).left)).map(r => _stream(r.top))
       case Some(en) => _stream(en.prev).right
     }
   }

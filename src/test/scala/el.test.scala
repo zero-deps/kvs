@@ -21,13 +21,13 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
   "el handler should" - {
     "return error when element is absent" in {
-      kvs.el.get[String]("key").isLeft should be (true)
+      kvs.el.get[String]("key").getOrElse(???) should be (None)
     }
     "save value" in {
       kvs.el.put("key","value").getOrElse(???) should be ("value")
     }
     "retrieve value" in {
-      kvs.el.get[String]("key").getOrElse(???) should be ("value")
+      kvs.el.get[String]("key").getOrElse(???) should be (Some("value"))
     }
     "override value" in {
       kvs.el.put("key","value2").getOrElse(???) should be ("value2")
@@ -36,7 +36,7 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.el.delete[String]("key").getOrElse(???) should be ("value2")
     }
     "clean up" in {
-      kvs.el.get[String]("key") should be (Symbol("left"))
+      kvs.el.get[String]("key").getOrElse(???) should be (None)
     }
   }
 }

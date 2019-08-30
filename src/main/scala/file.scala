@@ -19,26 +19,26 @@ trait FileHandler {
     case Failure(x) => UnpickleFail(x).left
   }
 
-  private def get(dir: String, name: String)(implicit dba: Dba): Res[File] = dba.get(s"${dir}/${name}").fold(
-    l => l match {
-      case NotFound(_) => FileNotExists(dir, name).left
-      case _ => l.left
-    },
-    r => r.right
-  ).flatMap(unpickle)
+  private def get(dir: String, name: String)(implicit dba: Dba): Res[File] = {
+    dba.get(s"${dir}/${name}") match {
+      case Right(Some(x)) => unpickle(x)
+      case Right(None) => FileNotExists(dir, name).left
+      case x@Left(_) => x.coerceRight
+    }
+  }
 
-  def create(dir: String, name: String)(implicit dba: Dba): Res[File] = dba.get(s"${dir}/${name}").fold(
-    l => l match {
-      case _: NotFound =>
+  def create(dir: String, name: String)(implicit dba: Dba): Res[File] = {
+    dba.get(s"${dir}/${name}") match {
+      case Right(Some(_)) => FileAlreadyExists(dir, name).left
+      case Right(None) =>
         val f = File(name, count=0, size=0L, dir=false)
         for {
           x <- pickle(f)
-          r <- dba.put(s"${dir}/${name}", x).map(_ => f)
-        } yield r
-      case _ => l.left
-    },
-    r => FileAlreadyExists(dir, name).left
-  )
+          _ <- dba.put(s"${dir}/${name}", x)
+        } yield f
+      case x@Left(_) => x.coerceRight
+    }
+  }
 
   def append(dir: String, name: String, data: Array[Byte])(implicit dba: Dba): Res[File] = {
     @tailrec
@@ -70,7 +70,9 @@ trait FileHandler {
     get(dir, name).map(_.count).flatMap{
       case n if n < 0 => Fail(s"impossible count=${n}").left
       case 0 => LazyList.empty.right
-      case n if n > 0 => LazyList.range(1, n+1).map(i => dba.get(s"${dir}/${name}_chunk_${i}")).right
+      case n if n > 0 =>
+        def k(i: Int) = s"${dir}/${name}_chunk_${i}"
+        LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.cata(_.right, NotFound(k(i)).left))).right
     }
   }
 
@@ -91,10 +93,13 @@ trait FileHandler {
           case _: FileNotExists => ().right
           case _ => l.left
         },
-        r => FileAlreadyExists(dir, toName).left
+        _ => FileAlreadyExists(dir, toName).left
       )
       _ <- LazyList.range(1, from.count+1).map(i => for {
-        x <- dba.get(s"${dir}/${fromName}_chunk_${i}")
+        x <- {
+          val k = s"${dir}/${fromName}_chunk_${i}"
+          dba.get(k).flatMap(_.cata(_.right, NotFound(k).left))
+        }
         _ <- dba.put(s"${dir}/${toName}_chunk_${i}", x)
       } yield ()).sequence_
       to = File(toName, from.count, from.size, from.dir)

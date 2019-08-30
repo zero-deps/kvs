@@ -25,7 +25,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)], a
   val stores = SelectionMemorize(context.system)
   startWith(ReadyCollect, None)
 
-  def restoreState: Unit =
+  def restoreState(): Unit =
     stores.get(addr(self), "ring_hash").fold(
       _ ! RestoreState,
       _ ! RestoreState,
@@ -42,7 +42,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)], a
         case Left(t) =>
           log.error(cause=t, message=s"Invalid path of dump=${path}")
           sender ! "invalid path"
-          restoreState
+          restoreState()
           stop()
       }
   }
@@ -58,7 +58,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)], a
           log.info("load is completed, keys={}, size={}, ksize={}", keysNumber, size, ksize)
           dumpDb.close()
           state.map(_ ! "done")
-          restoreState
+          restoreState()
           afterIterate()
           stop()
         } else {
@@ -82,7 +82,7 @@ class IterateDumpWorker(path: String, f: (Key, Value) => Option[(Key, Value)], a
               log.error("stop iterate. failed to put", err)
               dumpDb.close()
               state.map(_ ! "failed to put")
-              restoreState
+              restoreState()
               afterIterate()
               stop()
           }

@@ -3,8 +3,9 @@ package zd.kvs
 import akka.actor.ActorSystem
 import java.lang.management.ManagementFactory
 import javax.management.{ObjectName,StandardMBean}
-import zd.kvs.el.ElHandler.strHandler
 import scala.util._
+import zd.gs.z._
+import zd.kvs.el.ElHandler.strHandler
 
 /** Kvs management access */
 trait KvsMBean {
@@ -29,8 +30,10 @@ class KvsJmx(kvs: Kvs, system: ActorSystem) {
       def load(path: String): Any = kvs.dump.load(path).fold(_.toString, identity)
       def loadJava(path: String): Any = kvs.dump.loadJava(path).fold(_.toString, identity)
 
-      def get(k: String): String = kvs.el.get(k).getOrElse("NaN")
-      def put(k: String, v: String): Unit = kvs.el.put(k, v)
+      def get(k: String): String = kvs.el.get(k).fold(_.toString, _.cata(_.toString, "NaN"))
+      def put(k: String, v: String): Unit = {
+        val _ = kvs.el.put(k, v)
+      }
 
       def getN(i: Int): Unit = {
         println(s"started check")
@@ -67,5 +70,7 @@ class KvsJmx(kvs: Kvs, system: ActorSystem) {
     log.info("Registered KVS JMX MBean [{}]",name)
   }
 
-  def unregisterMBean(): Unit = Try(server.unregisterMBean(name))
+  def unregisterMBean(): Unit = {
+    val _ = Try(server.unregisterMBean(name))
+  }
 }

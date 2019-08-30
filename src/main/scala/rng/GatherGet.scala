@@ -1,5 +1,6 @@
 package zd.rng
 
+import annotation.unused
 import akka.actor._
 import zd.rng.data.Data
 import zd.rng.model.{StoreGetAck, StorePut, StoreDelete}
@@ -8,7 +9,7 @@ import scala.collection.immutable.{HashSet}
 
 import GatherGet.DataCollection
 
-class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key) extends FSM[FsmState, DataCollection] with ActorLogging {
+class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, @unused R: Int, k: Key) extends FSM[FsmState, DataCollection] with ActorLogging {
   val stores = SelectionMemorize(context.system)
 
   startWith(Collecting, DataCollection(Vector.empty, 0))

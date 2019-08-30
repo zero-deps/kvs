@@ -10,7 +10,7 @@ trait Dba {
   type K = String
   type V = Array[Byte]
   def put(key: K, value: V): Res[V]
-  def get(key: K): Res[V]
+  def get(key: K): Res[Option[V]]
   def delete(key: K): Res[V]
   def save(path: String): Res[String]
   def load(path: String): Res[Any]

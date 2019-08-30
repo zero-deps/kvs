@@ -1,7 +1,7 @@
 .DS_Store
 /.idea/
-/kvs-demo/rng_data_*/
-/kvs-demo/tmp/
+/demo/rng_data_*/
+/demo/tmp/
 /rng_data_*/
 /tmp/
 target/

@@ -11,12 +11,10 @@ trait FdHandler {
   def unpickle(a: Array[Byte]): Res[Fd]
 
   def put(el: Fd)(implicit dba: Dba): Res[Fd] = pickle(el).flatMap(x => dba.put(el.id,x)).flatMap(unpickle)
-  def get(el: Fd)(implicit dba: Dba): Res[Fd] = dba.get(el.id).fold(
-    l => l match {
-      case NotFound(k) => FeedNotExists(k).left
-      case x => x.left
-    },
-    r => unpickle(r),
-  )
+  def get(el: Fd)(implicit dba: Dba): Res[Option[Fd]] = dba.get(el.id) match {
+    case Right(Some(x)) => unpickle(x).map(_.just)
+    case Right(None) => Right(None)
+    case x@Left(_) => x.coerceRight
+  }
   def delete(el: Fd)(implicit dba: Dba): Res[Fd] = dba.delete(el.id).flatMap(unpickle)
 }

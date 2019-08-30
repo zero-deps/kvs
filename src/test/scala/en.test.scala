@@ -58,12 +58,12 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
   "Feed should" - {
     "be empty at creation" in {
-      kvs.stream_safe[En](fid) shouldBe (Left(FeedNotExists(fid)))
+      kvs.stream_safe[En](fid) shouldBe (Left(NotFound(fid)))
     }
 
     "should save e1" in {
       val saved = kvs.add(e1).getOrElse(???)
-      kvs.fd.get(Fd(fid)).map(_.count) match {
+      kvs.fd.get(Fd(fid)).map(_.get.count) match {
         case Right(x) => x shouldBe 1
         case Left(RngThrow(t)) => t.printStackTrace
         case Left(x) => fail(x.toString)
@@ -73,12 +73,12 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
     "should save e2" in {
       val saved = kvs.add(e2).getOrElse(???)
-      kvs.fd.get(Fd(fid)).getOrElse(???).count shouldBe 2
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 2
       (saved.fid, saved.id, saved.data) shouldBe(e2.fid, "2", e2.data)
     }
 
     "should get e1 and e2 from feed" in {
-      kvs.fd.get(Fd(fid)).getOrElse(???).count shouldBe 2
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 2
 
       val stream = kvs.stream_safe[En](fid)
       stream.map(_.toList) shouldBe List(e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
@@ -94,7 +94,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "should get 3 values from feed" in {
-      kvs.fd.get(Fd(fid)).getOrElse(???).count shouldBe 3
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 3
 
       val stream = kvs.stream_safe[En](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="2").right, e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
@@ -111,7 +111,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "should get 2 values from feed" in {
-      kvs.fd.get(Fd(fid)).getOrElse(???).count shouldBe 2
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 2
 
       val stream = kvs.stream_safe[En](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="1").right, e1.copy(id="1").right).right
@@ -124,7 +124,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "should get 1 values from feed" in {
-      kvs.fd.get(Fd(fid)).getOrElse(???).count shouldBe 1
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 1
 
       val stream = kvs.stream_safe[En](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3").right).right
@@ -137,7 +137,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "should be empty" in {
-      kvs.fd.get(Fd(fid)).getOrElse(???).count shouldBe 0
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 0
       kvs.stream_safe[En](fid).getOrElse(???) shouldBe empty
     }
 
@@ -157,12 +157,12 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
         (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, (n+3).toString, toremove.data)
 
-        kvs.fd.get(Fd(fid)).getOrElse(???).count shouldBe (limit - n)
+        kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe (limit - n)
       }
     }
 
     "feed should be empty at the end test" in {
-      kvs.fd.get(Fd(fid)).getOrElse(???).count shouldBe 0
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 0
       kvs.stream_safe[En](fid).getOrElse(???) shouldBe empty
       kvs.fd.delete(Fd(fid))
       kvs.stream_safe[En](fid) shouldBe (Symbol("left"))

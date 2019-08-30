@@ -9,7 +9,11 @@ trait ElHandler[T] {
   def unpickle(a: Array[Byte]): Res[T]
 
   def put(k:String,el:T)(implicit dba:Dba):Res[T] = pickle(el).flatMap(x => dba.put(k,x)).map(_=>el)
-  def get(k:String)(implicit dba:Dba):Res[T] = dba.get(k).flatMap(unpickle)
+  def get(k:String)(implicit dba:Dba):Res[Option[T]] = dba.get(k) match {
+    case Right(Some(x)) => unpickle(x).map(_.just)
+    case Right(None) => Right(None)
+    case x@Left(_) => x.coerceRight
+  }
   def delete(k:String)(implicit dba:Dba):Res[T] = dba.delete(k).flatMap(unpickle)
 }
 

@@ -40,13 +40,13 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
 
   object el {
     def put[A: ElHandler](k: String,el: A): Res[A] = implicitly[ElHandler[A]].put(k,el)
-    def get[A: ElHandler](k: String): Res[A] = implicitly[ElHandler[A]].get(k)
+    def get[A: ElHandler](k: String): Res[Option[A]] = implicitly[ElHandler[A]].get(k)
     def delete[A: ElHandler](k: String): Res[A] = implicitly[ElHandler[A]].delete(k)
   }
 
   object fd {
     def put(fd: Fd)(implicit fh: FdHandler): Res[Fd] = fh.put(fd)
-    def get(fd: Fd)(implicit fh: FdHandler): Res[Fd] = fh.get(fd)
+    def get(fd: Fd)(implicit fh: FdHandler): Res[Option[Fd]] = fh.get(fd)
     def delete(fd: Fd)(implicit fh: FdHandler): Res[Fd] = fh.delete(fd)
   }
 
@@ -72,7 +72,9 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
     def save(path: String): Res[String] = dba.save(path)
     def load(path: String): Res[Any] = dba.load(path)
     def loadJava(path: String): Res[Any] = dba.loadJava(path)
-    def iterate(path: String, f: (String, Array[Byte]) => Option[(String, Array[Byte])], afterIterate: () => Unit): Unit = dba.iterate(path, f, afterIterate)
+    def iterate(path: String, f: (String, Array[Byte]) => Option[(String, Array[Byte])], afterIterate: () => Unit): Unit = {
+      val _ = dba.iterate(path, f, afterIterate)
+    }
   }
 
   def onReady: Future[Unit] = {
@@ -80,7 +82,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
     import system.log
     val p = Promise[Unit]()
     def loop(): Unit = {
-      system.scheduler.scheduleOnce(1 second){
+      val _ = system.scheduler.scheduleOnce(1 second){
         dba.isReady onComplete {
           case Success(true) =>
             log.info("KVS is ready")

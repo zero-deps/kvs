@@ -71,7 +71,7 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   }
 
   def doPut(data: Data): Unit = {
-    withBatch{ batch =>
+    val _ = withBatch{ batch =>
       { // updating bucket info
         val bucketId: Key = itob(data.bucket) ++ `:keys`
         val bucketInfo = get(bucketId).map(decode[BucketInfo](_))

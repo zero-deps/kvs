@@ -25,7 +25,7 @@ final class Data
     case _ => false
   }
   override def hashCode(): Int = {
-    val state = Seq(key, bucket, lastModified, vc, value)
+    val state = Seq[Any](key, bucket, lastModified, vc, value)
     state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
   }
   override def toString = s"Data(key=$key, bucket=$bucket, lastModified=$lastModified, vc=$vc, value=$value)"

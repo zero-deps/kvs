@@ -14,15 +14,37 @@ ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / resolvers += Resolver.jcenterRepo
 ThisBuild / cancelable in Global := true
 ThisBuild / javacOptions ++= Seq("-source", "12", "-target", "12")
-ThisBuild / scalacOptions in Compile ++= Seq(
-  "-target:jvm-1.8",
-  "-feature",
-  "-unchecked",
-  "-deprecation",
-  "-language:_",
-  "-encoding", "UTF-8",
-  "-Xfatal-warnings",
-  "-Ywarn-unused:imports",
+ThisBuild / scalacOptions ++= Seq(
+    "-deprecation"
+  , "-explaintypes"
+  , "-feature"
+  , "-language:_"
+  , "-unchecked"
+  , "-Xcheckinit"
+  , "-Xfatal-warnings"
+  , "-Xlint:adapted-args"
+  , "-Xlint:constant"
+  , "-Xlint:delayedinit-select"
+  , "-Xlint:inaccessible"
+  , "-Xlint:infer-any"
+  , "-Xlint:missing-interpolator"
+  , "-Xlint:nullary-override"
+  , "-Xlint:nullary-unit"
+  , "-Xlint:option-implicit"
+  , "-Xlint:package-object-classes"
+  , "-Xlint:poly-implicit-overload"
+  , "-Xlint:private-shadow"
+  , "-Xlint:stars-align"
+  , "-Xlint:type-parameter-shadow"
+  , "-Ywarn-dead-code"
+  , "-Ywarn-extra-implicit"
+  , "-Ywarn-numeric-widen"
+  , "-Ywarn-value-discard"
+  , "-Ywarn-unused:implicits"
+  , "-Ywarn-unused:imports"
+  , "-Ywarn-unused:params"
+  , "-target:jvm-1.8"
+  , "-encoding", "UTF-8"
 )
 
 ThisBuild / isSnapshot := true // override local artifacts
@@ -35,6 +57,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 
 lazy val kvs = project.in(file("."))
   .settings(
+    scalacOptions in Test := Nil,
     libraryDependencies ++= Seq(
       "ch.qos.logback" % "logback-classic" % logbackVersion,
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,
@@ -54,7 +77,7 @@ lazy val kvs = project.in(file("."))
 import deployssh.DeploySSH.{ServerConfig, ArtifactSSH}
 import fr.janalyse.ssh._
 
-lazy val demo = (project in file("kvs-demo")).settings(
+lazy val demo = (project in file("demo")).settings(
   mainClass in (Compile, run) := Some("zd.kvs.Run"),
   fork in run := true,
   javaOptions in Universal ++= Seq(

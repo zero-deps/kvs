@@ -27,7 +27,7 @@ final class PutInfo(
     case _ => false
   }
   override def hashCode(): Int = {
-    val state = Seq(key, v, N, W, bucket, localAdr, nodes)
+    val state = Seq[Any](key, v, N, W, bucket, localAdr, nodes)
     state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
   }
   override def toString = s"PutInfo(key=$key, v=$v, N=$N, W=$W, bucket=$bucket, localAdr=$localAdr, nodes=$nodes)"
@@ -40,10 +40,10 @@ object PutInfo {
 }
 
 object GatherPut {
-  def props(client: ActorRef, t: FiniteDuration, actorsMem: SelectionMemorize, putInfo: PutInfo): Props = Props(new GatherPut(client, t, actorsMem, putInfo))
+  def props(client: ActorRef, t: FiniteDuration, putInfo: PutInfo): Props = Props(new GatherPut(client, t, putInfo))
 }
 
-class GatherPut(client: ActorRef, t: FiniteDuration, stores: SelectionMemorize, putInfo: PutInfo) extends FSM[FsmState, Int] with ActorLogging {
+class GatherPut(client: ActorRef, t: FiniteDuration, putInfo: PutInfo) extends FSM[FsmState, Int] with ActorLogging {
 
   startWith(Collecting, 0)
   setTimer("send_by_timeout", "timeout", t)

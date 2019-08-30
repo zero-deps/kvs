@@ -12,16 +12,6 @@ package object rng {
   type Age = (VectorClock, Long)
   type PreferenceList = Set[Node]
 
-  sealed trait Ack
-  final case class AckSuccess(v: Option[Value]) extends Ack
-  final case class AckQuorumFailed(why: String) extends Ack
-  final case class AckTimeoutFailed(on: String) extends Ack
-
-  sealed trait FsmState
-  final case object ReadyCollect extends FsmState
-  final case object Collecting extends FsmState
-  final case object Sent extends FsmState
-
   val emptyVC = akka.cluster.emptyVC
 
   def stob(s: String): Array[Byte] = s.getBytes("UTF-8")

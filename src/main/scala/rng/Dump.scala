@@ -17,7 +17,7 @@ object DumpProcessor {
   def props(): Props = Props(new DumpProcessor)
 
   final case class Load(path: String)
-  final case class Save(buckets: SortedMap[Bucket, PreferenceList], local: Node, path: String)
+  final case class Save(buckets: SortedMap[Bucket, PreferenceList], path: String)
 }
 
 class DumpProcessor extends Actor with ActorLogging {
@@ -44,7 +44,7 @@ class DumpProcessor extends Actor with ActorLogging {
           context.become(load(dumpIO, sender)())
       }
 
-    case DumpProcessor.Save(buckets, local, path) =>
+    case DumpProcessor.Save(buckets, path) =>
       log.info(s"Saving dump: path=${path}".green)
       val timestamp = LocalDateTime.now.format(DateTimeFormatter.ofPattern("yyyy.MM.dd-HH.mm.ss"))
       val dumpPath = s"${path}/rng_dump_${timestamp}"
@@ -63,7 +63,7 @@ class DumpProcessor extends Actor with ActorLogging {
             _ ! DumpGetBucketData(0),
             _ ! DumpGetBucketData(0),
           ))
-          context.become(save(buckets, local, dumpIO, sender)())
+          context.become(save(buckets, dumpIO, sender)())
       }
   }
 
@@ -113,7 +113,7 @@ class DumpProcessor extends Actor with ActorLogging {
     }
   }
 
-  def save(buckets: SortedMap[Bucket, PreferenceList], local: Node, dumpIO: ActorRef, client: ActorRef): () => Receive = {
+  def save(buckets: SortedMap[Bucket, PreferenceList], dumpIO: ActorRef, client: ActorRef): () => Receive = {
     var processBucket: Int = 0
     var keysNumber: Long = 0
     var collected: Vector[Vector[Data]] = Vector.empty
@@ -122,7 +122,7 @@ class DumpProcessor extends Actor with ActorLogging {
     var readyToPut: Boolean = true
     var pullWorking: Boolean = false
 
-    def pull: Unit = {
+    def pull(): Unit = {
       if (!pullWorking && putQueue.size < 50 && processBucket < maxBucket) {
         processBucket = processBucket + 1
         pullWorking = true
@@ -146,7 +146,7 @@ class DumpProcessor extends Actor with ActorLogging {
         collected = res.items.toVector +: collected
         if (collected.size == buckets(processBucket).size) {
           pullWorking = false
-          pull
+          pull()
 
           val merged: Vector[Data] = MergeOps.forDump(collected.flatten)
           collected = Vector.empty
@@ -185,7 +185,7 @@ class DumpProcessor extends Actor with ActorLogging {
           putQueue.headOption.map(dumpIO ! _)
           putQueue = putQueue.tail
         }
-        pull
+        pull()
         showInfo("io")
     }
   }

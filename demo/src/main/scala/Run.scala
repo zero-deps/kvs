@@ -16,7 +16,7 @@ object Run extends App {
     system.terminate()
     import scala.concurrent.Await
     import scala.concurrent.duration.Duration
-    Try(Await.result(system.whenTerminated,Duration.Inf))
+    val _ = Try(Await.result(system.whenTerminated,Duration.Inf))
   }
 
   import system.dispatcher
