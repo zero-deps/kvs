@@ -105,7 +105,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "should remove entry(2) from feed without prev/next/data" in {
-      kvs.remove(e2.fid,"2").getOrElse(???) shouldBe (())
+      val deleted = kvs.remove(e2.fid,"2").getOrElse(???)
+
+      (deleted.fid, deleted.id, deleted.data) shouldBe(e2.fid, "2", e2.data)
     }
 
     "should get 2 values from feed" in {
@@ -116,7 +118,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "should remove entry(1) from feed" in {
-      kvs.remove(fid,"1").getOrElse(???) shouldBe (())
+      val deleted = kvs.remove(fid,"1").getOrElse(???)
+
+      (deleted.fid, deleted.id, deleted.data) shouldBe(e1.fid, "1", e1.data)
     }
 
     "should get 1 values from feed" in {
@@ -127,7 +131,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "should remove entry(3) from feed" in {
-      kvs.remove(fid,"3").getOrElse(???) shouldBe (())
+      val deleted = kvs.remove(fid,"3").getOrElse(???)
+
+      (deleted.fid, deleted.id, deleted.data) shouldBe(e3.fid, "3", e3.data)
     }
 
     "should be empty" in {
@@ -147,7 +153,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       LazyList.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
 
         val toremove = entry(n).copy(id=(n+3).toString)
-        kvs.remove(toremove.fid, toremove.id).getOrElse(???) shouldBe (())
+        val removed = kvs.remove(toremove.fid, toremove.id).getOrElse(???)
+
+        (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, (n+3).toString, toremove.data)
 
         kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe (limit - n)
       }
