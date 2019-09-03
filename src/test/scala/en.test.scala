@@ -37,7 +37,7 @@ object EnHandlerTest {
 }
 
 class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4012))))
-  with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
+  with AnyFreeSpecLike with Matchers with BeforeAndAfterAll {
 
   import EnHandlerTest._
 
@@ -58,7 +58,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
   "Feed should" - {
     "be empty at creation" in {
-      kvs.stream_safe[En](fid) shouldBe (Left(NotFound(fid)))
+      kvs.all[En](fid) shouldBe (Right(LazyList.empty))
     }
 
     "should save e1" in {
@@ -80,7 +80,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     "should get e1 and e2 from feed" in {
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 2
 
-      val stream = kvs.stream_safe[En](fid)
+      val stream = kvs.all[En](fid)
       stream.map(_.toList) shouldBe List(e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
     }
 
@@ -90,18 +90,18 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "should not save entry(2) again" in {
-      kvs.add(e2.copy(id="2")).left.value shouldBe EntryExists(s"${fid}.2")
+      kvs.add(e2.copy(id="2")).left.getOrElse(???) shouldBe EntryExists(s"${fid}.2")
     }
 
     "should get 3 values from feed" in {
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 3
 
-      val stream = kvs.stream_safe[En](fid)
+      val stream = kvs.all[En](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="2").right, e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
     }
 
     "should not remove unexisting entry from feed" in {
-      kvs.remove(fid,"5").left.value shouldBe NotFound(s"${fid}.5")
+      kvs.remove(fid,"5").left.getOrElse(???) shouldBe NotFound(s"${fid}.5")
     }
 
     "should remove entry(2) from feed without prev/next/data" in {
@@ -113,7 +113,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     "should get 2 values from feed" in {
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 2
 
-      val stream = kvs.stream_safe[En](fid)
+      val stream = kvs.all[En](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="1").right, e1.copy(id="1").right).right
     }
 
@@ -126,7 +126,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     "should get 1 values from feed" in {
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 1
 
-      val stream = kvs.stream_safe[En](fid)
+      val stream = kvs.all[En](fid)
       stream.map(_.toList) shouldBe List(e3.copy(id="3").right).right
     }
 
@@ -138,7 +138,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
     "should be empty" in {
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 0
-      kvs.stream_safe[En](fid).getOrElse(???) shouldBe empty
+      kvs.all[En](fid).getOrElse(???) shouldBe empty
     }
 
     "should not create stack overflow" in {
@@ -163,9 +163,9 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
     "feed should be empty at the end test" in {
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 0
-      kvs.stream_safe[En](fid).getOrElse(???) shouldBe empty
+      kvs.all[En](fid).getOrElse(???) shouldBe empty
       kvs.fd.delete(Fd(fid))
-      kvs.stream_safe[En](fid) shouldBe (Symbol("left"))
+      kvs.all[En](fid) shouldBe (Right(LazyList.empty))
     }
   }
 }

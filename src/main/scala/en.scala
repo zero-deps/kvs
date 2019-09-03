@@ -118,7 +118,7 @@ trait EnHandler[A <: En] {
    * Stream is FILO ordered (most recent is first).
    * @param from if specified then return entries after this entry
    */
-  def stream(fid: String, from: Option[A])(implicit dba: Dba): Res[LazyList[Res[A]]] = {
+  def all(fid: String, from: Option[A])(implicit dba: Dba): Res[LazyList[Res[A]]] = {
     def _stream(id: String): LazyList[Res[A]] = {
       id match {
         case `empty` => LazyList.empty
@@ -131,7 +131,7 @@ trait EnHandler[A <: En] {
       }
     }
     from match {
-      case None => fh.get(Fd(fid)).flatMap(_.cata(_.right, NotFound(fid).left)).map(r => _stream(r.top))
+      case None => fh.get(Fd(fid)).map(_.cata(x => _stream(x.top), LazyList.empty))
       case Some(en) => _stream(en.prev).right
     }
   }
