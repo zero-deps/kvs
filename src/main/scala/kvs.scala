@@ -56,7 +56,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   def put[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.put(el)
   def stream_safe[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[Res[H]]] = h.stream(fid, from)
   def stream_unsafe[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[H]] = stream_safe[H](fid, from).map(_.takeWhile(_.isRight).flatMap(_.toOption))
-  def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.get(fid, id)
+  def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.get(fid, id)
   def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.remove(fid, id)
 
   object file {

@@ -24,7 +24,14 @@ trait EnHandler[A <: En] {
 
   private def key(fid:String,id:String):String = s"${fid}.${id}"
   private def _put(en:A)(implicit dba:Dba):Res[A] = pickle(en).flatMap(x => dba.put(key(en.fid,en.id),x)).map(_=>en)
-  def get(fid: String, id: String)(implicit dba: Dba): Res[A] = {
+  def get(fid: String, id: String)(implicit dba: Dba): Res[Option[A]] = {
+    dba.get(key(fid,id)) match {
+      case Right(Some(x)) => unpickle(x).map(_.just)
+      case Right(None) => None.right
+      case x@Left(_) => x.coerceRight
+    }
+  }
+  private def get1(fid: String, id: String)(implicit dba: Dba): Res[A] = {
     val k = key(fid,id)
     dba.get(k) match {
       case Right(Some(x)) => unpickle(x)
@@ -47,9 +54,8 @@ trait EnHandler[A <: En] {
       ( if (en.id == empty)
           dba.nextid(en.fid) // generate ID if it is empty
         else
-          get(en.fid, en.id).fold( // id of entry must be unique
-            _ => en.id.right,
-            _ => EntryExists(key(en.fid, en.id)).left
+          get(en.fid, en.id).flatMap( // id of entry must be unique
+            _.cata(_ => EntryExists(key(en.fid, en.id)).left, en.id.right)
           )
       ).map(id => update(en, id=id, prev=fd.top)).flatMap{ en =>
         // add new entry with prev pointer
@@ -69,8 +75,8 @@ trait EnHandler[A <: En] {
    */
   def put(en: A)(implicit dba: Dba): Res[A] =
     get(en.fid, en.id).fold(
-      _ => add(en),
-      r => _put(update(en, r.prev))
+      l => l.left,
+      r => r.cata(x => _put(update(en, x.prev)), add(en))
     )
 
   /**
@@ -79,7 +85,7 @@ trait EnHandler[A <: En] {
    */
   def remove(_fid:String, _id:String)(implicit dba:Dba):Res[A] =
     // get entry to delete
-    get(_fid, _id).flatMap{ en =>
+    get1(_fid, _id).flatMap{ en =>
       val id = en.id
       val fid = en.fid
       val prev = en.prev
@@ -90,7 +96,7 @@ trait EnHandler[A <: En] {
             fh.put(fd.copy(top=prev,count=fd.count-1))
           else
             // find entry which points to this one (next)
-            LazyList.iterate(start=get(fid,top))(_.flatMap(x=>get(fid,x.prev)))
+            LazyList.iterate(start=get1(fid,top))(_.flatMap(x=>get1(fid,x.prev)))
               .takeWhile(_.isRight)
               .flatMap(_.toOption)
               .find(_.prev==id)
@@ -116,7 +122,7 @@ trait EnHandler[A <: En] {
       id match {
         case `empty` => LazyList.empty
         case _ =>
-          val en = get(fid, id)
+          val en = get1(fid, id)
           en match {
             case Right(e) => LazyList.cons(en, _stream(e.prev))
             case _ => LazyList(en)
