@@ -33,7 +33,7 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.el.put("key","value2").getOrElse(???) should be ("value2")
     }
     "delete value" in {
-      kvs.el.delete[String]("key").getOrElse(???) should be ("value2")
+      kvs.el.delete[String]("key").getOrElse(???) should be (())
     }
     "clean up" in {
       kvs.el.get[String]("key").getOrElse(???) should be (None)

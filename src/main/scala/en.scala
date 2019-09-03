@@ -39,7 +39,7 @@ trait EnHandler[A <: En] {
       case x@Left(_) => x.coerceRight
     }
   }
-  private def delete(fid:String,id:String)(implicit dba:Dba):Res[A] = dba.delete(key(fid,id)).flatMap(unpickle)
+  private def delete(fid:String,id:String)(implicit dba:Dba):Res[Unit] = dba.delete(key(fid,id))
 
   protected def update(en: A, id: String, prev: String): A
   protected def update(en: A, prev: String): A
@@ -83,7 +83,7 @@ trait EnHandler[A <: En] {
    * Remove the entry from the container specified
    * @return deleted entry (with data)
    */
-  def remove(_fid:String, _id:String)(implicit dba:Dba):Res[A] =
+  def remove(_fid: String, _id: String)(implicit dba: Dba): Res[A] =
     // get entry to delete
     get1(_fid, _id).flatMap{ en =>
       val id = en.id
@@ -108,7 +108,8 @@ trait EnHandler[A <: En] {
                   fh.put(fd.copy(count=fd.count-1))
                 }
               }
-        ).flatMap(_ => delete(fid,id)) // delete entry
+        ).flatMap(_ => delete(fid, id)). // delete entry
+        map(_ => en) // return deleted entry
       }
     }
 

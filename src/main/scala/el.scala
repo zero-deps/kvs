@@ -14,7 +14,7 @@ trait ElHandler[T] {
     case Right(None) => Right(None)
     case x@Left(_) => x.coerceRight
   }
-  def delete(k:String)(implicit dba:Dba):Res[T] = dba.delete(k).flatMap(unpickle)
+  def delete(k:String)(implicit dba:Dba):Res[Unit] = dba.delete(k)
 }
 
 object ElHandler {

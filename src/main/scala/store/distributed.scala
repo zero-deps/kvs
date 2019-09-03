@@ -60,17 +60,15 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  def delete(key: String): Res[V] = {
-    get(key).flatMap(_.cata(_.right, NotFound(key).left)).flatMap{ r =>
-      val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
-      val t = Timeout(d)
-      val fut = hash.ask(rng.Delete(stob(key)))(t).mapTo[rng.Ack]
-      Try(Await.result(fut, d)) match {
-        case Success(rng.AckSuccess(_)) => r.right
-        case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-        case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
-        case Failure(t) => RngThrow(t).left
-      }
+  def delete(key: String): Res[Unit] = {
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val t = Timeout(d)
+    val fut = hash.ask(rng.Delete(stob(key)))(t).mapTo[rng.Ack]
+    Try(Await.result(fut, d)) match {
+      case Success(rng.AckSuccess(_)) => ().right
+      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
+      case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
+      case Failure(t) => RngThrow(t).left
     }
   }
 

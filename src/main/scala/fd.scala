@@ -16,5 +16,5 @@ trait FdHandler {
     case Right(None) => Right(None)
     case x@Left(_) => x.coerceRight
   }
-  def delete(el: Fd)(implicit dba: Dba): Res[Fd] = dba.delete(el.id).flatMap(unpickle)
+  def delete(el: Fd)(implicit dba: Dba): Res[Unit] = dba.delete(el.id)
 }
