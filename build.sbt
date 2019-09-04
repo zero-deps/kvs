@@ -2,7 +2,7 @@ val scalaVersion_ = "2.13.0"
 val akkaVersion = "2.5.23"
 val gsVersion = "1.5.1"
 val leveldbVersion = "1.0.3"
-val protoVersion = "1.3.2"
+val protoVersion = "1.3.3"
 val logbackVersion = "1.2.3"
 val scalatestVersion = "3.1.0-SNAP13"
 
@@ -12,6 +12,7 @@ ThisBuild / licenses := "MIT" -> url("https://raw.githubusercontent.com/zero-dep
 ThisBuild / version := zd.gs.git.GitOps.version
 ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / resolvers += Resolver.jcenterRepo
+ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
 ThisBuild / cancelable in Global := true
 ThisBuild / javacOptions ++= Seq("-source", "12", "-target", "12")
 ThisBuild / scalacOptions ++= Seq(

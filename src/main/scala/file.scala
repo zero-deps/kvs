@@ -72,7 +72,7 @@ trait FileHandler {
       case 0 => LazyList.empty.right
       case n if n > 0 =>
         def k(i: Int) = s"${dir}/${name}_chunk_${i}"
-        LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.cata(_.right, NotFound(k(i)).left))).right
+        LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.cata(_.right, Fail(k(i)).left))).right
     }
   }
 
@@ -98,7 +98,7 @@ trait FileHandler {
       _ <- LazyList.range(1, from.count+1).map(i => for {
         x <- {
           val k = s"${dir}/${fromName}_chunk_${i}"
-          dba.get(k).flatMap(_.cata(_.right, NotFound(k).left))
+          dba.get(k).flatMap(_.cata(_.right, Fail(k).left))
         }
         _ <- dba.put(s"${dir}/${toName}_chunk_${i}", x)
       } yield ()).sequence_

@@ -118,14 +118,18 @@ class IdCounter extends Actor with ActorLogging {
     case name: String =>
       kvs.el.get[String](s"IdCounter.${name}").fold(
         l => log.error("can't get counter for name={} err={}", name, l)
-      , r => r.cata(prev => put(name, prev), put(name, prev="0"))
+      , r => r.cata(prev => put(name, prev), put(name, c="0"))
       )
   }
 
-  def put(name:String, prev: String): Unit = {
-    kvs.el.put[String](s"IdCounter.$name", (prev.toLong+1).toString).fold(
-      l => log.error(s"Failed to increment `$name` id=$l"),
-      r => sender ! r
+  def put(name: String, c: String): Unit = {
+    val res = for {
+      c1 <- c.toLongOption.map(_+1).map(_.toString).toRight(Fail("toLong"))
+      _ <- kvs.el.put[String](s"IdCounter.$name", c1)
+    } yield c1
+    res.fold(
+      l => log.error(s"Failed to increment name=${name} c=${c} l=${l}")
+    , r => sender ! r
     )
   }
 }

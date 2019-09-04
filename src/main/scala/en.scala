@@ -86,10 +86,10 @@ object EnHandler {
     val fid = addEn.fid
     val id = addEn.id
     for {
-      fd1 <- fh.get(Fd(fid))
-      fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       en1 <- get(fid, id)
       _ <- en1.cata(_ => EntryExists(key(fid, id)).left, ().right)
+      fd1 <- fh.get(Fd(fid))
+      fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       en = to_en(addEn, fd.top)
       _ <- _put(en)
       _ <- fh.put(fd.copy(top=id.just, count=fd.count+1))
