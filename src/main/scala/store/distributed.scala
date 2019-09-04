@@ -7,7 +7,6 @@ import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.{Timeout}
 import leveldbjnr.LevelDb
-import zd.kvs.el.ElHandler
 import zd.rng
 import zd.rng.store.{ReadonlyStore, WriteStore}
 import zd.rng.{stob}
@@ -125,33 +124,5 @@ class Ring(system: ActorSystem) extends Dba {
 
   def compact(): Unit = {
     leveldb.compact()
-  }
-}
-
-object IdCounter {
-  def props: Props = Props(new IdCounter)
-  val shardName = "nextid"
-}
-class IdCounter extends Actor with ActorLogging {
-  val kvs = zd.kvs.Kvs(context.system)
-
-  implicit val strHandler: ElHandler[String] = new ElHandler[String] {
-    def pickle(e: String): Res[Array[Byte]] = e.getBytes("UTF-8").right
-    def unpickle(a: Array[Byte]): Res[String] = new String(a,"UTF-8").right
-  }
-
-  def receive: Receive = {
-    case name: String =>
-      kvs.el.get[String](s"IdCounter.${name}").fold(
-        l => log.error("can't get counter for name={} err={}", name, l)
-      , r => r.cata(prev => put(name, prev), put(name, prev="0"))
-      )
-  }
-
-  def put(name:String, prev: String): Unit = {
-    kvs.el.put[String](s"IdCounter.$name", (prev.toLong+1).toString).fold(
-      l => log.error(s"Failed to increment `$name` id=$l"),
-      r => sender ! r
-    )
   }
 }

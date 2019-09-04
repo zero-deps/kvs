@@ -36,7 +36,7 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Xlint:private-shadow"
   , "-Xlint:stars-align"
   , "-Xlint:type-parameter-shadow"
-  , "-Ywarn-dead-code"
+  // , "-Ywarn-dead-code"
   , "-Ywarn-extra-implicit"
   , "-Ywarn-numeric-widen"
   , "-Ywarn-value-discard"
@@ -48,8 +48,9 @@ ThisBuild / scalacOptions ++= Seq(
 )
 
 ThisBuild / isSnapshot := true // override local artifacts
-ThisBuild / publishArtifact := true
-ThisBuild / publishArtifact in Test := true
+ThisBuild / publishArtifact := false
+ThisBuild / packageBin / publishArtifact := true
+ThisBuild / Test / publishArtifact := true
 
 ThisBuild / turbo := true
 ThisBuild / useCoursier := true

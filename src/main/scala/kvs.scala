@@ -1,15 +1,15 @@
 package zd.kvs
 
-import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
+import akka.actor.{Props, Actor, ActorLogging, ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import akka.cluster.sharding._
 import zd.kvs.store._
-import zd.kvs.store.IdCounter
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Success}
-import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
+import zd.kvs.en.{En, EnHandler, Fd, FdHandler, Add, AddAuto}
 import zd.kvs.el.ElHandler
 import zd.kvs.file.{File, FileHandler}
+import zd.gs.z._
 
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
@@ -45,19 +45,19 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   }
 
   object fd {
-    def put(fd: Fd)(implicit fh: FdHandler): Res[Unit] = fh.put(fd)
-    def get(fd: Fd)(implicit fh: FdHandler): Res[Option[Fd]] = fh.get(fd)
-    def delete(fd: Fd)(implicit fh: FdHandler): Res[Unit] = fh.delete(fd)
+    def put(fd: Fd): Res[Unit] = FdHandler.put(fd)
+    def get(fd: Fd): Res[Option[Fd]] = FdHandler.get(fd)
+    def delete(fd: Fd): Res[Unit] = FdHandler.delete(fd)
   }
 
   def nextid(fid: String): Res[String] = dba.nextid(fid)
 
-  def add[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.add(el)
-  def put[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.put(el)
-  def all[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[Res[H]]] = h.all(fid, from)
-  def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.get(fid, id)
-  def remove_opt[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.remove_opt(fid, id)
-  def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.get(fid, id).flatMap(_.toRight(Fail("not found"))).flatMap(x => h.remove_opt(fid, id).map(_ => x)) //todo: delete
+  def add(el: AddAuto): Res[En] = EnHandler.add(el)
+  def add(el: Add): Res[En] = EnHandler.add(el)
+  def put(el: Add): Res[En] = EnHandler.put(el)
+  def all(fid: String, from: Option[En] = None): Res[LazyList[Res[En]]] = EnHandler.all(fid, from)
+  def get(fid: String, id: String): Res[Option[En]] = EnHandler.get(fid, id)
+  def remove(fid: String, id: String): Res[Option[En]] = EnHandler.remove(fid, id)
 
   object file {
     def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)
@@ -99,5 +99,33 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
 
   def compact(): Unit = {
     dba.compact()
+  }
+}
+
+object IdCounter {
+  def props: Props = Props(new IdCounter)
+  val shardName = "nextid"
+}
+class IdCounter extends Actor with ActorLogging {
+  val kvs = zd.kvs.Kvs(context.system)
+
+  implicit val strHandler: ElHandler[String] = new ElHandler[String] {
+    def pickle(e: String): Res[Array[Byte]] = e.getBytes("UTF-8").right
+    def unpickle(a: Array[Byte]): Res[String] = new String(a,"UTF-8").right
+  }
+
+  def receive: Receive = {
+    case name: String =>
+      kvs.el.get[String](s"IdCounter.${name}").fold(
+        l => log.error("can't get counter for name={} err={}", name, l)
+      , r => r.cata(prev => put(name, prev), put(name, prev="0"))
+      )
+  }
+
+  def put(name:String, prev: String): Unit = {
+    kvs.el.put[String](s"IdCounter.$name", (prev.toLong+1).toString).fold(
+      l => log.error(s"Failed to increment `$name` id=$l"),
+      r => sender ! r
+    )
   }
 }

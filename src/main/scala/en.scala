@@ -3,12 +3,18 @@ package en
 
 import zd.kvs.store.Dba
 import zd.gs.z._
+import zd.proto.api.{N, MessageCodec, encode, decode}
+import zd.proto.macrosapi.{caseCodecAuto}
+import scala.collection.immutable.ArraySeq
 
-trait En {
-  val fid: String
-  val id_opt: Option[String]
-  val prev_opt: Option[String]
-}
+final case class AddAuto(fid: String, data: ArraySeq[Byte])
+final case class Add(fid: String, id: String, data: ArraySeq[Byte])
+final case class En
+  ( @N(1) fid: String
+  , @N(2) id: String
+  , @N(3) prev: Option[String]
+  , @N(4) data: ArraySeq[Byte]
+  )
 
 /**
  * Abstract type entry handler
@@ -16,34 +22,34 @@ trait En {
  *
  * [top] -->prev--> [en] -->prev--> [none]
  */
-trait EnHandler[A <: En] {
-  val fh: FdHandler
+object EnHandler {
+  private val fh = FdHandler
+  private implicit val c1: MessageCodec[Byte] = ??? //todo: delete
+  private implicit val codec: MessageCodec[En] = caseCodecAuto[En]
+  private def pickle(e: En): Res[Array[Byte]] = encode[En](e).right
+  private def unpickle(a: Array[Byte]): Res[En] = decode[En](a).right
 
-  def pickle(e: A): Res[Array[Byte]]
-  def unpickle(a: Array[Byte]): Res[A]
-
-  private def key(fid:String,id:String):String = s"${fid}.${id}"
-  private def _put(en:A)(implicit dba:Dba):Res[A] = {
+  private def key(fid: String, id: String): String = s"${fid}.${id}"
+  private def _put(en: En)(implicit dba:Dba):Res[En] = {
     for {
-      id <- en.id_opt.toRight(Fail("id is empty"))
       p <- pickle(en)
-      _ <- dba.put(key(en.fid, id), p)
+      _ <- dba.put(key(en.fid, en.id), p)
     } yield en
   }
-  def get(fid: String, id: String)(implicit dba: Dba): Res[Option[A]] = {
+  def get(fid: String, id: String)(implicit dba: Dba): Res[Option[En]] = {
     dba.get(key(fid,id)) match {
       case Right(Some(x)) => unpickle(x).map(_.just)
       case Right(None) => None.right
       case x@Left(_) => x.coerceRight
     }
   }
-  private def _get(fid: String, id: Option[String])(implicit dba: Dba): Res[A] = {
+  private def _get(fid: String, id: Option[String])(implicit dba: Dba): Res[En] = {
     id match {
       case Some(id) => _get(fid, id)
       case None => Fail("id is empty").left
     }
   }
-  private def _get(fid: String, id: String)(implicit dba: Dba): Res[A] = {
+  private def _get(fid: String, id: String)(implicit dba: Dba): Res[En] = {
     val k = key(fid, id)
     dba.get(k) match {
       case Right(Some(x)) => unpickle(x)
@@ -53,32 +59,41 @@ trait EnHandler[A <: En] {
   }
   private def delete(fid:String,id:String)(implicit dba:Dba):Res[Unit] = dba.delete(key(fid,id))
 
-  protected def update(en: A, id: Option[String], prev: Option[String]): A
-  protected def update(en: A, prev: Option[String]): A
+  private def to_en(en: AddAuto, id: String, prev: Option[String]): En = ???
+  private def to_en(en: Add, prev: Option[String]): En = ???
 
   /**
-   * Adds the entry to the container
-   * Creates the container if it's absent
-   * @param en entry to add (prev is ignored). If id is empty it will be generated
+   * Adds the entry to the container. Creates the container if it's absent.
+   * @param en entry to add. ID will be generated.
    */
-  def add(en: A)(implicit dba: Dba): Res[A] = {
-    fh.get(Fd(en.fid)).flatMap(_.cata(_.right, fh.put(Fd(en.fid)).map(_ => Fd(en.fid)))).flatMap{ fd: Fd =>
-      ( if (en.id_opt.isEmpty)
-          dba.nextid(en.fid) // generate ID if it is empty
-        else
-          for {
-            id <- en.id_opt.toRight(Fail("id is empty"))
-            x <- get(en.fid, id)
-            _ <- x.cata(_ => EntryExists(key(en.fid, id)).left, ().right)
-          } yield id
-      ).map(id => update(en, id=id.just, prev=fd.top_opt)).flatMap{ en =>
-        // add new entry with prev pointer
-        _put(en).flatMap{ _ =>
-          // update feed's top
-          fh.put(fd.copy(top_opt=en.id_opt, count=fd.count+1)).map(_ => en)
-        }
-      }
-    }
+  def add(addEn: AddAuto)(implicit dba: Dba): Res[En] = {
+    val fid = addEn.fid
+    for {
+      fd1 <- fh.get(Fd(fid))
+      fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
+      id <- dba.nextid(fid)
+      en = to_en(addEn, id, fd.top)
+      _ <- _put(en)
+      _ <- fh.put(fd.copy(top=en.id.just, count=fd.count+1))
+    } yield en
+  }
+
+  /**
+   * Adds the entry to the container. Creates the container if it's absent.
+   * @param en entry to add.
+   */
+  def add(addEn: Add)(implicit dba: Dba): Res[En] = {
+    val fid = addEn.fid
+    val id = addEn.id
+    for {
+      fd1 <- fh.get(Fd(fid))
+      fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
+      en1 <- get(fid, id)
+      _ <- en1.cata(_ => EntryExists(key(fid, id)).left, ().right)
+      en = to_en(addEn, fd.top)
+      _ <- _put(en)
+      _ <- fh.put(fd.copy(top=id.just, count=fd.count+1))
+    } yield en
   }
 
   /**
@@ -87,11 +102,10 @@ trait EnHandler[A <: En] {
    * If entry exists in container, put it in the same place
    * @param en entry to put (prev is ignored)
    */
-  def put(en: A)(implicit dba: Dba): Res[A] = {
+  def put(en: Add)(implicit dba: Dba): Res[En] = {
     for {
-      id <- en.id_opt.toRight(Fail("id is empty"))
-      x <- get(en.fid, id)
-      z <- x.cata(y => _put(update(en, y.prev_opt)), add(en))
+      x <- get(en.fid, en.id)
+      z <- x.cata(y => _put(to_en(en, y.prev)), add(en))
     } yield z
   }
 
@@ -99,27 +113,27 @@ trait EnHandler[A <: En] {
    * Remove the entry from the container specified.
    * @return deleted entry (with data). Or None if element is absent.
    */
-  def remove_opt(_fid: String, _id: String)(implicit dba: Dba): Res[Option[A]] = {
+  def remove(_fid: String, _id: String)(implicit dba: Dba): Res[Option[En]] = {
     for {
       en1 <- get(_fid, _id)
       _ <- en1.cata(en => {
         val fid = en.fid
         val id = _id
-        val prev = en.prev_opt
+        val prev = en.prev
         for {
           fd1 <- fh.get(Fd(fid))
           fd <- fd1.cata(_.right, Fail(fid).left)
-          top = fd.top_opt
+          top = fd.top
           _ <- if (Option(id) == top) {
-            fh.put(fd.copy(top_opt=prev, count=fd.count-1))
+            fh.put(fd.copy(top=prev, count=fd.count-1))
           } else {
             for {
-              next <- LazyList.iterate(start=_get(fid,top))(_.flatMap(x=>_get(fid,x.prev_opt))).
+              next <- LazyList.iterate(start=_get(fid,top))(_.flatMap(x=>_get(fid,x.prev))).
                 takeWhile(_.isRight).
                 flatMap(_.toOption).
-                find(_.prev_opt == Option(id)).
+                find(_.prev == Option(id)).
                 toRight(Fail(key(fid, id)))
-              _ <- _put(update(next, prev=prev))
+              _ <- _put(next.copy(prev=prev))
               _ <- fh.put(fd.copy(count=fd.count-1))
             } yield ()
           }
@@ -134,21 +148,21 @@ trait EnHandler[A <: En] {
    * Stream is FILO ordered (most recent is first).
    * @param from if specified then return entries after this entry
    */
-  def all(fid: String, from: Option[A])(implicit dba: Dba): Res[LazyList[Res[A]]] = {
-    def _stream(id: Option[String]): LazyList[Res[A]] = {
+  def all(fid: String, from: Option[En])(implicit dba: Dba): Res[LazyList[Res[En]]] = {
+    def _stream(id: Option[String]): LazyList[Res[En]] = {
       id match {
         case None => LazyList.empty
         case Some(id) =>
           val en = _get(fid, id)
           en match {
-            case Right(e) => LazyList.cons(en, _stream(e.prev_opt))
+            case Right(e) => LazyList.cons(en, _stream(e.prev))
             case _ => LazyList(en)
           }
       }
     }
     from match {
-      case None => fh.get(Fd(fid)).map(_.cata(x => _stream(x.top_opt), LazyList.empty))
-      case Some(en) => _stream(en.prev_opt).right
+      case None => fh.get(Fd(fid)).map(_.cata(x => _stream(x.top), LazyList.empty))
+      case Some(en) => _stream(en.prev).right
     }
   }
 }
