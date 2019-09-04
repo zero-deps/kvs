@@ -10,7 +10,7 @@ trait FdHandler {
   def pickle(e: Fd): Res[Array[Byte]]
   def unpickle(a: Array[Byte]): Res[Fd]
 
-  def put(el: Fd)(implicit dba: Dba): Res[Fd] = pickle(el).flatMap(x => dba.put(el.id,x)).flatMap(unpickle)
+  def put(el: Fd)(implicit dba: Dba): Res[Unit] = pickle(el).flatMap(x => dba.put(el.id,x))
   def get(el: Fd)(implicit dba: Dba): Res[Option[Fd]] = dba.get(el.id) match {
     case Right(Some(x)) => unpickle(x).map(_.just)
     case Right(None) => Right(None)

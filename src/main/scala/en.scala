@@ -62,7 +62,7 @@ trait EnHandler[A <: En] {
    * @param en entry to add (prev is ignored). If id is empty it will be generated
    */
   def add(en: A)(implicit dba: Dba): Res[A] = {
-    fh.get(Fd(en.fid)).flatMap(_.cata(_.right, fh.put(Fd(en.fid)))).flatMap{ fd: Fd =>
+    fh.get(Fd(en.fid)).flatMap(_.cata(_.right, fh.put(Fd(en.fid)).map(_ => Fd(en.fid)))).flatMap{ fd: Fd =>
       ( if (en.id_opt.isEmpty)
           dba.nextid(en.fid) // generate ID if it is empty
         else

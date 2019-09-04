@@ -30,12 +30,12 @@ class Ring(system: ActorSystem) extends Dba {
 
   val hash = system.actorOf(rng.Hash.props().withDeploy(Deploy.local), name="ring_hash")
 
-  def put(key: String, value: V): Res[V] = {
+  def put(key: String, value: V): Res[Unit] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     val putF = hash.ask(rng.Put(stob(key), value))(t).mapTo[rng.Ack]
     Try(Await.result(putF, d)) match {
-      case Success(rng.AckSuccess(_)) => value.right
+      case Success(rng.AckSuccess(_)) => ().right
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
       case Failure(t) => RngThrow(t).left

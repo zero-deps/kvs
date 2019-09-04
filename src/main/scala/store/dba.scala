@@ -9,7 +9,7 @@ import scala.concurrent.Future
 trait Dba {
   type K = String
   type V = Array[Byte]
-  def put(key: K, value: V): Res[V]
+  def put(key: K, value: V): Res[Unit]
   def get(key: K): Res[Option[V]]
   def delete(key: K): Res[Unit]
   def save(path: String): Res[String]
