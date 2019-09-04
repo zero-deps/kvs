@@ -56,7 +56,8 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   def put[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.put(el)
   def all[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[Res[H]]] = h.all(fid, from)
   def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.get(fid, id)
-  def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.remove(fid, id)
+  def remove_opt[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.remove_opt(fid, id)
+  def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.get(fid, id).flatMap(_.toRight(Fail("not found"))).flatMap(x => h.remove_opt(fid, id).map(_ => x)) //todo: delete
 
   object file {
     def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)

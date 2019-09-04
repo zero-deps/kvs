@@ -53,7 +53,7 @@ trait FileHandler {
       }
     }
     for {
-      _ <- (data.length == 0).fold(InvalidArgument("data is empty").left, ().right)
+      _ <- (data.length == 0).fold(Fail("data is empty").left, ().right)
       file <- get(dir, name)
       count <- writeChunks(file.count, rem=data)
       file1 = file.copy(count=count, size=file.size+data.length)

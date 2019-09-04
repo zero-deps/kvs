@@ -4,7 +4,7 @@ package en
 import zd.kvs.store.Dba
 import zd.gs.z._
 
-final case class Fd(id: String, top: String = empty, count: Int = 0)
+final case class Fd(id: String, top_opt: Option[String]=None, count: Int=0)
 
 trait FdHandler {
   def pickle(e: Fd): Res[Array[Byte]]
