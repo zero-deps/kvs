@@ -26,7 +26,6 @@ final case class En
  */
 object EnHandler {
   private val fh = FdHandler
-  private implicit val c1: MessageCodec[Byte] = ??? //todo: delete
   private implicit val codec: MessageCodec[En] = caseCodecAuto[En]
   private def pickle(e: En): Res[Array[Byte]] = encode[En](e).right
   private def unpickle(a: Array[Byte]): Res[En] = decode[En](a).right
@@ -61,8 +60,8 @@ object EnHandler {
   }
   private def delete(fid:String,id:String)(implicit dba:Dba):Res[Unit] = dba.delete(key(fid,id))
 
-  private def to_en(en: AddAuto, id: String, prev: Option[String]): En = ???
-  private def to_en(en: Add, prev: Option[String]): En = ???
+  private def to_en(en: AddAuto, id: String, prev: Option[String]): En = En(fid=en.fid, id=id, prev=prev, data=en.data)
+  private def to_en(en: Add, prev: Option[String]): En = En(fid=en.fid, id=en.id, prev=prev, data=en.data)
 
   /**
    * Adds the entry to the container. Creates the container if it's absent.

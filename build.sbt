@@ -2,7 +2,7 @@ val scalaVersion_ = "2.13.0"
 val akkaVersion = "2.5.23"
 val gsVersion = "1.5.1"
 val leveldbVersion = "1.0.3"
-val protoVersion = "1.3.3"
+val protoVersion = "1.4.0"
 val logbackVersion = "1.2.3"
 val scalatestVersion = "3.1.0-SNAP13"
 
