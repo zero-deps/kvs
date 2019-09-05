@@ -22,8 +22,8 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
   import EnHandlerTest.fid
 
   def entry(n: Int): AddAuto = AddAuto(fid, data=ArraySeq.from(s"val=${n}".getBytes))
-  def e_copy(en: AddAuto, id: String): En = En(fid=en.fid, id=id, prev=None, data=en.data)
-  def e_copy(en: AddAuto, id: String, prev: String): En = En(fid=en.fid, id=id, prev=prev.just, data=en.data)
+  def e_copy(en: AddAuto, id: String): En = En(id=id, prev=None, data=en.data)
+  def e_copy(en: AddAuto, id: String, prev: String): En = En(id=id, prev=prev.just, data=en.data)
   val e1 = entry(1)
   val e2 = entry(2)
   val e3 = entry(3)
@@ -51,13 +51,13 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
         case Left(RngThrow(t)) => t.printStackTrace
         case Left(x) => fail(x.toString)
       }
-      (saved.fid, saved.id, saved.data) shouldBe (e1.fid, "1", e1.data)
+      (saved.id, saved.data) shouldBe ("1", e1.data)
     }
 
     "should save e2" in {
       val saved = kvs.add(e2).fold(l => { println(l); ??? }, identity)
       kvs.fd.get(Fd(fid)).fold(l => { println(l); ??? }, identity).get.count shouldBe 2
-      (saved.fid, saved.id, saved.data) shouldBe (e2.fid, "2", e2.data)
+      (saved.id, saved.data) shouldBe ("2", e2.data)
     }
 
     "should get e1 and e2 from feed" in {
@@ -69,7 +69,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
     "should save entry(3)" in {
       val saved = kvs.add(e3).fold(l => { println(l); ??? }, identity)
-      (saved.fid, saved.id, saved.data) shouldBe (e3.fid, "3", e3.data)
+      (saved.id, saved.data) shouldBe ("3", e3.data)
     }
 
     "should not save entry(2) again" in {
@@ -90,7 +90,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     "should remove entry(2) from feed without prev/next/data" in {
       val deleted = kvs.remove(e2.fid,"2").fold(l => { println(l); ??? }, _.getOrElse(???))
 
-      (deleted.fid, deleted.id, deleted.data) shouldBe (e2.fid, "2", e2.data)
+      (deleted.id, deleted.data) shouldBe ("2", e2.data)
     }
 
     "should get 2 values from feed" in {
@@ -103,7 +103,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     "should remove entry(1) from feed" in {
       val deleted = kvs.remove(fid,"1").fold(l => { println(l); ??? }, _.getOrElse(???))
 
-      (deleted.fid, deleted.id, deleted.data) shouldBe (e1.fid, "1", e1.data)
+      (deleted.id, deleted.data) shouldBe ("1", e1.data)
     }
 
     "should get 1 values from feed" in {
@@ -116,7 +116,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     "should remove entry(3) from feed" in {
       val deleted = kvs.remove(fid,"3").fold(l => { println(l); ??? }, _.getOrElse(???))
 
-      (deleted.fid, deleted.id, deleted.data) shouldBe (e3.fid, "3", e3.data)
+      (deleted.id, deleted.data) shouldBe ("3", e3.data)
     }
 
     "should be empty" in {
@@ -130,15 +130,15 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       LazyList.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
         val toadd = entry(n)
         val added = kvs.add(toadd).fold(l => { println(l); ??? }, identity)
-        (added.fid, added.id, added.data) shouldBe (toadd.fid, (n+3).toString, toadd.data)
+        (added.id, added.data) shouldBe ((n+3).toString, toadd.data)
       }
 
       LazyList.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
 
         val toremove = e_copy(entry(n), id=(n+3).toString)
-        val removed = kvs.remove(toremove.fid, toremove.id).fold(l => { println(l); ??? }, _.getOrElse(???))
+        val removed = kvs.remove(entry(n).fid, toremove.id).fold(l => { println(l); ??? }, _.getOrElse(???))
 
-        (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, (n+3).toString, toremove.data)
+        (removed.id, removed.data) shouldBe ((n+3).toString, toremove.data)
 
         kvs.fd.get(Fd(fid)).fold(l => { println(l); ??? }, identity).get.count shouldBe (limit - n)
       }

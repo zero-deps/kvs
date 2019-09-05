@@ -10,11 +10,13 @@ import scala.collection.immutable.ArraySeq
 final case class AddAuto(fid: String, data: ArraySeq[Byte])
 final case class Add(fid: String, id: String, data: ArraySeq[Byte])
 final case class En
-  ( @N(1) fid: String
-  , @N(2) id: String
-  , @N(3) prev: Option[String]
-  , @N(4) data: ArraySeq[Byte]
-  )
+  ( @N(1) id: String
+  , @N(2) prev: Option[String]
+  , @N(3) data: ArraySeq[Byte]
+  ) {
+  def toAddAuto(fid: String): AddAuto = AddAuto(fid=fid, data=data)
+  def toAdd(fid: String): Add = Add(fid=fid, id=id, data=data)
+}
 
 /**
  * Abstract type entry handler
@@ -30,10 +32,10 @@ object EnHandler {
   private def unpickle(a: Array[Byte]): Res[En] = decode[En](a).right
 
   private def key(fid: String, id: String): String = s"${fid}.${id}"
-  private def _put(en: En)(implicit dba:Dba):Res[En] = {
+  private def _put(fid: String, en: En)(implicit dba:Dba):Res[En] = {
     for {
       p <- pickle(en)
-      _ <- dba.put(key(en.fid, en.id), p)
+      _ <- dba.put(key(fid, en.id), p)
     } yield en
   }
   def get(fid: String, id: String)(implicit dba: Dba): Res[Option[En]] = {
@@ -73,7 +75,7 @@ object EnHandler {
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       id <- dba.nextid(fid)
       en = to_en(addEn, id, fd.top)
-      _ <- _put(en)
+      _ <- _put(fid, en)
       _ <- fh.put(fd.copy(top=en.id.just, count=fd.count+1))
     } yield en
   }
@@ -91,7 +93,7 @@ object EnHandler {
       fd1 <- fh.get(Fd(fid))
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       en = to_en(addEn, fd.top)
-      _ <- _put(en)
+      _ <- _put(fid, en)
       _ <- fh.put(fd.copy(top=id.just, count=fd.count+1))
     } yield en
   }
@@ -105,7 +107,7 @@ object EnHandler {
   def put(en: Add)(implicit dba: Dba): Res[En] = {
     for {
       x <- get(en.fid, en.id)
-      z <- x.cata(y => _put(to_en(en, y.prev)), add(en))
+      z <- x.cata(y => _put(en.fid, to_en(en, y.prev)), add(en))
     } yield z
   }
 
@@ -117,7 +119,7 @@ object EnHandler {
     for {
       en1 <- get(_fid, _id)
       _ <- en1.cata(en => {
-        val fid = en.fid
+        val fid = _fid
         val id = _id
         val prev = en.prev
         for {
@@ -128,12 +130,13 @@ object EnHandler {
             fh.put(fd.copy(top=prev, count=fd.count-1))
           } else {
             for {
+              // todo replace with tailrec function
               next <- LazyList.iterate(start=_get(fid,top))(_.flatMap(x=>_get(fid,x.prev))).
                 takeWhile(_.isRight).
                 flatMap(_.toOption).
                 find(_.prev == Option(id)).
                 toRight(Fail(key(fid, id)))
-              _ <- _put(next.copy(prev=prev))
+              _ <- _put(fid, next.copy(prev=prev))
               _ <- fh.put(fd.copy(count=fd.count-1))
             } yield ()
           }
