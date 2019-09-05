@@ -1,12 +1,10 @@
 package zd.kvs
 
-import akka.actor.{Props, Actor, ActorLogging, ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
-import akka.cluster.sharding._
+import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import scala.collection.immutable.ArraySeq
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Success}
-import zd.gs.z._
 import zd.kvs.el.ElHandler
 import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
 import zd.kvs.file.{File, FileHandler}
@@ -18,15 +16,6 @@ object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
   override def createExtension(system: ExtendedActorSystem): Kvs = new Kvs(system)
 }
 class Kvs(system: ExtendedActorSystem) extends Extension {
-  { /* start sharding */
-    val sharding = ClusterSharding(system)
-    val settings = ClusterShardingSettings(system)
-    sharding.start(typeName=IdCounter.shardName,entityProps=IdCounter.props,settings=settings,
-      extractEntityId = { case msg:String => (msg,msg) },
-      extractShardId = { case msg:String => (math.abs(msg.hashCode) % 100).toString }
-    )
-  }
-
   val cfg = system.settings.config
   val store = cfg.getString("kvs.store")
 
@@ -49,9 +38,8 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
     def put(fd: Fd): Res[Unit] = FdHandler.put(fd)
     def get(fd: Fd): Res[Option[Fd]] = FdHandler.get(fd)
     def delete(fd: Fd): Res[Unit] = FdHandler.delete(fd)
+    def length(id: String): Res[Long] = FdHandler.length(id)
   }
-
-  def nextid(fid: String): Res[String] = dba.nextid(fid)
 
   def add(fid: String, data: ArraySeq[Byte]): Res[En] = EnHandler.add(fid, data)
   def add(fid: String, id: String, data: ArraySeq[Byte]): Res[En] = EnHandler.add(fid, id, data)
@@ -99,37 +87,5 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
 
   def compact(): Unit = {
     dba.compact()
-  }
-}
-
-object IdCounter {
-  def props: Props = Props(new IdCounter)
-  val shardName = "nextid"
-}
-class IdCounter extends Actor with ActorLogging {
-  val kvs = zd.kvs.Kvs(context.system)
-
-  implicit val strHandler: ElHandler[String] = new ElHandler[String] {
-    def pickle(e: String): Res[Array[Byte]] = e.getBytes("UTF-8").right
-    def unpickle(a: Array[Byte]): Res[String] = new String(a,"UTF-8").right
-  }
-
-  def receive: Receive = {
-    case name: String =>
-      kvs.el.get[String](s"IdCounter.${name}").fold(
-        l => log.error("can't get counter for name={} err={}", name, l)
-      , r => r.cata(prev => put(name, prev), put(name, c="0"))
-      )
-  }
-
-  def put(name: String, c: String): Unit = {
-    val res = for {
-      c1 <- c.toLongOption.map(_+1).map(_.toString).toRight(Fail("toLong"))
-      _ <- kvs.el.put[String](s"IdCounter.$name", c1)
-    } yield c1
-    res.fold(
-      l => log.error(s"Failed to increment name=${name} c=${c} l=${l}")
-    , r => sender ! r
-    )
   }
 }

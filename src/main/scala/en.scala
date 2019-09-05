@@ -64,10 +64,10 @@ object EnHandler {
     for {
       fd1 <- fh.get(Fd(fid))
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
-      id <- dba.nextid(fid)
+      id = fd.nextid.toString
       en = En(id=id, prev=fd.top, data=data)
       _ <- _put(fid, en)
-      _ <- fh.put(fd.copy(top=en.id.just, count=fd.count+1))
+      _ <- fh.put(fd.copy(top=en.id.just, length=fd.length+1, nextid=fd.nextid+1))
     } yield en
   }
 
@@ -83,7 +83,7 @@ object EnHandler {
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       en = En(id=id, prev=fd.top, data=data)
       _ <- _put(fid, en)
-      _ <- fh.put(fd.copy(top=id.just, count=fd.count+1))
+      _ <- fh.put(fd.copy(top=id.just, length=fd.length+1, nextid=fd.nextid+1))
     } yield en
   }
 
@@ -116,7 +116,7 @@ object EnHandler {
           fd <- fd1.cata(_.right, Fail(fid).left)
           top = fd.top
           _ <- if (Option(id) == top) {
-            fh.put(fd.copy(top=prev, count=fd.count-1))
+            fh.put(fd.copy(top=prev, length=fd.length-1))
           } else {
             for {
               // todo replace with tailrec function
@@ -126,7 +126,7 @@ object EnHandler {
                 find(_.prev == Option(id)).
                 toRight(Fail(key(fid, id)))
               _ <- _put(fid, next.copy(prev=prev))
-              _ <- fh.put(fd.copy(count=fd.count-1))
+              _ <- fh.put(fd.copy(length=fd.length-1))
             } yield ()
           }
           _ <- delete(fid, id)

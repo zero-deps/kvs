@@ -104,13 +104,6 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  override def nextid(feed: String): Res[String] = {
-    import akka.cluster.sharding._
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
-    val t = Timeout(d)
-    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed)(t).mapTo[String],d)).fold(Throwed(_).left, _.right)
-  }
-
   override def compact(): Unit = {
     leveldb.compact()
   }
