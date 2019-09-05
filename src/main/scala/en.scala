@@ -1,23 +1,18 @@
 package zd.kvs
 package en
 
-import zd.kvs.store.Dba
-import zd.gs.z._
-import zd.proto.api.{N, MessageCodec, encode, decode}
-import zd.proto.macrosapi.{caseCodecAuto}
 import scala.collection.immutable.ArraySeq
 import scala.util.Try
+import zd.gs.z._
+import zd.kvs.store.Dba
+import zd.proto.api.{N, MessageCodec, encode, decode}
+import zd.proto.macrosapi.{caseCodecAuto}
 
-final case class AddAuto(fid: String, data: ArraySeq[Byte])
-final case class Add(fid: String, id: String, data: ArraySeq[Byte])
 final case class En
   ( @N(1) id: String
   , @N(2) prev: Option[String]
   , @N(3) data: ArraySeq[Byte]
-  ) {
-  def toAddAuto(fid: String): AddAuto = AddAuto(fid=fid, data=data)
-  def toAdd(fid: String): Add = Add(fid=fid, id=id, data=data)
-}
+  )
 
 /**
  * Abstract type entry handler
@@ -61,20 +56,16 @@ object EnHandler {
   }
   private def delete(fid:String,id:String)(implicit dba:Dba):Res[Unit] = dba.delete(key(fid,id))
 
-  private def to_en(en: AddAuto, id: String, prev: Option[String]): En = En(id=id, prev=prev, data=en.data)
-  private def to_en(en: Add, prev: Option[String]): En = En(id=en.id, prev=prev, data=en.data)
-
   /**
    * Adds the entry to the container. Creates the container if it's absent.
    * @param en entry to add. ID will be generated.
    */
-  def add(addEn: AddAuto)(implicit dba: Dba): Res[En] = {
-    val fid = addEn.fid
+  def add(fid: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
     for {
       fd1 <- fh.get(Fd(fid))
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       id <- dba.nextid(fid)
-      en = to_en(addEn, id, fd.top)
+      en = En(id=id, prev=fd.top, data=data)
       _ <- _put(fid, en)
       _ <- fh.put(fd.copy(top=en.id.just, count=fd.count+1))
     } yield en
@@ -84,15 +75,13 @@ object EnHandler {
    * Adds the entry to the container. Creates the container if it's absent.
    * @param en entry to add.
    */
-  def add(addEn: Add)(implicit dba: Dba): Res[En] = {
-    val fid = addEn.fid
-    val id = addEn.id
+  def add(fid: String, id: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
     for {
       en1 <- get(fid, id)
       _ <- en1.cata(_ => EntryExists(key(fid, id)).left, ().right)
       fd1 <- fh.get(Fd(fid))
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
-      en = to_en(addEn, fd.top)
+      en = En(id=id, prev=fd.top, data=data)
       _ <- _put(fid, en)
       _ <- fh.put(fd.copy(top=id.just, count=fd.count+1))
     } yield en
@@ -104,10 +93,10 @@ object EnHandler {
    * If entry exists in container, put it in the same place
    * @param en entry to put (prev is ignored)
    */
-  def put(en: Add)(implicit dba: Dba): Res[En] = {
+  def put(fid: String, id: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
     for {
-      x <- get(en.fid, en.id)
-      z <- x.cata(y => _put(en.fid, to_en(en, y.prev)), add(en))
+      x <- get(fid, id)
+      z <- x.cata(y => _put(fid, En(id=id, prev=y.prev, data=data)), add(fid=fid, id=id, data=data))
     } yield z
   }
 

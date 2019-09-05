@@ -2,14 +2,15 @@ package zd.kvs
 
 import akka.actor.{Props, Actor, ActorLogging, ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import akka.cluster.sharding._
-import zd.kvs.store._
+import scala.collection.immutable.ArraySeq
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Success}
-import zd.kvs.en.{En, EnHandler, Fd, FdHandler, Add, AddAuto}
-import zd.kvs.el.ElHandler
-import zd.kvs.file.{File, FileHandler}
 import zd.gs.z._
+import zd.kvs.el.ElHandler
+import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
+import zd.kvs.file.{File, FileHandler}
+import zd.kvs.store._
 
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
@@ -52,9 +53,9 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
 
   def nextid(fid: String): Res[String] = dba.nextid(fid)
 
-  def add(el: AddAuto): Res[En] = EnHandler.add(el)
-  def add(el: Add): Res[En] = EnHandler.add(el)
-  def put(el: Add): Res[En] = EnHandler.put(el)
+  def add(fid: String, data: ArraySeq[Byte]): Res[En] = EnHandler.add(fid, data)
+  def add(fid: String, id: String, data: ArraySeq[Byte]): Res[En] = EnHandler.add(fid, id, data)
+  def put(fid: String, id: String, data: ArraySeq[Byte]): Res[En] = EnHandler.put(fid, id, data)
   def all(fid: String, from: Option[En] = None): Res[LazyList[Res[En]]] = EnHandler.all(fid, from)
   def get(fid: String, id: String): Res[Option[En]] = EnHandler.get(fid, id)
   def remove(fid: String, id: String): Res[Option[En]] = EnHandler.remove(fid, id)
