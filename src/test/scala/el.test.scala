@@ -8,6 +8,8 @@ import org.scalatest._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
+import zd.gs.z._
+import scala.collection.immutable.ArraySeq
 
 class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4011))))
   with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
@@ -21,25 +23,25 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
   "el handler should" - {
     "return error when element is absent" in {
-      kvs.el.get[String]("key").getOrElse(???) should be (None)
+      kvs.el.get("key") shouldBe Nothing.right
     }
     "save value" in {
-      kvs.el.put("key","value").getOrElse(???) should be (())
+      kvs.el.put("key", "value".getBytes) shouldBe ().right
     }
     "retrieve value" in {
-      kvs.el.get[String]("key").getOrElse(???) should be (Some("value"))
+      kvs.el.get("key") shouldBe ArraySeq.unsafeWrapArray("value".getBytes).just.right
     }
     "override value" in {
-      kvs.el.put("key","value2").getOrElse(???) should be (())
+      kvs.el.put("key", "value2".getBytes) shouldBe ().right
     }
     "delete value" in {
-      kvs.el.delete[String]("key").getOrElse(???) should be (())
+      kvs.el.delete("key") shouldBe ().right
     }
     "delete value again" in {
-      kvs.el.delete[String]("key").getOrElse(???) should be (())
+      kvs.el.delete("key") shouldBe ().right
     }
     "clean up" in {
-      kvs.el.get[String]("key").getOrElse(???) should be (None)
+      kvs.el.get("key") shouldBe Nothing.right
     }
   }
 }

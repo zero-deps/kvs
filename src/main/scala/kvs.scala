@@ -29,9 +29,9 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   }
 
   object el {
-    def put[A: ElHandler](k: String,el: A): Res[Unit] = implicitly[ElHandler[A]].put(k,el)
-    def get[A: ElHandler](k: String): Res[Option[A]] = implicitly[ElHandler[A]].get(k)
-    def delete[A: ElHandler](k: String): Res[Unit] = implicitly[ElHandler[A]].delete(k)
+    def put(k: String, v: Array[Byte]): Res[Unit] = ElHandler.put(k, v)
+    def get(k: String): Res[Option[ArraySeq[Byte]]] = ElHandler.get(k)
+    def delete(k: String): Res[Unit] = ElHandler.delete(k)
   }
 
   object fd {
