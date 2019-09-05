@@ -6,6 +6,7 @@ import zd.gs.z._
 import zd.proto.api.{N, MessageCodec, encode, decode}
 import zd.proto.macrosapi.{caseCodecAuto}
 import scala.collection.immutable.ArraySeq
+import scala.util.Try
 
 final case class AddAuto(fid: String, data: ArraySeq[Byte])
 final case class Add(fid: String, id: String, data: ArraySeq[Byte])
@@ -28,7 +29,7 @@ object EnHandler {
   private val fh = FdHandler
   private implicit val codec: MessageCodec[En] = caseCodecAuto[En]
   private def pickle(e: En): Res[Array[Byte]] = encode[En](e).right
-  private def unpickle(a: Array[Byte]): Res[En] = decode[En](a).right
+  private def unpickle(a: Array[Byte]): Res[En] = Try(decode[En](a)).fold(Throwed(_).left, _.right)
 
   private def key(fid: String, id: String): String = s"${fid}.${id}"
   private def _put(fid: String, en: En)(implicit dba:Dba):Res[En] = {

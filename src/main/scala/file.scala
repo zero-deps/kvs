@@ -3,7 +3,7 @@ package file
 
 import zd.kvs.store.Dba
 import scala.annotation.tailrec
-import scala.util.{Try, Success, Failure}
+import scala.util.Try
 import zd.proto.api.{MessageCodec, encode, decode}
 import zd.proto.macrosapi.caseCodecAuto
 import zd.gs.z._
@@ -14,10 +14,7 @@ trait FileHandler {
   private implicit val fileCodec: MessageCodec[File] = caseCodecAuto[File]
 
   private def pickle(e: File): Res[Array[Byte]] = encode(e).right
-  private def unpickle(a: Array[Byte]): Res[File] = Try(decode[File](a)) match {
-    case Success(x) => x.right
-    case Failure(x) => UnpickleFail(x).left
-  }
+  private def unpickle(a: Array[Byte]): Res[File] = Try(decode[File](a)).fold(Throwed(_).left, _.right)
 
   private def get(dir: String, name: String)(implicit dba: Dba): Res[File] = {
     dba.get(s"${dir}/${name}") match {
