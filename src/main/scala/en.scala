@@ -60,8 +60,8 @@ object EnHandler {
   }
   private def delete(fid:String,id:String)(implicit dba:Dba):Res[Unit] = dba.delete(key(fid,id))
 
-  private def to_en(en: AddAuto, id: String, prev: Option[String]): En = En(fid=en.fid, id=id, prev=prev, data=en.data)
-  private def to_en(en: Add, prev: Option[String]): En = En(fid=en.fid, id=en.id, prev=prev, data=en.data)
+  private def to_en(en: AddAuto, id: String, prev: Option[String]): En = En(id=id, prev=prev, data=en.data)
+  private def to_en(en: Add, prev: Option[String]): En = En(id=en.id, prev=prev, data=en.data)
 
   /**
    * Adds the entry to the container. Creates the container if it's absent.
