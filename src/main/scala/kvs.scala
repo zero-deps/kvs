@@ -36,8 +36,8 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
 
   object fd {
     def put(fd: Fd): Res[Unit] = FdHandler.put(fd)
-    def get(fd: Fd): Res[Option[Fd]] = FdHandler.get(fd)
-    def delete(fd: Fd): Res[Unit] = FdHandler.delete(fd)
+    def get(id: String): Res[Option[Fd]] = FdHandler.get(id)
+    def delete(id: String): Res[Unit] = FdHandler.delete(id)
     def length(id: String): Res[Long] = FdHandler.length(id)
   }
 

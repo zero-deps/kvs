@@ -133,8 +133,8 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     "should be empty at the end test" - {
       "length is 0" in { kvs.fd.length(fid) shouldBe 0L.right }
       "all is empty" in { kvs.all(fid) shouldBe LazyList.empty.right }
-      "delete fd is ok" in { kvs.fd.delete(Fd(fid)) shouldBe Right(()) }
-      "delete is idempotent" in { kvs.fd.delete(Fd(fid)) shouldBe Right(()) }
+      "delete fd is ok" in { kvs.fd.delete(fid) shouldBe Right(()) }
+      "delete is idempotent" in { kvs.fd.delete(fid) shouldBe Right(()) }
       "all is empty on absent feed" in { kvs.all(fid) shouldBe LazyList.empty.right }
     }
   }

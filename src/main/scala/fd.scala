@@ -19,12 +19,12 @@ object FdHandler {
   private def pickle(e: Fd): Res[Array[Byte]] = encode[Fd](e).right
   private def unpickle(a: Array[Byte]): Res[Fd] = Try(decode[Fd](a)).fold(Throwed(_).left, _.right)
 
-  def put(el: Fd)(implicit dba: Dba): Res[Unit] = pickle(el).flatMap(x => dba.put(el.id,x))
-  def get(el: Fd)(implicit dba: Dba): Res[Option[Fd]] = dba.get(el.id) match {
+  def put(el: Fd)(implicit dba: Dba): Res[Unit] = pickle(el).flatMap(x => dba.put(el.id, x))
+  def get(id: String)(implicit dba: Dba): Res[Option[Fd]] = dba.get(id) match {
     case Right(Some(x)) => unpickle(x).map(_.just)
     case Right(None) => Right(None)
     case x@Left(_) => x.coerceRight
   }
-  def length(id: String)(implicit dba: Dba): Res[Long] = get(Fd(id)).map(_.map(_.length).getOrElse(0L))
-  def delete(el: Fd)(implicit dba: Dba): Res[Unit] = dba.delete(el.id)
+  def length(id: String)(implicit dba: Dba): Res[Long] = get(id).map(_.map(_.length).getOrElse(0L))
+  def delete(id: String)(implicit dba: Dba): Res[Unit] = dba.delete(id)
 }

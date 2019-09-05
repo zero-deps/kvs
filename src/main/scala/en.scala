@@ -62,7 +62,7 @@ object EnHandler {
    */
   def add(fid: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
     for {
-      fd1 <- fh.get(Fd(fid))
+      fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       id = fd.nextid.toString
       en = En(id=id, prev=fd.top, data=data)
@@ -79,7 +79,7 @@ object EnHandler {
     for {
       en1 <- get(fid, id)
       _ <- en1.cata(_ => EntryExists(key(fid, id)).left, ().right)
-      fd1 <- fh.get(Fd(fid))
+      fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       en = En(id=id, prev=fd.top, data=data)
       _ <- _put(fid, en)
@@ -112,7 +112,7 @@ object EnHandler {
         val id = _id
         val prev = en.prev
         for {
-          fd1 <- fh.get(Fd(fid))
+          fd1 <- fh.get(fid)
           fd <- fd1.cata(_.right, Fail(fid).left)
           top = fd.top
           _ <- if (Option(id) == top) {
@@ -153,7 +153,7 @@ object EnHandler {
       }
     }
     from match {
-      case None => fh.get(Fd(fid)).map(_.cata(x => _stream(x.top), LazyList.empty))
+      case None => fh.get(fid).map(_.cata(x => _stream(x.top), LazyList.empty))
       case Some(en) => _stream(en.prev).right
     }
   }
