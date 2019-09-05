@@ -11,8 +11,6 @@ ThisBuild / description := "Abstract Scala Types Key-Value Storage"
 ThisBuild / licenses := "MIT" -> url("https://raw.githubusercontent.com/zero-deps/kvs/master/LICENSE") :: Nil
 ThisBuild / version := zd.gs.git.GitOps.version
 ThisBuild / scalaVersion := scalaVersion_
-ThisBuild / resolvers += Resolver.jcenterRepo
-ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
 ThisBuild / cancelable in Global := true
 ThisBuild / javacOptions ++= Seq("-source", "12", "-target", "12")
 ThisBuild / scalacOptions ++= Seq(
@@ -37,7 +35,7 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Xlint:private-shadow"
   , "-Xlint:stars-align"
   , "-Xlint:type-parameter-shadow"
-  // , "-Ywarn-dead-code"
+  , "-Ywarn-dead-code"
   , "-Ywarn-extra-implicit"
   , "-Ywarn-numeric-widen"
   , "-Ywarn-value-discard"
@@ -48,9 +46,11 @@ ThisBuild / scalacOptions ++= Seq(
   , "-encoding", "UTF-8"
 )
 
+ThisBuild / resolvers += Resolver.jcenterRepo
+ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
+
 ThisBuild / isSnapshot := true // override local artifacts
-ThisBuild / publishArtifact := false
-ThisBuild / packageBin / publishArtifact := true
+ThisBuild / publishArtifact := true
 ThisBuild / Test / publishArtifact := true
 
 ThisBuild / turbo := true
