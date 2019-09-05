@@ -29,7 +29,7 @@ class Ring(system: ActorSystem) extends Dba {
 
   val hash = system.actorOf(rng.Hash.props().withDeploy(Deploy.local), name="ring_hash")
 
-  def put(key: String, value: V): Res[Unit] = {
+  override def put(key: String, value: V): Res[Unit] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     val putF = hash.ask(rng.Put(stob(key), value))(t).mapTo[Ack]
@@ -41,13 +41,13 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  def isReady: Future[Boolean] = {
+  override def isReady: Future[Boolean] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     hash.ask(rng.Ready)(t).mapTo[Boolean]
   }
 
-  def get(key: String): Res[Option[V]] = {
+  override def get(key: String): Res[Option[V]] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Get(stob(key)))(t).mapTo[Ack]
@@ -59,7 +59,7 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  def delete(key: String): Res[Unit] = {
+  override def delete(key: String): Res[Unit] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Delete(stob(key)))(t).mapTo[Ack]
@@ -71,7 +71,7 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  def save(path: String): Res[String] = {
+  override def save(path: String): Res[String] = {
     val d = 1 hour
     val x = hash.ask(rng.Save(path))(Timeout(d))
     Try(Await.result(x, d)) match {
@@ -81,10 +81,10 @@ class Ring(system: ActorSystem) extends Dba {
       case Failure(t) => Throwed(t).left
     }
   }
-  def load(path: String): Res[Any] = {
+  override def load(path: String): Res[Any] = {
     val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
     val t = Timeout(d)
-    val x = hash.ask(rng.Load(path, javaSer=false))(t)
+    val x = hash.ask(rng.Load(path))(t)
     Try(Await.result(x, d)) match {
       case Success(x: AckQuorumFailed) => x.left
       case Success(v: String) => v.right
@@ -92,18 +92,7 @@ class Ring(system: ActorSystem) extends Dba {
       case Failure(t) => Throwed(t).left
     }
   }
-  def loadJava(path: String): Res[Any] = {
-    val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
-    val t = Timeout(d)
-    val x = hash.ask(rng.Load(path, javaSer=true))(t)
-    Try(Await.result(x, d)) match {
-      case Success(x: AckQuorumFailed) => x.left
-      case Success(v: String) => v.right
-      case Success(v) => Fail(s"Unexpected response: ${v}").left
-      case Failure(t) => Throwed(t).left
-    }
-  }
-  def iterate(path: String, f: (String, Array[Byte]) => Option[(String, Array[Byte])], afterIterate: () => Unit): Res[Any] = {
+  override def iterate(path: String, f: (String, Array[Byte]) => Option[(String, Array[Byte])], afterIterate: () => Unit): Res[Any] = {
     val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
     val t = Timeout(d)
     val x = hash.ask(rng.Iterate(path, (k, v) => f(new String(k, "UTF-8"), v).map{case (k, v) => stob(k) -> v }, afterIterate))(t)
@@ -115,14 +104,14 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  def nextid(feed: String): Res[String] = {
+  override def nextid(feed: String): Res[String] = {
     import akka.cluster.sharding._
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed)(t).mapTo[String],d)).fold(Throwed(_).left, _.right)
   }
 
-  def compact(): Unit = {
+  override def compact(): Unit = {
     leveldb.compact()
   }
 }

@@ -11,7 +11,6 @@ import zd.kvs.el.ElHandler.strHandler
 trait KvsMBean {
   def save(path: String): String
   def load(path: String): Any
-  def loadJava(path: String): Any
   def get(k: String): String
   def put(k: String, v: String): Unit
   def putN(i: Int): Unit
@@ -28,7 +27,6 @@ class KvsJmx(kvs: Kvs, system: ActorSystem) {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
       def save(path: String): String = kvs.dump.save(path).fold(_.toString, identity)
       def load(path: String): Any = kvs.dump.load(path).fold(_.toString, identity)
-      def loadJava(path: String): Any = kvs.dump.loadJava(path).fold(_.toString, identity)
 
       def get(k: String): String = kvs.el.get(k).fold(_.toString, _.cata(_.toString, "NaN"))
       def put(k: String, v: String): Unit = {

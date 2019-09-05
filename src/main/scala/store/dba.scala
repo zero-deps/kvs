@@ -14,7 +14,6 @@ trait Dba {
   def delete(key: K): Res[Unit]
   def save(path: String): Res[String]
   def load(path: String): Res[Any]
-  def loadJava(path: String): Res[Any]
   def iterate(path: String, f: (K, V) => Option[(K, V)], afterIterate: () => Unit): Res[Any]
   def isReady: Future[Boolean]
   def nextid(fid: String): Res[String]
