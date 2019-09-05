@@ -1,11 +1,12 @@
-package zd.rng
+package zd.kvs
+package rng
 
 import akka.actor._
 import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import com.typesafe.config.Config
-import zd.rng.model.{StoreDelete, StoreGet, QuorumState, ChangeState}
-import zd.rng.model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
+import zd.kvs.rng.model.{StoreDelete, StoreGet, QuorumState, ChangeState}
+import zd.kvs.rng.model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.concurrent.duration._
 import java.util.Arrays

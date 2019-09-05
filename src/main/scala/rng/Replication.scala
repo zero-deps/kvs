@@ -1,12 +1,13 @@
-package zd.rng
+package zd.kvs
+package rng
 
 import akka.actor.{ActorLogging, Props, FSM}
 import akka.cluster.{Cluster}
-import zd.rng.data.{Data}
-import zd.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
+import zd.kvs.rng.data.{Data}
+import zd.kvs.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration.{Duration}
-import zd.rng.ReplicationSupervisor.{State}
+import zd.kvs.rng.ReplicationSupervisor.{State}
 
 object ReplicationSupervisor {
   final case class Progress(done: Int, total: Int, step: Int)

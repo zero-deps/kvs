@@ -1,4 +1,5 @@
-package zd.rng
+package zd.kvs
+package rng
 package data
 
 import zd.proto.api.{N, MessageCodec}

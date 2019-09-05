@@ -1,8 +1,9 @@
-package zd.rng
+package zd.kvs
+package rng
 
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
-import zd.rng.data.Data
-import zd.rng.model.{StoreGetAck, StorePut}
+import zd.kvs.rng.data.Data
+import zd.kvs.rng.model.{StoreGetAck, StorePut}
 import scala.concurrent.duration._
 import java.util.Arrays
 

@@ -1,11 +1,12 @@
-package zd.rng
+package zd.kvs
+package rng
 
 import akka.actor.{FSM, ActorLogging, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import leveldbjnr.{LevelDb}
-import zd.rng.model.{DumpGet, DumpEn}
-import zd.rng.store.ReadonlyStore
+import zd.kvs.rng.model.{DumpGet, DumpEn}
+import zd.kvs.rng.store.ReadonlyStore
 import scala.concurrent.duration._
 import scala.concurrent.{Await}
 import scala.util.{Try, Success, Failure}

@@ -1,7 +1,8 @@
-package zd.rng
+package zd.kvs
+package rng
 
-import zd.rng.data.{Data}
-import zd.rng.GatherGet.AddrOfData
+import zd.kvs.rng.data.{Data}
+import zd.kvs.rng.GatherGet.AddrOfData
 import scala.annotation.tailrec
 import scala.collection.immutable.{HashMap, HashSet}
 import zd.gs.z._

@@ -1,12 +1,13 @@
-package zd.rng
+package zd.kvs
+package rng
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, PoisonPill}
 import akka.pattern.ask
 import akka.util.Timeout
 import java.time.format.{DateTimeFormatter}
 import java.time.{LocalDateTime}
-import zd.rng.data.{Data}
-import zd.rng.model.{DumpBucketData, DumpGetBucketData}
+import zd.kvs.rng.data.{Data}
+import zd.kvs.rng.model.{DumpBucketData, DumpGetBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration._
 import scala.concurrent.{Await}

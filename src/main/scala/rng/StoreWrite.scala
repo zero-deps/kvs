@@ -1,4 +1,5 @@
-package zd.rng
+package zd.kvs
+package rng
 package store
 
 import akka.actor.{Actor, ActorLogging, Props}
@@ -6,11 +7,11 @@ import akka.cluster.{Cluster, VectorClock}
 import java.util.Arrays
 import leveldbjnr._
 import zd.proto.api.{encode, decode}
-import zd.rng.data.codec._
-import zd.rng.data.{Data, BucketInfo}
-import zd.rng.dump.codec._
-import zd.rng.dump.ValueKey
-import zd.rng.model.{DumpPut, ReplBucketPut, StorePut, StoreDelete}
+import zd.kvs.rng.data.codec._
+import zd.kvs.rng.data.{Data, BucketInfo}
+import zd.kvs.rng.dump.codec._
+import zd.kvs.rng.dump.ValueKey
+import zd.kvs.rng.model.{DumpPut, ReplBucketPut, StorePut, StoreDelete}
 
 class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   import context.system

@@ -1,4 +1,4 @@
-package zd
+package zd.kvs
 
 import akka.actor.{Address, ActorRef}
 

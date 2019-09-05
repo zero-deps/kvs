@@ -43,12 +43,12 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
     "should save e1" in {
       val saved = kvs.add(e1).fold(l => l match { 
-        case RngThrow(x) => throw x
+        case Throwed(x) => throw x
         case _ => ???
       }, identity)
       kvs.fd.get(Fd(fid)).map(_.get.count) match {
         case Right(x) => x shouldBe 1
-        case Left(RngThrow(t)) => t.printStackTrace
+        case Left(Throwed(t)) => t.printStackTrace
         case Left(x) => fail(x.toString)
       }
       (saved.id, saved.data) shouldBe ("1", e1.data)

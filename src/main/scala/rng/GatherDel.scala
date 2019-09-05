@@ -1,4 +1,5 @@
-package zd.rng
+package zd.kvs
+package rng
 
 import akka.actor._
 import akka.cluster.Cluster

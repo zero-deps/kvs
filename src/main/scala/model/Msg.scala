@@ -1,8 +1,9 @@
-package zd.rng
+package zd.kvs
+package rng
 package model
 
 import zd.proto.api.N
-import zd.rng.data._
+import zd.kvs.rng.data._
 import java.util.Arrays
 
 sealed trait Msg

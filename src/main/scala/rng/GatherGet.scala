@@ -1,9 +1,10 @@
-package zd.rng
+package zd.kvs
+package rng
 
 import annotation.unused
 import akka.actor._
-import zd.rng.data.Data
-import zd.rng.model.{StoreGetAck, StorePut, StoreDelete}
+import zd.kvs.rng.data.Data
+import zd.kvs.rng.model.{StoreGetAck, StorePut, StoreDelete}
 import scala.concurrent.duration._
 import scala.collection.immutable.{HashSet}
 

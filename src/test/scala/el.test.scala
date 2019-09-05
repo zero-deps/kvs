@@ -24,13 +24,13 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.el.get[String]("key").getOrElse(???) should be (None)
     }
     "save value" in {
-      kvs.el.put("key","value").getOrElse(???) should be ("value")
+      kvs.el.put("key","value").getOrElse(???) should be (())
     }
     "retrieve value" in {
       kvs.el.get[String]("key").getOrElse(???) should be (Some("value"))
     }
     "override value" in {
-      kvs.el.put("key","value2").getOrElse(???) should be ("value2")
+      kvs.el.put("key","value2").getOrElse(???) should be (())
     }
     "delete value" in {
       kvs.el.delete[String]("key").getOrElse(???) should be (())

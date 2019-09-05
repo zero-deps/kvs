@@ -1,4 +1,5 @@
-package zd.rng
+package zd.kvs
+package rng
 
 sealed trait FsmState
 final case object ReadyCollect extends FsmState
