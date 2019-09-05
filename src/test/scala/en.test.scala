@@ -125,7 +125,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
         val removed = kvs.remove(fid, (n+3).toString)
         removed.map(_.map(_.id)) shouldBe (n+3).toString.just.right
-        removed.map(_.map(_.data)) shouldBe data(3).just.right
+        removed.map(_.map(_.data)) shouldBe data(n).just.right
         kvs.fd.length(fid) shouldBe (limit-n).right
       }
     }
