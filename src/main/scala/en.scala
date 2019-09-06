@@ -83,7 +83,8 @@ object EnHandler {
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       en = En(id=id, prev=fd.top, data=data)
       _ <- _put(fid, en)
-      _ <- fh.put(fd.copy(top=id.just, length=fd.length+1, nextid=fd.nextid+1))
+      nextid = id.toLongOption.cata(_ + 1, fd.nextid)
+      _ <- fh.put(fd.copy(top=id.just, length=fd.length+1, nextid=nextid))
     } yield en
   }
 
