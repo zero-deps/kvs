@@ -10,7 +10,7 @@ import zd.proto.macrosapi.{caseCodecAuto}
 
 final case class En
   ( @N(1) id: String
-  , @N(2) prev: Option[String]
+  , @N(2) next: Option[String]
   , @N(3) data: ArraySeq[Byte]
   )
 
@@ -18,7 +18,7 @@ final case class En
  * Abstract type entry handler
  * Since we don't know the exact type the pickler/unpickler still needs to be provided explicitly
  *
- * [top] -->prev--> [en] -->prev--> [none]
+ * [head] -->next--> [en] -->next--> [none]
  */
 object EnHandler {
   private val fh = FdHandler
@@ -60,15 +60,15 @@ object EnHandler {
    * Adds the entry to the container. Creates the container if it's absent.
    * @param en entry to add. ID will be generated.
    */
-  def add(fid: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
+  def prepend(fid: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
     for {
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       id = (fd.maxid+1).toString
-      en = En(id=id, prev=fd.top, data=data)
+      en = En(id=id, next=fd.head, data=data)
       _ <- fh.put(fd.copy(maxid=fd.maxid+1)) // in case kvs will fail after adding the en
       _ <- _put(fid, en)
-      _ <- fh.put(fd.copy(top=id.just, length=fd.length+1, maxid=fd.maxid+1))
+      _ <- fh.put(fd.copy(head=id.just, length=fd.length+1, maxid=fd.maxid+1))
     } yield en
   }
 
@@ -76,17 +76,17 @@ object EnHandler {
    * Adds the entry to the container. Creates the container if it's absent.
    * @param en entry to add.
    */
-  def add(fid: String, id: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
+  def prepend(fid: String, id: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
     for {
       en1 <- get(fid, id)
       _ <- en1.cata(_ => EntryExists(key(fid, id)).left, ().right)
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
-      en = En(id=id, prev=fd.top, data=data)
+      en = En(id=id, next=fd.head, data=data)
       maxid = id.toLongOption.cata(Math.max(fd.maxid, _), fd.maxid)
       _ <- fh.put(fd.copy(maxid=maxid)) // in case kvs will fail after adding the en
       _ <- _put(fid, en)
-      _ <- fh.put(fd.copy(top=id.just, length=fd.length+1, maxid=maxid))
+      _ <- fh.put(fd.copy(head=id.just, length=fd.length+1, maxid=maxid))
     } yield en
   }
 
@@ -94,12 +94,12 @@ object EnHandler {
    * Puts the entry to the container
    * If entry don't exists in containter create container and add it to the head
    * If entry exists in container, put it in the same place
-   * @param en entry to put (prev is ignored)
+   * @param en entry to put (next is ignored)
    */
   def put(fid: String, id: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
     for {
       x <- get(fid, id)
-      z <- x.cata(y => _put(fid, En(id=id, prev=y.prev, data=data)), add(fid=fid, id=id, data=data))
+      z <- x.cata(y => _put(fid, En(id=id, next=y.next, data=data)), prepend(fid=fid, id=id, data=data))
     } yield z
   }
 
@@ -113,22 +113,22 @@ object EnHandler {
       _ <- en1.cata(en => {
         val fid = _fid
         val id = _id
-        val prev = en.prev
+        val next = en.next
         for {
           fd1 <- fh.get(fid)
           fd <- fd1.cata(_.right, Fail(fid).left)
-          top = fd.top
-          _ <- if (Option(id) == top) {
-            fh.put(fd.copy(top=prev, length=fd.length-1))
+          head = fd.head
+          _ <- if (Option(id) == head) {
+            fh.put(fd.copy(head=next, length=fd.length-1))
           } else {
             for {
               // todo replace with tailrec function
-              next <- LazyList.iterate(start=_get(fid,top))(_.flatMap(x=>_get(fid,x.prev))).
+              prev_en <- LazyList.iterate(start=_get(fid,head))(_.flatMap(x=>_get(fid,x.next))).
                 takeWhile(_.isRight).
                 flatMap(_.toOption).
-                find(_.prev == Option(id)).
+                find(_.next == Option(id)).
                 toRight(Fail(key(fid, id)))
-              _ <- _put(fid, next.copy(prev=prev))
+              _ <- _put(fid, prev_en.copy(next=next))
               _ <- fh.put(fd.copy(length=fd.length-1))
             } yield ()
           }
@@ -150,14 +150,14 @@ object EnHandler {
         case Some(id) =>
           val en = _get(fid, id)
           en match {
-            case Right(e) => LazyList.cons(en, _stream(e.prev))
+            case Right(e) => LazyList.cons(en, _stream(e.next))
             case _ => LazyList(en)
           }
       }
     }
     from match {
-      case None => fh.get(fid).map(_.cata(x => _stream(x.top), LazyList.empty))
-      case Some(en) => _stream(en.prev).right
+      case None => fh.get(fid).map(_.cata(x => _stream(x.head), LazyList.empty))
+      case Some(en) => _stream(en.next).right
     }
   }
 }

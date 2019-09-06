@@ -41,8 +41,8 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
     def length(id: String): Res[Long] = FdHandler.length(id)
   }
 
-  def add(fid: String, data: ArraySeq[Byte]): Res[En] = EnHandler.add(fid, data)
-  def add(fid: String, id: String, data: ArraySeq[Byte]): Res[En] = EnHandler.add(fid, id, data)
+  def add(fid: String, data: ArraySeq[Byte]): Res[En] = EnHandler.prepend(fid, data)
+  def add(fid: String, id: String, data: ArraySeq[Byte]): Res[En] = EnHandler.prepend(fid, id, data)
   def put(fid: String, id: String, data: ArraySeq[Byte]): Res[En] = EnHandler.put(fid, id, data)
   def all(fid: String, from: Option[En] = None): Res[LazyList[Res[En]]] = EnHandler.all(fid, from)
   def get(fid: String, id: String): Res[Option[En]] = EnHandler.get(fid, id)
