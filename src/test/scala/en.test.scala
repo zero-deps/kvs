@@ -4,15 +4,15 @@ package en
 import akka.actor.ActorSystem
 import akka.testkit._
 import com.typesafe.config.{ConfigFactory}
-import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest._
+import org.scalatest.freespec.AnyFreeSpecLike
+import scala.collection.immutable.ArraySeq
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
 import zd.gs.z._
-import scala.collection.immutable.ArraySeq
 
-class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4012))))
+class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4012))))
   with AnyFreeSpecLike with Matchers with BeforeAndAfterAll {
 
   def data(n: Int): ArraySeq[Byte] = ArraySeq.unsafeWrapArray(s"val=${n}".getBytes)
@@ -81,7 +81,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
         kvs.fd.length(fid) shouldBe 2L.right
 
         val stream = kvs.all(fid)
-        stream.map(_.toList) shouldBe List(En("3", "1".just, data(3)).right, En("1", Nothing, data(1)).right).right
+        stream.map(_.toList) shouldBe List(En("3", "2".just, data(3)).right, En("1", Nothing, data(1)).right).right
       }
 
       "should remove entry(1) from feed" in {
@@ -94,7 +94,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
         kvs.fd.length(fid) shouldBe 1L.right
 
         val stream = kvs.all(fid)
-        stream.map(_.toList) shouldBe List(En("3", Nothing, data(3)).right).right
+        stream.map(_.toList) shouldBe List(En("3", "2".just, data(3)).right).right
       }
 
       "should remove entry(3) from feed" in {

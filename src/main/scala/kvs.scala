@@ -43,10 +43,12 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
 
   def add(fid: String, data: ArraySeq[Byte]): Res[En] = EnHandler.prepend(fid, data)
   def add(fid: String, id: String, data: ArraySeq[Byte]): Res[En] = EnHandler.prepend(fid, id, data)
+  def add(fid: String, en: En): Res[En] = EnHandler.prepend(fid, en.id, en.data)
   def put(fid: String, id: String, data: ArraySeq[Byte]): Res[En] = EnHandler.put(fid, id, data)
+  def put(fid: String, en: En): Res[En] = EnHandler.put(fid, en.id, en.data)
   def all(fid: String, from: Option[En] = None): Res[LazyList[Res[En]]] = EnHandler.all(fid, from)
   def get(fid: String, id: String): Res[Option[En]] = EnHandler.get(fid, id)
-  def remove(fid: String, id: String): Res[Option[En]] = EnHandler.remove(fid, id)
+  def remove(fid: String, id: String): Res[Option[En]] = EnHandler.remove_soft(fid, id)
 
   object file {
     def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)

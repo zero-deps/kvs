@@ -12,6 +12,7 @@ final case class En
   ( @N(1) id: String
   , @N(2) next: Option[String]
   , @N(3) data: ArraySeq[Byte]
+  , @N(4) removed: Boolean=false
   )
 
 /**
@@ -104,15 +105,31 @@ object EnHandler {
   }
 
   /**
-   * Remove the entry from the container specified.
+   * Mark for remove. O(1) complexity.
+   * @return marked entry (with data). Or None if element is absent.
+   */
+  def remove_soft(fid: String, id: String)(implicit dba: Dba): Res[Option[En]] = {
+    for {
+      en1 <- get(fid, id)
+      _ <- en1.cata(en => {
+        val next = en.next
+        for {
+          fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
+          _ <- fh.put(fd.copy(length=fd.length-1, removed=fd.removed+1))
+          _ <- _put(fid, en.copy(removed=true))
+        } yield ()
+      }, ().right)
+    } yield en1
+  }
+
+  /**
+   * Remove the entry from the container specified. O(n) complexity.
    * @return deleted entry (with data). Or None if element is absent.
    */
-  def remove(_fid: String, _id: String)(implicit dba: Dba): Res[Option[En]] = {
+  def remove_hard(fid: String, id: String)(implicit dba: Dba): Res[Option[En]] = {
     for {
-      en1 <- get(_fid, _id)
+      en1 <- get(fid, id)
       _ <- en1.cata(en => {
-        val fid = _fid
-        val id = _id
         val next = en.next
         for {
           fd1 <- fh.get(fid)
@@ -150,8 +167,9 @@ object EnHandler {
         case Some(id) =>
           val en = _get(fid, id)
           en match {
-            case Right(e) => LazyList.cons(en, _stream(e.next))
-            case _ => LazyList(en)
+            case Right(e) if e.removed => _stream(e.next)
+            case Right(e) => LazyList.cons(e.right, _stream(e.next))
+            case e@Left(_) => LazyList(e.coerceRight)
           }
       }
     }
