@@ -11,7 +11,7 @@ final case class Fd
   ( @N(1) id: String
   , @N(2) top: Option[String]=None
   , @N(3) length: Long=0
-  , @N(4) nextid: Long=1
+  , @N(4) maxid: Long=0
   )
 
 object FdHandler {

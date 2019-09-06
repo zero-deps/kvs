@@ -26,7 +26,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
   "feed" - {
     "no 1" - {
-      val fid = "fid" + java.util.UUID.randomUUID.toString
+      val fid = "fid1" + java.util.UUID.randomUUID.toString
       
       "be empty at creation" in {
         kvs.all(fid) shouldBe (Right(LazyList.empty))
@@ -113,7 +113,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "no 2" - {
-      val fid = "fid" + java.util.UUID.randomUUID.toString
+      val fid = "fid2" + java.util.UUID.randomUUID.toString
       
       "should not create stack overflow" in {
         val limit = 100L
@@ -132,7 +132,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "no 3" - {
-      val fid = "fid" + java.util.UUID.randomUUID.toString
+      val fid = "fid3" + java.util.UUID.randomUUID.toString
       val d = data(0)
       "first auto id is 1" in {
         val s = kvs.add(fid, d)
@@ -157,6 +157,14 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       "next auto id is 7" in {
         val s = kvs.add(fid, d)
         s.map(_.id) shouldBe "7".right
+      }
+      "insert id 3" in {
+        val s = kvs.add(fid, "3", d)
+        s.map(_.id) shouldBe "3".right
+      }
+      "next auto id is 8" in {
+        val s = kvs.add(fid, d)
+        s.map(_.id) shouldBe "8".right
       }
     }
   }

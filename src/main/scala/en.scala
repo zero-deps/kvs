@@ -64,10 +64,11 @@ object EnHandler {
     for {
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
-      id = fd.nextid.toString
+      id = (fd.maxid+1).toString
       en = En(id=id, prev=fd.top, data=data)
+      _ <- fh.put(fd.copy(maxid=fd.maxid+1)) // in case kvs will fail after adding the en
       _ <- _put(fid, en)
-      _ <- fh.put(fd.copy(top=en.id.just, length=fd.length+1, nextid=fd.nextid+1))
+      _ <- fh.put(fd.copy(top=id.just, length=fd.length+1, maxid=fd.maxid+1))
     } yield en
   }
 
@@ -82,9 +83,10 @@ object EnHandler {
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       en = En(id=id, prev=fd.top, data=data)
+      maxid = id.toLongOption.cata(Math.max(fd.maxid, _), fd.maxid)
+      _ <- fh.put(fd.copy(maxid=maxid)) // in case kvs will fail after adding the en
       _ <- _put(fid, en)
-      nextid = id.toLongOption.cata(_ + 1, fd.nextid)
-      _ <- fh.put(fd.copy(top=id.just, length=fd.length+1, nextid=nextid))
+      _ <- fh.put(fd.copy(top=id.just, length=fd.length+1, maxid=maxid))
     } yield en
   }
 
