@@ -19,8 +19,7 @@ final case class En
 /**
  * Abstract type entry handler
  * Since we don't know the exact type the pickler/unpickler still needs to be provided explicitly
- *
- * [head] -->next--> [en] -->next--> [none]
+ * [head] -->next--> [en] -->next--> [nothing]
  */
 object EnHandler {
   private val fh = FdHandler
@@ -60,7 +59,7 @@ object EnHandler {
 
   /**
    * Adds the entry to the container. Creates the container if it's absent.
-   * @param en entry to add. ID will be generated.
+   * ID will be generated.
    */
   def prepend(fid: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
     for {
@@ -76,7 +75,6 @@ object EnHandler {
 
   /**
    * Adds the entry to the container. Creates the container if it's absent.
-   * @param en entry to add.
    */
   def prepend(fid: String, id: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
     for {
@@ -96,7 +94,6 @@ object EnHandler {
    * Puts the entry to the container
    * If entry don't exists in containter create container and add it to the head
    * If entry exists in container, put it in the same place
-   * @param en entry to put (next is ignored)
    */
   def put(fid: String, id: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
     for {
@@ -106,8 +103,8 @@ object EnHandler {
   }
 
   /**
-   * Mark for remove. O(1) complexity.
-   * @return marked entry (with data). Or None if element is absent.
+   * Mark entry for removal. O(1) complexity.
+   * @return marked entry (with data). Or `Nothing` if element is absent.
    */
   def remove_soft(fid: String, id: String)(implicit dba: Dba): Res[Option[En]] = {
     for {

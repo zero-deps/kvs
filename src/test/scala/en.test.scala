@@ -169,7 +169,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
     }
 
     "no 4" - {
-      val fid = "fid3" + java.util.UUID.randomUUID.toString
+      val fid = "fid4" + java.util.UUID.randomUUID.toString
       val d = data(0)
       // - - + + - - + + - -
       // 0 9 8 7 6 5 4 3 2 1
@@ -201,6 +201,21 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         res.map(_._1._1) shouldBe res.map(_._1._2)
         res.map(_._2._1) shouldBe res.map(_._2._2)
         res.map(_._3._1) shouldBe res.map(_._3._2)
+      }
+    }
+
+    "no 5" - {
+      val fid = "fid5" + java.util.UUID.randomUUID.toString
+      implicit def kvs1 = kvs
+      "new syntax for prepend" - {
+        "without id" in {
+          val res = data(0) +: FdId(fid)
+          res.map(_.id) shouldBe "1".right
+        }
+        "with id" in {
+          val res = ("3" -> data(0)) +: FdId(fid)
+          res.map(_.id) shouldBe "3".right
+        }
       }
     }
   }

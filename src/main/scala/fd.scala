@@ -15,6 +15,8 @@ final case class Fd
   , @N(5) maxid: Long=0
   )
 
+final case class FdId(id: String)
+
 object FdHandler {
   private implicit val codec: MessageCodec[Fd] = caseCodecAuto[Fd]
   private def pickle(e: Fd): Res[Array[Byte]] = encode[Fd](e).right
