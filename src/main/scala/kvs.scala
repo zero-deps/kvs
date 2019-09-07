@@ -9,6 +9,7 @@ import zd.kvs.el.ElHandler
 import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
 import zd.kvs.file.{File, FileHandler}
 import zd.kvs.store._
+import zd.gs.z._
 
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
@@ -46,9 +47,11 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   def add(fid: String, en: En): Res[En] = EnHandler.prepend(fid, en.id, en.data)
   def put(fid: String, id: String, data: ArraySeq[Byte]): Res[En] = EnHandler.put(fid, id, data)
   def put(fid: String, en: En): Res[En] = EnHandler.put(fid, en.id, en.data)
-  def all(fid: String, from: Option[En] = None): Res[LazyList[Res[En]]] = EnHandler.all(fid, from)
+  def all(fid: String, next: Maybe[Maybe[String]]=Nothing, removed: Boolean=false): Res[LazyList[Res[En]]] = EnHandler.all(fid, next, removed)
+  def all(fd: Fd, next: Maybe[Maybe[String]], removed: Boolean): LazyList[Res[En]] = EnHandler.all(fd, next, removed)
   def get(fid: String, id: String): Res[Option[En]] = EnHandler.get(fid, id)
   def remove(fid: String, id: String): Res[Option[En]] = EnHandler.remove_soft(fid, id)
+  def cleanup(fid: String): Res[Unit] = EnHandler.cleanup(fid)
 
   object file {
     def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)

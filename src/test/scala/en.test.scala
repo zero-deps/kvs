@@ -28,7 +28,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
     "no 1" - {
       val fid = "fid1" + java.util.UUID.randomUUID.toString
       
-      "be empty at creation" in {
+      "should be empty at creation" in {
         kvs.all(fid) shouldBe (Right(LazyList.empty))
       }
 
@@ -165,6 +165,30 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       "next auto id is 8" in {
         val s = kvs.add(fid, d)
         s.map(_.id) shouldBe "8".right
+      }
+    }
+
+    "no 4" - {
+      val fid = "fid3" + java.util.UUID.randomUUID.toString
+      val d = data(0)
+      // - - + + - - + + - -
+      // 0 9 8 7 6 5 4 3 2 1
+      "insert five entries" in {
+        1.to(10).map(i => kvs.add(fid, i.toString, d))
+      }
+      "remove entries" in {
+        Seq(1, 2, 5, 6, 9, 10).foreach(i => kvs.remove(fid, i.toString))
+      }
+      "cleanup removed entries" in {
+        kvs.cleanup(fid) shouldBe ().right
+      }
+      "entries are deleted" in {
+        kvs.all(fid).map(_.toList).toString shouldBe List(
+          En("8", "7".just, d).right
+        , En("7", "4".just, d).right
+        , En("4", "3".just, d).right
+        , En("3",  Nothing, d).right
+        ).right.toString
       }
     }
   }

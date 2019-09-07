@@ -1,6 +1,7 @@
 package zd.kvs
 package en
 
+import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 import scala.util.Try
 import zd.gs.z._
@@ -51,7 +52,7 @@ object EnHandler {
     val k = key(fid, id)
     dba.get(k) match {
       case Right(Some(x)) => unpickle(x)
-      case Right(None) => Fail(k).left
+      case Right(None) => Fail(s"k=${k} is not exists").left
       case x@Left(_) => x.coerceRight
     }
   }
@@ -114,7 +115,7 @@ object EnHandler {
       _ <- en1.cata(en => {
         val next = en.next
         for {
-          fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
+          fd <- fh.get(fid).flatMap(_.toRight(Fail(s"feed=${fid} is not exists")))
           _ <- fh.put(fd.copy(length=fd.length-1, removed=fd.removed+1))
           _ <- _put(fid, en.copy(removed=true))
         } yield ()
@@ -123,59 +124,101 @@ object EnHandler {
   }
 
   /**
-   * Remove the entry from the container specified. O(n) complexity.
-   * @return deleted entry (with data). Or None if element is absent.
+   * Delete all entries marked for removal. O(n) complexity.
    */
-  def remove_hard(fid: String, id: String)(implicit dba: Dba): Res[Option[En]] = {
-    for {
-      en1 <- get(fid, id)
-      _ <- en1.cata(en => {
-        val next = en.next
-        for {
-          fd1 <- fh.get(fid)
-          fd <- fd1.cata(_.right, Fail(fid).left)
-          head = fd.head
-          _ <- if (Option(id) == head) {
-            fh.put(fd.copy(head=next, length=fd.length-1))
-          } else {
-            for {
-              // todo replace with tailrec function
-              prev_en <- LazyList.iterate(start=_get(fid,head))(_.flatMap(x=>_get(fid,x.next))).
-                takeWhile(_.isRight).
-                flatMap(_.toOption).
-                find(_.next == Option(id)).
-                toRight(Fail(key(fid, id)))
-              _ <- _put(fid, prev_en.copy(next=next))
-              _ <- fh.put(fd.copy(length=fd.length-1))
-            } yield ()
+  def cleanup(fid: String)(implicit dba: Dba): Res[Unit] = {
+    @tailrec def loop2(x1: En)(x2: Res[En], xs: LazyList[Res[En]]): Res[Option[String]] = {
+      x2 match {
+        case Left(l) => l.left
+        case Right(y2) if !y2.removed => x2.map(_.next)
+        case Right(y2) if  y2.removed =>
+          val res = for {
+            // change link
+            _ <- _put(fid, x1.copy(next=y2.next))
+            // update feed
+            fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
+            maxid = y2.id.toLongOption match {
+              case Some(x) if x == fd.maxid => fd.maxid-1
+              case _ => fd.maxid
+            }
+            _ <- fh.put(fd.copy(removed=fd.removed-1, maxid=maxid))
+            // delete entry
+            _ <- delete(fid, y2.id)
+          } yield ()
+          res match {
+            case Right(()) => 
+              if (xs.isEmpty) Nothing.right
+              else loop2(x1)(xs.head, xs.tail)
+            case Left(l) => l.left
           }
-          _ <- delete(fid, id)
-        } yield ()
-      }, ().right)
-    } yield en1
+      }
+    } 
+    @tailrec def loop(tail: LazyList[Res[En]], athead: Boolean): Res[Unit] = {
+      tail match {
+        case xs if xs.isEmpty => ().right
+        case Right(y) #:: ys if !y.removed && !athead && ys.isEmpty => ().right
+        case Right(y) #:: ys if !y.removed &&  athead =>
+          println(s"skip y=${y} at head")
+          loop(ys, athead=false)
+        case Right(y) #:: ys if  y.removed &&  athead =>
+          println(s"delete ${y.id} at head")
+          println(s"feed.head := ${y.next}")
+          val res = for {
+            // update feed
+            fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
+            maxid = y.id.toLongOption match {
+              case Some(x) if x == fd.maxid => fd.maxid-1
+              case _ => fd.maxid
+            }
+            _ <- fh.put(Fd(id=fid, head=y.next, length=fd.length, removed=fd.removed-1, maxid=maxid))
+            // delete entry
+            _ <- delete(fid, y.id)
+          } yield ()
+          res match {
+            case Right(()) => loop(ys, athead=true)
+            case Left(l) => l.left
+          }
+        case  Left(y) #:: ys => y.left
+        case _ #:: Left(y2) #:: ys => y2.left
+        case Right(y1) #:: Right(y2) #:: ys if !y2.removed =>
+          println(s"y1=${y1} y2=${y2}")
+          loop(y2.right #:: ys, athead=false)
+        case Right(y1) #:: Right(y2) #:: ys if  y2.removed =>
+          loop2(y1)(y2.right, ys).flatMap(next => all(fid, next=next.just, removed=true)) match {
+            case Right(zs) => loop(tail=zs, athead=false)
+            case Left(l) => l.left
+          }
+      }
+    }
+    for {
+      xs <- all(fid=fid, next=Nothing, removed=true)
+      _ <- loop(xs, athead=true)
+    } yield ()
   }
 
-  /** Iterates through container and return the stream of entries.
-   *
+  /** 
+   * Iterates through container and return the stream of entries.
    * Stream is FILO ordered (most recent is first).
-   * @param from if specified then return entries after this entry
+   * @param next if specified then return entries after this entry
+   * Nothing - start with head; Just(Nothing) - empty seq; Just(Just(id)) - start with id.
    */
-  def all(fid: String, from: Option[En])(implicit dba: Dba): Res[LazyList[Res[En]]] = {
-    def _stream(id: Option[String]): LazyList[Res[En]] = {
+  def all(fid: String, next: Maybe[Maybe[String]], removed: Boolean)(implicit dba: Dba): Res[LazyList[Res[En]]] = {
+    fh.get(fid).map(_.cata(fd => all(fd=fd, next=next, removed=removed), LazyList.empty))
+  }
+
+  def all(fd: Fd, next: Maybe[Maybe[String]], removed: Boolean)(implicit dba: Dba): LazyList[Res[En]] = {
+    def _stream(id: Maybe[String]): LazyList[Res[En]] = {
       id match {
         case None => LazyList.empty
         case Some(id) =>
-          val en = _get(fid, id)
+          val en = _get(fd.id, id)
           en match {
-            case Right(e) if e.removed => _stream(e.next)
+            case Right(e) if e.removed && !removed => _stream(e.next)
             case Right(e) => LazyList.cons(e.right, _stream(e.next))
             case e@Left(_) => LazyList(e.coerceRight)
           }
       }
     }
-    from match {
-      case None => fh.get(fid).map(_.cata(x => _stream(x.head), LazyList.empty))
-      case Some(en) => _stream(en.next).right
-    }
+    _stream(next.getOrElse(fd.head))
   }
 }
