@@ -221,4 +221,29 @@ object EnHandler {
     }
     _stream(next.getOrElse(fd.head))
   }
+
+  /**
+   * Fix length, removed and maxid for feed.
+   */
+  def fix(fid: String)(implicit dba: Dba): Res[((Long,Long),(Long,Long),(Long,Long))] = {
+    @tailrec def loop(xs: LazyList[Res[En]], acc: (Long, Long, Long)): Res[(Long, Long, Long)] = {
+      xs match {
+        case _ if xs.isEmpty => acc.right
+        case (l@Left(_)) #:: _ => l.coerceRight
+        case Right(x) #:: xs =>
+          val length = if (x.removed) acc._1 else acc._1+1
+          val removed = if (x.removed) acc._2+1 else acc._2
+          val maxid = x.id.toLongOption.cata(x => Math.max(x, acc._3), acc._3)
+          loop(xs, (length, removed, maxid))
+      }
+    }
+    for {
+      fd <- fh.get(fid).flatMap(_.toRight(Fail(s"feed=${fid} is not exists")))
+      acc <- loop(all(fd, next=Nothing, removed=true), (0L,0L,0L))
+      length = acc._1
+      removed = acc._2
+      maxid = acc._3
+      _ <- fh.put(fd.copy(length=length, removed=removed, maxid=maxid))
+    } yield ((fd.length -> length), (fd.removed -> removed), (fd.maxid -> maxid))
+  }
 }

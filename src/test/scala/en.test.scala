@@ -179,6 +179,9 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       "remove entries" in {
         Seq(1, 2, 5, 6, 9, 10).foreach(i => kvs.remove(fid, i.toString))
       }
+      "maxid is 10" in {
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe 10.just.right
+      }
       "cleanup removed entries" in {
         kvs.cleanup(fid) shouldBe ().right
       }
@@ -189,6 +192,15 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         , En("4", "3".just, d).right
         , En("3",  Nothing, d).right
         ).right.toString
+      }
+      "maxid is reverted to 8" in {
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe 8.just.right
+      }
+      "fix feed doesn't break it" in {
+        val res = kvs.fix(fid)
+        res.map(_._1._1) shouldBe res.map(_._1._2)
+        res.map(_._2._1) shouldBe res.map(_._2._2)
+        res.map(_._3._1) shouldBe res.map(_._3._2)
       }
     }
   }

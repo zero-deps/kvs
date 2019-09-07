@@ -52,6 +52,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   def get(fid: String, id: String): Res[Option[En]] = EnHandler.get(fid, id)
   def remove(fid: String, id: String): Res[Option[En]] = EnHandler.remove_soft(fid, id)
   def cleanup(fid: String): Res[Unit] = EnHandler.cleanup(fid)
+  def fix(fid: String): Res[((Long,Long),(Long,Long),(Long,Long))] = EnHandler.fix(fid)
 
   object file {
     def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)
