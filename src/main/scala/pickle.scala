@@ -21,10 +21,7 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
     }
     implicit val changeStateCodec: MessageCodec[ChangeState] = caseCodecAuto[ChangeState]
     implicit val dumpBucketDataCodec: MessageCodec[DumpBucketData] = caseCodecAuto[DumpBucketData]
-    implicit val dumpEnCodec: MessageCodec[DumpEn] = classCodecAuto[DumpEn]
-    implicit val dumpGetCodec: MessageCodec[DumpGet] = classCodecAuto[DumpGet]
     implicit val dumpGetBucketDataCodec: MessageCodec[DumpGetBucketData] = caseCodecAuto[DumpGetBucketData]
-    implicit val dumpPutCodec: MessageCodec[DumpPut] = classCodecAuto[DumpPut]
     implicit val replBucketPutCodec: MessageCodec[ReplBucketPut] = caseCodecAuto[ReplBucketPut]
     implicit val replGetBucketIfNewCodec: MessageCodec[ReplGetBucketIfNew] = caseCodecAuto[ReplGetBucketIfNew]
     implicit val replNewerBucketDataCodec: MessageCodec[ReplNewerBucketData] = caseCodecAuto[ReplNewerBucketData]

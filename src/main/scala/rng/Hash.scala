@@ -72,7 +72,6 @@ object Delete {
 
 final case class Save(path: String)
 final case class Load(path: String)
-final case class Iterate(path: String, f: (Key, Value) => Option[(Key, Value)], afterIterate: () => Unit)
 
 final case object RestoreState
 
@@ -157,9 +156,6 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Load(_), _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
-    case Event(Iterate(_,_,_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
-      stay()
     case Event(RestoreState, _) =>
       log.warning("Don't know how to restore state when quorum is unsatisfied")
       stay()
@@ -195,9 +191,6 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Load(_), _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
-    case Event(Iterate(_,_,_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
   }
 
   when(QuorumStateEffective){
@@ -231,13 +224,6 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       val x = system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}")
       x.forward(DumpProcessor.Load(path))
       goto(QuorumStateReadonly)
-    case Event(Iterate(path, f, afterIterate), data) =>
-      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(QuorumStateReadonly),
-        _ ! ChangeState(QuorumStateReadonly),
-      ))
-      system.actorOf(IterateDumpWorker.props(path,f, afterIterate), s"iter_wrkr-${now_ms()}").forward(Iterate(path, f, afterIterate))
-      goto(QuorumStateReadonly)
     case Event(RestoreState, _) =>
       log.info("State is already OK")
       stay()
@@ -251,9 +237,6 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(MemberRemoved(member, prevState), data) =>
       val next = removeNodeFromRing(member, data)
       goto(next._1) using next._2
-    case Event(Ready, data) =>
-      sender ! false
-      stay()
     case Event(ChangeState(s), data) =>
       state(data.nodes.size) match {
         case QuorumStateUnsatisfied => stay()

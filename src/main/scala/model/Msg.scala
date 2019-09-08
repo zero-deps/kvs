@@ -17,80 +17,9 @@ sealed trait Msg
   , @N(2) items: Vector[Data]
   ) extends Msg
 
-@N(3) final class DumpEn
-  ( @N(1) val k: Array[Byte]
-  , @N(2) val v: Array[Byte]
-  , @N(3) val nextKey: Array[Byte]
-  ) extends Msg {
-  override def equals(other: Any): Boolean = other match {
-    case that: DumpEn =>
-      Arrays.equals(k, that.k) &&
-      Arrays.equals(v, that.v) &&
-      Arrays.equals(nextKey, that.nextKey)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k, v, nextKey)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"DumpEn(k=$k, v=$v, nextKey=$nextKey)"
-}
-
-object DumpEn {
-  def apply(k: Array[Byte], v: Array[Byte], nextKey: Array[Byte]): DumpEn = {
-    new DumpEn(k=k, v=v, nextKey=nextKey)
-  }
-}
-
-@N(4) final class DumpGet
-  ( @N(1) val k: Array[Byte]
-  ) extends Msg {
-  override def equals(other: Any): Boolean = other match {
-    case that: DumpGet =>
-      Arrays.equals(k, that.k)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"DumpGet(k=$k)"
-}
-
-object DumpGet {
-  def apply(k: Array[Byte]): DumpGet = {
-    new DumpGet(k=k)
-  }
-}
-
 @N(5) final case class DumpGetBucketData 
   ( @N(1) b: Int
   ) extends Msg
-
-@N(6) final class DumpPut
-  ( @N(1) val k: Array[Byte]
-  , @N(2) val v: Array[Byte]
-  , @N(3) val prev: Array[Byte]
-  ) extends Msg {
-  override def equals(other: Any): Boolean = other match {
-    case that: DumpPut =>
-      Arrays.equals(k, that.k) &&
-      Arrays.equals(v, that.v) &&
-      Arrays.equals(prev, that.prev)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k, v, prev)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"DumpPut(k=$k, v=$v, prev=$prev)"
-}
-
-object DumpPut {
-  def apply(k: Array[Byte], v: Array[Byte], prev: Array[Byte]): DumpPut = {
-    new DumpPut(k=k, v=v, prev=prev)
-  }
-}
 
 @N(7) final case class ReplBucketPut
   ( @N(1) b: Int

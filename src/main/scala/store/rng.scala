@@ -81,21 +81,11 @@ class Ring(system: ActorSystem) extends Dba {
       case Failure(t) => Throwed(t).left
     }
   }
+
   override def load(path: String): Res[Any] = {
     val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
     val t = Timeout(d)
     val x = hash.ask(rng.Load(path))(t)
-    Try(Await.result(x, d)) match {
-      case Success(x: AckQuorumFailed) => x.left
-      case Success(v: String) => v.right
-      case Success(v) => Fail(s"Unexpected response: ${v}").left
-      case Failure(t) => Throwed(t).left
-    }
-  }
-  override def iterate(path: String, f: (String, Array[Byte]) => Option[(String, Array[Byte])], afterIterate: () => Unit): Res[Any] = {
-    val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
-    val t = Timeout(d)
-    val x = hash.ask(rng.Iterate(path, (k, v) => f(new String(k, "UTF-8"), v).map{case (k, v) => stob(k) -> v }, afterIterate))(t)
     Try(Await.result(x, d)) match {
       case Success(x: AckQuorumFailed) => x.left
       case Success(v: String) => v.right

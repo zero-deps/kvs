@@ -9,9 +9,7 @@ import leveldbjnr._
 import zd.proto.api.{encode, decode}
 import zd.kvs.rng.data.codec._
 import zd.kvs.rng.data.{Data, BucketInfo}
-import zd.kvs.rng.dump.codec._
-import zd.kvs.rng.dump.ValueKey
-import zd.kvs.rng.model.{DumpPut, ReplBucketPut, StorePut, StoreDelete}
+import zd.kvs.rng.model.{ReplBucketPut, StorePut, StoreDelete}
 
 class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   import context.system
@@ -39,9 +37,6 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
     case StorePut(data) => 
       doPut(data)
       sender ! "ok"
-    case x: DumpPut =>
-      withBatch(_.put(x.k, encode(ValueKey(v=x.v, nextKey=x.prev))))
-      sender ! "done"
     case x: StoreDelete => sender ! doDelete(x.key)
     case ReplBucketPut(b, bucketVc, items) => replBucketPut(b, bucketVc, items.toVector)
     case unhandled => log.warning(s"unhandled message: ${unhandled}")
@@ -129,4 +124,3 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
 object WriteStore {
   def props(leveldb: LevelDb): Props = Props(new WriteStore(leveldb))
 }
-
