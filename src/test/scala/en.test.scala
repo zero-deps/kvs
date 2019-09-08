@@ -6,7 +6,6 @@ import akka.testkit._
 import com.typesafe.config.{ConfigFactory}
 import org.scalatest._
 import org.scalatest.freespec.AnyFreeSpecLike
-import scala.collection.immutable.ArraySeq
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
@@ -15,7 +14,7 @@ import zd.gs.z._
 class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4012))))
   with AnyFreeSpecLike with Matchers with BeforeAndAfterAll {
 
-  def data(n: Int): ArraySeq[Byte] = ArraySeq.unsafeWrapArray(s"val=${n}".getBytes)
+  def data(n: Int): Bytes = Bytes(s"val=${n}".getBytes)
 
   var kvs: Kvs = null
   override def beforeAll = {
@@ -23,57 +22,59 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
     Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
   }
   override def afterAll = TestKit.shutdownActorSystem(system)
+  
+  def stob(x: String): Bytes = Bytes(x.getBytes)
 
   "feed" - {
     "no 1" - {
-      val fid = "fid1" + java.util.UUID.randomUUID.toString
+      val fid = stob("fid1" + java.util.UUID.randomUUID.toString)
       
       "should be empty at creation" in {
         kvs.all(fid) shouldBe (Right(LazyList.empty))
       }
 
       "should save e1" in {
-        val saved = kvs.add(fid, "1", data(1))
-        saved.map(_.id) shouldBe "1".right
+        val saved = kvs.add(fid, stob("1"), data(1))
+        saved.map(_.id) shouldBe stob("1").right
         saved.map(_.data) shouldBe data(1).right
         kvs.fd.length(fid) shouldBe 1L.right
       }
 
       "should save e2" in {
-        val saved = kvs.add(fid, "2", data(2))
-        saved.map(_.id) shouldBe "2".right
+        val saved = kvs.add(fid, stob("2"), data(2))
+        saved.map(_.id) shouldBe stob("2").right
         saved.map(_.data) shouldBe data(2).right
         kvs.fd.length(fid) shouldBe 2L.right
       }
 
       "should get e1 and e2 from feed" in {
         kvs.fd.length(fid) shouldBe 2L.right 
-        kvs.all(fid).map(_.toList) shouldBe List(En("2", "1".just, data(2)).right, En("1", Nothing, data(1)).right).right
+        kvs.all(fid).map(_.toList) shouldBe List(En(stob("2"), stob("1").just, data(2)).right, En(stob("1"), Nothing, data(1)).right).right
       }
 
       "should save entry(3)" in {
-        val saved = kvs.add(fid, "3", data(3))
-        saved.map(_.id) shouldBe "3".right
+        val saved = kvs.add(fid, stob("3"), data(3))
+        saved.map(_.id) shouldBe stob("3").right
         saved.map(_.data) shouldBe data(3).right
         kvs.fd.length(fid) shouldBe 3L.right
       }
 
       "should not save entry(2) again" in {
-        kvs.add(fid, "2", data(2)).fold(identity, identity) shouldBe EntryExists(s"${fid}.2")
+        kvs.add(fid, stob("2"), data(2)).fold(identity, identity) shouldBe EntryExists(fid, stob("2"))
         kvs.fd.length(fid) shouldBe 3L.right
       }
 
       "should get 3 values from feed" in {
-        kvs.all(fid).map(_.toList) shouldBe List(En("3", "2".just, data(3)).right, En("2", "1".just, data(2)).right, En("1", Nothing, data(1)).right).right
+        kvs.all(fid).map(_.toList) shouldBe List(En(stob("3"), stob("2").just, data(3)).right, En(stob("2"), stob("1").just, data(2)).right, En(stob("1"), Nothing, data(1)).right).right
       }
 
       "should remove unexisting entry from feed without error" in {
-        kvs.remove(fid, "5") shouldBe Right(Nothing)
+        kvs.remove(fid, stob("5")) shouldBe Right(Nothing)
       }
 
       "should remove entry(2) from feed without prev/next/data" in {
-        val deleted = kvs.remove(fid, "2")
-        deleted.map(_.map(_.id)) shouldBe "2".just.right
+        val deleted = kvs.remove(fid, stob("2"))
+        deleted.map(_.map(_.id)) shouldBe stob("2").just.right
         deleted.map(_.map(_.data)) shouldBe data(2).just.right
       }
 
@@ -81,12 +82,12 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         kvs.fd.length(fid) shouldBe 2L.right
 
         val stream = kvs.all(fid)
-        stream.map(_.toList) shouldBe List(En("3", "2".just, data(3)).right, En("1", Nothing, data(1)).right).right
+        stream.map(_.toList) shouldBe List(En(stob("3"), stob("2").just, data(3)).right, En(stob("1"), Nothing, data(1)).right).right
       }
 
       "should remove entry(1) from feed" in {
-        val deleted = kvs.remove(fid, "1")
-        deleted.map(_.map(_.id)) shouldBe "1".just.right
+        val deleted = kvs.remove(fid, stob("1"))
+        deleted.map(_.map(_.id)) shouldBe stob("1").just.right
         deleted.map(_.map(_.data)) shouldBe data(1).just.right
       }
 
@@ -94,12 +95,12 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         kvs.fd.length(fid) shouldBe 1L.right
 
         val stream = kvs.all(fid)
-        stream.map(_.toList) shouldBe List(En("3", "2".just, data(3)).right).right
+        stream.map(_.toList) shouldBe List(En(stob("3"), stob("2").just, data(3)).right).right
       }
 
       "should remove entry(3) from feed" in {
-        val deleted = kvs.remove(fid, "3")
-        deleted.map(_.map(_.id)) shouldBe "3".just.right
+        val deleted = kvs.remove(fid, stob("3"))
+        deleted.map(_.map(_.id)) shouldBe stob("3").just.right
         deleted.map(_.map(_.data)) shouldBe data(3).just.right
       }
 
@@ -113,18 +114,18 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
     }
 
     "no 2" - {
-      val fid = "fid2" + java.util.UUID.randomUUID.toString
+      val fid = stob("fid2" + java.util.UUID.randomUUID.toString)
       
       "should not create stack overflow" in {
         val limit = 100L
         LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
           val added = kvs.add(fid, data(n))
-          added.map(_.id) shouldBe n.toString.right
+          added.map(_.id) shouldBe Bytes(n.toString.getBytes).right
           added.map(_.data) shouldBe data(n).right
         }
         LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
-          val removed = kvs.remove(fid, n.toString)
-          removed.map(_.map(_.id)) shouldBe n.toString.just.right
+          val removed = kvs.remove(fid, Bytes(n.toString.getBytes))
+          removed.map(_.map(_.id)) shouldBe Bytes(n.toString.getBytes).just.right
           removed.map(_.map(_.data)) shouldBe data(n).just.right
           kvs.fd.length(fid) shouldBe (limit-n).right
         }
@@ -132,52 +133,52 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
     }
 
     "no 3" - {
-      val fid = "fid3" + java.util.UUID.randomUUID.toString
+      val fid = stob("fid3" + java.util.UUID.randomUUID.toString)
       val d = data(0)
       "first auto id is 1" in {
         val s = kvs.add(fid, d)
-        s.map(_.id) shouldBe "1".right
+        s.map(_.id) shouldBe stob("1").right
       }
       "second auto id is 2" in {
         val s = kvs.add(fid, d)
-        s.map(_.id) shouldBe "2".right
+        s.map(_.id) shouldBe stob("2").right
       }
       "insert id 5" in {
-        val s = kvs.add(fid, "5", d)
-        s.map(_.id) shouldBe "5".right
+        val s = kvs.add(fid, stob("5"), d)
+        s.map(_.id) shouldBe stob("5").right
       }
       "next auto id is 6" in {
         val s = kvs.add(fid, d)
-        s.map(_.id) shouldBe "6".right
+        s.map(_.id) shouldBe stob("6").right
       }
       "insert id 'a'" in {
-        val s = kvs.add(fid, "a", d)
-        s.map(_.id) shouldBe "a".right
+        val s = kvs.add(fid, stob("a"), d)
+        s.map(_.id) shouldBe stob("a").right
       }
       "next auto id is 7" in {
         val s = kvs.add(fid, d)
-        s.map(_.id) shouldBe "7".right
+        s.map(_.id) shouldBe stob("7").right
       }
       "insert id 3" in {
-        val s = kvs.add(fid, "3", d)
-        s.map(_.id) shouldBe "3".right
+        val s = kvs.add(fid, stob("3"), d)
+        s.map(_.id) shouldBe stob("3").right
       }
       "next auto id is 8" in {
         val s = kvs.add(fid, d)
-        s.map(_.id) shouldBe "8".right
+        s.map(_.id) shouldBe stob("8").right
       }
     }
 
     "no 4" - {
-      val fid = "fid4" + java.util.UUID.randomUUID.toString
+      val fid = stob("fid4" + java.util.UUID.randomUUID.toString)
       val d = data(0)
       // - - + + - - + + - -
       // 0 9 8 7 6 5 4 3 2 1
       "insert five entries" in {
-        1.to(10).map(i => kvs.add(fid, i.toString, d))
+        1.to(10).map(i => kvs.add(fid, stob(i.toString), d))
       }
       "remove entries" in {
-        Seq(1, 2, 5, 6, 9, 10).foreach(i => kvs.remove(fid, i.toString))
+        Seq(1, 2, 5, 6, 9, 10).foreach(i => kvs.remove(fid, stob(i.toString)))
       }
       "maxid is 10" in {
         kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe 10.just.right
@@ -187,10 +188,10 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       }
       "entries are deleted" in {
         kvs.all(fid).map(_.toList).toString shouldBe List(
-          En("8", "7".just, d).right
-        , En("7", "4".just, d).right
-        , En("4", "3".just, d).right
-        , En("3",  Nothing, d).right
+          En(stob("8"), stob("7").just, d).right
+        , En(stob("7"), stob("4").just, d).right
+        , En(stob("4"), stob("3").just, d).right
+        , En(stob("3"),  Nothing, d).right
         ).right.toString
       }
       "maxid is reverted to 8" in {
@@ -205,16 +206,16 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
     }
 
     "no 5" - {
-      val fid = "fid5" + java.util.UUID.randomUUID.toString
+      val fid = stob("fid5" + java.util.UUID.randomUUID.toString)
       implicit def kvs1 = kvs
       "new syntax for prepend" - {
         "without id" in {
           val res = data(0) +: FdId(fid)
-          res.map(_.id) shouldBe "1".right
+          res.map(_.id) shouldBe stob("1").right
         }
         "with id" in {
-          val res = ("3" -> data(0)) +: FdId(fid)
-          res.map(_.id) shouldBe "3".right
+          val res = (stob("3") -> data(0)) +: FdId(fid)
+          res.map(_.id) shouldBe stob("3").right
         }
       }
     }

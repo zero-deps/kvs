@@ -5,7 +5,7 @@ import zd.proto.api.N
 
 final case class File
   ( // name – unique value inside directory
-    @N(1) name: String
+    @N(1) name: Bytes
     // count – number of chunks
   , @N(2) count: Int
     // size - size of file in bytes

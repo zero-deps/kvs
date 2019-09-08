@@ -18,7 +18,7 @@ object DumpIO {
   }
 
   final case object ReadNext
-  final case class ReadNextRes(kv: Vector[(Key, Value)], last: Boolean)
+  final case class ReadNextRes(kv: Vector[KV], last: Boolean)
 
   final case class Put(kv: Vector[Data])
   final case class PutDone(path: String)
@@ -35,8 +35,7 @@ class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLoggi
         val value: Array[Byte] = new Array[Byte](blockSize)
         val valueRead: Int = channel.read(ByteBuffer.wrap(value))
         if (valueRead == blockSize) {
-          val kv: Vector[(Key, Value)] = decode[DumpKV](value).kv.view.map(d => d.k -> d.v).to(Vector)
-          sender ! DumpIO.ReadNextRes(kv, false)
+          sender ! DumpIO.ReadNextRes(decode[DumpKV](value).kv, false)
         } else {
           log.error(s"failed to read dump io, blockSize=${blockSize}, valueRead=${valueRead}")
           sender ! DumpIO.ReadNextRes(Vector.empty, true)

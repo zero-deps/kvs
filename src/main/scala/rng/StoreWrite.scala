@@ -4,7 +4,6 @@ package store
 
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{Cluster, VectorClock}
-import java.util.Arrays
 import leveldbjnr._
 import zd.proto.api.{encode, decode}
 import zd.kvs.rng.data.codec._
@@ -92,15 +91,16 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
     }
   }
 
-  def doDelete(key: Key): String = {
-    val b = hashing.findBucket(key)
+  def doDelete(key: Bytes): String = {
+    val key1 = key.toArray[Byte]
+    val b = hashing.findBucket(key1)
     val b_info = get(itob(b) ++ `:keys`).map(decode[BucketInfo](_))
     b_info match {
       case Some(b_info) =>
         val vc = b_info.vc :+ local.toString
-        val keys = b_info.keys.filterNot(xs => Arrays.equals(xs, key))
+        val keys = b_info.keys.filterNot(_ == key)
         withBatch(batch => {
-          batch.delete((itob(b) ++ `:key:` ++ key))
+          batch.delete((itob(b) ++ `:key:` ++ key1))
           batch.put((itob(b) ++ `:keys`), encode(BucketInfo(vc, keys)))
         })
         "ok"

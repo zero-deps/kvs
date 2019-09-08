@@ -3,47 +3,48 @@ package file
 
 import zd.kvs.store.Dba
 import scala.annotation.tailrec
-import scala.util.Try
-import zd.proto.api.{MessageCodec, encode, decode}
+import zd.proto.api.{N, MessageCodec}
 import zd.proto.macrosapi.caseCodecAuto
 import zd.gs.z._
+
+final case class Path(@N(1) dir: Bytes, @N(2) name: Bytes)
+final case class Chunk(@N(1) dir: Bytes, @N(2) name: Bytes, @N(3) num: Int)
 
 trait FileHandler {
   protected val chunkLength: Int
 
   private implicit val fileCodec: MessageCodec[File] = caseCodecAuto[File]
+  private implicit val pathCodec: MessageCodec[Path] = caseCodecAuto[Path]
+  private implicit val chunkCodec: MessageCodec[Chunk] = caseCodecAuto[Chunk]
 
-  private def pickle(e: File): Res[Array[Byte]] = encode(e).right
-  private def unpickle(a: Array[Byte]): Res[File] = Try(decode[File](a)).fold(Throwed(_).left, _.right)
-
-  private def get(dir: String, name: String)(implicit dba: Dba): Res[File] = {
-    dba.get(s"${dir}/${name}") match {
+  private def get(dir: Bytes, name: Bytes)(implicit dba: Dba): Res[File] = {
+    dba.get(pickle(Path(dir=dir, name=name))) match {
       case Right(Some(x)) => unpickle(x)
       case Right(None) => FileNotExists(dir, name).left
       case x@Left(_) => x.coerceRight
     }
   }
 
-  def create(dir: String, name: String)(implicit dba: Dba): Res[File] = {
-    dba.get(s"${dir}/${name}") match {
+  def create(dir: Bytes, name: Bytes)(implicit dba: Dba): Res[File] = {
+    val path = pickle(Path(dir=dir, name=name))
+    dba.get(path) match {
       case Right(Some(_)) => FileAlreadyExists(dir, name).left
       case Right(None) =>
         val f = File(name, count=0, size=0L, dir=false)
         for {
-          x <- pickle(f)
-          _ <- dba.put(s"${dir}/${name}", x)
+          _ <- dba.put(path, pickle(f))
         } yield f
       case x@Left(_) => x.coerceRight
     }
   }
 
-  def append(dir: String, name: String, data: Array[Byte])(implicit dba: Dba): Res[File] = {
+  def append(dir: Bytes, name: Bytes, data: Bytes)(implicit dba: Dba): Res[File] = {
     @tailrec
-    def writeChunks(count: Int, rem: Array[Byte]): Res[Int] = {
+    def writeChunks(count: Int, rem: Bytes): Res[Int] = {
       rem.splitAt(chunkLength) match {
         case (xs, _) if xs.length == 0 => count.right
         case (xs, ys) =>
-          dba.put(s"${dir}/${name}_chunk_${count+1}", xs) match {
+          dba.put(pickle(Chunk(dir=dir, name=name, num=count+1)), xs) match {
             case r @ Right(_) => writeChunks(count+1, rem=ys)
             case l @ Left(_) => l.coerceRight
           }
@@ -54,34 +55,33 @@ trait FileHandler {
       file <- get(dir, name)
       count <- writeChunks(file.count, rem=data)
       file1 = file.copy(count=count, size=file.size+data.length)
-      file2 <- pickle(file1)
-      _ <- dba.put(s"${dir}/${name}", file2)
+      _ <- dba.put(pickle(Path(dir=dir, name=name)), pickle(file1))
     } yield file1
   }
 
-  def size(dir: String, name: String)(implicit dba: Dba): Res[Long] = {
+  def size(dir: Bytes, name: Bytes)(implicit dba: Dba): Res[Long] = {
     get(dir, name).map(_.size)
   }
 
-  def stream(dir: String, name: String)(implicit dba: Dba): Res[LazyList[Res[Array[Byte]]]] = {
+  def stream(dir: Bytes, name: Bytes)(implicit dba: Dba): Res[LazyList[Res[Bytes]]] = {
     get(dir, name).map(_.count).flatMap{
       case n if n < 0 => Fail(s"impossible count=${n}").left
       case 0 => LazyList.empty.right
       case n if n > 0 =>
-        def k(i: Int) = s"${dir}/${name}_chunk_${i}"
-        LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.cata(_.right, Fail(k(i)).left))).right
+        def k(i: Int): Bytes = pickle(Chunk(dir=dir, name=name, num=i))
+        LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.cata(_.right, Fail(s"chunk=${i} is not exists").left))).right
     }
   }
 
-  def delete(dir: String, name: String)(implicit dba: Dba): Res[File] = {
+  def delete(dir: Bytes, name: Bytes)(implicit dba: Dba): Res[File] = {
     for {
       file <- get(dir, name)
-      _ <- LazyList.range(1, file.count+1).map(i => dba.delete(s"${dir}/${name}_chunk_${i}")).sequence_
-      _ <- dba.delete(s"${dir}/${name}")
+      _ <- LazyList.range(1, file.count+1).map(i => dba.delete(pickle(Chunk(dir=dir, name=name, num=i)))).sequence_
+      _ <- dba.delete(pickle(Path(dir=dir, name=name)))
     } yield file
   }
 
-  def copy(dir: String, name: (String, String))(implicit dba: Dba): Res[File] = {
+  def copy(dir: Bytes, name: (Bytes, Bytes))(implicit dba: Dba): Res[File] = {
     val (fromName, toName) = name
     for {
       from <- get(dir, fromName)
@@ -94,14 +94,13 @@ trait FileHandler {
       )
       _ <- LazyList.range(1, from.count+1).map(i => for {
         x <- {
-          val k = s"${dir}/${fromName}_chunk_${i}"
-          dba.get(k).flatMap(_.cata(_.right, Fail(k).left))
+          val k = pickle(Chunk(dir=dir, name=fromName, num=i))
+          dba.get(k).flatMap(_.cata(_.right, Fail(s"chunk=${i} is not exists").left))
         }
-        _ <- dba.put(s"${dir}/${toName}_chunk_${i}", x)
+        _ <- dba.put(pickle(Chunk(dir=dir, name=toName, num=i)), x)
       } yield ()).sequence_
       to = File(toName, from.count, from.size, from.dir)
-      x <- pickle(to)
-      _ <- dba.put(s"${dir}/${toName}", x)
+      _ <- dba.put(pickle(Path(dir=dir, name=toName)), pickle(to))
     } yield to
   }
 }

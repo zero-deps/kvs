@@ -2,18 +2,21 @@ package zd.kvs
 package en
 
 import scala.annotation.tailrec
-import scala.collection.immutable.ArraySeq
-import scala.util.Try
 import zd.gs.z._
 import zd.kvs.store.Dba
-import zd.proto.api.{N, MessageCodec, encode, decode}
+import zd.proto.api.{N, MessageCodec}
 import zd.proto.macrosapi.{caseCodecAuto}
 
 final case class En
-  ( @N(1) id: String
-  , @N(2) next: Option[String]
-  , @N(3) data: ArraySeq[Byte]
+  ( @N(1) id: Bytes
+  , @N(2) next: Option[Bytes]
+  , @N(3) data: Bytes
   , @N(4) removed: Boolean=false
+  )
+
+final case class Key
+  ( @N(1) fid: Bytes
+  , @N(2) id: Bytes
   )
 
 /**
@@ -23,31 +26,29 @@ final case class En
  */
 object EnHandler {
   private val fh = FdHandler
-  private implicit val codec: MessageCodec[En] = caseCodecAuto[En]
-  private def pickle(e: En): Res[Array[Byte]] = encode[En](e).right
-  private def unpickle(a: Array[Byte]): Res[En] = Try(decode[En](a)).fold(Throwed(_).left, _.right)
+  private implicit val encodec: MessageCodec[En] = caseCodecAuto[En]
+  private implicit val keycodec: MessageCodec[Key] = caseCodecAuto[Key]
 
-  private def key(fid: String, id: String): String = s"${fid}.${id}"
-  private def _put(fid: String, en: En)(implicit dba:Dba):Res[En] = {
+  private def key(fid: Bytes, id: Bytes): Bytes = pickle(Key(fid=fid, id=id))
+  private def _put(fid: Bytes, en: En)(implicit dba:Dba):Res[En] = {
     for {
-      p <- pickle(en)
-      _ <- dba.put(key(fid, en.id), p)
+      _ <- dba.put(key(fid, en.id), pickle(en))
     } yield en
   }
-  def get(fid: String, id: String)(implicit dba: Dba): Res[Option[En]] = {
+  def get(fid: Bytes, id: Bytes)(implicit dba: Dba): Res[Option[En]] = {
     dba.get(key(fid,id)) match {
-      case Right(Some(x)) => unpickle(x).map(_.just)
+      case Right(Some(x)) => unpickle[En](x).map(_.just)
       case Right(None) => None.right
       case x@Left(_) => x.coerceRight
     }
   }
-  private def _get(fid: String, id: Option[String])(implicit dba: Dba): Res[En] = {
+  private def _get(fid: Bytes, id: Option[Bytes])(implicit dba: Dba): Res[En] = {
     id match {
       case Some(id) => _get(fid, id)
       case None => Fail("id is empty").left
     }
   }
-  private def _get(fid: String, id: String)(implicit dba: Dba): Res[En] = {
+  private def _get(fid: Bytes, id: Bytes)(implicit dba: Dba): Res[En] = {
     val k = key(fid, id)
     dba.get(k) match {
       case Right(Some(x)) => unpickle(x)
@@ -55,17 +56,17 @@ object EnHandler {
       case x@Left(_) => x.coerceRight
     }
   }
-  private def delete(fid:String,id:String)(implicit dba:Dba):Res[Unit] = dba.delete(key(fid,id))
+  private def delete(fid:Bytes,id:Bytes)(implicit dba:Dba):Res[Unit] = dba.delete(key(fid,id))
 
   /**
    * Adds the entry to the container. Creates the container if it's absent.
    * ID will be generated.
    */
-  def prepend(fid: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
+  def prepend(fid: Bytes, data: Bytes)(implicit dba: Dba): Res[En] = {
     for {
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
-      id = (fd.maxid+1).toString
+      id = Bytes((fd.maxid+1).toString.getBytes)
       en = En(id=id, next=fd.head, data=data)
       _ <- fh.put(fd.copy(maxid=fd.maxid+1)) // in case kvs will fail after adding the en
       _ <- _put(fid, en)
@@ -76,14 +77,14 @@ object EnHandler {
   /**
    * Adds the entry to the container. Creates the container if it's absent.
    */
-  def prepend(fid: String, id: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
+  def prepend(fid: Bytes, id: Bytes, data: Bytes)(implicit dba: Dba): Res[En] = {
     for {
       en1 <- get(fid, id)
-      _ <- en1.cata(_ => EntryExists(key(fid, id)).left, ().right)
+      _ <- en1.cata(_ => EntryExists(fid, id).left, ().right)
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       en = En(id=id, next=fd.head, data=data)
-      maxid = id.toLongOption.cata(Math.max(fd.maxid, _), fd.maxid)
+      maxid = new String(id.toArray).toLongOption.cata(Math.max(fd.maxid, _), fd.maxid)
       _ <- fh.put(fd.copy(maxid=maxid)) // in case kvs will fail after adding the en
       _ <- _put(fid, en)
       _ <- fh.put(fd.copy(head=id.just, length=fd.length+1, maxid=maxid))
@@ -95,7 +96,7 @@ object EnHandler {
    * If entry don't exists in containter create container and add it to the head
    * If entry exists in container, put it in the same place
    */
-  def put(fid: String, id: String, data: ArraySeq[Byte])(implicit dba: Dba): Res[En] = {
+  def put(fid: Bytes, id: Bytes, data: Bytes)(implicit dba: Dba): Res[En] = {
     for {
       x <- get(fid, id)
       z <- x.cata(y => _put(fid, En(id=id, next=y.next, data=data)), prepend(fid=fid, id=id, data=data))
@@ -106,7 +107,7 @@ object EnHandler {
    * Mark entry for removal. O(1) complexity.
    * @return marked entry (with data). Or `Nothing` if element is absent.
    */
-  def remove_soft(fid: String, id: String)(implicit dba: Dba): Res[Option[En]] = {
+  def remove_soft(fid: Bytes, id: Bytes)(implicit dba: Dba): Res[Option[En]] = {
     for {
       en1 <- get(fid, id)
       _ <- en1.cata(en => {
@@ -123,8 +124,8 @@ object EnHandler {
   /**
    * Delete all entries marked for removal. O(n) complexity.
    */
-  def cleanup(fid: String)(implicit dba: Dba): Res[Unit] = {
-    @tailrec def loop2(x1: En)(x2: Res[En], xs: LazyList[Res[En]]): Res[Option[String]] = {
+  def cleanup(fid: Bytes)(implicit dba: Dba): Res[Unit] = {
+    @tailrec def loop2(x1: En)(x2: Res[En], xs: LazyList[Res[En]]): Res[Option[Bytes]] = {
       x2 match {
         case Left(l) => l.left
         case Right(y2) if !y2.removed => x2.map(_.next)
@@ -134,7 +135,7 @@ object EnHandler {
             _ <- _put(fid, x1.copy(next=y2.next))
             // update feed
             fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
-            maxid = y2.id.toLongOption match {
+            maxid = new String(y2.id.toArray).toLongOption match {
               case Some(x) if x == fd.maxid => fd.maxid-1
               case _ => fd.maxid
             }
@@ -163,7 +164,7 @@ object EnHandler {
           val res = for {
             // update feed
             fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
-            maxid = y.id.toLongOption match {
+            maxid = new String(y.id.toArray).toLongOption match {
               case Some(x) if x == fd.maxid => fd.maxid-1
               case _ => fd.maxid
             }
@@ -199,12 +200,12 @@ object EnHandler {
    * @param next if specified then return entries after this entry
    * Nothing - start with head; Just(Nothing) - empty seq; Just(Just(id)) - start with id.
    */
-  def all(fid: String, next: Maybe[Maybe[String]], removed: Boolean)(implicit dba: Dba): Res[LazyList[Res[En]]] = {
+  def all(fid: Bytes, next: Maybe[Maybe[Bytes]], removed: Boolean)(implicit dba: Dba): Res[LazyList[Res[En]]] = {
     fh.get(fid).map(_.cata(fd => all(fd=fd, next=next, removed=removed), LazyList.empty))
   }
 
-  def all(fd: Fd, next: Maybe[Maybe[String]], removed: Boolean)(implicit dba: Dba): LazyList[Res[En]] = {
-    def _stream(id: Maybe[String]): LazyList[Res[En]] = {
+  def all(fd: Fd, next: Maybe[Maybe[Bytes]], removed: Boolean)(implicit dba: Dba): LazyList[Res[En]] = {
+    def _stream(id: Maybe[Bytes]): LazyList[Res[En]] = {
       id match {
         case None => LazyList.empty
         case Some(id) =>
@@ -222,7 +223,7 @@ object EnHandler {
   /**
    * Fix length, removed and maxid for feed.
    */
-  def fix(fid: String)(implicit dba: Dba): Res[((Long,Long),(Long,Long),(Long,Long))] = {
+  def fix(fid: Bytes)(implicit dba: Dba): Res[((Long,Long),(Long,Long),(Long,Long))] = {
     @tailrec def loop(xs: LazyList[Res[En]], acc: (Long, Long, Long)): Res[(Long, Long, Long)] = {
       xs match {
         case _ if xs.isEmpty => acc.right
@@ -230,7 +231,7 @@ object EnHandler {
         case Right(x) #:: xs =>
           val length = if (x.removed) acc._1 else acc._1+1
           val removed = if (x.removed) acc._2+1 else acc._2
-          val maxid = x.id.toLongOption.cata(x => Math.max(x, acc._3), acc._3)
+          val maxid = new String(x.id.toArray).toLongOption.cata(x => Math.max(x, acc._3), acc._3)
           loop(xs, (length, removed, maxid))
       }
     }

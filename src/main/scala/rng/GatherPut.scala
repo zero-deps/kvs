@@ -5,40 +5,16 @@ import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import zd.kvs.rng.data.Data
 import zd.kvs.rng.model.{StoreGetAck, StorePut}
 import scala.concurrent.duration._
-import java.util.Arrays
 
-final class PutInfo(
-    val key: Key
-  , val v: Value
-  , val N: Int
-  , val W: Int
-  , val bucket: Bucket
-  , val localAdr: Node
-  , val nodes: Set[Node]
-  ) {
-  override def equals(other: Any): Boolean = other match {
-    case that: PutInfo =>
-      Arrays.equals(key, that.key) &&
-      Arrays.equals(v, that.v) &&
-      N == that.N &&
-      W == that.W &&
-      bucket == that.bucket &&
-      localAdr == that.localAdr &&
-      nodes == that.nodes
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq[Any](key, v, N, W, bucket, localAdr, nodes)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"PutInfo(key=$key, v=$v, N=$N, W=$W, bucket=$bucket, localAdr=$localAdr, nodes=$nodes)"
-}
-
-object PutInfo {
-  def apply(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node]): PutInfo = {
-    new PutInfo(key=key, v=v, N=N, W=W, bucket=bucket, localAdr=localAdr, nodes=nodes)
-  }
-}
+final case class PutInfo(
+    key: Bytes
+  , v: Bytes
+  , N: Int
+  , W: Int
+  , bucket: Bucket
+  , localAdr: Node
+  , nodes: Set[Node]
+  )
 
 object GatherPut {
   def props(client: ActorRef, t: FiniteDuration, putInfo: PutInfo): Props = Props(new GatherPut(client, t, putInfo))

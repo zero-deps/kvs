@@ -21,12 +21,15 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
   }
   override def afterAll = TestKit.shutdownActorSystem(system)
 
-  val dir = "dir"
-  val name = "name" + java.util.UUID.randomUUID.toString
+  val dir = stob("dir")
+  val name = stob("name" + java.util.UUID.randomUUID.toString)
+  val name1 = stob("name" + java.util.UUID.randomUUID.toString + "1")
 
   implicit val fh: FileHandler = new FileHandler {
     override val chunkLength = 5
   }
+
+  def stob(x: String): Bytes = Bytes(x.getBytes)
 
   "file" - {
     "create" in {
@@ -36,7 +39,7 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
       kvs.file.create(dir, name).left.value should be (FileAlreadyExists(dir, name))
     }
     "append" in {
-      val r = kvs.file.append(dir, name, Array(1, 2, 3, 4, 5, 6))
+      val r = kvs.file.append(dir, name, Bytes(Array(1, 2, 3, 4, 5, 6)))
       r.isRight should be (true)
       r.getOrElse(???).size should be (6)
       r.getOrElse(???).count should be (2)
@@ -47,17 +50,17 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
       r.getOrElse(???) should be (6)
     }
     "size if absent" in {
-      kvs.file.size(dir, name + "1").left.value should be (FileNotExists(dir, name + "1"))
+      kvs.file.size(dir, name1).left.value should be (FileNotExists(dir, name1))
     }
     "content" in {
       val r = kvs.file.stream(dir, name)
       r.isRight should be (true)
       val r1 = r.getOrElse(???).sequenceU
       r1.isRight should be (true)
-      r1.getOrElse(???).toArray.flatten should be (Array(1, 2, 3, 4, 5, 6))
+      r1.getOrElse(???).toArray.flatten should be (Bytes(Array(1, 2, 3, 4, 5, 6)))
     }
     "content if absent" in {
-      kvs.file.stream(dir, name + "1").left.value should be (FileNotExists(dir, name + "1"))
+      kvs.file.stream(dir, name1).left.value should be (FileNotExists(dir, name1))
     }
     "delete" in {
       kvs.file.delete(dir, name).isRight should be (true)

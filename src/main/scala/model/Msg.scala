@@ -4,7 +4,6 @@ package model
 
 import zd.proto.api.N
 import zd.kvs.rng.data._
-import java.util.Arrays
 
 sealed trait Msg
 
@@ -43,47 +42,13 @@ final case class ReplBucketsVc
   ( @N(1) bvcs: Map[Int, VectorClock]
   )
 
-@N(11) final class StoreDelete
-  ( @N(1) val key: Array[Byte] 
-  ) extends Msg {
-  override def equals(other: Any): Boolean = other match {
-    case that: StoreDelete =>
-      Arrays.equals(key, that.key)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(key)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"StoreDelete(key=$key)"
-}
+@N(11) final case class StoreDelete
+  ( @N(1) key: Bytes
+  ) extends Msg
 
-object StoreDelete {
-  def apply(key: Array[Byte]): StoreDelete = {
-    new StoreDelete(key=key)
-  }
-}
-
-@N(12) final class StoreGet
-  ( @N(1) val key: Array[Byte]
-  ) extends Msg {
-  override def equals(other: Any): Boolean = other match {
-    case that: StoreGet =>
-      Arrays.equals(key, that.key)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(key)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"StoreGet(key=$key)"
-}
-
-object StoreGet {
-  def apply(key: Array[Byte]): StoreGet = {
-    new StoreGet(key=key)
-  }
-}
+@N(12) final case class StoreGet
+  ( @N(1) key: Bytes
+  ) extends Msg
 
 @N(13) final case class StoreGetAck
   ( @N(1) data: Option[Data]

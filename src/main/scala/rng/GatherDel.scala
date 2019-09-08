@@ -5,7 +5,7 @@ import akka.actor._
 import akka.cluster.Cluster
 import scala.concurrent.duration._
 
-class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Key) extends FSM[FsmState, Set[Node]] with ActorLogging {
+class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes) extends FSM[FsmState, Set[Node]] with ActorLogging {
   import context.system
 
   val config = system.settings.config.getConfig("ring")
@@ -49,5 +49,5 @@ class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Key
 }
 
 object GatherDel {
-  def props(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Key): Props = Props(new GatherDel(client, t, prefList, k))
+  def props(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes): Props = Props(new GatherDel(client, t, prefList, k))
 }

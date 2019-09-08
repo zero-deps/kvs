@@ -28,16 +28,16 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case x: StoreGet =>
-      val k = itob(hashing.findBucket(x.key)) ++ `:key:` ++ x.key
+      val k = itob(hashing.findBucket(x.key.toArray)) ++ `:key:` ++ x.key
       val result: Option[Data] = get(k).map(decode[Data](_))
       sender ! StoreGetAck(result)
 
     case DumpGetBucketData(b) => 
       val k = itob(b) ++ `:keys`
       val b_info = get(k).map(decode[BucketInfo](_))
-      val keys: Vector[Key] = b_info.map(_.keys.toVector).getOrElse(Vector.empty)
+      val keys = b_info.map(_.keys).getOrElse(Vector.empty)
       val items: Vector[Data] = keys.flatMap(key =>
-        get(itob(b)++`:key:`++key).map(decode[Data](_))
+        get(itob(b)++`:key:`++key.toArray).map(decode[Data](_))
       )
       sender ! DumpBucketData(b, items)
     case ReplGetBucketIfNew(b, vc) =>

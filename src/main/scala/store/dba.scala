@@ -7,11 +7,9 @@ import scala.concurrent.Future
  * Database Application Interface.
  */
 trait Dba {
-  type K = String
-  type V = Array[Byte]
-  def put(key: K, value: V): Res[Unit]
-  def get(key: K): Res[Option[V]]
-  def delete(key: K): Res[Unit]
+  def put(key: Bytes, value: Bytes): Res[Unit]
+  def get(key: Bytes): Res[Option[Bytes]]
+  def delete(key: Bytes): Res[Unit]
   def save(path: String): Res[String]
   def load(path: String): Res[Any]
   def isReady: Future[Boolean]

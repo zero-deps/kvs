@@ -10,7 +10,7 @@ import scala.collection.immutable.{HashSet}
 
 import GatherGet.DataCollection
 
-class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, @unused R: Int, k: Key) extends FSM[FsmState, DataCollection] with ActorLogging {
+class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, @unused R: Int, k: Bytes) extends FSM[FsmState, DataCollection] with ActorLogging {
   val stores = SelectionMemorize(context.system)
 
   startWith(Collecting, DataCollection(Vector.empty, 0))
@@ -42,7 +42,7 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, @unused R: Int, k: 
 }
 
 object GatherGet {
-  def props(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Key): Props = Props(new GatherGet(client, t, M, R, k))
+  def props(client: ActorRef, t: FiniteDuration, M: Int, R: Int, k: Bytes): Props = Props(new GatherGet(client, t, M, R, k))
 
   type AddrOfData = (Option[Data], Node)
 

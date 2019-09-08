@@ -11,6 +11,8 @@ class MergeTest extends AnyFreeSpec with Matchers with EitherValues with BeforeA
   def v2(v: Long) = "n2" -> v
   def vc(v: Tuple2[String,Long]*) = new VectorClock(TreeMap.empty[String,Long] ++ v)
 
+  def stob(x: String): Bytes = Bytes(x.getBytes)
+
   "forRepl" - {
     import zd.kvs.rng.MergeOps.forRepl
     "empty" in {

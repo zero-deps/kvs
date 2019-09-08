@@ -9,66 +9,11 @@ import zd.kvs.rng.model.{StoreDelete, StoreGet, QuorumState, ChangeState}
 import zd.kvs.rng.model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.concurrent.duration._
-import java.util.Arrays
 import zd.gs.z._
 
-final class Put(val k: Key, val v: Value) {
-  override def equals(other: Any): Boolean = other match {
-    case that: Put =>
-      Arrays.equals(k, that.k) &&
-      Arrays.equals(v, that.v)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k, v)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"Put(k=$k, v=$v)"
-}
-
-object Put {
-  def apply(k: Key, v: Value): Put = {
-    new Put(k=k, v=v)
-  }
-}
-
-final class Get(val k: Key) {
-  override def equals(other: Any): Boolean = other match {
-    case that: Get =>
-      Arrays.equals(k, that.k)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"Get(k=$k)"
-}
-
-object Get {
-  def apply(k: Key): Get = {
-    new Get(k=k)
-  }
-}
-
-final class Delete(val k: Key) {
-  override def equals(other: Any): Boolean = other match {
-    case that: Delete =>
-      Arrays.equals(k, that.k)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"Delete(k=$k)"
-}
-
-object Delete {
-  def apply(k: Key): Delete = {
-    new Delete(k=k)
-  }
-}
+final case class Put(k: Bytes, v: Bytes)
+final case class Get(k: Bytes)
+final case class Delete(k: Bytes)
 
 final case class Save(path: String)
 final case class Load(path: String)
@@ -77,25 +22,7 @@ final case object RestoreState
 
 final case object Ready
 
-final class InternalPut(val k: Key, val v: Value) {
-  override def equals(other: Any): Boolean = other match {
-    case that: InternalPut =>
-      Arrays.equals(k, that.k) &&
-      Arrays.equals(v, that.v)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k, v)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"InternalPut(k=$k, v=$v)"
-}
-
-object InternalPut {
-  def apply(k: Key, v: Value): InternalPut = {
-    new InternalPut(k=k, v=v)
-  }
-}
+final case class InternalPut(k: Bytes, v: Bytes)
 
 final case class HashRngData(
   nodes: Set[Node],
@@ -247,8 +174,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       stay()
   }
 
-  def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
-    val nodes = nodesForKey(k, data)
+  def doDelete(k: Bytes, client: ActorRef, data: HashRngData): Unit = {
+    val k1 = k.toArray[Byte]
+    val nodes = nodesForKey(k1, data)
     val gather = system.actorOf(GatherDel.props(client, gatherTimeout, nodes, k))
     val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
     stores.foreach(_.fold(
@@ -257,11 +185,12 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     ))
   }
 
-  def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData): Unit = {
-    val nodes = availableNodesFrom(nodesForKey(k, data))
+  def doPut(k: Bytes, v: Bytes, client: ActorRef, data: HashRngData): Unit = {
+    val k1 = k.toArray[Byte]
+    val nodes = availableNodesFrom(nodesForKey(k1, data))
     val M = nodes.size
     if (M >= W) {
-      val bucket = hashing findBucket k
+      val bucket = hashing.findBucket(k1)
       val info = PutInfo(k, v, N, W, bucket, local, data.nodes)
       val gather = system.actorOf(GatherPut.props(client, gatherTimeout, info))
       val node = if (nodes contains local) local else nodes.head
@@ -274,8 +203,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     }
   }
 
-  def doGet(k: Key, client: ActorRef, data: HashRngData): Unit = {
-    val nodes = availableNodesFrom(nodesForKey(k, data))
+  def doGet(k: Bytes, client: ActorRef, data: HashRngData): Unit = {
+    val k1 = k.toArray[Byte]
+    val nodes = availableNodesFrom(nodesForKey(k1, data))
     val M = nodes.size
     if (M >= R) {
       val gather = system.actorOf(GatherGet.props(client, gatherTimeout, M, R, k))

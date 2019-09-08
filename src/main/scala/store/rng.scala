@@ -9,7 +9,6 @@ import akka.util.{Timeout}
 import leveldbjnr.LevelDb
 import zd.kvs.rng
 import zd.kvs.rng.store.{ReadonlyStore, WriteStore}
-import zd.kvs.rng.{stob}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.{Try, Success, Failure}
@@ -29,10 +28,10 @@ class Ring(system: ActorSystem) extends Dba {
 
   val hash = system.actorOf(rng.Hash.props().withDeploy(Deploy.local), name="ring_hash")
 
-  override def put(key: String, value: V): Res[Unit] = {
+  override def put(key: Bytes, value: Bytes): Res[Unit] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
-    val putF = hash.ask(rng.Put(stob(key), value))(t).mapTo[Ack]
+    val putF = hash.ask(rng.Put(key, value))(t).mapTo[Ack]
     Try(Await.result(putF, d)) match {
       case Success(AckSuccess(_)) => ().right
       case Success(x: AckQuorumFailed) => x.left
@@ -47,10 +46,10 @@ class Ring(system: ActorSystem) extends Dba {
     hash.ask(rng.Ready)(t).mapTo[Boolean]
   }
 
-  override def get(key: String): Res[Option[V]] = {
+  override def get(key: Bytes): Res[Option[Bytes]] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
-    val fut = hash.ask(rng.Get(stob(key)))(t).mapTo[Ack]
+    val fut = hash.ask(rng.Get(key))(t).mapTo[Ack]
     Try(Await.result(fut, d)) match {
       case Success(AckSuccess(v)) => v.right
       case Success(x: AckQuorumFailed) => x.left
@@ -59,10 +58,10 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  override def delete(key: String): Res[Unit] = {
+  override def delete(key: Bytes): Res[Unit] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
-    val fut = hash.ask(rng.Delete(stob(key)))(t).mapTo[Ack]
+    val fut = hash.ask(rng.Delete(key))(t).mapTo[Ack]
     Try(Await.result(fut, d)) match {
       case Success(AckSuccess(_)) => ().right
       case Success(x: AckQuorumFailed) => x.left
