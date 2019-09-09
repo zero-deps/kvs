@@ -7,10 +7,18 @@ import java.nio.channels.FileChannel
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption.{READ, WRITE, CREATE}
 import zd.kvs.rng.data.{Data}
-import zd.kvs.rng.dump.codec._
-import zd.kvs.rng.dump.{DumpKV, KV}
 import scala.util.Try
-import zd.proto.api.{encode, decode}
+import zd.proto.api.{encode, decode, MessageCodec, N}
+import zd.proto.macrosapi.{caseCodecAuto}
+
+final case class DumpKV
+  ( @N(1) kv: Vector[KV]
+  )
+
+final case class KV
+  ( @N(1) k: Bytes
+  , @N(2) v: Bytes
+  )
 
 object DumpIO {
   def props(ioPath: String): Throwable Either Props = {
@@ -25,6 +33,8 @@ object DumpIO {
 }
 
 class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLogging {
+  implicit val dumpKVCodec: MessageCodec[DumpKV] = caseCodecAuto[DumpKV]
+  implicit val kVCodec: MessageCodec[KV] = caseCodecAuto[KV]
 
   def receive = {
     case DumpIO.ReadNext =>

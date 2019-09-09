@@ -4,7 +4,7 @@ import akka.actor.{ExtendedActorSystem}
 import akka.serialization.{BaseSerializer}
 import zd.kvs.rng.model._
 import zd.proto.api.{MessageCodec, encode, decode}
-import zd.proto.macrosapi.{sealedTraitCodecAuto, caseCodecAuto, classCodecAuto, caseCodecIdx}
+import zd.proto.macrosapi.{sealedTraitCodecAuto, caseCodecAuto, caseCodecIdx}
 
 class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
   implicit val msgCodec: MessageCodec[Msg] = {
@@ -26,8 +26,8 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
     implicit val replGetBucketIfNewCodec: MessageCodec[ReplGetBucketIfNew] = caseCodecAuto[ReplGetBucketIfNew]
     implicit val replNewerBucketDataCodec: MessageCodec[ReplNewerBucketData] = caseCodecAuto[ReplNewerBucketData]
     implicit val replBucketsVcCodec: MessageCodec[ReplBucketsVc] = caseCodecAuto[ReplBucketsVc]
-    implicit val storeDeleteCodec: MessageCodec[StoreDelete] = classCodecAuto[StoreDelete]
-    implicit val storeGetCodec: MessageCodec[StoreGet] = classCodecAuto[StoreGet]
+    implicit val storeDeleteCodec: MessageCodec[StoreDelete] = caseCodecAuto[StoreDelete]
+    implicit val storeGetCodec: MessageCodec[StoreGet] = caseCodecAuto[StoreGet]
     implicit val storeGetAckCodec: MessageCodec[StoreGetAck] = caseCodecAuto[StoreGetAck]
     implicit val storePutCodec: MessageCodec[StorePut] = caseCodecAuto[StorePut]
     implicit val replGetBucketsVcCodec: MessageCodec[ReplGetBucketsVc] = caseCodecAuto[ReplGetBucketsVc]

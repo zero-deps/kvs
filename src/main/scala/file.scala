@@ -9,6 +9,16 @@ import zd.gs.z._
 
 final case class Path(@N(1) dir: Bytes, @N(2) name: Bytes)
 final case class Chunk(@N(1) dir: Bytes, @N(2) name: Bytes, @N(3) num: Int)
+final case class File
+  ( // name – unique value inside directory
+    @N(1) name: Bytes
+    // count – number of chunks
+  , @N(2) count: Int
+    // size - size of file in bytes
+  , @N(3) size: Long
+    // true if directory
+  , @N(4) dir: Boolean
+  )
 
 trait FileHandler {
   protected val chunkLength: Int

@@ -14,9 +14,6 @@ package object rng {
 
   val emptyVC = akka.cluster.emptyVC
 
-  def stob(s: String): Array[Byte] = s.getBytes("UTF-8")
-  def itob(v: Int): Array[Byte] = Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte)
-
   implicit class StringExt(value: String) {
     def blue: String = s"\u001B[34m${value}\u001B[0m"
     def green: String = s"\u001B[32m${value}\u001B[0m"

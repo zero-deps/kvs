@@ -3,11 +3,11 @@ package rng
 package data
 
 import zd.proto.api.{N, MessageCodec}
-import zd.proto.macrosapi.{caseCodecAuto, classCodecAuto}
+import zd.proto.macrosapi.{caseCodecAuto}
 
 final case class Data
-  ( @N(1) key: Bytes
-  , @N(2) bucket: Int
+  ( @N(1) key: Bytes //todo duplicates DataKey
+  , @N(2) bucket: Int // todo duplicates DataKey
   , @N(3) lastModified: Long
   , @N(4) vc: VectorClock
   , @N(5) value: Bytes
@@ -20,5 +20,5 @@ final case class BucketInfo
 
 object codec {
   implicit val bucketInfoCodec: MessageCodec[BucketInfo] = caseCodecAuto[BucketInfo]
-  implicit val dataCodec: MessageCodec[Data] = classCodecAuto[Data]
+  implicit val dataCodec: MessageCodec[Data] = caseCodecAuto[Data]
 }

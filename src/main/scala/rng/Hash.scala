@@ -226,7 +226,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
     val newvNodes: Map[VNode, Node] = (1 to vNodesNum).view.map(vnode => {
-      hashing.hash(stob(member.address.hostPort).++(itob(vnode))) -> member.address
+      hashing.hash(member.address.hostPort.getBytes ++ itob(vnode)) -> member.address
     }).to(Map)
     val updvNodes = data.vNodes ++ newvNodes
     val nodes = data.nodes + member.address
@@ -240,7 +240,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def removeNodeFromRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
     log.info(s"Removing ${member} from ring")
-    val unusedvNodes: Set[VNode] = (1 to vNodesNum).view.map(vnode => hashing.hash(stob(member.address.hostPort).++(itob(vnode)))).to(Set)
+    val unusedvNodes: Set[VNode] = (1 to vNodesNum).view.map(vnode => hashing.hash(member.address.hostPort.getBytes ++ itob(vnode))).to(Set)
     val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
     val nodes = data.nodes - member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
@@ -250,6 +250,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     val updData = HashRngData(nodes, data.buckets++moved, updvNodes, repl.just)
     state(updData.nodes.size) -> updData
   }
+
+  def itob(v: Int): Array[Byte] = Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte)
 
   def syncNodes(_buckets: SortedMap[Bucket,PreferenceList]): ActorRef = {
     val empty = SortedMap.empty[Bucket,PreferenceList]

@@ -9,6 +9,7 @@ import zd.proto.api.{encode, decode}
 import zd.kvs.rng.data.codec._
 import zd.kvs.rng.data.{Data, BucketInfo}
 import zd.kvs.rng.model.{ReplBucketPut, StorePut, StoreDelete}
+import zd.kvs.rng.store.codec._
 
 class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   import context.system
@@ -21,9 +22,6 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   val local: Node = Cluster(system).selfAddress
 
   def get(k: Key): Option[Array[Byte]] = leveldb.get(k, ro).fold(l => throw l, r => r)
-
-  val `:key:` = stob(":key:")
-  val `:keys` = stob(":keys")
 
   override def postStop(): Unit = {
     leveldb.close()
@@ -44,7 +42,7 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   def replBucketPut(b: Bucket, bucketVc: VectorClock, items: Vector[Data]): Unit = {
     withBatch{ batch =>
       { // updating bucket info
-        val bucketId: Key = itob(b) ++ `:keys`
+        val bucketId: Key = encode[StoreKey](BucketInfoKey(bucket=b))
         val bucketInfo = get(bucketId).map(decode[BucketInfo](_))
         val newKeys = items.map(_.key)
         val v = bucketInfo match {
@@ -57,7 +55,7 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
       }
       // saving keys data
       items.foreach{ data =>
-        val keyPath: Key = itob(b) ++ `:key:` ++ data.key
+        val keyPath: Key = encode[StoreKey](DataKey(bucket=b, key=data.key))
         val keyData: Option[Data] = get(keyPath).map(decode[Data](_))
         val v: Option[Data] = MergeOps.forPut(stored=keyData, received=data)
         v.map(v => batch.put(keyPath, encode(v)))
@@ -68,7 +66,7 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   def doPut(data: Data): Unit = {
     val _ = withBatch{ batch =>
       { // updating bucket info
-        val bucketId: Key = itob(data.bucket) ++ `:keys`
+        val bucketId: Key = encode[StoreKey](BucketInfoKey(bucket=data.bucket))
         val bucketInfo = get(bucketId).map(decode[BucketInfo](_))
         val v = bucketInfo match {
           case Some(x) if x.keys contains data.key =>
@@ -84,7 +82,7 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
         batch.put(bucketId, encode(v))
       }
       // saving key data
-      val keyPath: Key = itob(data.bucket) ++ `:key:` ++ data.key
+      val keyPath: Key = encode[StoreKey](DataKey(bucket=data.bucket, key=data.key))
       val keyData: Option[Data] = get(keyPath).map(decode[Data](_))
       val v: Option[Data] = MergeOps.forPut(stored=keyData, received=data)
       v.map(v => batch.put(keyPath, encode(v)))
@@ -92,21 +90,17 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   }
 
   def doDelete(key: Bytes): String = {
-    val key1 = key.toArray[Byte]
-    val b = hashing.findBucket(key1)
-    val b_info = get(itob(b) ++ `:keys`).map(decode[BucketInfo](_))
-    b_info match {
-      case Some(b_info) =>
-        val vc = b_info.vc :+ local.toString
-        val keys = b_info.keys.filterNot(_ == key)
-        withBatch(batch => {
-          batch.delete((itob(b) ++ `:key:` ++ key1))
-          batch.put((itob(b) ++ `:keys`), encode(BucketInfo(vc, keys)))
-        })
-        "ok"
-      case None => 
-        "ok"
+    val b = hashing.findBucket(key.toArray[Byte])
+    val b_info = get(encode[StoreKey](BucketInfoKey(bucket=b))).map(decode[BucketInfo](_))
+    b_info.foreach{ b_info =>
+      val vc = b_info.vc :+ local.toString
+      val keys = b_info.keys.filterNot(_ == key)
+      withBatch(batch => {
+        batch.delete(encode[StoreKey](DataKey(bucket=b, key=key)))
+        batch.put(encode[StoreKey](BucketInfoKey(bucket=b)), encode(BucketInfo(vc, keys)))
+      })
     }
+    "ok"
   }
 
   def withBatch[R](body: WriteBatch => R): R = {

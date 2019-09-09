@@ -11,6 +11,8 @@ import zd.kvs.rng.model.{StoreGet, StoreGetAck}
 import zd.kvs.rng.model.{DumpGetBucketData, DumpBucketData}
 import zd.kvs.rng.model.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
 import zd.proto.api.decode
+import zd.kvs.rng.store.codec._
+import zd.proto.api.{encode, decode}
 
 object ReadonlyStore {
   def props(leveldb: LevelDb): Props = Props(new ReadonlyStore(leveldb))
@@ -22,27 +24,23 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
 
   def get(k: Key): Option[Array[Byte]] = leveldb.get(k, ro).fold(l => throw l, r => r)
 
-  val `:key:` = stob(":key:")
-  val `:keys` = stob(":keys")
-  val `readonly_dummy` = stob("readonly_dummy")
-
   override def receive: Receive = {
     case x: StoreGet =>
-      val k = itob(hashing.findBucket(x.key.toArray)) ++ `:key:` ++ x.key
+      val k = encode[StoreKey](DataKey(bucket=hashing.findBucket(x.key.toArray), key=x.key))
       val result: Option[Data] = get(k).map(decode[Data](_))
       sender ! StoreGetAck(result)
 
     case DumpGetBucketData(b) => 
-      val k = itob(b) ++ `:keys`
+      val k = encode[StoreKey](BucketInfoKey(bucket=b))
       val b_info = get(k).map(decode[BucketInfo](_))
       val keys = b_info.map(_.keys).getOrElse(Vector.empty)
       val items: Vector[Data] = keys.flatMap(key =>
-        get(itob(b)++`:key:`++key.toArray).map(decode[Data](_))
+        get(encode[StoreKey](DataKey(bucket=b, key=key))).map(decode[Data](_))
       )
       sender ! DumpBucketData(b, items)
     case ReplGetBucketIfNew(b, vc) =>
       val vc_other: VectorClock = vc
-      val k = itob(b) ++ `:keys`
+      val k = encode[StoreKey](BucketInfoKey(bucket=b))
       val b_info = get(k).map(decode[BucketInfo](_))
       b_info match {
         case Some(b_info) =>
@@ -52,7 +50,7 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
             case false =>
               val keys = b_info.keys
               val items: Vector[Data] = keys.view.flatMap(key =>
-                get(itob(b)++`:key:`++key).map(decode[Data](_))
+                get(encode[StoreKey](DataKey(bucket=b, key=key))).map(decode[Data](_))
               ).to(Vector)
               sender ! ReplNewerBucketData(b_info.vc, items)
           }
@@ -61,7 +59,7 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
       }
     case ReplGetBucketsVc(bs) =>
       val bvcs: Bucket Map VectorClock = bs.view.flatMap{ b =>
-        val k = itob(b) ++ `:keys`
+        val k = encode[StoreKey](BucketInfoKey(bucket=b))
         get(k).map(x => b -> decode[BucketInfo](x).vc)
       }.to(Map)
       sender ! ReplBucketsVc(bvcs)
