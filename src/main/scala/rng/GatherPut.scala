@@ -5,6 +5,7 @@ import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import zd.kvs.rng.data.Data
 import zd.kvs.rng.model.{StoreGetAck, StorePut}
 import scala.concurrent.duration._
+import zd.proto.Bytes
 
 final case class PutInfo(
     key: Bytes

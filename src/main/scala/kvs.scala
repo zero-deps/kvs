@@ -9,6 +9,7 @@ import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
 import zd.kvs.file.{File, FileHandler}
 import zd.kvs.store._
 import zd.gs.z._
+import zd.proto.Bytes
 
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {

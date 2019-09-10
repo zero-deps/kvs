@@ -13,6 +13,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.{Try, Success, Failure}
 import zd.gs.z._
+import zd.proto.Bytes
 
 class Ring(system: ActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")

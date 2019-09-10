@@ -4,6 +4,7 @@ package store
 
 import zd.proto.api.{N, MessageCodec}
 import zd.proto.macrosapi.{caseCodecAuto, sealedTraitCodecAuto}
+import zd.proto.Bytes
 
 sealed trait StoreKey
 @N(1) final case class BucketInfoKey(@N(1) bucket: Int) extends StoreKey

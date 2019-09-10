@@ -5,13 +5,14 @@ import zd.kvs.rng.data._
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest._
 import scala.collection.immutable.{HashSet, TreeMap}
+import zd.proto.Bytes
 
 class MergeTest extends AnyFreeSpec with Matchers with EitherValues with BeforeAndAfterAll {
   def v1(v: Long) = "n1" -> v
   def v2(v: Long) = "n2" -> v
   def vc(v: Tuple2[String,Long]*) = new VectorClock(TreeMap.empty[String,Long] ++ v)
 
-  def stob(x: String): Bytes = Bytes(x.getBytes)
+  def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
 
   "forRepl" - {
     import zd.kvs.rng.MergeOps.forRepl

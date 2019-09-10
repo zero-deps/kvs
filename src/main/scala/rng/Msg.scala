@@ -4,6 +4,7 @@ package model
 
 import zd.proto.api.N
 import zd.kvs.rng.data._
+import zd.proto.Bytes
 
 sealed trait Msg
 

@@ -1,6 +1,7 @@
 package zd.kvs
 package el
 
+import zd.proto.Bytes
 import zd.kvs.store.Dba
 
 object ElHandler {

@@ -5,6 +5,7 @@ import zd.kvs.store.Dba
 import zd.gs.z._
 import zd.proto.api.{N, MessageCodec}
 import zd.proto.macrosapi.{caseCodecAuto}
+import zd.proto.Bytes
 
 final case class Fd
   ( @N(1) id: Bytes

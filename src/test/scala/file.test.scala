@@ -10,6 +10,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
 import zd.gs.z._
+import zd.proto.Bytes
 
 class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4013))))
   with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
@@ -29,7 +30,7 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
     override val chunkLength = 5
   }
 
-  def stob(x: String): Bytes = Bytes(x.getBytes)
+  def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
 
   "file" - {
     "create" in {
@@ -39,7 +40,7 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
       kvs.file.create(dir, name).left.value should be (FileAlreadyExists(dir, name))
     }
     "append" in {
-      val r = kvs.file.append(dir, name, Bytes(Array(1, 2, 3, 4, 5, 6)))
+      val r = kvs.file.append(dir, name, Bytes.unsafeWrap(Array(1, 2, 3, 4, 5, 6)))
       r.isRight should be (true)
       r.getOrElse(???).size should be (6)
       r.getOrElse(???).count should be (2)
@@ -53,11 +54,7 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
       kvs.file.size(dir, name1).left.value should be (FileNotExists(dir, name1))
     }
     "content" in {
-      val r = kvs.file.stream(dir, name)
-      r.isRight should be (true)
-      val r1 = r.getOrElse(???).sequenceU
-      r1.isRight should be (true)
-      r1.getOrElse(???).toArray.flatten should be (Bytes(Array(1, 2, 3, 4, 5, 6)))
+      kvs.file.stream(dir, name) shouldBe LazyList(Bytes.unsafeWrap(Array(1, 2, 3, 4, 5)).right, Bytes.unsafeWrap(Array(6)).right).right
     }
     "content if absent" in {
       kvs.file.stream(dir, name1).left.value should be (FileNotExists(dir, name1))

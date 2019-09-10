@@ -10,11 +10,12 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
 import zd.gs.z._
+import zd.proto.Bytes
 
 class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4012))))
   with AnyFreeSpecLike with Matchers with BeforeAndAfterAll {
 
-  def data(n: Int): Bytes = Bytes(s"val=${n}".getBytes)
+  def data(n: Int): Bytes = Bytes.unsafeWrap(s"val=${n}".getBytes)
 
   var kvs: Kvs = null
   override def beforeAll = {
@@ -23,7 +24,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
   }
   override def afterAll = TestKit.shutdownActorSystem(system)
   
-  def stob(x: String): Bytes = Bytes(x.getBytes)
+  def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
 
   "feed" - {
     "no 1" - {
@@ -120,12 +121,12 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         val limit = 100L
         LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
           val added = kvs.add(fid, data(n))
-          added.map(_.id) shouldBe Bytes(n.toString.getBytes).right
+          added.map(_.id) shouldBe Bytes.unsafeWrap(n.toString.getBytes).right
           added.map(_.data) shouldBe data(n).right
         }
         LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
-          val removed = kvs.remove(fid, Bytes(n.toString.getBytes))
-          removed.map(_.map(_.id)) shouldBe Bytes(n.toString.getBytes).just.right
+          val removed = kvs.remove(fid, Bytes.unsafeWrap(n.toString.getBytes))
+          removed.map(_.map(_.id)) shouldBe Bytes.unsafeWrap(n.toString.getBytes).just.right
           removed.map(_.map(_.data)) shouldBe data(n).just.right
           kvs.fd.length(fid) shouldBe (limit-n).right
         }

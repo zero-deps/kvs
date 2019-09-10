@@ -4,6 +4,7 @@ package data
 
 import zd.proto.api.{N, MessageCodec}
 import zd.proto.macrosapi.{caseCodecAuto}
+import zd.proto.Bytes
 
 final case class Data
   ( @N(1) key: Bytes //todo duplicates DataKey

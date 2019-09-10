@@ -10,6 +10,7 @@ import zd.kvs.rng.model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly
 import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.concurrent.duration._
 import zd.gs.z._
+import zd.proto.Bytes
 
 final case class Put(k: Bytes, v: Bytes)
 final case class Get(k: Bytes)
@@ -175,8 +176,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   def doDelete(k: Bytes, client: ActorRef, data: HashRngData): Unit = {
-    val k1 = k.toArray[Byte]
-    val nodes = nodesForKey(k1, data)
+    val nodes = nodesForKey(k.unsafeArray, data)
     val gather = system.actorOf(GatherDel.props(client, gatherTimeout, nodes, k))
     val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
     stores.foreach(_.fold(
@@ -186,11 +186,10 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   def doPut(k: Bytes, v: Bytes, client: ActorRef, data: HashRngData): Unit = {
-    val k1 = k.toArray[Byte]
-    val nodes = availableNodesFrom(nodesForKey(k1, data))
+    val nodes = availableNodesFrom(nodesForKey(k.unsafeArray, data))
     val M = nodes.size
     if (M >= W) {
-      val bucket = hashing.findBucket(k1)
+      val bucket = hashing.findBucket(k.unsafeArray)
       val info = PutInfo(k, v, N, W, bucket, local, data.nodes)
       val gather = system.actorOf(GatherPut.props(client, gatherTimeout, info))
       val node = if (nodes contains local) local else nodes.head
@@ -204,8 +203,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   def doGet(k: Bytes, client: ActorRef, data: HashRngData): Unit = {
-    val k1 = k.toArray[Byte]
-    val nodes = availableNodesFrom(nodesForKey(k1, data))
+    val nodes = availableNodesFrom(nodesForKey(k.unsafeArray, data))
     val M = nodes.size
     if (M >= R) {
       val gather = system.actorOf(GatherGet.props(client, gatherTimeout, M, R, k))

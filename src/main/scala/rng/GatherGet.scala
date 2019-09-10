@@ -7,6 +7,7 @@ import zd.kvs.rng.data.Data
 import zd.kvs.rng.model.{StoreGetAck, StorePut, StoreDelete}
 import scala.concurrent.duration._
 import scala.collection.immutable.{HashSet}
+import zd.proto.Bytes
 
 import GatherGet.DataCollection
 

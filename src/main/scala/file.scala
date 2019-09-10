@@ -6,6 +6,7 @@ import scala.annotation.tailrec
 import zd.proto.api.{N, MessageCodec}
 import zd.proto.macrosapi.caseCodecAuto
 import zd.gs.z._
+import zd.proto.Bytes
 
 final case class Path(@N(1) dir: Bytes, @N(2) name: Bytes)
 final case class Chunk(@N(1) dir: Bytes, @N(2) name: Bytes, @N(3) num: Int)

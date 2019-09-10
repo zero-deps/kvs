@@ -6,6 +6,7 @@ import zd.gs.z._
 import zd.kvs.store.Dba
 import zd.proto.api.{N, MessageCodec}
 import zd.proto.macrosapi.{caseCodecAuto}
+import zd.proto.Bytes
 
 final case class En
   ( @N(1) id: Bytes
@@ -66,7 +67,7 @@ object EnHandler {
     for {
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
-      id = Bytes((fd.maxid+1).toString.getBytes)
+      id = Bytes.unsafeWrap((fd.maxid+1).toString.getBytes)
       en = En(id=id, next=fd.head, data=data)
       _ <- fh.put(fd.copy(maxid=fd.maxid+1)) // in case kvs will fail after adding the en
       _ <- _put(fid, en)
@@ -84,7 +85,7 @@ object EnHandler {
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       en = En(id=id, next=fd.head, data=data)
-      maxid = new String(id.toArray).toLongOption.cata(Math.max(fd.maxid, _), fd.maxid)
+      maxid = new String(id.unsafeArray).toLongOption.cata(Math.max(fd.maxid, _), fd.maxid)
       _ <- fh.put(fd.copy(maxid=maxid)) // in case kvs will fail after adding the en
       _ <- _put(fid, en)
       _ <- fh.put(fd.copy(head=id.just, length=fd.length+1, maxid=maxid))
@@ -135,7 +136,7 @@ object EnHandler {
             _ <- _put(fid, x1.copy(next=y2.next))
             // update feed
             fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
-            maxid = new String(y2.id.toArray).toLongOption match {
+            maxid = new String(y2.id.unsafeArray).toLongOption match {
               case Some(x) if x == fd.maxid => fd.maxid-1
               case _ => fd.maxid
             }
@@ -164,7 +165,7 @@ object EnHandler {
           val res = for {
             // update feed
             fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
-            maxid = new String(y.id.toArray).toLongOption match {
+            maxid = new String(y.id.unsafeArray).toLongOption match {
               case Some(x) if x == fd.maxid => fd.maxid-1
               case _ => fd.maxid
             }
@@ -231,7 +232,7 @@ object EnHandler {
         case Right(x) #:: xs =>
           val length = if (x.removed) acc._1 else acc._1+1
           val removed = if (x.removed) acc._2+1 else acc._2
-          val maxid = new String(x.id.toArray).toLongOption.cata(x => Math.max(x, acc._3), acc._3)
+          val maxid = new String(x.id.unsafeArray).toLongOption.cata(x => Math.max(x, acc._3), acc._3)
           loop(xs, (length, removed, maxid))
       }
     }

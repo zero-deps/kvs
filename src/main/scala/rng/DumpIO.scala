@@ -10,6 +10,7 @@ import zd.kvs.rng.data.{Data}
 import scala.util.Try
 import zd.proto.api.{encode, decode, MessageCodec, N}
 import zd.proto.macrosapi.{caseCodecAuto}
+import zd.proto.Bytes
 
 final case class DumpKV
   ( @N(1) kv: Vector[KV]

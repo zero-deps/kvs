@@ -1,5 +1,7 @@
 package zd.kvs
 
+import zd.proto.Bytes
+
 sealed trait Err
 
 final case class EntryExists(fid: Bytes, id: Bytes) extends Err

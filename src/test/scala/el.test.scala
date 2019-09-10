@@ -9,6 +9,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
 import zd.gs.z._
+import zd.proto.Bytes
 
 class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4011))))
   with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
@@ -20,7 +21,7 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
   }
   override def afterAll = TestKit.shutdownActorSystem(system)
 
-  def stob(x: String): Bytes = Bytes(x.getBytes)
+  def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
 
   "el handler should" - {
     "return error when element is absent" in {

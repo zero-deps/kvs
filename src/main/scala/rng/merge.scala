@@ -6,6 +6,7 @@ import zd.kvs.rng.GatherGet.AddrOfData
 import scala.annotation.tailrec
 import scala.collection.immutable.{HashMap, HashSet}
 import zd.gs.z._
+import zd.proto.Bytes
 
 object MergeOps {
   def forDump(xs: Vector[Data]): Vector[Data] = {

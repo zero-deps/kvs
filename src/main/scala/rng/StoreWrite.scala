@@ -10,6 +10,7 @@ import zd.kvs.rng.data.codec._
 import zd.kvs.rng.data.{Data, BucketInfo}
 import zd.kvs.rng.model.{ReplBucketPut, StorePut, StoreDelete}
 import zd.kvs.rng.store.codec._
+import zd.proto.Bytes
 
 class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   import context.system
@@ -90,7 +91,7 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   }
 
   def doDelete(key: Bytes): String = {
-    val b = hashing.findBucket(key.toArray[Byte])
+    val b = hashing.findBucket(key.unsafeArray)
     val b_info = get(encode[StoreKey](BucketInfoKey(bucket=b))).map(decode[BucketInfo](_))
     b_info.foreach{ b_info =>
       val vc = b_info.vc :+ local.toString
