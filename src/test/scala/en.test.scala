@@ -3,7 +3,7 @@ package en
 
 import akka.actor.ActorSystem
 import akka.testkit._
-import com.typesafe.config.{ConfigFactory}
+import com.typesafe.config.ConfigFactory
 import org.scalatest._
 import org.scalatest.freespec.AnyFreeSpecLike
 import scala.concurrent.Await
