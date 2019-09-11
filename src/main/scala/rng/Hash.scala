@@ -43,7 +43,6 @@ object Hash {
   def props(): Props = Props(new Hash)
 }
 
-// TODO available/not avaiable nodes
 class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
 
