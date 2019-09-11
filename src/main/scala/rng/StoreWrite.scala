@@ -91,7 +91,7 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   }
 
   def doDelete(key: Bytes): String = {
-    val b = hashing.findBucket(key.unsafeArray)
+    val b = hashing.findBucket(key)
     val b_info = get(encode[StoreKey](BucketInfoKey(bucket=b))).map(decode[BucketInfo](_))
     b_info.foreach{ b_info =>
       val vc = b_info.vc :+ local.toString

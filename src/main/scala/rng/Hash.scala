@@ -11,6 +11,7 @@ import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.concurrent.duration._
 import zd.gs.z._
 import zd.proto.Bytes
+import zd.proto.api.N
 
 final case class Put(k: Bytes, v: Bytes)
 final case class Get(k: Bytes)
@@ -31,6 +32,12 @@ final case class HashRngData(
   vNodes: SortedMap[Bucket, Node],
   replication: Option[ActorRef],
 )
+
+final case class PortVNode
+  (
+    @N(1) port: String
+  , @N(2) vnode: Int
+  )
 
 object Hash {
   def props(): Props = Props(new Hash)
@@ -176,7 +183,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   def doDelete(k: Bytes, client: ActorRef, data: HashRngData): Unit = {
-    val nodes = nodesForKey(k.unsafeArray, data)
+    val nodes = nodesForKey(k, data)
     val gather = system.actorOf(GatherDel.props(client, gatherTimeout, nodes, k))
     val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
     stores.foreach(_.fold(
@@ -186,10 +193,10 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   def doPut(k: Bytes, v: Bytes, client: ActorRef, data: HashRngData): Unit = {
-    val nodes = availableNodesFrom(nodesForKey(k.unsafeArray, data))
+    val nodes = availableNodesFrom(nodesForKey(k, data))
     val M = nodes.size
     if (M >= W) {
-      val bucket = hashing.findBucket(k.unsafeArray)
+      val bucket = hashing.findBucket(k)
       val info = PutInfo(k, v, N, W, bucket, local, data.nodes)
       val gather = system.actorOf(GatherPut.props(client, gatherTimeout, info))
       val node = if (nodes contains local) local else nodes.head
@@ -203,7 +210,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   def doGet(k: Bytes, client: ActorRef, data: HashRngData): Unit = {
-    val nodes = availableNodesFrom(nodesForKey(k.unsafeArray, data))
+    val nodes = availableNodesFrom(nodesForKey(k, data))
     val M = nodes.size
     if (M >= R) {
       val gather = system.actorOf(GatherGet.props(client, gatherTimeout, M, R, k))
@@ -223,9 +230,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
-    val newvNodes: Map[VNode, Node] = (1 to vNodesNum).view.map(vnode => {
-      hashing.hash(member.address.hostPort.getBytes ++ itob(vnode)) -> member.address
-    }).to(Map)
+    val newvNodes: Map[VNode, Node] = (1 to vNodesNum).view.map(vnode =>
+      hashing.hash(pickle(PortVNode(port=member.address.hostPort, vnode=vnode))) -> member.address
+    ).to(Map)
     val updvNodes = data.vNodes ++ newvNodes
     val nodes = data.nodes + member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
@@ -238,7 +245,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def removeNodeFromRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
     log.info(s"Removing ${member} from ring")
-    val unusedvNodes: Set[VNode] = (1 to vNodesNum).view.map(vnode => hashing.hash(member.address.hostPort.getBytes ++ itob(vnode))).to(Set)
+    val unusedvNodes: Set[VNode] = (1 to vNodesNum).view.map(vnode =>
+      hashing.hash(pickle(PortVNode(port=member.address.hostPort, vnode=vnode)))
+    ).to(Set)
     val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
     val nodes = data.nodes - member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
@@ -283,7 +292,8 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
   }
 
   implicit val ord = Ordering.by[Node, String](n => n.hostPort)
-  def nodesForKey(k: Key, data: HashRngData): PreferenceList = data.buckets.get(hashing.findBucket(k)) match {
+  
+  def nodesForKey(k: Bytes, data: HashRngData): PreferenceList = data.buckets.get(hashing.findBucket(k)) match {
     case None => SortedSet.empty[Node]
     case Some(nods) => nods
   }

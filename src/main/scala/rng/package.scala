@@ -1,6 +1,8 @@
 package zd.kvs
 
 import akka.actor.{Address, ActorRef}
+import zd.proto.api.MessageCodec
+import zd.proto.macrosapi.caseCodecAuto
 
 package object rng {
   type Bucket = Int
@@ -22,4 +24,6 @@ package object rng {
   def now_ms(): Long = System.currentTimeMillis
   
   def addr(s: ActorRef): Node = s.path.address
+
+  implicit val PortVNodeC: MessageCodec[PortVNode] = caseCodecAuto[PortVNode]
 }

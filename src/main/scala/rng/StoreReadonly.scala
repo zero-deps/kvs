@@ -26,7 +26,7 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case x: StoreGet =>
-      val k = encode[StoreKey](DataKey(bucket=hashing.findBucket(x.key.unsafeArray), key=x.key))
+      val k = encode[StoreKey](DataKey(bucket=hashing.findBucket(x.key), key=x.key))
       val result: Option[Data] = get(k).map(decode[Data](_))
       sender ! StoreGetAck(result)
 

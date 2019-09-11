@@ -5,16 +5,17 @@ import akka.actor._
 import com.typesafe.config.Config
 import java.security.MessageDigest
 import scala.annotation.tailrec
-import scala.collection.{SortedMap}
+import scala.collection.SortedMap
+import zd.proto.Bytes
 
 class HashingImpl(config: Config) extends Extension {
   val hashLen = config.getInt("hash-length")
   val bucketsNum = config.getInt("buckets")
   val bucketRange = (math.pow(2, hashLen.toDouble) / bucketsNum).ceil.toInt
 
-  def hash(word: Array[Byte]): Int = {
+  def hash(word: Bytes): Int = {
     implicit val digester = MessageDigest.getInstance("MD5")
-    digester update word
+    digester update word.unsafeArray
     val digest = digester.digest
 
     (0 to hashLen / 8 - 1).foldLeft(0)((acc, i) =>
@@ -22,7 +23,7 @@ class HashingImpl(config: Config) extends Extension {
     ) //take first 4 byte
   }
 
-  def findBucket(key: Key): Bucket = (hash(key) / bucketRange).abs
+  def findBucket(key: Bytes): Bucket = (hash(key) / bucketRange).abs
 
   def findNodes(hashKey: Int, vNodes: SortedMap[Bucket, Address], nodesNumber: Int): PreferenceList = {
     @tailrec
