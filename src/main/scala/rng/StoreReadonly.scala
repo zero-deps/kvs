@@ -49,10 +49,10 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
             case true => sender ! ReplBucketUpToDate
             case false =>
               val keys = b_info.keys
-              val items = keys.view.flatMap{ key =>
+              val items = keys.flatMap{ key =>
                 val data = get(encode[StoreKey](DataKey(bucket=b, key=key))).map(decode[Data](_))
                 data.map(data => KeyBucketData(key=key, bucket=b, data=data))
-              }.to(Vector)
+              }
               sender ! ReplNewerBucketData(b_info.vc, items)
           }
         case None =>
