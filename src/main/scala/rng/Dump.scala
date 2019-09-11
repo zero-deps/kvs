@@ -6,8 +6,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import java.time.format.{DateTimeFormatter}
 import java.time.{LocalDateTime}
-import zd.kvs.rng.data.{Data}
-import zd.kvs.rng.model.{DumpBucketData, DumpGetBucketData}
+import zd.kvs.rng.model.{DumpBucketData, DumpGetBucketData, KeyBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration._
 import scala.concurrent.{Await}
@@ -117,7 +116,7 @@ class DumpProcessor extends Actor with ActorLogging {
   def save(buckets: SortedMap[Bucket, PreferenceList], dumpIO: ActorRef, client: ActorRef): () => Receive = {
     var processBucket: Int = 0
     var keysNumber: Long = 0
-    var collected: Vector[Vector[Data]] = Vector.empty
+    var collected: Vector[Vector[KeyBucketData]] = Vector.empty
     
     var putQueue: Vector[DumpIO.Put] = Vector.empty
     var readyToPut: Boolean = true
@@ -144,12 +143,12 @@ class DumpProcessor extends Actor with ActorLogging {
 
     () => {
       case res: (DumpBucketData) if processBucket == res.b =>
-        collected = res.items.toVector +: collected
+        collected = res.items +: collected
         if (collected.size == buckets(processBucket).size) {
           pullWorking = false
           pull()
 
-          val merged: Vector[Data] = MergeOps.forDump(collected.flatten)
+          val merged = MergeOps.forDump(collected.flatten)
           collected = Vector.empty
           keysNumber = keysNumber + merged.size
           if (readyToPut) {

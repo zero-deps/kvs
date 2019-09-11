@@ -14,7 +14,7 @@ sealed trait Msg
 
 @N(2) final case class DumpBucketData
   ( @N(1) b: Int
-  , @N(2) items: Vector[Data]
+  , @N(2) items: Vector[KeyBucketData]
   ) extends Msg
 
 @N(5) final case class DumpGetBucketData 
@@ -24,7 +24,7 @@ sealed trait Msg
 @N(7) final case class ReplBucketPut
   ( @N(1) b: Int
   , @N(2) bucketVc: VectorClock
-  , @N(3) items: Vector[Data]
+  , @N(3) items: Vector[KeyBucketData]
   ) extends Msg
 
 @N(8) final case object ReplBucketUpToDate extends Msg
@@ -36,7 +36,7 @@ sealed trait Msg
 
 @N(10) final case class ReplNewerBucketData
   ( @N(1) vc: VectorClock
-  , @N(2) items: Vector[Data]
+  , @N(2) items: Vector[KeyBucketData]
   ) extends Msg
 
 final case class ReplBucketsVc
@@ -52,16 +52,26 @@ final case class ReplBucketsVc
   ) extends Msg
 
 @N(13) final case class StoreGetAck
-  ( @N(1) data: Option[Data]
+  ( @N(1) key: Bytes
+  , @N(2) bucket: Int
+  , @N(3) data: Option[Data]
   ) extends Msg
 
 @N(14) final case class StorePut
-  ( @N(1) data: Data
+  ( @N(1) key: Bytes
+  , @N(2) bucket: Int
+  , @N(3) data: Data
   ) extends Msg
 
 final case class ReplGetBucketsVc
   ( @N(1) bs: Vector[Int]
-  )
+  ) //todo Msg?
+
+final case class KeyBucketData
+  ( @N(1) key: Bytes
+  , @N(2) bucket: Int
+  , @N(3) data: Data
+  ) //todo Msg?
 
 sealed trait QuorumState
 object QuorumState {

@@ -27,7 +27,7 @@ class GatherPut(client: ActorRef, t: FiniteDuration, putInfo: PutInfo) extends F
   setTimer("send_by_timeout", "timeout", t)
 
   when(Collecting){
-    case Event(StoreGetAck(data), _) =>
+    case Event(StoreGetAck(key, bucket, data), _) =>
       val vc = if (data.size == 1) {
         data.head.vc
       } else if (data.size > 1) {
@@ -35,8 +35,8 @@ class GatherPut(client: ActorRef, t: FiniteDuration, putInfo: PutInfo) extends F
       } else {
         emptyVC
       }
-      val updatedData = Data(putInfo.key, putInfo.bucket, now_ms(), vc.:+(putInfo.localAdr.toString), putInfo.v)
-      mapInPut(putInfo.nodes, updatedData)
+      val updatedData = Data(now_ms(), vc.:+(putInfo.localAdr.toString), putInfo.v)
+      mapInPut(putInfo.nodes, key=key, bucket=bucket, updatedData)
       stay()
     
     case Event("ok", n) =>
@@ -66,9 +66,9 @@ class GatherPut(client: ActorRef, t: FiniteDuration, putInfo: PutInfo) extends F
       stop()
   }
 
-  def mapInPut(nodes: Set[Node], d: Data) = {
+  def mapInPut(nodes: Set[Node], key: Bytes, bucket: Int, d: Data) = {
     val storeList = nodes.map(n => RootActorPath(n) / "user" / "ring_write_store")
-      storeList.foreach(ref => context.system.actorSelection(ref).tell(StorePut(d), self))
+      storeList.foreach(ref => context.system.actorSelection(ref).tell(StorePut(key=key, bucket=bucket, d), self))
   }
   
   initialize()

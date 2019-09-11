@@ -7,10 +7,11 @@ import scala.annotation.tailrec
 import scala.collection.immutable.{HashMap, HashSet}
 import zd.gs.z._
 import zd.proto.Bytes
+import zd.kvs.rng.model.KeyBucketData
 
 object MergeOps {
-  def forDump(xs: Vector[Data]): Vector[Data] = {
-    @tailrec def loop(xs: Vector[Data], acc: Bytes HashMap Data): Vector[Data] = {
+  def forDump(xs: Vector[KeyBucketData]): Vector[KeyBucketData] = {
+    @tailrec def loop(xs: Vector[KeyBucketData], acc: Bytes HashMap KeyBucketData): Vector[KeyBucketData] = {
       xs match {
         case xs if xs.isEmpty => acc.values.toVector
         case received +: t =>
@@ -19,11 +20,11 @@ object MergeOps {
             case None =>
               loop(t, acc + (k -> received))
             case Some(stored) =>
-              (stored < received) match {
+              (stored.data < received.data) match {
                 case OkLess(true) => loop(t, acc + (k -> received))
                 case OkLess(false) => loop(t, acc)
-                case ConflictLess(true, vc) => loop(t, acc + (k -> received.copy(vc=vc)))
-                case ConflictLess(false, vc) => loop(t, acc + (k -> stored.copy(vc=vc)))
+                case ConflictLess(true, vc) => loop(t, acc + (k -> received.copy(data=received.data.copy(vc=vc))))
+                case ConflictLess(false, vc) => loop(t, acc + (k -> stored.copy(data=stored.data.copy(vc=vc))))
               }
           }
       }
@@ -31,8 +32,8 @@ object MergeOps {
     loop(xs, acc=HashMap.empty)
   }
 
-  def forRepl(xs: Vector[Data]): Vector[Data] = {
-    @tailrec def loop(xs: Vector[Data], acc: Bytes HashMap Data): Vector[Data] = {
+  def forRepl(xs: Vector[KeyBucketData]): Vector[KeyBucketData] = {
+    @tailrec def loop(xs: Vector[KeyBucketData], acc: Bytes HashMap KeyBucketData): Vector[KeyBucketData] = {
       xs match {
         case xs if xs.isEmpty => acc.values.toVector
         case received +: t =>
@@ -41,11 +42,11 @@ object MergeOps {
             case None =>
               loop(t, acc + (k -> received))
             case Some(stored) =>
-              (stored < received) match {
+              (stored.data < received.data) match {
                 case OkLess(true) => loop(t, acc + (k -> received))
                 case OkLess(false) => loop(t, acc)
-                case ConflictLess(true, vc) => loop(t, acc + (k -> received.copy(vc=vc)))
-                case ConflictLess(false, vc) => loop(t, acc + (k -> stored.copy(vc=vc)))
+                case ConflictLess(true, vc) => loop(t, acc + (k -> received.copy(data=received.data.copy(vc=vc))))
+                case ConflictLess(false, vc) => loop(t, acc + (k -> stored.copy(data=stored.data.copy(vc=vc))))
               }
           }
       }

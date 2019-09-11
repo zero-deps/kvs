@@ -3,8 +3,7 @@ package rng
 
 import akka.actor.{ActorLogging, Props, FSM}
 import akka.cluster.{Cluster}
-import zd.kvs.rng.data.{Data}
-import zd.kvs.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
+import zd.kvs.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration.{Duration}
 import zd.kvs.rng.ReplicationSupervisor.{State}
@@ -82,7 +81,7 @@ class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] wi
 import ReplicationWorker.{ReplState}
 
 object ReplicationWorker {
-  final case class ReplState(prefList: PreferenceList, info: Vector[Vector[Data]], vc: VectorClock)
+  final case class ReplState(prefList: PreferenceList, info: Vector[Vector[KeyBucketData]], vc: VectorClock)
 
   def props(b: Bucket, prefList: PreferenceList, vc: VectorClock): Props = Props(new ReplicationWorker(b, prefList, vc))
 }
@@ -105,8 +104,7 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClock) 
       ))
       stay using state
 
-    case Event(ReplNewerBucketData(vc, _items), state) =>
-      val items = _items.toVector
+    case Event(ReplNewerBucketData(vc, items), state) =>
       if (state.prefList contains addr(sender)) {
         state.prefList - addr(sender) match {
           case empty if empty.isEmpty =>

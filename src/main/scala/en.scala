@@ -9,7 +9,7 @@ import zd.proto.macrosapi.{caseCodecAuto}
 import zd.proto.Bytes
 
 final case class En
-  ( @N(1) id: Bytes
+  ( @N(1) id: Bytes //todo: delete
   , @N(2) next: Option[Bytes]
   , @N(3) data: Bytes
   , @N(4) removed: Boolean=false

@@ -5,13 +5,13 @@ package store
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{VectorClock}
 import leveldbjnr._
-import zd.kvs.rng.data.{Data, BucketInfo}
+import zd.kvs.rng.data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}
 import zd.kvs.rng.data.codec._
+import zd.kvs.rng.data.keycodec._
 import zd.kvs.rng.model.{StoreGet, StoreGetAck}
 import zd.kvs.rng.model.{DumpGetBucketData, DumpBucketData}
-import zd.kvs.rng.model.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
+import zd.kvs.rng.model.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}
 import zd.proto.api.decode
-import zd.kvs.rng.store.codec._
 import zd.proto.api.{encode, decode}
 
 object ReadonlyStore {
@@ -26,16 +26,16 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case x: StoreGet =>
-      val k = encode[StoreKey](DataKey(bucket=hashing.findBucket(x.key), key=x.key))
-      val result: Option[Data] = get(k).map(decode[Data](_))
-      sender ! StoreGetAck(result)
+      val k = DataKey(bucket=hashing.findBucket(x.key), key=x.key)
+      val result: Option[Data] = get(encode[StoreKey](k)).map(decode[Data](_))
+      sender ! StoreGetAck(bucket=k.bucket, key=x.key, data=result)
 
     case DumpGetBucketData(b) => 
       val k = encode[StoreKey](BucketInfoKey(bucket=b))
       val b_info = get(k).map(decode[BucketInfo](_))
       val keys = b_info.map(_.keys).getOrElse(Vector.empty)
-      val items: Vector[Data] = keys.flatMap(key =>
-        get(encode[StoreKey](DataKey(bucket=b, key=key))).map(decode[Data](_))
+      val items = keys.flatMap(key =>
+        get(encode[StoreKey](DataKey(bucket=b, key=key))).map(decode[Data](_)).map(data => KeyBucketData(key=key, bucket=b, data=data))
       )
       sender ! DumpBucketData(b, items)
     case ReplGetBucketIfNew(b, vc) =>
@@ -49,9 +49,10 @@ class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
             case true => sender ! ReplBucketUpToDate
             case false =>
               val keys = b_info.keys
-              val items: Vector[Data] = keys.view.flatMap(key =>
-                get(encode[StoreKey](DataKey(bucket=b, key=key))).map(decode[Data](_))
-              ).to(Vector)
+              val items = keys.view.flatMap{ key =>
+                val data = get(encode[StoreKey](DataKey(bucket=b, key=key))).map(decode[Data](_))
+                data.map(data => KeyBucketData(key=key, bucket=b, data=data))
+              }.to(Vector)
               sender ! ReplNewerBucketData(b_info.vc, items)
           }
         case None =>

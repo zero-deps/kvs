@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption.{READ, WRITE, CREATE}
-import zd.kvs.rng.data.{Data}
+import zd.kvs.rng.model.{KeyBucketData}
 import scala.util.Try
 import zd.proto.api.{encode, decode, MessageCodec, N}
 import zd.proto.macrosapi.{caseCodecAuto}
@@ -29,7 +29,7 @@ object DumpIO {
   final case object ReadNext
   final case class ReadNextRes(kv: Vector[KV], last: Boolean)
 
-  final case class Put(kv: Vector[Data])
+  final case class Put(kv: Vector[KeyBucketData])
   final case class PutDone(path: String)
 }
 
@@ -58,7 +58,7 @@ class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLoggi
         sender ! DumpIO.ReadNextRes(Vector.empty, true)
       }
     case msg: DumpIO.Put => 
-      val data = encode(DumpKV(msg.kv.map(e => KV(e.key, e.value))))
+      val data = encode(DumpKV(msg.kv.map(e => KV(e.key, e.data.value))))
       channel.write(ByteBuffer.allocateDirect(4).putInt(data.size).flip.asInstanceOf[ByteBuffer])
       channel.write(ByteBuffer.wrap(data))
       sender ! DumpIO.PutDone(ioPath)

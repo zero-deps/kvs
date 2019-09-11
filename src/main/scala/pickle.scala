@@ -10,7 +10,7 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
   implicit val msgCodec: MessageCodec[Msg] = {
     import zd.kvs.rng.data.codec._
     implicit def tuple2IntACodec[A:MessageCodec]: MessageCodec[Tuple2[Int, A]] = caseCodecIdx[Tuple2[Int, A]]
-
+    implicit val KeyBucketDataC: MessageCodec[KeyBucketData] = caseCodecAuto[KeyBucketData]
     implicit val replBucketUpToDateCodec: MessageCodec[ReplBucketUpToDate.type] = caseCodecAuto[ReplBucketUpToDate.type]
     implicit val quorumStateCodec: MessageCodec[QuorumState] = {
       import QuorumState._

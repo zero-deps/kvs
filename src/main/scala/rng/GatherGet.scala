@@ -18,14 +18,14 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, @unused R: Int, k: 
   setTimer("send_by_timeout", "timeout", t)
 
   when(Collecting) {
-    case Event(StoreGetAck(data), DataCollection(perNode, nodes)) =>
+    case Event(StoreGetAck(key, bucket, data), DataCollection(perNode, nodes)) =>
       val xs = (data -> addr(sender)) +: perNode
       nodes + 1 match {
         case `M` => // alternative is to wait for first R same answers
           cancelTimer("send_by_timeout")
           val (correct: Option[Data], outdated: HashSet[Node]) = MergeOps.forGatherGet(xs)
           ;{ // update outdated nodes with correct data
-            val msg = correct.fold[Any](StoreDelete(k))(d => StorePut(d))
+            val msg = correct.fold[Any](StoreDelete(k))(d => StorePut(key, bucket, d))
             outdated foreach { node =>
               stores.get(node, "ring_write_store").fold(_ ! msg, _ ! msg)
             }
