@@ -9,16 +9,17 @@ import zd.proto.macrosapi.{caseCodecAuto}
 import zd.proto.Bytes
 
 final case class En
-  ( @N(1) id: Bytes //todo: delete
-  , @N(2) next: Option[Bytes]
-  , @N(3) data: Bytes
-  , @N(4) removed: Boolean=false
+  ( @N(1) next: Option[Bytes]
+  , @N(2) data: Bytes
+  , @N(3) removed: Boolean=false
   )
 
 final case class Key
   ( @N(1) fid: Bytes
   , @N(2) id: Bytes
   )
+
+final case class IdEn(id: Bytes, en: En)
 
 /**
  * Abstract type entry handler
@@ -31,9 +32,9 @@ object EnHandler {
   private implicit val keycodec: MessageCodec[Key] = caseCodecAuto[Key]
 
   private def key(fid: Bytes, id: Bytes): Bytes = pickle(Key(fid=fid, id=id))
-  private def _put(fid: Bytes, en: En)(implicit dba:Dba):Res[En] = {
+  private def _put(fid: Bytes, id: Bytes, en: En)(implicit dba:Dba):Res[En] = {
     for {
-      _ <- dba.put(key(fid, en.id), pickle(en))
+      _ <- dba.put(key(fid, id), pickle(en))
     } yield en
   }
   def get(fid: Bytes, id: Bytes)(implicit dba: Dba): Res[Option[En]] = {
@@ -63,16 +64,16 @@ object EnHandler {
    * Adds the entry to the container. Creates the container if it's absent.
    * ID will be generated.
    */
-  def prepend(fid: Bytes, data: Bytes)(implicit dba: Dba): Res[En] = {
+  def prepend(fid: Bytes, data: Bytes)(implicit dba: Dba): Res[IdEn] = {
     for {
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       id = fd.maxid.increment()
-      en = En(id=id, next=fd.head, data=data)
+      en = En(next=fd.head, data=data)
       _ <- fh.put(fd.copy(maxid=id)) // in case kvs will fail after adding the en
-      _ <- _put(fid, en)
+      _ <- _put(fid, id, en)
       _ <- fh.put(fd.copy(head=id.just, length=fd.length+1, maxid=id))
-    } yield en
+    } yield IdEn(id=id, en=en)
   }
 
   /**
@@ -84,10 +85,10 @@ object EnHandler {
       _ <- en1.cata(_ => EntryExists(fid, id).left, ().right)
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
-      en = En(id=id, next=fd.head, data=data)
+      en = En(next=fd.head, data=data)
       maxid = BytesExt.max(id, fd.maxid)
       _ <- fh.put(fd.copy(maxid=maxid)) // in case kvs will fail after adding the en
-      _ <- _put(fid, en)
+      _ <- _put(fid, id, en)
       _ <- fh.put(fd.copy(head=id.just, length=fd.length+1, maxid=maxid))
     } yield en
   }
@@ -100,7 +101,7 @@ object EnHandler {
   def put(fid: Bytes, id: Bytes, data: Bytes)(implicit dba: Dba): Res[En] = {
     for {
       x <- get(fid, id)
-      z <- x.cata(y => _put(fid, En(id=id, next=y.next, data=data)), prepend(fid=fid, id=id, data=data))
+      z <- x.cata(y => _put(fid, id, En(next=y.next, data=data)), prepend(fid=fid, id=id, data=data))
     } yield z
   }
 
@@ -116,7 +117,7 @@ object EnHandler {
         for {
           fd <- fh.get(fid).flatMap(_.toRight(Fail(s"feed=${fid} is not exists")))
           _ <- fh.put(fd.copy(length=fd.length-1, removed=fd.removed+1))
-          _ <- _put(fid, en.copy(removed=true))
+          _ <- _put(fid, id, en.copy(removed=true))
         } yield ()
       }, ().right)
     } yield en1
@@ -126,14 +127,14 @@ object EnHandler {
    * Delete all entries marked for removal. O(n) complexity.
    */
   def cleanup(fid: Bytes)(implicit dba: Dba): Res[Unit] = {
-    @tailrec def loop2(x1: En)(x2: Res[En], xs: LazyList[Res[En]]): Res[Option[Bytes]] = {
+    @tailrec def loop2(x1: IdEn)(x2: Res[IdEn], xs: LazyList[Res[IdEn]]): Res[Option[Bytes]] = {
       x2 match {
         case Left(l) => l.left
-        case Right(y2) if !y2.removed => x2.map(_.next)
-        case Right(y2) if  y2.removed =>
+        case Right(y2) if !y2.en.removed => x2.map(_.en.next)
+        case Right(y2) if  y2.en.removed =>
           val res = for {
             // change link
-            _ <- _put(fid, x1.copy(next=y2.next))
+            _ <- _put(fid, x1.id, x1.en.copy(next=y2.en.next))
             // update feed
             fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
             maxid = if (y2.id == fd.maxid) fd.maxid.decrement() else fd.maxid
@@ -149,21 +150,18 @@ object EnHandler {
           }
       }
     } 
-    @tailrec def loop(tail: LazyList[Res[En]], athead: Boolean): Res[Unit] = {
+    @tailrec def loop(tail: LazyList[Res[IdEn]], athead: Boolean): Res[Unit] = {
       tail match {
         case xs if xs.isEmpty => ().right
-        case Right(y) #:: ys if !y.removed && !athead && ys.isEmpty => ().right
-        case Right(y) #:: ys if !y.removed &&  athead =>
-          println(s"skip y=${y} at head")
+        case Right(y) #:: ys if !y.en.removed && !athead && ys.isEmpty => ().right
+        case Right(y) #:: ys if !y.en.removed &&  athead =>
           loop(ys, athead=false)
-        case Right(y) #:: ys if  y.removed &&  athead =>
-          println(s"delete ${y.id} at head")
-          println(s"feed.head := ${y.next}")
+        case Right(y) #:: ys if  y.en.removed &&  athead =>
           val res = for {
             // update feed
             fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
             maxid = if (y.id == fd.maxid) fd.maxid.decrement() else fd.maxid
-            _ <- fh.put(Fd(id=fid, head=y.next, length=fd.length, removed=fd.removed-1, maxid=maxid))
+            _ <- fh.put(Fd(id=fid, head=y.en.next, length=fd.length, removed=fd.removed-1, maxid=maxid))
             // delete entry
             _ <- delete(fid, y.id)
           } yield ()
@@ -173,10 +171,9 @@ object EnHandler {
           }
         case  Left(y) #:: ys => y.left
         case _ #:: Left(y2) #:: ys => y2.left
-        case Right(y1) #:: Right(y2) #:: ys if !y2.removed =>
-          println(s"y1=${y1} y2=${y2}")
+        case Right(y1) #:: Right(y2) #:: ys if !y2.en.removed =>
           loop(y2.right #:: ys, athead=false)
-        case Right(y1) #:: Right(y2) #:: ys if  y2.removed =>
+        case Right(y1) #:: Right(y2) #:: ys if  y2.en.removed =>
           loop2(y1)(y2.right, ys).flatMap(next => all(fid, next=next.just, removed=true)) match {
             case Right(zs) => loop(tail=zs, athead=false)
             case Left(l) => l.left
@@ -195,19 +192,19 @@ object EnHandler {
    * @param next if specified then return entries after this entry
    * Nothing - start with head; Just(Nothing) - empty seq; Just(Just(id)) - start with id.
    */
-  def all(fid: Bytes, next: Maybe[Maybe[Bytes]], removed: Boolean)(implicit dba: Dba): Res[LazyList[Res[En]]] = {
+  def all(fid: Bytes, next: Maybe[Maybe[Bytes]], removed: Boolean)(implicit dba: Dba): Res[LazyList[Res[IdEn]]] = {
     fh.get(fid).map(_.cata(fd => all(fd=fd, next=next, removed=removed), LazyList.empty))
   }
 
-  def all(fd: Fd, next: Maybe[Maybe[Bytes]], removed: Boolean)(implicit dba: Dba): LazyList[Res[En]] = {
-    def _stream(id: Maybe[Bytes]): LazyList[Res[En]] = {
+  def all(fd: Fd, next: Maybe[Maybe[Bytes]], removed: Boolean)(implicit dba: Dba): LazyList[Res[IdEn]] = {
+    def _stream(id: Maybe[Bytes]): LazyList[Res[IdEn]] = {
       id match {
         case None => LazyList.empty
         case Some(id) =>
           val en = _get(fd.id, id)
           en match {
             case Right(e) if e.removed && !removed => _stream(e.next)
-            case Right(e) => LazyList.cons(e.right, _stream(e.next))
+            case Right(e) => LazyList.cons(IdEn(id=id, en=e).right, _stream(e.next))
             case e@Left(_) => LazyList(e.coerceRight)
           }
       }
@@ -219,13 +216,13 @@ object EnHandler {
    * Fix length, removed and maxid for feed.
    */
   def fix(fid: Bytes)(implicit dba: Dba): Res[((Long,Long),(Long,Long),(Bytes,Bytes))] = {
-    @tailrec def loop(xs: LazyList[Res[En]], acc: (Long, Long, Bytes)): Res[(Long, Long, Bytes)] = {
+    @tailrec def loop(xs: LazyList[Res[IdEn]], acc: (Long, Long, Bytes)): Res[(Long, Long, Bytes)] = {
       xs match {
         case _ if xs.isEmpty => acc.right
         case (l@Left(_)) #:: _ => l.coerceRight
         case Right(x) #:: xs =>
-          val length = if (x.removed) acc._1 else acc._1+1
-          val removed = if (x.removed) acc._2+1 else acc._2
+          val length = if (x.en.removed) acc._1 else acc._1+1
+          val removed = if (x.en.removed) acc._2+1 else acc._2
           val maxid = BytesExt.max(x.id, acc._3)
           loop(xs, (length, removed, maxid))
       }

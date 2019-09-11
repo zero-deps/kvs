@@ -36,26 +36,23 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
 
       "should save e1" in {
         val saved = kvs.add(fid, stob("1"), data(1))
-        saved.map(_.id) shouldBe stob("1").right
         saved.map(_.data) shouldBe data(1).right
         kvs.fd.length(fid) shouldBe 1L.right
       }
 
       "should save e2" in {
         val saved = kvs.add(fid, stob("2"), data(2))
-        saved.map(_.id) shouldBe stob("2").right
         saved.map(_.data) shouldBe data(2).right
         kvs.fd.length(fid) shouldBe 2L.right
       }
 
       "should get e1 and e2 from feed" in {
         kvs.fd.length(fid) shouldBe 2L.right 
-        kvs.all(fid).map(_.toList) shouldBe List(En(stob("2"), stob("1").just, data(2)).right, En(stob("1"), Nothing, data(1)).right).right
+        kvs.all(fid).map(_.toList) shouldBe List(IdEn(id=stob("2"), en=En(stob("1").just, data(2))).right, IdEn(id=stob("1"), en=En(Nothing, data(1))).right).right
       }
 
       "should save entry(3)" in {
         val saved = kvs.add(fid, stob("3"), data(3))
-        saved.map(_.id) shouldBe stob("3").right
         saved.map(_.data) shouldBe data(3).right
         kvs.fd.length(fid) shouldBe 3L.right
       }
@@ -66,7 +63,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       }
 
       "should get 3 values from feed" in {
-        kvs.all(fid).map(_.toList) shouldBe List(En(stob("3"), stob("2").just, data(3)).right, En(stob("2"), stob("1").just, data(2)).right, En(stob("1"), Nothing, data(1)).right).right
+        kvs.all(fid).map(_.toList) shouldBe List(IdEn(id=stob("3"), en=En(stob("2").just, data(3))).right, IdEn(id=stob("2"), en=En(stob("1").just, data(2))).right, IdEn(id=stob("1"), en=En(Nothing, data(1))).right).right
       }
 
       "should remove unexisting entry from feed without error" in {
@@ -75,7 +72,6 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
 
       "should remove entry(2) from feed without prev/next/data" in {
         val deleted = kvs.remove(fid, stob("2"))
-        deleted.map(_.map(_.id)) shouldBe stob("2").just.right
         deleted.map(_.map(_.data)) shouldBe data(2).just.right
       }
 
@@ -83,12 +79,11 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         kvs.fd.length(fid) shouldBe 2L.right
 
         val stream = kvs.all(fid)
-        stream.map(_.toList) shouldBe List(En(stob("3"), stob("2").just, data(3)).right, En(stob("1"), Nothing, data(1)).right).right
+        stream.map(_.toList) shouldBe List(IdEn(id=stob("3"), en=En(stob("2").just, data(3))).right, IdEn(id=stob("1"), en=En(Nothing, data(1))).right).right
       }
 
       "should remove entry(1) from feed" in {
         val deleted = kvs.remove(fid, stob("1"))
-        deleted.map(_.map(_.id)) shouldBe stob("1").just.right
         deleted.map(_.map(_.data)) shouldBe data(1).just.right
       }
 
@@ -96,12 +91,11 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         kvs.fd.length(fid) shouldBe 1L.right
 
         val stream = kvs.all(fid)
-        stream.map(_.toList) shouldBe List(En(stob("3"), stob("2").just, data(3)).right).right
+        stream.map(_.toList) shouldBe List(IdEn(id=stob("3"), en=En(stob("2").just, data(3))).right).right
       }
 
       "should remove entry(3) from feed" in {
         val deleted = kvs.remove(fid, stob("3"))
-        deleted.map(_.map(_.id)) shouldBe stob("3").just.right
         deleted.map(_.map(_.data)) shouldBe data(3).just.right
       }
 
@@ -121,12 +115,10 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         val limit = 100L
         LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
           val added = kvs.add(fid, Bytes.unsafeWrap(n.toString.getBytes), data(n))
-          added.map(_.id) shouldBe Bytes.unsafeWrap(n.toString.getBytes).right
           added.map(_.data) shouldBe data(n).right
         }
         LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
           val removed = kvs.remove(fid, Bytes.unsafeWrap(n.toString.getBytes))
-          removed.map(_.map(_.id)) shouldBe Bytes.unsafeWrap(n.toString.getBytes).just.right
           removed.map(_.map(_.data)) shouldBe data(n).just.right
           kvs.fd.length(fid) shouldBe (limit-n).right
         }
@@ -146,7 +138,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       }
       "insert id 5" in {
         val s = kvs.add(fid, stob("5"), d)
-        s.map(_.id) shouldBe stob("5").right
+        s.isRight shouldBe true
       }
       "next auto id is 6" in {
         val s = kvs.add(fid, d)
@@ -154,7 +146,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       }
       "insert id 'a'" in {
         val s = kvs.add(fid, stob("a"), d)
-        s.map(_.id) shouldBe stob("a").right
+        s.isRight shouldBe true
       }
       "next auto id is 'b'" in {
         val s = kvs.add(fid, d)
@@ -162,7 +154,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       }
       "insert id 3" in {
         val s = kvs.add(fid, stob("3"), d)
-        s.map(_.id) shouldBe stob("3").right
+        s.isRight shouldBe true
       }
       "next auto id is 'c'" in {
         val s = kvs.add(fid, d)
@@ -193,10 +185,10 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       }
       "entries are deleted" in {
         kvs.all(fid).map(_.toList) shouldBe List(
-          En(stob("7"), stob("6").just, d).right
-        , En(stob("6"), stob("3").just, d).right
-        , En(stob("3"), stob("2").just, d).right
-        , En(stob("2"),  Nothing, d).right
+          IdEn(id=stob("7"), en=En(next=stob("6").just, d)).right
+        , IdEn(id=stob("6"), en=En(next=stob("3").just, d)).right
+        , IdEn(id=stob("3"), en=En(next=stob("2").just, d)).right
+        , IdEn(id=stob("2"), en=En(next=Nothing, d)).right
         ).right
       }
       "maxid is reverted to 7" in {
@@ -220,7 +212,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         }
         "with id" in {
           val res = (stob("3") -> data(0)) +: FdId(fid)
-          res.map(_.id) shouldBe stob("3").right
+          res.isRight shouldBe true
         }
       }
     }

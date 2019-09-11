@@ -60,7 +60,7 @@ package object kvs {
   }
 
   implicit class FdIdExt(fd: en.FdId) {
-    def +:(data: Bytes)(implicit kvs: Kvs): Res[en.En] = en.EnHandler.prepend(fd.id, data)(kvs.dba)
+    def +:(data: Bytes)(implicit kvs: Kvs): Res[en.IdEn] = en.EnHandler.prepend(fd.id, data)(kvs.dba)
     def +:(id_data: (Bytes, Bytes))(implicit kvs: Kvs): Res[en.En] = en.EnHandler.prepend(fd.id, id_data._1, id_data._2)(kvs.dba)
   }
 

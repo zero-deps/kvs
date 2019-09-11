@@ -5,7 +5,7 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Success}
 import zd.kvs.el.ElHandler
-import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
+import zd.kvs.en.{En, IdEn, EnHandler, Fd, FdHandler}
 import zd.kvs.file.{File, FileHandler}
 import zd.kvs.store._
 import zd.gs.z._
@@ -42,13 +42,11 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
     def length(id: Bytes): Res[Long] = FdHandler.length(id)
   }
 
-  def add(fid: Bytes, data: Bytes): Res[En] = EnHandler.prepend(fid, data)
+  def add(fid: Bytes, data: Bytes): Res[IdEn] = EnHandler.prepend(fid, data)
   def add(fid: Bytes, id: Bytes, data: Bytes): Res[En] = EnHandler.prepend(fid, id, data)
-  def add(fid: Bytes, en: En): Res[En] = EnHandler.prepend(fid, en.id, en.data)
   def put(fid: Bytes, id: Bytes, data: Bytes): Res[En] = EnHandler.put(fid, id, data)
-  def put(fid: Bytes, en: En): Res[En] = EnHandler.put(fid, en.id, en.data)
-  def all(fid: Bytes, next: Maybe[Maybe[Bytes]]=Nothing, removed: Boolean=false): Res[LazyList[Res[En]]] = EnHandler.all(fid, next, removed)
-  def all(fd: Fd, next: Maybe[Maybe[Bytes]], removed: Boolean): LazyList[Res[En]] = EnHandler.all(fd, next, removed)
+  def all(fid: Bytes, next: Maybe[Maybe[Bytes]]=Nothing, removed: Boolean=false): Res[LazyList[Res[IdEn]]] = EnHandler.all(fid, next, removed)
+  def all(fd: Fd, next: Maybe[Maybe[Bytes]], removed: Boolean): LazyList[Res[IdEn]] = EnHandler.all(fd, next, removed)
   def get(fid: Bytes, id: Bytes): Res[Option[En]] = EnHandler.get(fid, id)
   def remove(fid: Bytes, id: Bytes): Res[Option[En]] = EnHandler.remove_soft(fid, id)
   def cleanup(fid: Bytes): Res[Unit] = EnHandler.cleanup(fid)
