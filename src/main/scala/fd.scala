@@ -12,7 +12,7 @@ final case class Fd
   , @N(2) head: Option[Bytes]=None
   , @N(3) length: Long=0
   , @N(4) removed: Long=0
-  , @N(5) maxid: Long=0
+  , @N(5) maxid: Bytes=BytesExt.Empty
   )
 
 final case class FdId(id: Bytes)

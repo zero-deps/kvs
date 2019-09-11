@@ -120,7 +120,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       "should not create stack overflow" in {
         val limit = 100L
         LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
-          val added = kvs.add(fid, data(n))
+          val added = kvs.add(fid, Bytes.unsafeWrap(n.toString.getBytes), data(n))
           added.map(_.id) shouldBe Bytes.unsafeWrap(n.toString.getBytes).right
           added.map(_.data) shouldBe data(n).right
         }
@@ -136,13 +136,13 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
     "no 3" - {
       val fid = stob("fid3" + java.util.UUID.randomUUID.toString)
       val d = data(0)
-      "first auto id is 1" in {
+      "first auto id" in {
         val s = kvs.add(fid, d)
-        s.map(_.id) shouldBe stob("1").right
+        s.map(_.id) shouldBe BytesExt.MinValue.right
       }
-      "second auto id is 2" in {
+      "second auto id" in {
         val s = kvs.add(fid, d)
-        s.map(_.id) shouldBe stob("2").right
+        s.map(_.id) shouldBe BytesExt.MinValue.increment().right
       }
       "insert id 5" in {
         val s = kvs.add(fid, stob("5"), d)
@@ -156,17 +156,17 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         val s = kvs.add(fid, stob("a"), d)
         s.map(_.id) shouldBe stob("a").right
       }
-      "next auto id is 7" in {
+      "next auto id is 'b'" in {
         val s = kvs.add(fid, d)
-        s.map(_.id) shouldBe stob("7").right
+        s.map(_.id) shouldBe stob("b").right
       }
       "insert id 3" in {
         val s = kvs.add(fid, stob("3"), d)
         s.map(_.id) shouldBe stob("3").right
       }
-      "next auto id is 8" in {
+      "next auto id is 'c'" in {
         val s = kvs.add(fid, d)
-        s.map(_.id) shouldBe stob("8").right
+        s.map(_.id) shouldBe stob("c").right
       }
     }
 
@@ -174,29 +174,33 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       val fid = stob("fid4" + java.util.UUID.randomUUID.toString)
       val d = data(0)
       // - - + + - - + + - -
-      // 0 9 8 7 6 5 4 3 2 1
+      // 9 8 7 6 5 4 3 2 1 0
+      // 56 -> 55 -> 52 -> 51
       "insert five entries" in {
-        1.to(10).map(i => kvs.add(fid, stob(i.toString), d))
+        0.to(9).foreach(i => kvs.add(fid, stob(i.toString), d))
+      }
+      "maxid is 9" in {
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("9").just.right
       }
       "remove entries" in {
-        Seq(1, 2, 5, 6, 9, 10).foreach(i => kvs.remove(fid, stob(i.toString)))
+        Seq(0, 1, 4, 5, 8, 9).foreach(i => kvs.remove(fid, stob(i.toString)))
       }
-      "maxid is 10" in {
-        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe 10.just.right
+      "maxid is 10 nevertheless" in {
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("9").just.right
       }
       "cleanup removed entries" in {
         kvs.cleanup(fid) shouldBe ().right
       }
       "entries are deleted" in {
-        kvs.all(fid).map(_.toList).toString shouldBe List(
-          En(stob("8"), stob("7").just, d).right
-        , En(stob("7"), stob("4").just, d).right
-        , En(stob("4"), stob("3").just, d).right
-        , En(stob("3"),  Nothing, d).right
-        ).right.toString
+        kvs.all(fid).map(_.toList) shouldBe List(
+          En(stob("7"), stob("6").just, d).right
+        , En(stob("6"), stob("3").just, d).right
+        , En(stob("3"), stob("2").just, d).right
+        , En(stob("2"),  Nothing, d).right
+        ).right
       }
-      "maxid is reverted to 8" in {
-        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe 8.just.right
+      "maxid is reverted to 7" in {
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("7").just.right
       }
       "fix feed doesn't break it" in {
         val res = kvs.fix(fid)
@@ -212,7 +216,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       "new syntax for prepend" - {
         "without id" in {
           val res = data(0) +: FdId(fid)
-          res.map(_.id) shouldBe stob("1").right
+          res.map(_.id) shouldBe BytesExt.MinValue.right
         }
         "with id" in {
           val res = (stob("3") -> data(0)) +: FdId(fid)

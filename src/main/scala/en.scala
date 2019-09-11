@@ -67,11 +67,11 @@ object EnHandler {
     for {
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
-      id = Bytes.unsafeWrap((fd.maxid+1).toString.getBytes)
+      id = fd.maxid.increment()
       en = En(id=id, next=fd.head, data=data)
-      _ <- fh.put(fd.copy(maxid=fd.maxid+1)) // in case kvs will fail after adding the en
+      _ <- fh.put(fd.copy(maxid=id)) // in case kvs will fail after adding the en
       _ <- _put(fid, en)
-      _ <- fh.put(fd.copy(head=id.just, length=fd.length+1, maxid=fd.maxid+1))
+      _ <- fh.put(fd.copy(head=id.just, length=fd.length+1, maxid=id))
     } yield en
   }
 
@@ -85,7 +85,7 @@ object EnHandler {
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(Fd(fid)).map(_ => Fd(fid)))
       en = En(id=id, next=fd.head, data=data)
-      maxid = new String(id.unsafeArray).toLongOption.cata(Math.max(fd.maxid, _), fd.maxid)
+      maxid = BytesExt.max(id, fd.maxid)
       _ <- fh.put(fd.copy(maxid=maxid)) // in case kvs will fail after adding the en
       _ <- _put(fid, en)
       _ <- fh.put(fd.copy(head=id.just, length=fd.length+1, maxid=maxid))
@@ -136,10 +136,7 @@ object EnHandler {
             _ <- _put(fid, x1.copy(next=y2.next))
             // update feed
             fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
-            maxid = new String(y2.id.unsafeArray).toLongOption match {
-              case Some(x) if x == fd.maxid => fd.maxid-1
-              case _ => fd.maxid
-            }
+            maxid = if (y2.id == fd.maxid) fd.maxid.decrement() else fd.maxid
             _ <- fh.put(fd.copy(removed=fd.removed-1, maxid=maxid))
             // delete entry
             _ <- delete(fid, y2.id)
@@ -165,10 +162,7 @@ object EnHandler {
           val res = for {
             // update feed
             fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
-            maxid = new String(y.id.unsafeArray).toLongOption match {
-              case Some(x) if x == fd.maxid => fd.maxid-1
-              case _ => fd.maxid
-            }
+            maxid = if (y.id == fd.maxid) fd.maxid.decrement() else fd.maxid
             _ <- fh.put(Fd(id=fid, head=y.next, length=fd.length, removed=fd.removed-1, maxid=maxid))
             // delete entry
             _ <- delete(fid, y.id)
@@ -224,21 +218,21 @@ object EnHandler {
   /**
    * Fix length, removed and maxid for feed.
    */
-  def fix(fid: Bytes)(implicit dba: Dba): Res[((Long,Long),(Long,Long),(Long,Long))] = {
-    @tailrec def loop(xs: LazyList[Res[En]], acc: (Long, Long, Long)): Res[(Long, Long, Long)] = {
+  def fix(fid: Bytes)(implicit dba: Dba): Res[((Long,Long),(Long,Long),(Bytes,Bytes))] = {
+    @tailrec def loop(xs: LazyList[Res[En]], acc: (Long, Long, Bytes)): Res[(Long, Long, Bytes)] = {
       xs match {
         case _ if xs.isEmpty => acc.right
         case (l@Left(_)) #:: _ => l.coerceRight
         case Right(x) #:: xs =>
           val length = if (x.removed) acc._1 else acc._1+1
           val removed = if (x.removed) acc._2+1 else acc._2
-          val maxid = new String(x.id.unsafeArray).toLongOption.cata(x => Math.max(x, acc._3), acc._3)
+          val maxid = BytesExt.max(x.id, acc._3)
           loop(xs, (length, removed, maxid))
       }
     }
     for {
       fd <- fh.get(fid).flatMap(_.toRight(Fail(s"feed=${fid} is not exists")))
-      acc <- loop(all(fd, next=Nothing, removed=true), (0L,0L,0L))
+      acc <- loop(all(fd, next=Nothing, removed=true), (0L,0L,BytesExt.Empty))
       length = acc._1
       removed = acc._2
       maxid = acc._3
