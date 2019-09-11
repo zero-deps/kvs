@@ -30,7 +30,6 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
     implicit val storeGetCodec: MessageCodec[StoreGet] = caseCodecAuto[StoreGet]
     implicit val storeGetAckCodec: MessageCodec[StoreGetAck] = caseCodecAuto[StoreGetAck]
     implicit val storePutCodec: MessageCodec[StorePut] = caseCodecAuto[StorePut]
-    implicit val replGetBucketsVcCodec: MessageCodec[ReplGetBucketsVc] = caseCodecAuto[ReplGetBucketsVc]
     sealedTraitCodecAuto[Msg]
   }
 

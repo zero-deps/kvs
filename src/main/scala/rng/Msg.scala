@@ -63,15 +63,11 @@ final case class ReplBucketsVc
   , @N(3) data: Data
   ) extends Msg
 
-final case class ReplGetBucketsVc
-  ( @N(1) bs: Vector[Int]
-  ) //todo Msg?
-
 final case class KeyBucketData
   ( @N(1) key: Bytes
   , @N(2) bucket: Int
   , @N(3) data: Data
-  ) //todo Msg?
+  )
 
 sealed trait QuorumState
 object QuorumState {

@@ -3,14 +3,16 @@ package rng
 
 import akka.actor.{ActorLogging, Props, FSM}
 import akka.cluster.{Cluster}
-import zd.kvs.rng.model.{ReplBucketPut, ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration.{Duration}
+import zd.kvs.rng.model.{ReplBucketPut, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}
 import zd.kvs.rng.ReplicationSupervisor.{State}
+import zd.kvs.rng.ReplicationSupervisor.ReplGetBucketsVc
 
 object ReplicationSupervisor {
   final case class Progress(done: Int, total: Int, step: Int)
   final case class State(buckets: SortedMap[Bucket, PreferenceList], bvcs: Map[Bucket, VectorClock], progress: Progress)
+  final case class ReplGetBucketsVc(bs: Vector[Int])
 
   def props(buckets: SortedMap[Bucket, PreferenceList]): Props = {
     val len = buckets.size

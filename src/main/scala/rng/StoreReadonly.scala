@@ -8,11 +8,12 @@ import leveldbjnr._
 import zd.kvs.rng.data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}
 import zd.kvs.rng.data.codec._
 import zd.kvs.rng.data.keycodec._
-import zd.kvs.rng.model.{StoreGet, StoreGetAck}
 import zd.kvs.rng.model.{DumpGetBucketData, DumpBucketData}
-import zd.kvs.rng.model.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}
-import zd.proto.api.decode
+import zd.kvs.rng.model.{ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}
+import zd.kvs.rng.model.{StoreGet, StoreGetAck}
+import zd.kvs.rng.ReplicationSupervisor.ReplGetBucketsVc
 import zd.proto.api.{encode, decode}
+import zd.proto.api.decode
 
 object ReadonlyStore {
   def props(leveldb: LevelDb): Props = Props(new ReadonlyStore(leveldb))
