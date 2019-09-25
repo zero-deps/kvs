@@ -1,8 +1,8 @@
-val scalaVersion_ = "2.13.0"
+val scalaVersion_ = "2.13.1"
 val akkaVersion = "2.5.23"
-val gsVersion = "1.5.1"
+val gsVersion = "1.5.2"
 val leveldbVersion = "1.0.3"
-val protoVersion = "1.5.0"
+val protoVersion = "1.5.1"
 val logbackVersion = "1.2.3"
 val scalatestVersion = "3.1.0-SNAP13"
 
@@ -12,7 +12,7 @@ ThisBuild / licenses := "MIT" -> url("https://raw.githubusercontent.com/zero-dep
 ThisBuild / version := zd.gs.git.GitOps.version
 ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / cancelable in Global := true
-ThisBuild / javacOptions ++= Seq("-source", "12", "-target", "12")
+ThisBuild / javacOptions ++= Seq("-source", "13", "-target", "13")
 ThisBuild / scalacOptions ++= Seq(
     "-deprecation"
   , "-explaintypes"

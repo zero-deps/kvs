@@ -3,7 +3,7 @@ libraryDependencies += "io.github.zero-deps" %% "gs-git" % "1.5.1"
 
 scalacOptions ++= Seq("-feature", "-deprecation")
 
-addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.3.14")
+addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "latest.integration")
 
 addSbtPlugin("com.github.shmishleniy" % "sbt-deploy-ssh" % "0.1.4")
 
