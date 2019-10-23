@@ -50,3 +50,7 @@ More examples check in `src/test/scala` directory.
 sbt test
 sbt 'project demo' run
 ```
+
+## Resources
+
+[Docs](https://github.com/zero-deps/kvs/wiki/Docs)
