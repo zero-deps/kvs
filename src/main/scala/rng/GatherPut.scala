@@ -24,7 +24,7 @@ object GatherPut {
 class GatherPut(client: ActorRef, t: FiniteDuration, putInfo: PutInfo) extends FSM[FsmState, Int] with ActorLogging {
 
   startWith(Collecting, 0)
-  setTimer("send_by_timeout", "timeout", t)
+  startSingleTimer("send_by_timeout", "timeout", t)
 
   when(Collecting){
     case Event(StoreGetAck(key, bucket, data), _) =>

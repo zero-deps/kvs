@@ -9,11 +9,16 @@ import zd.proto.Bytes
 
 final case class Fd
   ( @N(1) id: Bytes
-  , @N(2) head: Option[Bytes]=None
-  , @N(3) length: Long=0
-  , @N(4) removed: Long=0
-  , @N(5) maxid: Bytes=BytesExt.Empty
+  , @N(2) head: Option[Bytes]
+  , @N(3) length: Long
+  , @N(4) removed: Long
+  , @N(5) maxid: Bytes
   )
+object Fd {
+  def apply(id: Bytes, head: Option[Bytes]=None, length: Long=0, removed: Long=0, maxid: Bytes=BytesExt.Empty): Fd = {
+    new Fd(id=id, head=head, length=length, removed=removed, maxid=maxid)
+  }
+}
 
 final case class FdId(id: Bytes)
 

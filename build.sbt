@@ -1,10 +1,10 @@
 val scalaVersion_ = "2.13.1"
-val akkaVersion = "2.5.23"
-val gsVersion = "1.5.2"
+val akkaVersion = "2.6.0"
+val gsVersion = "1.6.2"
 val leveldbVersion = "1.0.3"
-val protoVersion = "1.5.1"
+val protoVersion = "1.6.1"
 val logbackVersion = "1.2.3"
-val scalatestVersion = "3.1.0-SNAP13"
+val scalatestVersion = "3.1.0-RC3"
 
 ThisBuild / organization := "io.github.zero-deps"
 ThisBuild / description := "Abstract Scala Types Key-Value Storage"
@@ -42,12 +42,11 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Ywarn-unused:implicits"
   , "-Ywarn-unused:imports"
   , "-Ywarn-unused:params"
-  , "-target:jvm-1.8"
+  , "-target:jvm-12"
   , "-encoding", "UTF-8"
 )
 
 ThisBuild / resolvers += Resolver.jcenterRepo
-ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
 
 ThisBuild / isSnapshot := true // override local artifacts
 ThisBuild / publishArtifact := true
