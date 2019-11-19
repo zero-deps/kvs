@@ -52,7 +52,7 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
     "content" in {
       val r = kvs.file.stream(dir, name)
       r.isRight should be (true)
-      val r1 = r.getOrElse(???).sequenceU
+      val r1 = r.getOrElse(???).sequence
       r1.isRight should be (true)
       r1.getOrElse(???).toArray.flatten should be (Array(1, 2, 3, 4, 5, 6))
     }

@@ -1,8 +1,8 @@
-val scalaVersion_ = "2.13.0"
-val akkaVersion = "2.5.23"
-val gsVersion = "1.5.1"
+val scalaVersion_ = "2.13.1"
+val akkaVersion = "2.5.26"
+val gsVersion = "1.6.2"
 val leveldbVersion = "1.0.3"
-val protoVersion = "1.3.2"
+val protoVersion = "1.7.0"
 val logbackVersion = "1.2.3"
 val scalatestVersion = "3.1.0-SNAP13"
 
@@ -13,7 +13,7 @@ ThisBuild / version := zd.gs.git.GitOps.version
 ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / resolvers += Resolver.jcenterRepo
 ThisBuild / cancelable in Global := true
-ThisBuild / javacOptions ++= Seq("-source", "12", "-target", "12")
+ThisBuild / javacOptions ++= Seq("-source", "13", "-target", "13")
 ThisBuild / scalacOptions ++= Seq(
     "-deprecation"
   , "-explaintypes"
@@ -43,7 +43,7 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Ywarn-unused:implicits"
   , "-Ywarn-unused:imports"
   , "-Ywarn-unused:params"
-  , "-target:jvm-1.8"
+  , "-target:jvm-12"
   , "-encoding", "UTF-8"
 )
 
