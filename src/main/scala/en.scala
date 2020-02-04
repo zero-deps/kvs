@@ -39,7 +39,7 @@ object EnHandler {
   }
   def get(fid: Bytes, id: Bytes)(implicit dba: Dba): Res[Option[En]] = {
     dba.get(key(fid,id)) match {
-      case Right(Some(x)) => unpickle[En](x).map(_.just)
+      case Right(Some(x)) => unpickle[En](x).just.right
       case Right(None) => None.right
       case x@Left(_) => x.coerceRight
     }
@@ -53,7 +53,7 @@ object EnHandler {
   private def _get(fid: Bytes, id: Bytes)(implicit dba: Dba): Res[En] = {
     val k = key(fid, id)
     dba.get(k) match {
-      case Right(Some(x)) => unpickle(x)
+      case Right(Some(x)) => unpickle[En](x).right
       case Right(None) => Fail(s"k=${k} is not exists").left
       case x@Left(_) => x.coerceRight
     }
@@ -149,7 +149,7 @@ object EnHandler {
             case Left(l) => l.left
           }
       }
-    } 
+    }
     @tailrec def loop(tail: LazyList[Res[IdEn]], athead: Boolean): Res[Unit] = {
       tail match {
         case xs if xs.isEmpty => ().right

@@ -30,7 +30,7 @@ trait FileHandler {
 
   private def get(dir: Bytes, name: Bytes)(implicit dba: Dba): Res[File] = {
     dba.get(pickle(Path(dir=dir, name=name))) match {
-      case Right(Some(x)) => unpickle(x)
+      case Right(Some(x)) => unpickle[File](x).right
       case Right(None) => FileNotExists(dir, name).left
       case x@Left(_) => x.coerceRight
     }

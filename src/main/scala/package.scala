@@ -1,8 +1,6 @@
 package zd
 
 import zd.proto.api.{MessageCodec, encode, decode}
-import scala.util.Try
-import zd.gs.z._
 import zd.proto.Bytes
 import java.util.Arrays
 
@@ -65,5 +63,5 @@ package object kvs {
   }
 
   def pickle[A](e: A)(implicit c: MessageCodec[A]): Bytes = Bytes.unsafeWrap(encode[A](e))
-  def unpickle[A](a: Bytes)(implicit c: MessageCodec[A]): Res[A] = Try(decode[A](a.unsafeArray)).fold(Throwed(_).left, _.right)
+  def unpickle[A](a: Bytes)(implicit c: MessageCodec[A]): A = decode[A](a.unsafeArray)
 }

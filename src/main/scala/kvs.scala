@@ -20,7 +20,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   val cfg = system.settings.config
   val store = cfg.getString("kvs.store")
 
-  implicit val dba = system.dynamicAccess.createInstanceFor[Dba](store,
+  implicit val dba: Dba = system.dynamicAccess.createInstanceFor[Dba](store,
     List(classOf[ActorSystem]->system)).get
 
   if (cfg.getBoolean("akka.cluster.jmx.enabled")) {

@@ -155,7 +155,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         _ ! ChangeState(QuorumStateReadonly),
         _ ! ChangeState(QuorumStateReadonly),
       ))
-      val x = system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}")
+      val x = system.actorOf(DumpProcessor.props(), s"load_wrkr-${now_ms()}")
       x.forward(DumpProcessor.Load(path))
       goto(QuorumStateReadonly)
     case Event(RestoreState, _) =>

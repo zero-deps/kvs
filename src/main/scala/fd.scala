@@ -28,7 +28,7 @@ object FdHandler {
   def put(el: Fd)(implicit dba: Dba): Res[Unit] = dba.put(el.id, pickle(el))
 
   def get(id: Bytes)(implicit dba: Dba): Res[Option[Fd]] = dba.get(id) match {
-    case Right(Some(x)) => unpickle(x).map(_.just)
+    case Right(Some(x)) => unpickle(x).just.right
     case Right(None) => Right(None)
     case x@Left(_) => x.coerceRight
   }
