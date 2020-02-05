@@ -29,7 +29,7 @@ object FdHandler {
 
   def get(id: Bytes)(implicit dba: Dba): Res[Option[Fd]] = dba.get(id) match {
     case Right(Some(x)) => unpickle(x).just.right
-    case Right(None) => Right(None)
+    case Right(None) => Nothing.right
     case x@Left(_) => x.coerceRight
   }
 

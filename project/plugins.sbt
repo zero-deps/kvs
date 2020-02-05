@@ -9,4 +9,4 @@ addSbtPlugin("com.github.shmishleniy" % "sbt-deploy-ssh" % "0.1.4")
 
 addSbtPlugin("pl.project13.scala" % "sbt-jmh" % "0.3.4")
 
-ThisBuild / resolvers += Resolver.jcenterRepo
+resolvers += Resolver.jcenterRepo

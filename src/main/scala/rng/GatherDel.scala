@@ -13,7 +13,7 @@ class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Byt
   val quorum = config.getIntList("quorum")
   val W: Int = quorum.get(1)
   val local: Address = Cluster(context.system).selfAddress
-  startSingleTimer("send_by_timeout", "timeout", t)
+  setTimer("send_by_timeout", "timeout", t)
 
   startWith(Collecting, prefList)
 

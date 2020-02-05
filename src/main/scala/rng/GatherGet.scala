@@ -15,7 +15,7 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, @unused R: Int, k: 
   val stores = SelectionMemorize(context.system)
 
   startWith(Collecting, DataCollection(Vector.empty, 0))
-  startSingleTimer("send_by_timeout", "timeout", t)
+  setTimer("send_by_timeout", "timeout", t)
 
   when(Collecting) {
     case Event(StoreGetAck(key, bucket, data), DataCollection(perNode, nodes)) =>

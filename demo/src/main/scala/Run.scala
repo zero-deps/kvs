@@ -1,7 +1,7 @@
 package zd.kvs
 
 import scala.util.Try
-
+import zd.proto.Bytes
 import akka.actor.ActorSystem
 
 object Run extends App {
@@ -22,5 +22,9 @@ object Run extends App {
   import system.dispatcher
 
   kvs.onReady.map{ _ =>
+    val k1 = Bytes.unsafeWrap(Array[Byte](1))
+    val v1 = Bytes.unsafeWrap("hi".getBytes)
+    kvs.el.put(k1, v1)
+    println(kvs.el.get(k1).map(_.map(_.unsafeArray).map(xs => new String(xs))))
   }
 }

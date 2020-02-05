@@ -1,10 +1,10 @@
 val scalaVersion_ = "2.13.1"
-val akkaVersion = "2.6.3"
-val gsVersion = "1.6.2"
+val akkaVersion = "2.5.29"
+val gsVersion = "1.6.2-3-g02f8e98"
 val leveldbVersion = "1.0.3"
-val protoVersion = "1.6.1"
+val protoVersion = "1.7.1"
 val logbackVersion = "1.2.3"
-val scalatestVersion = "3.1.0-RC3"
+val scalatestVersion = "3.1.0-SNAP13"
 
 ThisBuild / organization := "io.github.zero-deps"
 ThisBuild / description := "Abstract Scala Types Key-Value Storage"
@@ -47,6 +47,7 @@ ThisBuild / scalacOptions ++= Seq(
 )
 
 ThisBuild / resolvers += Resolver.jcenterRepo
+ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
 
 ThisBuild / isSnapshot := true // override local artifacts
 ThisBuild / publishArtifact := true
@@ -56,7 +57,7 @@ ThisBuild / turbo := true
 ThisBuild / useCoursier := true
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val kvs = project.in(file("."))
+lazy val core = project.in(file("."))
   .settings(
     scalacOptions in Test := Nil,
     libraryDependencies ++= Seq(
@@ -73,7 +74,17 @@ lazy val kvs = project.in(file("."))
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     )
+  , name := s"kvs-${name.value}"
   )
+  
+lazy val search = project.in(file("search")).
+  settings(
+    libraryDependencies ++= Seq(
+      "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
+    , compilerPlugin("io.github.zero-deps" %% "gs-plug" % gsVersion)
+    )
+  , name := s"kvs-${name.value}"
+  ).dependsOn(core)
 
 import deployssh.DeploySSH.{ServerConfig, ArtifactSSH}
 import fr.janalyse.ssh._
@@ -122,4 +133,4 @@ lazy val demo = (project in file("demo")).settings(
       }
     }
   )
-).dependsOn(kvs).enablePlugins(JavaAppPackaging, DeploySSH, JmhPlugin)
+).dependsOn(core).enablePlugins(JavaAppPackaging, DeploySSH, JmhPlugin)
