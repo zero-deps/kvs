@@ -82,6 +82,7 @@ lazy val search = project.in(file("search")).
     libraryDependencies ++= Seq(
       "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
     , compilerPlugin("io.github.zero-deps" %% "gs-plug" % gsVersion)
+    , "org.scalatest" %% "scalatest" % scalatestVersion % Test
     )
   , name := s"kvs-${name.value}"
   ).dependsOn(core)

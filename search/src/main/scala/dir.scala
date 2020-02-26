@@ -4,14 +4,14 @@ package search
 import java.io.{IOException, ByteArrayOutputStream}
 import java.nio.file.{NoSuchFileException, FileAlreadyExistsException}
 import java.util.{Collection, Collections, Arrays}
-import org.apache.lucene.store.{Directory, IndexOutput, IndexInput, Lock, NoLockFactory, IOContext, OutputStreamIndexOutput}
+import org.apache.lucene.store.{BaseDirectory, IndexOutput, IndexInput, FSLockFactory, IOContext, OutputStreamIndexOutput}
 import scala.collection.mutable
 import zd.kvs.en.{FdHandler}
 import zd.kvs.file.FileHandler
 import zd.gs.z._
 import zd.proto.Bytes
 
-class KvsDirectory(dir: Bytes)(kvs: Kvs) extends Directory {
+class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(FSLockFactory.getDefault) {
   implicit val fileh = new FileHandler {
     override val chunkLength = 10 * 1000 * 1000 // 10 MB
   }
@@ -235,7 +235,7 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends Directory {
     val res = for {
       bs <- kvs.file.stream(dir, name1)
       bs1 <- bs.sequence
-    } yield new ByteArrayIndexInput(s"${dir}/${name}", bs1.toArray.map(_.unsafeArray).flatten)
+    } yield new BytesIndexInput(s"${dir}/${name}", bs1)
     res.fold(
       l => l match {
         case zd.kvs.FileNotExists(dir, name) => throw new NoSuchFileException(s"${dir}/${name}")
@@ -246,12 +246,9 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends Directory {
   }
 
   override
-  def obtainLock(name: String): Lock = {
-    NoLockFactory.INSTANCE.obtainLock(this, name)
+  def close(): Unit = {
+    isOpen = false
   }
-
-  override
-  def close(): Unit = ()
 
   override
   def getPendingDeletions(): java.util.Set[String] = {
