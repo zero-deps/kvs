@@ -222,7 +222,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends Directory {
     val res = for {
       bs <- kvs.file.stream(dir, name)
       bs1 <- bs.sequence
-    } yield new ByteArrayIndexInput(s"${dir}/${name}", bs1.toArray.flatten)
+    } yield new BytesIndexInput(s"${dir}/${name}", bs1)
     res.fold(
       l => l match {
         case zd.kvs.FileNotExists(dir, name) => throw new NoSuchFileException(s"${dir}/${name}")
