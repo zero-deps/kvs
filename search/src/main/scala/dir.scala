@@ -4,11 +4,13 @@ package search
 import java.io.{IOException, ByteArrayOutputStream}
 import java.nio.file.{NoSuchFileException, FileAlreadyExistsException}
 import java.util.{Collection, Collections, Arrays}
-import org.apache.lucene.store.{BaseDirectory, IndexOutput, IndexInput, Lock, FSLockFactory, IOContext, OutputStreamIndexOutput}
+import java.util.concurrent.atomic.AtomicLong
+import org.apache.lucene.store.{Directory, BaseDirectory, IndexOutput, IndexInput, FSLockFactory, IOContext, OutputStreamIndexOutput}
+import scala.annotation.tailrec
 import scala.collection.mutable
-import zd.kvs.en.{Fd, feedHandler}
-import zd.kvs.file.FileHandler
 import zd.gs.z._
+import zd.kvs.en.{Fd, feedHandler}
+import zd.kvs.file.{File, FileHandler}
 
 class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.getDefault) {
   implicit val fileh = new FileHandler {
@@ -18,6 +20,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
   implicit private[this] val fdh = feedHandler
 
   private[this] val outs = mutable.Map[String,ByteArrayOutputStream]()
+  private[this] val nextTempFileCounter = new AtomicLong
 
   def exists: Res[Boolean] = {
     kvs.fd.get(Fd(dir)).map(_.isDefined)
@@ -46,7 +49,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
    */
   override
   def listAll(): Array[String] = {
-    import zd.gs.z._
+    ensureOpen()
     kvs.all[IndexFile](dir).flatMap(_.sequence).fold(
       l => throw new IOException(l.toString)
     , r => r.map(_.id).sorted.toArray
@@ -90,6 +93,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
    */
   override
   def fileLength(name: String): Long = {
+    ensureOpen()
     sync(Collections.singletonList(name))
     kvs.file.size(dir, name).fold(
       l => l match {
@@ -112,6 +116,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
    */
   override
   def createOutput(name: String, context: IOContext): IndexOutput = {
+    ensureOpen()
     val r = for {
       _ <- kvs.add(IndexFile(dir, name))
       _ <- kvs.file.create(dir, name)
@@ -139,12 +144,20 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
    */
   override
   def createTempOutput(prefix: String, suffix: String, context: IOContext): IndexOutput = {
-    val res = for {
-      counter <- kvs.nextid(s"${prefix}_${suffix}")
-      name = s"${prefix}_${suffix}_${counter}.tmp"
-      _ <- kvs.add(IndexFile(dir, name))
-      r <- kvs.file.create(dir, name)
-    } yield r
+    ensureOpen()
+    @tailrec def loop(): Res[File] = {
+      val name = Directory.getTempFileName(prefix, suffix, nextTempFileCounter.getAndIncrement)
+      val res = for {
+        _ <- kvs.add(IndexFile(dir, name))
+        r <- kvs.file.create(dir, name)
+      } yield r
+      res match {
+        case Left(_: EntryExists) => loop()
+        case Left(_: FileAlreadyExists) => loop()
+        case x => x
+      }
+    }
+    val res = loop()
     res.fold(
       l => throw new IOException(l.toString),
       r => {
@@ -164,6 +177,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
    */
   override
   def sync(names: Collection[String]): Unit = {
+    ensureOpen()
     names.stream.forEach{ name =>
       outs.get(name).map(_.toByteArray).foreach{ xs =>
         kvs.file.append(dir, name, xs).fold(
@@ -176,7 +190,10 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
   }
 
   override
-  def syncMetaData(): Unit = ()
+  def syncMetaData(): Unit = {
+    ensureOpen()
+    ()
+  }
 
   /**
    * Renames {@code source} file to {@code dest} file where
@@ -193,6 +210,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
    */
   override
   def rename(source: String, dest: String): Unit = {
+    ensureOpen()
     sync(Arrays.asList(source, dest))
     val res = for {
       _ <- kvs.file.copy(dir, source -> dest)
@@ -232,8 +250,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
     )
   }
 
-  override
-  def close(): Unit = {
+  override def close(): Unit = synchronized {
     isOpen = false
   }
 
