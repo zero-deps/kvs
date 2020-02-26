@@ -4,7 +4,7 @@ package search
 import java.io.{IOException, ByteArrayOutputStream}
 import java.nio.file.{NoSuchFileException, FileAlreadyExistsException}
 import java.util.{Collection, Collections, Arrays}
-import org.apache.lucene.store.{Directory, IndexOutput, IndexInput, Lock, NoLockFactory, IOContext, OutputStreamIndexOutput}
+import org.apache.lucene.store.{Directory, IndexOutput, IndexInput, Lock, FSLockFactory, IOContext, OutputStreamIndexOutput}
 import scala.collection.mutable
 import zd.kvs.en.{Fd, feedHandler}
 import zd.kvs.file.FileHandler
@@ -234,7 +234,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends Directory {
 
   override
   def obtainLock(name: String): Lock = {
-    NoLockFactory.INSTANCE.obtainLock(this, name)
+    FSLockFactory.getDefault.obtainLock(this, name)
   }
 
   override
