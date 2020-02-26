@@ -4,13 +4,13 @@ package search
 import java.io.{IOException, ByteArrayOutputStream}
 import java.nio.file.{NoSuchFileException, FileAlreadyExistsException}
 import java.util.{Collection, Collections, Arrays}
-import org.apache.lucene.store.{Directory, IndexOutput, IndexInput, Lock, FSLockFactory, IOContext, OutputStreamIndexOutput}
+import org.apache.lucene.store.{BaseDirectory, IndexOutput, IndexInput, Lock, FSLockFactory, IOContext, OutputStreamIndexOutput}
 import scala.collection.mutable
 import zd.kvs.en.{Fd, feedHandler}
 import zd.kvs.file.FileHandler
 import zd.gs.z._
 
-class KvsDirectory(dir: String)(kvs: Kvs) extends Directory {
+class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.getDefault) {
   implicit val fileh = new FileHandler {
     override val chunkLength = 10 * 1000 * 1000 // 10 MB
   }
@@ -233,12 +233,9 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends Directory {
   }
 
   override
-  def obtainLock(name: String): Lock = {
-    FSLockFactory.getDefault.obtainLock(this, name)
+  def close(): Unit = {
+    isOpen = false
   }
-
-  override
-  def close(): Unit = ()
 
   override
   def getPendingDeletions(): java.util.Set[String] = {
