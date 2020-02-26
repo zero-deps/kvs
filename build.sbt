@@ -50,14 +50,18 @@ ThisBuild / resolvers += Resolver.jcenterRepo
 ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
 
 ThisBuild / isSnapshot := true // override local artifacts
-ThisBuild / publishArtifact := true
-ThisBuild / Test / publishArtifact := true
 
 ThisBuild / turbo := true
 ThisBuild / useCoursier := true
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val core = project.in(file("."))
+lazy val root = project.in(file(".")).aggregate(core, search, demo)
+  .settings(
+    name := s"kvs-${name.value}"
+  , publishArtifact := false
+  )
+
+lazy val core = project.in(file("core"))
   .settings(
     scalacOptions in Test := Nil,
     libraryDependencies ++= Seq(
@@ -75,63 +79,25 @@ lazy val core = project.in(file("."))
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
     )
   , name := s"kvs-${name.value}"
+  , publishArtifact := true
   )
   
-lazy val search = project.in(file("search")).
-  settings(
+lazy val search = project.in(file("search"))
+  .settings(
     libraryDependencies ++= Seq(
       "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
     , compilerPlugin("io.github.zero-deps" %% "gs-plug" % gsVersion)
     , "org.scalatest" %% "scalatest" % scalatestVersion % Test
     )
   , name := s"kvs-${name.value}"
-  ).dependsOn(core)
-
-import deployssh.DeploySSH.{ServerConfig, ArtifactSSH}
-import fr.janalyse.ssh._
-
-lazy val demo = (project in file("demo")).settings(
-  mainClass in (Compile, run) := Some("zd.kvs.Run"),
-  fork in run := true,
-  javaOptions in Universal ++= Seq(
-    "-J-XX:+PreserveFramePointer"
-  ),
-  deployConfigs ++= Seq(
-    ServerConfig(name="env1", host="host1", user=Some("user1")),
-  ),
-  deployArtifacts ++= Seq(
-    ArtifactSSH((packageBin in Universal).value, s"perf_data")
-  ),
-  deploySshExecBefore ++= Seq(
-    (ssh: SSH) => ssh.shell{ shell =>
-      shell.execute("cd perf_data")
-      shell.execute("touch pid")
-      val pid = shell.execute("cat pid")
-      shell.execute(s"kill -9 ${pid}")
-      shell.execute("rm -v -rf kvsdemo*")
-      shell.execute("rm pid")
-    }
-  ),
-  deploySshExecAfter ++= Seq(
-    (ssh: SSH) => {
-      ssh.scp { scp =>
-        scp.send(file(s"./kvs-demo/src/main/resources/${ssh.options.name.get}.conf"), s"perf_data/app.conf")
-      }
-      ssh.shell{ shell =>
-        val name = (packageName in Universal).value
-        val script = (executableScriptName in Universal).value
-        shell.execute("cd perf_data")
-        shell.execute(s"unzip -q -o ${name}.zip")
-        shell.execute(s"nohup ./${name}/bin/${script} -Dconfig.file=/home/anle/perf_data/app.conf &")
-        // shell.execute(s"nohup ./${name}/bin/${script} &")
-        shell.execute("echo $! > pid")
-        shell.execute("touch pid")
-        val pid = shell.execute("cat pid")
-        val (_, status) = shell.executeWithStatus("echo $?")
-        if (status != 0 || pid == "") {
-         throw new RuntimeException(s"status=${status}, pid=${pid}. please check package")
-        }
-      }
-    }
+  , publishArtifact := true
   )
-).dependsOn(core).enablePlugins(JavaAppPackaging, DeploySSH, JmhPlugin)
+  .dependsOn(core)
+
+lazy val demo = project.in(file("demo"))
+  .settings(
+    mainClass in (Compile, run) := Some("zd.kvs.Run")
+  , fork in run := true
+  , publishArtifact := false
+  )
+  .dependsOn(core)
