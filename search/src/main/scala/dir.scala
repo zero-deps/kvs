@@ -5,9 +5,9 @@ import java.io.{IOException, ByteArrayOutputStream}
 import java.nio.file.{NoSuchFileException, FileAlreadyExistsException}
 import java.util.{Collection, Collections, Arrays}
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.ConcurrentHashMap
 import org.apache.lucene.store.{Directory, BaseDirectory, IndexOutput, IndexInput, FSLockFactory, IOContext, OutputStreamIndexOutput}
 import scala.annotation.tailrec
-import scala.collection.mutable
 import zd.gs.z._
 import zd.kvs.en.{Fd, feedHandler}
 import zd.kvs.file.{File, FileHandler}
@@ -19,7 +19,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
   implicit private[this] val indexFileHandler = IndexFileHandler
   implicit private[this] val fdh = feedHandler
 
-  private[this] val outs = mutable.Map[String,ByteArrayOutputStream]()
+  private[this] val outs = new ConcurrentHashMap[String,ByteArrayOutputStream]()
   private[this] val nextTempFileCounter = new AtomicLong
 
   def exists: Res[Boolean] = {
@@ -129,7 +129,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
       },
       _ => {
         val out = new ByteArrayOutputStream;
-        outs += name -> out
+        outs.put(name, out)
         new OutputStreamIndexOutput(s"${dir}/${name}", name, out, 8192)
       }
     )
@@ -162,7 +162,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
       l => throw new IOException(l.toString),
       r => {
         val out = new ByteArrayOutputStream;
-        outs += r.name -> out
+        outs.put(r.name, out)
         new OutputStreamIndexOutput(s"${dir}/${r.name}", r.name, out, 8192)
       }
     )
@@ -179,12 +179,12 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
   def sync(names: Collection[String]): Unit = {
     ensureOpen()
     names.stream.forEach{ name =>
-      outs.get(name).map(_.toByteArray).foreach{ xs =>
+      fromNullable(outs.get(name)).map(_.toByteArray).foreach{ xs =>
         kvs.file.append(dir, name, xs).fold(
           l => throw new IOException(l.toString),
           _ => ()
         )
-        outs -= name
+        outs.remove(name)
       }
     }
   }
