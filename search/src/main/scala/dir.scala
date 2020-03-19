@@ -5,21 +5,21 @@ import java.io.{IOException, ByteArrayOutputStream}
 import java.nio.file.{NoSuchFileException, FileAlreadyExistsException}
 import java.util.{Collection, Collections, Arrays}
 import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.ConcurrentHashMap
-import org.apache.lucene.store.{Directory, BaseDirectory, IndexOutput, IndexInput, FSLockFactory, IOContext, OutputStreamIndexOutput}
+import org.apache.lucene.store._
 import scala.annotation.tailrec
+import scala.collection.concurrent.TrieMap
 import zd.gs.z._
 import zd.kvs.en.{Fd, feedHandler}
 import zd.kvs.file.{File, FileHandler}
 
-class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.getDefault) {
+class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFactory(dir)) {
   implicit val fileh = new FileHandler {
     override val chunkLength = 10 * 1000 * 1000 // 10 MB
   }
   implicit private[this] val indexFileHandler = IndexFileHandler
   implicit private[this] val fdh = feedHandler
 
-  private[this] val outs = new ConcurrentHashMap[String,ByteArrayOutputStream]()
+  private[this] val outs = TrieMap.empty[String,ByteArrayOutputStream]
   private[this] val nextTempFileCounter = new AtomicLong
 
   def exists: Res[Boolean] = {
@@ -129,7 +129,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
       },
       _ => {
         val out = new ByteArrayOutputStream;
-        outs.put(name, out)
+        outs += ((name, out))
         new OutputStreamIndexOutput(s"${dir}/${name}", name, out, 8192)
       }
     )
@@ -162,7 +162,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
       l => throw new IOException(l.toString),
       r => {
         val out = new ByteArrayOutputStream;
-        outs.put(r.name, out)
+        outs += ((r.name, out))
         new OutputStreamIndexOutput(s"${dir}/${r.name}", r.name, out, 8192)
       }
     )
@@ -179,12 +179,12 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
   def sync(names: Collection[String]): Unit = {
     ensureOpen()
     names.stream.forEach{ name =>
-      fromNullable(outs.get(name)).map(_.toByteArray).foreach{ xs =>
+      outs.get(name).map(_.toByteArray).foreach{ xs =>
         kvs.file.append(dir, name, xs).fold(
           l => throw new IOException(l.toString),
           _ => ()
         )
-        outs.remove(name)
+        outs -= name
       }
     }
   }
@@ -257,5 +257,35 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(FSLockFactory.ge
   override
   def getPendingDeletions(): java.util.Set[String] = {
     Collections.emptySet[String]
+  }
+}
+
+class KvsLockFactory(dir: String) extends LockFactory {
+  private[this] val locks = TrieMap.empty[String, Unit]
+
+  override def obtainLock(d: Directory, lockName: String): Lock = {
+    val key = dir + lockName
+    locks.putIfAbsent(key, ()) match {
+      case Nothing => return new KvsLock(key)
+      case Just(_) => throw new LockObtainFailedException(key)
+    }
+  }
+
+  private[this] class KvsLock(key: String) extends Lock {
+    @volatile private[this] var closed = false
+
+    override def ensureValid(): Unit = {
+      if (closed) {
+        throw new AlreadyClosedException(key)
+      }
+      if (!locks.contains(key)) {
+        throw new AlreadyClosedException(key)
+      }
+    }
+
+    override def close(): Unit = {
+      locks -= key
+      closed = true
+    }
   }
 }
