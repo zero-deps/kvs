@@ -52,7 +52,7 @@ class GatherPut(client: ActorRef, t: FiniteDuration, putInfo: PutInfo) extends F
       }
 
     case Event("timeout", _) =>
-      client ! AckTimeoutFailed(s"put=${putInfo.key}")
+      client ! AckTimeoutFailed("put", putInfo.key)
       stop()
   }
   

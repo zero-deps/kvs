@@ -15,4 +15,4 @@ final case class Throwed(x: Throwable) extends Err
 sealed trait Ack
 final case class AckSuccess(v: Option[Bytes]) extends Ack
 final case class AckQuorumFailed(why: String) extends Ack with Err
-final case class AckTimeoutFailed(on: String) extends Ack with Err
+final case class AckTimeoutFailed(op: String, k: Bytes) extends Ack with Err
