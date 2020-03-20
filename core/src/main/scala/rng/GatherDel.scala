@@ -28,7 +28,7 @@ class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Key
       //politic of revert is not needed because on read opperation removed data will be saved again,
       //only notify client about failed opperation.
       //deleted on other nodes but we don't know about it ? sorry, eventually consistency
-      client ! AckTimeoutFailed(s"del=${k}")
+      client ! AckTimeoutFailed("del", new String(k, "UTF-8"))
       stop()
   }
 

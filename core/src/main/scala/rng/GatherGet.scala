@@ -35,7 +35,7 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, @unused R: Int, k: 
       }
 
     case Event("timeout", _) =>
-      client ! AckTimeoutFailed(s"get=${k}")
+      client ! AckTimeoutFailed("get", new String(k, "UTF-8"))
       stop()
   }
 }

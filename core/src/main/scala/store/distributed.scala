@@ -37,7 +37,7 @@ class Ring(system: ActorSystem) extends Dba {
     Try(Await.result(putF, d)) match {
       case Success(rng.AckSuccess(_)) => value.right
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-      case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
+      case Success(rng.AckTimeoutFailed(op, k)) => RngAskTimeoutFailed(op, k).left
       case Failure(t) => RngThrow(t).left
     }
   }
@@ -55,7 +55,7 @@ class Ring(system: ActorSystem) extends Dba {
     Try(Await.result(fut, d)) match {
       case Success(rng.AckSuccess(v)) => v.right
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-      case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
+      case Success(rng.AckTimeoutFailed(op, k)) => RngAskTimeoutFailed(op, k).left
       case Failure(t) => RngThrow(t).left
     }
   }
@@ -67,7 +67,7 @@ class Ring(system: ActorSystem) extends Dba {
     Try(Await.result(fut, d)) match {
       case Success(rng.AckSuccess(_)) => ().right
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-      case Success(rng.AckTimeoutFailed(on)) => RngAskTimeoutFailed(on).left
+      case Success(rng.AckTimeoutFailed(op, k)) => RngAskTimeoutFailed(op, k).left
       case Failure(t) => RngThrow(t).left
     }
   }
