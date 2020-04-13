@@ -1,5 +1,5 @@
 val scalaVersion_ = "2.13.1"
-val akkaVersion = "2.5.29"
+val akkaVersion = "2.5.31"
 val gsVersion = "1.6.2-3-g02f8e98"
 val leveldbVersion = "1.0.3"
 val protoVersion = "1.7.1"
