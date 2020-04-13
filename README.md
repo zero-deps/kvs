@@ -2,36 +2,7 @@
 
 Key Value Storage.
 
-```scala
-import akka.actor.ActorSystem
-val cfg = """akka.remote.netty.tcp.hostname = 127.0.0.1
-akka.remote.netty.tcp.port = 4343
-akka.cluster.seed-nodes = [ "akka.tcp://sys@127.0.0.1:4343" ]
-ring.leveldb.dir = rng_data_127.0.0.1_4343"""
-import com.typesafe.config.ConfigFactory
-val system = ActorSystem("sys", ConfigFactory.parseString(cfg))
-import zd.kvs.Kvs
-val kvs = Kvs(system)
-import scala.util.Try
-import scala.concurrent.Await
-import scala.concurrent.duration._
-Try(Await.result(kvs.onReady, Duration.Inf))
-import zd.proto.Bytes
-val users = Bytes.unsafeWrap(s"users${System.currentTimeMillis}".getBytes)
-import zd.proto.api.{N, MessageCodec, encode, decode}
-final case class User(@N(1) name: String)
-import zd.proto.macrosapi.caseCodecAuto
-implicit val UserC: MessageCodec[User] = caseCodecAuto[User]
-kvs.add(users, Bytes.unsafeWrap(encode[User](User(name="John Doe"))))
-kvs.add(users, Bytes.unsafeWrap(encode[User](User(name="Jane Doe"))))
-import zd.gs.z._
-kvs.all(users).flatMap(_.sequenceU).fold(
-    err => system.log.error(err.toString)
-  , xs => xs.foreach(x => system.log.info(decode[User](x.en.data.unsafeArray).name))
-  )
-system.terminate()
-Try(Await.result(system.whenTerminated, Duration.Inf))
-```
+[Example](https://github.com/zero-deps/kvs/blob/master/demo/src/main/scala/Run.scala)
 
 More documentation check in `docs` directory.
 
@@ -53,4 +24,19 @@ sbt 'project demo' run
 
 ## Resources
 
-[Docs](https://github.com/zero-deps/kvs/wiki/Docs)
+### Chain Replication
+
+[Chain Replication in Theory and in Practice](http://www.snookles.com/scott/publications/erlang2010-slf.pdf)
+
+[Chain Replication for Supporting High Throughput and Availability](http://www.cs.cornell.edu/home/rvr/papers/OSDI04.pdf)
+
+[High-throughput chain replication for read-mostly workload](https://www.cs.princeton.edu/courses/archive/fall15/cos518/papers/craq.pdf)
+
+[Leveraging Sharding in the Design of Scalable Replication Protocols](https://ymsir.com/papers/sharding-socc.pdf)
+
+[Byzantine Chain Replication](http://www.cs.cornell.edu/home/rvr/newpapers/opodis2012.pdf)
+
+### Consensus Algorithm
+
+[RAFT](https://raft.github.io/raft.pdf)
+[SWIM](https://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
