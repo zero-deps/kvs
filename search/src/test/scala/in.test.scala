@@ -4,13 +4,14 @@ package search
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest._
 import java.util.Arrays
+import zd.proto.Bytes
 
 class InTest extends AnyFreeSpecLike with Matchers {
   val in = new BytesIndexInput("test", Vector(
-    Array[Byte](1,2,3)
-  , Array[Byte](4,5,6)
-  , Array[Byte](7,8,9)
-  , Array[Byte](0,1,2)
+    Bytes.unsafeWrap(Array[Byte](1,2,3))
+  , Bytes.unsafeWrap(Array[Byte](4,5,6))
+  , Bytes.unsafeWrap(Array[Byte](7,8,9))
+  , Bytes.unsafeWrap(Array[Byte](0,1,2))
   ))
   "read byte" in {
     in.readByte shouldBe 1
