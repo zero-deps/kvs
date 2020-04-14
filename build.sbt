@@ -12,7 +12,6 @@ ThisBuild / licenses := "MIT" -> url("https://raw.githubusercontent.com/zero-dep
 ThisBuild / version := zd.gs.git.GitOps.version
 ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / cancelable in Global := true
-ThisBuild / javacOptions ++= Seq("-source", "13", "-target", "13")
 ThisBuild / scalacOptions ++= Seq(
     "-deprecation"
   , "-explaintypes"
@@ -42,7 +41,6 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Ywarn-unused:implicits"
   , "-Ywarn-unused:imports"
   , "-Ywarn-unused:params"
-  , "-target:jvm-12"
   , "-encoding", "UTF-8"
 )
 

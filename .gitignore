@@ -1,7 +1,7 @@
 .DS_Store
 *.swp
 /.idea/
-/demo/rng_data_*/
+/demo/rng_data/
 /demo/tmp/
 /rng_data_*/
 /tmp/

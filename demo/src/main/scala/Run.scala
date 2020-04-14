@@ -1,35 +1,51 @@
 package zd.kvs
 
+import zd.gs.z._
+import akka.actor.ActorSystem
+import com.typesafe.config.ConfigFactory
+import zd.kvs.Kvs
+import scala.util.Try
+import scala.concurrent.Await
+import scala.concurrent.duration._
+import zd.proto.Bytes
+import zd.proto.api.{N, MessageCodec, encode, decode}
+import zd.proto.macrosapi.caseCodecAuto
+import zd.gs.z._
+
 object Run extends App {
 
-  import zd.gs.z._
-  import akka.actor.ActorSystem
-  val cfg = """akka.remote.netty.tcp.hostname = 127.0.0.1
-  akka.remote.netty.tcp.port = 4343
-  akka.cluster.seed-nodes = [ "akka.tcp://sys@127.0.0.1:4343" ]
-  ring.leveldb.dir = rng_data_127.0.0.1_4343"""
-  import com.typesafe.config.ConfigFactory
-  val system = ActorSystem("sys", ConfigFactory.parseString(cfg))
-  import zd.kvs.Kvs
+  // Create actor system for kvs
+  val asname = "sys"
+  val nodeipaddr = "127.0.0.1"
+  val nodeport = "4343"
+  val cfg = s"""
+    |akka.remote.netty.tcp.hostname = $nodeipaddr
+    |akka.remote.netty.tcp.port = $nodeport
+    |akka.cluster.seed-nodes = [ "akka.tcp://$asname@$nodeipaddr:$nodeport" ]
+    |ring.leveldb.dir = rng_data
+    |""".stripMargin
+  val system = ActorSystem(asname, ConfigFactory.parseString(cfg))
+
+  // Run kvs
   val kvs = Kvs(system)
-  import scala.util.Try
-  import scala.concurrent.Await
-  import scala.concurrent.duration._
   Try(Await.result(kvs.onReady, Duration.Inf))
-  import zd.proto.Bytes
+
+  // Add users to feed
   val users = Bytes.unsafeWrap(s"users${System.currentTimeMillis}".getBytes)
-  import zd.proto.api.{N, MessageCodec, encode, decode}
-  final case class User(@N(1) name: String)
-  import zd.proto.macrosapi.caseCodecAuto
   implicit val UserC: MessageCodec[User] = caseCodecAuto[User]
   kvs.add(users, Bytes.unsafeWrap(encode[User](User(name="John Doe"))))
   kvs.add(users, Bytes.unsafeWrap(encode[User](User(name="Jane Doe"))))
-  import zd.gs.z._
+
+  // Get all users
   kvs.all(users).flatMap(_.sequence).fold(
-      err => system.log.error(err.toString)
-    , xs => xs.foreach(x => system.log.info(decode[User](x.en.data.unsafeArray).name))
-    )
+    err => system.log.error(err.toString)
+  , xs => xs.foreach(x => system.log.info(decode[User](x.en.data.unsafeArray).name))
+  )
+
+  // Stop kvs
   system.terminate()
   Try(Await.result(system.whenTerminated, Duration.Inf))
 
 }
+
+final case class User(@N(1) name: String)
