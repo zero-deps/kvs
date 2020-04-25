@@ -57,7 +57,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 lazy val root = project.in(file(".")).aggregate(core, search, demo)
   .settings(
     name := s"kvs-${name.value}"
-  , publishArtifact := false
+  , skip in publish := true
   )
 
 lazy val core = project.in(file("core"))
@@ -97,6 +97,6 @@ lazy val demo = project.in(file("demo"))
   .settings(
     mainClass in (Compile, run) := Some("zd.kvs.Run")
   , fork in run := true
-  , publishArtifact := false
+  , skip in publish := true
   )
   .dependsOn(core)
