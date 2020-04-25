@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicLong
 import org.apache.lucene.store._
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
-import zd.gs.z._
+import zero.ext._, either._, traverse._
 import zd.kvs.en.{Fd, feedHandler}
 import zd.kvs.file.{File, FileHandler}
 
@@ -235,7 +235,6 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
    */
   override
   def openInput(name: String, context: IOContext): IndexInput = {
-    import zd.gs.z._
     sync(Collections.singletonList(name))
     val res = for {
       bs <- kvs.file.stream(dir, name)
@@ -266,8 +265,8 @@ class KvsLockFactory(dir: String) extends LockFactory {
   override def obtainLock(d: Directory, lockName: String): Lock = {
     val key = dir + lockName
     locks.putIfAbsent(key, ()) match {
-      case Nothing => return new KvsLock(key)
-      case Just(_) => throw new LockObtainFailedException(key)
+      case None => return new KvsLock(key)
+      case Some(_) => throw new LockObtainFailedException(key)
     }
   }
 

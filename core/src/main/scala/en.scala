@@ -2,7 +2,7 @@ package zd.kvs
 package en
 
 import zd.kvs.store.Dba
-import zd.gs.z._
+import zero.ext._, either._, option._
 
 trait En {
   val fid: String
@@ -26,7 +26,7 @@ trait EnHandler[A <: En] {
   private def _put(en:A)(implicit dba:Dba):Res[A] = pickle(en).flatMap(x => dba.put(key(en.fid,en.id),x)).map(_=>en)
   def get(fid: String, id: String)(implicit dba: Dba): Res[Option[A]] = {
     dba.get(key(fid,id)) match {
-      case Right(Some(x)) => unpickle(x).map(_.just)
+      case Right(Some(x)) => unpickle(x).map(_.some)
       case Right(None) => None.right
       case x@Left(_) => x.coerceRight
     }

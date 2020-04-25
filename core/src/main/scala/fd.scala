@@ -2,7 +2,7 @@ package zd.kvs
 package en
 
 import zd.kvs.store.Dba
-import zd.gs.z._
+import zero.ext._, either._, option._
 import zd.proto.api.{N, encode, decode}
 import zd.proto.macrosapi.caseCodecAuto
 
@@ -18,8 +18,8 @@ trait FdHandler {
 
   def put(el: Fd)(implicit dba: Dba): Res[Fd] = pickle(el).flatMap(x => dba.put(el.id,x)).flatMap(unpickle)
   def get(el: Fd)(implicit dba: Dba): Res[Option[Fd]] = dba.get(el.id) match {
-    case Right(Some(x)) => unpickle(x).map(_.just)
-    case Right(None) => Nothing.right
+    case Right(Some(x)) => unpickle(x).map(_.some)
+    case Right(None) => none.right
     case x@Left(_) => x.coerceRight
   }
   def delete(el: Fd)(implicit dba: Dba): Res[Unit] = dba.delete(el.id)

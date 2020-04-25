@@ -4,7 +4,7 @@ package search
 import zd.kvs.en.{En, EnHandler, feedHandler}
 import zd.proto.api.{N, encode, decode}
 import zd.proto.macrosapi.caseCodecAuto
-import zd.gs.z._
+import zero.ext._, either._
 
 final case class IndexFile
   ( @N(1) fid: String

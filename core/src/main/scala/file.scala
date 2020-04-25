@@ -6,7 +6,7 @@ import scala.annotation.tailrec
 import scala.util.{Try, Success, Failure}
 import zd.proto.api.{MessageCodec, encode, decode}
 import zd.proto.macrosapi.caseCodecAuto
-import zd.gs.z._
+import zero.ext._, either._, boolean._, option._, traverse._
 
 trait FileHandler {
   protected val chunkLength: Int

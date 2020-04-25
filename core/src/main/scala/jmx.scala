@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import java.lang.management.ManagementFactory
 import javax.management.{ObjectName,StandardMBean}
 import scala.util._
-import zd.gs.z._
+import zero.ext._, option._
 import zd.kvs.el.ElHandler.strHandler
 
 /** Kvs management access */

@@ -3,6 +3,7 @@ package zd.kvs
 import zd.rng._
 import zd.rng.data._
 import org.scalatest.freespec.AnyFreeSpec
+import org.scalatest.matchers.should.Matchers
 import org.scalatest._
 import scala.collection.immutable.{HashSet, TreeMap}
 

@@ -4,6 +4,7 @@ import akka.actor._
 import akka.testkit._
 import com.typesafe.config.{ConfigFactory}
 import org.scalatest.freespec.AnyFreeSpecLike
+import org.scalatest.matchers.should.Matchers
 import org.scalatest._
 import scala.concurrent.Await
 import scala.concurrent.duration._

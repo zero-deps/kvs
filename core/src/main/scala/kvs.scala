@@ -13,7 +13,7 @@ import zd.kvs.file.{File, FileHandler}
 
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
-  override def lookup = Kvs
+  override def lookup(): Kvs.type = Kvs
   override def createExtension(system: ExtendedActorSystem): Kvs = new Kvs(system)
 }
 class Kvs(system: ExtendedActorSystem) extends Extension {

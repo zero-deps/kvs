@@ -1,7 +1,5 @@
 .DS_Store
 /.idea/
-/demo/rng_data_*/
-/demo/tmp/
-/rng_data_*/
-/tmp/
+rng_data*/
+tmp/
 target/

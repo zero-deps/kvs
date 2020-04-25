@@ -2,7 +2,7 @@ package zd.kvs
 package search
 
 import org.scalatest.freespec.AnyFreeSpecLike
-import org.scalatest._
+import org.scalatest.matchers.should.Matchers
 import java.util.Arrays
 
 class InTest extends AnyFreeSpecLike with Matchers {

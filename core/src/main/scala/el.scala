@@ -2,7 +2,7 @@ package zd.kvs
 package el
 
 import zd.kvs.store.Dba
-import zd.gs.z._
+import zero.ext._, either._, option._
 
 trait ElHandler[T] {
   def pickle(e: T): Res[Array[Byte]]
@@ -10,7 +10,7 @@ trait ElHandler[T] {
 
   def put(k:String,el:T)(implicit dba:Dba):Res[T] = pickle(el).flatMap(x => dba.put(k,x)).map(_=>el)
   def get(k:String)(implicit dba:Dba):Res[Option[T]] = dba.get(k) match {
-    case Right(Some(x)) => unpickle(x).map(_.just)
+    case Right(Some(x)) => unpickle(x).map(_.some)
     case Right(None) => Right(None)
     case x@Left(_) => x.coerceRight
   }
