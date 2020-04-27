@@ -13,7 +13,6 @@ import zd.kvs.rng.model.{ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, 
 import zd.kvs.rng.model.{StoreGet, StoreGetAck}
 import zd.kvs.rng.ReplicationSupervisor.ReplGetBucketsVc
 import zd.proto.api.{encode, decode}
-import zd.proto.api.decode
 
 object ReadonlyStore {
   def props(leveldb: LevelDb): Props = Props(new ReadonlyStore(leveldb))

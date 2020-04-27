@@ -4,11 +4,12 @@ import akka.actor._
 import akka.testkit._
 import com.typesafe.config.{ConfigFactory}
 import org.scalatest.freespec.AnyFreeSpecLike
+import org.scalatest.matchers.should.Matchers
 import org.scalatest._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
-import zd.gs.z._
+import zero.ext._, either._, option._
 import zd.proto.Bytes
 
 class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4011))))
@@ -25,13 +26,13 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
   "el handler should" - {
     "return error when element is absent" in {
-      kvs.el.get(stob("k")) shouldBe Nothing.right
+      kvs.el.get(stob("k")) shouldBe none.right
     }
     "save value" in {
       kvs.el.put(stob("k"), stob("v")) shouldBe ().right
     }
     "retrieve value" in {
-      kvs.el.get(stob("k")) shouldBe stob("v").just.right
+      kvs.el.get(stob("k")) shouldBe stob("v").some.right
     }
     "override value" in {
       kvs.el.put(stob("k"), stob("v2")) shouldBe ().right
@@ -43,7 +44,7 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.el.delete(stob("k")) shouldBe ().right
     }
     "clean up" in {
-      kvs.el.get(stob("k")) shouldBe Nothing.right
+      kvs.el.get(stob("k")) shouldBe none.right
     }
   }
 }

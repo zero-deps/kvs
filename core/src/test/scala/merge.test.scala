@@ -4,6 +4,7 @@ import zd.kvs.rng._
 import zd.kvs.rng.data._
 import zd.kvs.rng.model.KeyBucketData
 import org.scalatest.freespec.AnyFreeSpec
+import org.scalatest.matchers.should.Matchers
 import org.scalatest._
 import scala.collection.immutable.{HashSet, TreeMap}
 import zd.proto.Bytes

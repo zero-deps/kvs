@@ -12,7 +12,7 @@ import zd.kvs.rng.store.{ReadonlyStore, WriteStore}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.{Try, Success, Failure}
-import zd.gs.z._
+import zero.ext._, either._
 import zd.proto.Bytes
 
 class Ring(system: ActorSystem) extends Dba {

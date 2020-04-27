@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicLong
 import org.apache.lucene.store._
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
-import zd.gs.z._
+import zero.ext._, either._, option._, traverse._
 import zd.kvs.en.FdHandler
 import zd.kvs.file.FileHandler
 import zd.proto.Bytes
@@ -81,8 +81,8 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
         case x => throw new IOException(x.toString)
       },
       r => r match {
-        case Just(()) => ()
-        case Nothing => throw new NoSuchFileException(s"${dir}/${name}")
+        case Some(()) => ()
+        case None => throw new NoSuchFileException(s"${dir}/${name}")
       }
     )
   }
@@ -247,7 +247,6 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
    */
   override
   def openInput(name: String, context: IOContext): IndexInput = {
-    import zd.gs.z._
     sync(Collections.singletonList(name))
     val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
     val res = for {
@@ -279,8 +278,8 @@ class KvsLockFactory(dir: Bytes) extends LockFactory {
   override def obtainLock(d: Directory, lockName: String): Lock = {
     val key = Bytes.unsafeWrap(dir.unsafeArray ++ lockName.getBytes("UTF-8"))
     locks.putIfAbsent(key, ()) match {
-      case Nothing => return new KvsLock(key)
-      case Just(_) => throw new LockObtainFailedException(new String(key.unsafeArray, "UTF-8"))
+      case None => return new KvsLock(key)
+      case Some(_) => throw new LockObtainFailedException(new String(key.unsafeArray, "UTF-8"))
     }
   }
 

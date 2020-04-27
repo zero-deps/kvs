@@ -1,16 +1,15 @@
 package zd.kvs
 
-import zd.gs.z._
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
-import zd.kvs.Kvs
-import scala.util.Try
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import zd.proto.Bytes
+import scala.util.Try
+import zd.kvs.Kvs
 import zd.proto.api.{N, MessageCodec, encode, decode}
+import zd.proto.Bytes
 import zd.proto.macrosapi.caseCodecAuto
-import zd.gs.z._
+import zero.ext._, traverse._
 
 object Run extends App {
 

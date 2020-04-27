@@ -1,15 +1,15 @@
-val scalaVersion_ = "2.13.1"
+val scalaVersion_ = "2.13.2"
 val akkaVersion = "2.5.31"
-val gsVersion = "1.6.2-3-g02f8e98"
-val leveldbVersion = "1.0.3"
+val extVersion = "2.0.0"
+val leveldbVersion = "1.0.4"
 val protoVersion = "1.7.1"
 val logbackVersion = "1.2.3"
-val scalatestVersion = "3.1.0-SNAP13"
+val scalatestVersion = "3.1.1"
 
 ThisBuild / organization := "io.github.zero-deps"
 ThisBuild / description := "Abstract Scala Types Key-Value Storage"
 ThisBuild / licenses := "MIT" -> url("https://raw.githubusercontent.com/zero-deps/kvs/master/LICENSE") :: Nil
-ThisBuild / version := zd.gs.git.GitOps.version
+ThisBuild / version := zero.ext.git.version
 ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / cancelable in Global := true
 ThisBuild / scalacOptions ++= Seq(
@@ -56,7 +56,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 lazy val root = project.in(file(".")).aggregate(core, search, demo)
   .settings(
     name := s"kvs-${name.value}"
-  , publishArtifact := false
+  , skip in publish := true
   )
 
 lazy val core = project.in(file("core"))
@@ -68,8 +68,8 @@ lazy val core = project.in(file("core"))
       "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion,
       "io.github.zero-deps" %% "proto-macros" % protoVersion % Compile,
       "io.github.zero-deps" %% "proto-runtime" % protoVersion,
-      compilerPlugin("io.github.zero-deps" %% "gs-plug" % gsVersion),
-      "io.github.zero-deps" %% "gs-z" % gsVersion,
+      compilerPlugin("io.github.zero-deps" %% "ext-plug" % extVersion),
+      "io.github.zero-deps" %% "ext" % extVersion,
       "io.github.zero-deps" %% "leveldb-jnr" % leveldbVersion,
       "io.github.zero-deps" %% "leveldb-jnr" % leveldbVersion % Test classifier "tests",
 
@@ -84,7 +84,7 @@ lazy val search = project.in(file("search"))
   .settings(
     libraryDependencies ++= Seq(
       "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
-    , compilerPlugin("io.github.zero-deps" %% "gs-plug" % gsVersion)
+    , compilerPlugin("io.github.zero-deps" %% "ext-plug" % extVersion)
     , "org.scalatest" %% "scalatest" % scalatestVersion % Test
     )
   , name := s"kvs-${name.value}"
@@ -96,6 +96,6 @@ lazy val demo = project.in(file("demo"))
   .settings(
     mainClass in (Compile, run) := Some("zd.kvs.Run")
   , fork in run := true
-  , publishArtifact := false
+  , skip in publish := true
   )
   .dependsOn(core)

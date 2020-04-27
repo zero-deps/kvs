@@ -9,7 +9,7 @@ import org.scalatest.freespec.AnyFreeSpecLike
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
-import zd.gs.z._
+import zero.ext._, either._, option._
 import zd.proto.Bytes
 
 class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4012))))
@@ -48,7 +48,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
 
       "should get e1 and e2 from feed" in {
         kvs.fd.length(fid) shouldBe 2L.right 
-        kvs.all(fid).map(_.toList) shouldBe List(IdEn(id=stob("2"), en=En(stob("1").just, data(2))).right, IdEn(id=stob("1"), en=En(Nothing, data(1))).right).right
+        kvs.all(fid).map(_.toList) shouldBe List(IdEn(id=stob("2"), en=En(stob("1").some, data(2))).right, IdEn(id=stob("1"), en=En(none, data(1))).right).right
       }
 
       "should save entry(3)" in {
@@ -63,40 +63,40 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
       }
 
       "should get 3 values from feed" in {
-        kvs.all(fid).map(_.toList) shouldBe List(IdEn(id=stob("3"), en=En(stob("2").just, data(3))).right, IdEn(id=stob("2"), en=En(stob("1").just, data(2))).right, IdEn(id=stob("1"), en=En(Nothing, data(1))).right).right
+        kvs.all(fid).map(_.toList) shouldBe List(IdEn(id=stob("3"), en=En(stob("2").some, data(3))).right, IdEn(id=stob("2"), en=En(stob("1").some, data(2))).right, IdEn(id=stob("1"), en=En(none, data(1))).right).right
       }
 
       "should remove unexisting entry from feed without error" in {
-        kvs.remove(fid, stob("5")) shouldBe Right(Nothing)
+        kvs.remove(fid, stob("5")) shouldBe Right(none)
       }
 
       "should remove entry(2) from feed without prev/next/data" in {
         val deleted = kvs.remove(fid, stob("2"))
-        deleted.map(_.map(_.data)) shouldBe data(2).just.right
+        deleted.map(_.map(_.data)) shouldBe data(2).some.right
       }
 
       "should get 2 values from feed" in {
         kvs.fd.length(fid) shouldBe 2L.right
 
         val stream = kvs.all(fid)
-        stream.map(_.toList) shouldBe List(IdEn(id=stob("3"), en=En(stob("2").just, data(3))).right, IdEn(id=stob("1"), en=En(Nothing, data(1))).right).right
+        stream.map(_.toList) shouldBe List(IdEn(id=stob("3"), en=En(stob("2").some, data(3))).right, IdEn(id=stob("1"), en=En(none, data(1))).right).right
       }
 
       "should remove entry(1) from feed" in {
         val deleted = kvs.remove(fid, stob("1"))
-        deleted.map(_.map(_.data)) shouldBe data(1).just.right
+        deleted.map(_.map(_.data)) shouldBe data(1).some.right
       }
 
       "should get 1 values from feed" in {
         kvs.fd.length(fid) shouldBe 1L.right
 
         val stream = kvs.all(fid)
-        stream.map(_.toList) shouldBe List(IdEn(id=stob("3"), en=En(stob("2").just, data(3))).right).right
+        stream.map(_.toList) shouldBe List(IdEn(id=stob("3"), en=En(stob("2").some, data(3))).right).right
       }
 
       "should remove entry(3) from feed" in {
         val deleted = kvs.remove(fid, stob("3"))
-        deleted.map(_.map(_.data)) shouldBe data(3).just.right
+        deleted.map(_.map(_.data)) shouldBe data(3).some.right
       }
 
       "should be empty at the end test" - {
@@ -119,7 +119,7 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         }
         LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
           val removed = kvs.remove(fid, Bytes.unsafeWrap(n.toString.getBytes))
-          removed.map(_.map(_.data)) shouldBe data(n).just.right
+          removed.map(_.map(_.data)) shouldBe data(n).some.right
           kvs.fd.length(fid) shouldBe (limit-n).right
         }
       }
@@ -172,27 +172,27 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
         0.to(9).foreach(i => kvs.add(fid, stob(i.toString), d))
       }
       "maxid is 9" in {
-        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("9").just.right
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("9").some.right
       }
       "remove entries" in {
         Seq(0, 1, 4, 5, 8, 9).foreach(i => kvs.remove(fid, stob(i.toString)))
       }
       "maxid is 10 nevertheless" in {
-        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("9").just.right
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("9").some.right
       }
       "cleanup removed entries" in {
         kvs.cleanup(fid) shouldBe ().right
       }
       "entries are deleted" in {
         kvs.all(fid).map(_.toList) shouldBe List(
-          IdEn(id=stob("7"), en=En(next=stob("6").just, d)).right
-        , IdEn(id=stob("6"), en=En(next=stob("3").just, d)).right
-        , IdEn(id=stob("3"), en=En(next=stob("2").just, d)).right
-        , IdEn(id=stob("2"), en=En(next=Nothing, d)).right
+          IdEn(id=stob("7"), en=En(next=stob("6").some, d)).right
+        , IdEn(id=stob("6"), en=En(next=stob("3").some, d)).right
+        , IdEn(id=stob("3"), en=En(next=stob("2").some, d)).right
+        , IdEn(id=stob("2"), en=En(next=none, d)).right
         ).right
       }
       "maxid is reverted to 7" in {
-        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("7").just.right
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("7").some.right
       }
       "fix feed doesn't break it" in {
         val res = kvs.fix(fid)

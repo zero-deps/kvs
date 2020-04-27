@@ -2,9 +2,9 @@ package zd.kvs
 package en
 
 import zd.kvs.store.Dba
-import zd.gs.z._
+import zero.ext._, either._, option._
 import zd.proto.api.{N, MessageCodec}
-import zd.proto.macrosapi.{caseCodecAuto}
+import zd.proto.macrosapi.caseCodecAuto
 import zd.proto.Bytes
 
 final case class Fd
@@ -28,8 +28,8 @@ object FdHandler {
   def put(el: Fd)(implicit dba: Dba): Res[Unit] = dba.put(el.id, pickle(el))
 
   def get(id: Bytes)(implicit dba: Dba): Res[Option[Fd]] = dba.get(id) match {
-    case Right(Some(x)) => unpickle(x).just.right
-    case Right(None) => Nothing.right
+    case Right(Some(x)) => unpickle(x).some.right
+    case Right(None) => none.right
     case x@Left(_) => x.coerceRight
   }
 

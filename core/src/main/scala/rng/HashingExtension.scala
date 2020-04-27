@@ -47,7 +47,5 @@ object HashingExtension extends ExtensionId[HashingImpl] with ExtensionIdProvide
   override def createExtension(system: ExtendedActorSystem): HashingImpl =
     new HashingImpl(system.settings.config.getConfig("ring"))
 
-  override def lookup = HashingExtension
+  override def lookup(): HashingExtension.type = HashingExtension
 }
-
-

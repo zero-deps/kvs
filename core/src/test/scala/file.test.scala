@@ -5,11 +5,12 @@ import akka.testkit._
 import com.typesafe.config.{ConfigFactory}
 import zd.kvs.file._
 import org.scalatest.freespec.AnyFreeSpecLike
+import org.scalatest.matchers.should.Matchers
 import org.scalatest._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
-import zd.gs.z._
+import zero.ext._, either._, traverse._
 import zd.proto.Bytes
 
 class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4013))))

@@ -5,7 +5,7 @@ import zd.kvs.rng.data.{Data}
 import zd.kvs.rng.GatherGet.AddrOfData
 import scala.annotation.tailrec
 import scala.collection.immutable.{HashMap, HashSet}
-import zd.gs.z._
+import zero.ext._, option._
 import zd.proto.Bytes
 import zd.kvs.rng.model.KeyBucketData
 
@@ -87,13 +87,13 @@ object MergeOps {
   def forPut(stored: Option[Data], received: Data): Option[Data] = {
     stored match {
       case None => 
-        received.just
+        received.some
       case Some(stored) =>
         (stored < received) match {
-          case OkLess(true) => received.just
+          case OkLess(true) => received.some
           case OkLess(false) => None
-          case ConflictLess(true, vc) => received.copy(vc=vc).just
-          case ConflictLess(false, vc) => stored.copy(vc=vc).just
+          case ConflictLess(true, vc) => received.copy(vc=vc).some
+          case ConflictLess(false, vc) => stored.copy(vc=vc).some
         }
     }
   }
