@@ -1,6 +1,6 @@
 # Abstract scala type database.
 
-[![Scala CI](https://github.com/zero-deps/kvs/workflows/Scala%20CI/badge.svg)](https://github.com/zero-deps/kvs/actions)
+[![Scala CI](https://github.com/zero-deps/kvs/workflows/Scala%20CI/badge.svg?branch=master)](https://github.com/zero-deps/kvs/actions?query=branch%3Amaster)
 
 [Bintray releases](https://bintray.com/zero-deps/maven/kvs-core#release)
 
