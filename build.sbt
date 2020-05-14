@@ -71,7 +71,6 @@ lazy val core = project.in(file("core"))
       compilerPlugin("io.github.zero-deps" %% "ext-plug" % extVersion),
       "io.github.zero-deps" %% "ext" % extVersion,
       "io.github.zero-deps" %% "leveldb-jnr" % leveldbVersion,
-      "io.github.zero-deps" %% "leveldb-jnr" % leveldbVersion % Test classifier "tests",
 
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
