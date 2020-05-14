@@ -43,7 +43,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
   import EnHandlerTest._
 
   val mod = 50
-  def entry(n: Int): En = En(fid, data="value=${n}")
+  def entry(n: Int): En = En(fid, data=s"value=${n}")
 
   val e1 = entry(1)
   val e2 = entry(2)
