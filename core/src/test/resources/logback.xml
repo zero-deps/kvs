@@ -5,8 +5,6 @@
     </encoder>
   </appender>
 
-  <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
-
   <root level="${logLevel:-INFO}">
     <appender-ref ref="CONSOLE"/>
   </root>
