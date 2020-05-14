@@ -13,8 +13,6 @@ import scala.util.Try
 import zero.ext._, either._
 
 object EnHandlerTest {
-  val fid = "fid" + java.util.UUID.randomUUID.toString
-
   final case class En(fid: String, id: String = empty, prev: String = empty, data: String) extends zd.kvs.en.En
 
   implicit val h = new EnHandler[En] {
@@ -43,6 +41,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
   import EnHandlerTest._
 
   val mod = 50
+  val fid = "fid" + java.util.UUID.randomUUID.toString
   def entry(n: Int): En = En(fid, data=s"value=${n}")
 
   val e1 = entry(1)
@@ -163,6 +162,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "feed should be empty at the end test" in {
+      kvs.el.delete[String](s"IdCounter.$fid")
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 0
       kvs.all[En](fid).getOrElse(???) shouldBe empty
       kvs.fd.delete(Fd(fid))
