@@ -1,6 +1,8 @@
 # Abstract scala type database.
 
-Key Value Storage.
+[Bintray releases](https://bintray.com/zero-deps/maven/kvs-core#release)
+
+Key Value Storage
 
 [Example](https://github.com/zero-deps/kvs/blob/master/demo/src/main/scala/Run.scala)
 
