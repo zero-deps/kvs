@@ -11,12 +11,51 @@ import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
 import zd.kvs.el.ElHandler
 import zd.kvs.file.{File, FileHandler}
 
+trait ReadOnlyElApi {
+  def get[A: ElHandler](k: String): Res[Option[A]]
+}
+
+trait ElApi extends ReadOnlyElApi {
+  def put[A: ElHandler](k: String, el: A): Res[A]
+  def delete[A: ElHandler](k: String): Res[Unit]
+}
+
+trait ReadOnlyFdApi {
+  def get(fd: Fd)(implicit fh: FdHandler): Res[Option[Fd]]
+}
+
+trait FdApi extends ReadOnlyFdApi {
+  def put(fd: Fd)(implicit fh: FdHandler): Res[Fd]
+  def delete(fd: Fd)(implicit fh: FdHandler): Res[Unit]
+}
+
+trait ReadOnlyFileApi {
+  def stream(dir: String, name: String)(implicit h: FileHandler): Res[LazyList[Res[Array[Byte]]]]
+  def size(dir: String, name: String)(implicit h: FileHandler): Res[Long]
+}
+
+trait FileApi extends ReadOnlyFileApi {
+  def create(dir: String, name: String)(implicit h: FileHandler): Res[File]
+  def append(dir: String, name: String, chunk: Array[Byte])(implicit h: FileHandler): Res[File]
+  def delete(dir: String, name: String)(implicit h: FileHandler): Res[File]
+  def copy(dir: String, name: (String, String))(implicit h: FileHandler): Res[File]
+}
+
+trait ReadOnlyKvs {
+  val el: ReadOnlyElApi
+  val fd: ReadOnlyFdApi
+  val file: ReadOnlyFileApi
+
+  def all[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[Res[H]]]
+  def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]]
+}
+
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
   override def lookup(): Kvs.type = Kvs
   override def createExtension(system: ExtendedActorSystem): Kvs = new Kvs(system)
 }
-class Kvs(system: ExtendedActorSystem) extends Extension {
+class Kvs(system: ExtendedActorSystem) extends Extension with ReadOnlyKvs {
   { /* start sharding */
     val sharding = ClusterSharding(system)
     val settings = ClusterShardingSettings(system)
@@ -38,13 +77,13 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
     sys.addShutdownHook(jmx.unregisterMBean())
   }
 
-  object el {
+  val el = new ElApi {
     def put[A: ElHandler](k: String,el: A): Res[A] = implicitly[ElHandler[A]].put(k,el)
     def get[A: ElHandler](k: String): Res[Option[A]] = implicitly[ElHandler[A]].get(k)
     def delete[A: ElHandler](k: String): Res[Unit] = implicitly[ElHandler[A]].delete(k)
   }
 
-  object fd {
+  val fd = new FdApi {
     def put(fd: Fd)(implicit fh: FdHandler): Res[Fd] = fh.put(fd)
     def get(fd: Fd)(implicit fh: FdHandler): Res[Option[Fd]] = fh.get(fd)
     def delete(fd: Fd)(implicit fh: FdHandler): Res[Unit] = fh.delete(fd)
@@ -58,7 +97,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.get(fid, id)
   def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.remove(fid, id)
 
-  object file {
+  val file = new FileApi {
     def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)
     def append(dir: String, name: String, chunk: Array[Byte])(implicit h: FileHandler): Res[File] = h.append(dir, name, chunk)
     def stream(dir: String, name: String)(implicit h: FileHandler): Res[LazyList[Res[Array[Byte]]]] = h.stream(dir, name)
