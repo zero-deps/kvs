@@ -11,12 +11,53 @@ import zd.kvs.store._
 import zero.ext._, option._
 import zd.proto.Bytes
 
+trait ReadOnlyElApi {
+  def get(k: Bytes): Res[Option[Bytes]]
+}
+
+trait ElApi extends ReadOnlyElApi {
+  def put(k: Bytes, v: Bytes): Res[Unit]
+  def delete(k: Bytes): Res[Unit]
+}
+
+trait ReadOnlyFdApi {
+  def get(id: Bytes): Res[Option[Fd]]
+  def length(id: Bytes): Res[Long]
+}
+
+trait FdApi extends ReadOnlyFdApi {
+  def put(fd: Fd): Res[Unit]
+  def delete(id: Bytes): Res[Unit]
+}
+
+trait ReadOnlyFileApi {
+  def stream(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[LazyList[Res[Bytes]]]
+  def size(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[Long]
+}
+
+trait FileApi extends ReadOnlyFileApi {
+  def create(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[File]
+  def append(dir: Bytes, name: Bytes, chunk: Bytes)(implicit h: FileHandler): Res[File]
+  def delete(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[File]
+  def copy(dir: Bytes, name: (Bytes, Bytes))(implicit h: FileHandler): Res[File]
+}
+
+trait ReadOnlyKvs {
+  val el: ReadOnlyElApi
+  val fd: ReadOnlyFdApi
+  val file: ReadOnlyFileApi
+
+  def all(fid: Bytes, next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[IdEn]]]
+  def all(fd: Fd, next: Option[Option[Bytes]], removed: Boolean): LazyList[Res[IdEn]]
+  def get(fid: Bytes, id: Bytes): Res[Option[En]]
+}
+
 /** Akka Extension to interact with KVS storage as built into Akka */
 object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
   override def lookup(): Kvs.type = Kvs
   override def createExtension(system: ExtendedActorSystem): Kvs = new Kvs(system)
 }
-class Kvs(system: ExtendedActorSystem) extends Extension {
+class Kvs(system: ExtendedActorSystem) extends Extension with ReadOnlyKvs {
   val cfg = system.settings.config
   val store = cfg.getString("kvs.store")
 
@@ -29,13 +70,13 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
     sys.addShutdownHook(jmx.unregisterMBean())
   }
 
-  object el {
+  val el = new ElApi {
     def put(k: Bytes, v: Bytes): Res[Unit] = ElHandler.put(k, v)
     def get(k: Bytes): Res[Option[Bytes]] = ElHandler.get(k)
     def delete(k: Bytes): Res[Unit] = ElHandler.delete(k)
   }
 
-  object fd {
+  val fd = new FdApi {
     def put(fd: Fd): Res[Unit] = FdHandler.put(fd)
     def get(id: Bytes): Res[Option[Fd]] = FdHandler.get(id)
     def delete(id: Bytes): Res[Unit] = FdHandler.delete(id)
@@ -52,7 +93,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   def cleanup(fid: Bytes): Res[Unit] = EnHandler.cleanup(fid)
   def fix(fid: Bytes): Res[((Long,Long),(Long,Long),(Bytes,Bytes))] = EnHandler.fix(fid)
 
-  object file {
+  val file = new FileApi {
     def create(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[File] = h.create(dir, name)
     def append(dir: Bytes, name: Bytes, chunk: Bytes)(implicit h: FileHandler): Res[File] = h.append(dir, name, chunk)
     def stream(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[LazyList[Res[Bytes]]] = h.stream(dir, name)
