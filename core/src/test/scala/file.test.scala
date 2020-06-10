@@ -37,7 +37,7 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
       kvs.file.create(dir, name).left.value should be (FileAlreadyExists(dir, name))
     }
     "append" in {
-      val r = kvs.file.append(dir, name, Array(1, 2, 3, 4, 5, 6))
+      val r = kvs.file.append(dir, name, Array[Byte](1, 2, 3, 4, 5, 6))
       r.isRight should be (true)
       r.getOrElse(???).size should be (6)
       r.getOrElse(???).count should be (2)
@@ -55,7 +55,7 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
       r.isRight should be (true)
       val r1 = r.getOrElse(???).sequence
       r1.isRight should be (true)
-      r1.getOrElse(???).toArray.flatten should be (Array(1, 2, 3, 4, 5, 6))
+      r1.getOrElse(???).toArray.flatten should be (Array[Byte](1, 2, 3, 4, 5, 6))
     }
     "content if absent" in {
       kvs.file.stream(dir, name + "1").left.value should be (FileNotExists(dir, name + "1"))

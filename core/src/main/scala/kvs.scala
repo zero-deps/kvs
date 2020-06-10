@@ -10,6 +10,7 @@ import scala.util.{Success}
 import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
 import zd.kvs.el.ElHandler
 import zd.kvs.file.{File, FileHandler}
+import zd.proto.Bytes
 
 trait ReadOnlyElApi {
   def get[A: ElHandler](k: String): Res[Option[A]]
@@ -37,6 +38,7 @@ trait ReadOnlyFileApi {
 trait FileApi extends ReadOnlyFileApi {
   def create(dir: String, name: String)(implicit h: FileHandler): Res[File]
   def append(dir: String, name: String, chunk: Array[Byte])(implicit h: FileHandler): Res[File]
+  def append(dir: String, name: String, chunk: Bytes)(implicit h: FileHandler): Res[File]
   def delete(dir: String, name: String)(implicit h: FileHandler): Res[File]
   def copy(dir: String, name: (String, String))(implicit h: FileHandler): Res[File]
 }
@@ -100,6 +102,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension with ReadOnlyKvs {
   val file = new FileApi {
     def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)
     def append(dir: String, name: String, chunk: Array[Byte])(implicit h: FileHandler): Res[File] = h.append(dir, name, chunk)
+    def append(dir: String, name: String, chunk: Bytes)(implicit h: FileHandler): Res[File] = h.append(dir, name, chunk)
     def stream(dir: String, name: String)(implicit h: FileHandler): Res[LazyList[Res[Array[Byte]]]] = h.stream(dir, name)
     def size(dir: String, name: String)(implicit h: FileHandler): Res[Long] = h.size(dir, name)
     def delete(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.delete(dir, name)

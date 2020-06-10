@@ -4,6 +4,7 @@ package file
 import zd.kvs.store.Dba
 import scala.annotation.tailrec
 import scala.util.{Try, Success, Failure}
+import zd.proto.Bytes
 import zd.proto.api.{MessageCodec, encode, decode}
 import zd.proto.macrosapi.caseCodecAuto
 import zero.ext._, either._, boolean._, option._, traverse._
@@ -40,7 +41,13 @@ trait FileHandler {
     }
   }
 
+  def append(dir: String, name: String, data: Bytes)(implicit dba: Dba): Res[File] = {
+    append(dir, name, data.unsafeArray, data.length)
+  }
   def append(dir: String, name: String, data: Array[Byte])(implicit dba: Dba): Res[File] = {
+    append(dir, name, data, data.length)
+  }
+  def append(dir: String, name: String, data: Array[Byte], length: Int)(implicit dba: Dba): Res[File] = {
     @tailrec
     def writeChunks(count: Int, rem: Array[Byte]): Res[Int] = {
       rem.splitAt(chunkLength) match {
@@ -53,10 +60,10 @@ trait FileHandler {
       }
     }
     for {
-      _ <- (data.length == 0).fold(InvalidArgument("data is empty").left, ().right)
+      _ <- (length == 0).fold(InvalidArgument("data is empty").left, ().right)
       file <- get(dir, name)
       count <- writeChunks(file.count, rem=data)
-      file1 = file.copy(count=count, size=file.size+data.length)
+      file1 = file.copy(count=count, size=file.size+length)
       file2 <- pickle(file1)
       _ <- dba.put(s"${dir}/${name}", file2)
     } yield file1
