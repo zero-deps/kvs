@@ -50,6 +50,7 @@ trait ReadOnlyKvs {
 
   def all[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[Res[H]]]
   def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]]
+  def head[H <: En](fid: String)(implicit h: EnHandler[H]): Res[Option[H]]
 }
 
 /** Akka Extension to interact with KVS storage as built into Akka */
@@ -97,6 +98,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension with ReadOnlyKvs {
   def put[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.put(el)
   def all[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[Res[H]]] = h.all(fid, from)
   def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.get(fid, id)
+  def head[H <: En](fid: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.head(fid)
   def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.remove(fid, id)
 
   val file = new FileApi {

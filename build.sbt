@@ -1,6 +1,6 @@
-val scalaVersion_ = "2.13.2"
+val scalaVersion_ = "2.13.3"
 val akkaVersion = "2.5.31"
-val extVersion = "2.1.1"
+val extVersion = "2.2.0-5-g1b0be7f"
 val leveldbVersion = "1.0.4"
 val protoVersion = "1.7.1-2-gf29fcc7"
 val logbackVersion = "1.2.3"
@@ -14,7 +14,6 @@ ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / resolvers += Resolver.jcenterRepo
 ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
 ThisBuild / cancelable in Global := true
-ThisBuild / javacOptions ++= Seq("-source", "13", "-target", "13")
 ThisBuild / scalacOptions ++= Seq(
     "-deprecation"
   , "-explaintypes"
@@ -29,7 +28,6 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Xlint:inaccessible"
   , "-Xlint:infer-any"
   , "-Xlint:missing-interpolator"
-  , "-Xlint:nullary-override"
   , "-Xlint:nullary-unit"
   , "-Xlint:option-implicit"
   , "-Xlint:package-object-classes"
@@ -44,9 +42,12 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Ywarn-unused:implicits"
   , "-Ywarn-unused:imports"
   , "-Ywarn-unused:params"
-  , "-target:jvm-12"
   , "-encoding", "UTF-8"
+  , "-Xmaxerrs", "1"
+  , "-Xmaxwarns", "3"
+  , "-Wconf:cat=deprecation&msg=Auto-application:silent"
 )
+ThisBuild / Test / scalacOptions += "-deprecation"
 
 ThisBuild / isSnapshot := true // override local artifacts
 

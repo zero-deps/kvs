@@ -44,6 +44,14 @@ trait EnHandler[A <: En] {
   protected def update(en: A, id: String, prev: String): A
   protected def update(en: A, prev: String): A
 
+  def head(fid: String)(implicit dba: Dba): Res[Option[A]] = {
+    fh.get(Fd(fid)).flatMap{
+      case None => none.right
+      case Some(Fd(_, `empty`, _)) => none.right
+      case Some(Fd(_, top, _)) => get(fid, top)
+    }
+  }
+
   /**
    * Adds the entry to the container
    * Creates the container if it's absent
