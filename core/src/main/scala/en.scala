@@ -87,6 +87,29 @@ trait EnHandler[A <: En] {
       r => r.cata(x => _put(update(en, x.prev)), add(en))
     )
 
+  def removeAfter(en: A)(implicit dba: Dba): Res[Option[Res[Unit]]] = {
+    @annotation.tailrec def loop(fd: Fd, en: A, previd: String): Res[Unit] = {
+      get(fd.id, previd) match {
+        case l@Left(_) => l.coerceRight
+        case Right(None) => ().right
+        case Right(Some(prev)) =>
+          val fd1 = fd.copy(count=fd.count-1)
+          (for {
+            // change link
+            _ <- _put(update(en, prev.prev))
+            // decrement count
+            _ <- fh.put(fd1)
+            // delete prev
+            _ <- delete(fd.id, prev.id)
+          } yield ()) match {
+            case l@Left(_) => l.coerceRight
+            case Right(_) => loop(fd1, en, prev.prev)
+          }
+      }
+    }
+    fh.get(Fd(en.fid)).map(_.map(fd => loop(fd, en, en.prev)))
+  }
+
   /**
    * Remove the entry from the container specified
    * @return deleted entry (with data)

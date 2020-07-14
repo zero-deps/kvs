@@ -42,7 +42,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
 
   val mod = 50
   val fid = "fid" + java.util.UUID.randomUUID.toString
-  def entry(n: Int): En = En(fid, data=s"value=${n}")
+  def entry(n: Int): En = En(fid, id=n.toString, data=s"value=${n}")
 
   val e1 = entry(1)
   val e2 = entry(2)
@@ -81,7 +81,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 2
 
       val stream = kvs.all[En](fid)
-      stream.map(_.toList) shouldBe List(e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
+      stream.map(_.toList) shouldBe List(e2.copy(prev="1").right, e1.right).right
     }
 
     "should save entry(3)" in {
@@ -90,14 +90,14 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
     }
 
     "should not save entry(2) again" in {
-      kvs.add(e2.copy(id="2")).left.getOrElse(???) shouldBe EntryExists(s"${fid}.2")
+      kvs.add(e2).left.getOrElse(???) shouldBe EntryExists(s"${fid}.2")
     }
 
     "should get 3 values from feed" in {
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 3
 
       val stream = kvs.all[En](fid)
-      stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="2").right, e2.copy(id="2",prev="1").right, e1.copy(id="1").right).right
+      stream.map(_.toList) shouldBe List(e3.copy(prev="2").right, e2.copy(prev="1").right, e1.right).right
     }
 
     "should not remove unexisting entry from feed" in {
@@ -114,7 +114,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 2
 
       val stream = kvs.all[En](fid)
-      stream.map(_.toList) shouldBe List(e3.copy(id="3",prev="1").right, e1.copy(id="1").right).right
+      stream.map(_.toList) shouldBe List(e3.copy(prev="1").right, e1.right).right
     }
 
     "should remove entry(1) from feed" in {
@@ -127,7 +127,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 1
 
       val stream = kvs.all[En](fid)
-      stream.map(_.toList) shouldBe List(e3.copy(id="3").right).right
+      stream.map(_.toList) shouldBe List(e3.right).right
     }
 
     "should remove entry(3) from feed" in {
@@ -141,22 +141,26 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.all[En](fid).getOrElse(???) shouldBe empty
     }
 
+    "should remove after first entry" in {
+      kvs.add(e1); kvs.add(e2); kvs.add(e3)
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 3
+      kvs.removeAfter(kvs.head(fid).getOrElse(???).getOrElse(???))
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 1
+      kvs.remove(fid, "3")
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 0
+    }
+
     "should not create stack overflow" in {
       val limit = 100
-
       LazyList.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
         val toadd = entry(n)
         val added = kvs.add(toadd).getOrElse(???)
-        (added.fid, added.id, added.data) shouldBe (toadd.fid, (n+3).toString, toadd.data)
+        (added.fid, added.id, added.data) shouldBe (toadd.fid, n.toString, toadd.data)
       }
-
       LazyList.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
-
-        val toremove = entry(n).copy(id=(n+3).toString)
+        val toremove = entry(n)
         val removed = kvs.remove(toremove.fid, toremove.id).getOrElse(???)
-
-        (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, (n+3).toString, toremove.data)
-
+        (removed.fid, removed.id, removed.data) shouldBe (toremove.fid, n.toString, toremove.data)
         kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe (limit - n)
       }
     }

@@ -100,6 +100,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension with ReadOnlyKvs {
   def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.get(fid, id)
   def head[H <: En](fid: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.head(fid)
   def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.remove(fid, id)
+  def removeAfter[H <: En](en: H)(implicit h: EnHandler[H]): Res[Option[Res[Unit]]] = h.removeAfter(en)
 
   val file = new FileApi {
     def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)
