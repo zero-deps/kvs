@@ -1,12 +1,9 @@
 package zd.kvs
 
-import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
+import akka.actor._
 import akka.cluster.sharding._
 import zd.kvs.store._
-import zd.kvs.store.IdCounter
 import scala.concurrent._
-import scala.concurrent.duration._
-import scala.util.{Success}
 import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
 import zd.kvs.el.ElHandler
 import zd.kvs.file.{File, FileHandler}
@@ -53,33 +50,30 @@ trait ReadOnlyKvs {
   def head[H <: En](fid: String)(implicit h: EnHandler[H]): Res[Option[H]]
 }
 
-/** Akka Extension to interact with KVS storage as built into Akka */
-object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
-  override def lookup(): Kvs.type = Kvs
-  override def createExtension(system: ExtendedActorSystem): Kvs = new Kvs(system)
-}
-class Kvs(system: ExtendedActorSystem) extends Extension with ReadOnlyKvs {
-  { /* start sharding */
+object Kvs {
+  def apply(system: ActorSystem): Kvs = rng(system)
+  def rng(system: ActorSystem): Kvs = {
+    val kvs = new Kvs()(new store.Rng(system))
     val sharding = ClusterSharding(system)
     val settings = ClusterShardingSettings(system)
-    sharding.start(typeName=IdCounter.shardName,entityProps=IdCounter.props,settings=settings,
+    sharding.start(typeName=IdCounter.shardName, entityProps=IdCounter.props(kvs.el), settings=settings,
       extractEntityId = { case msg:String => (msg,msg) },
       extractShardId = { case msg:String => (math.abs(msg.hashCode) % 100).toString }
     )
+    if (system.settings.config.getBoolean("akka.cluster.jmx.enabled")) {
+      val jmx = new KvsJmx(kvs)
+      jmx.createMBean()
+      sys.addShutdownHook(jmx.unregisterMBean())
+    }
+    kvs
   }
+  def mem(): Kvs = new Kvs()(new store.Mem())
+  def fs(): Kvs = ???
+  def sql(): Kvs = ???
+  def leveldb(): Kvs = ???
+}
 
-  val cfg = system.settings.config
-  val store = cfg.getString("kvs.store")
-
-  implicit val dba = system.dynamicAccess.createInstanceFor[Dba](store,
-    List(classOf[ActorSystem]->system)).get
-
-  if (cfg.getBoolean("akka.cluster.jmx.enabled")) {
-    val jmx = new KvsJmx(this,system)
-    jmx.createMBean()
-    sys.addShutdownHook(jmx.unregisterMBean())
-  }
-
+class Kvs(implicit dba: Dba) extends ReadOnlyKvs {
   val el = new ElApi {
     def put[A: ElHandler](k: String,el: A): Res[A] = implicitly[ElHandler[A]].put(k,el)
     def get[A: ElHandler](k: String): Res[Option[A]] = implicitly[ElHandler[A]].get(k)
@@ -121,27 +115,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension with ReadOnlyKvs {
     }
   }
 
-  def onReady: Future[Unit] = {
-    import system.dispatcher
-    import system.log
-    val p = Promise[Unit]()
-    def loop(): Unit = {
-      val _ = system.scheduler.scheduleOnce(1 second){
-        dba.isReady onComplete {
-          case Success(true) =>
-            log.info("KVS is ready")
-            p.success(())
-          case _ =>
-            log.info("KVS isn't ready yet...")
-            loop()
-        }
-      }
-    }
-    loop()
-    p.future
-  }
+  def onReady(): Future[Unit] = dba.onReady()
 
-  def compact(): Unit = {
-    dba.compact()
-  }
+  def compact(): Unit = dba.compact()
 }

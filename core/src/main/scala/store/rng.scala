@@ -10,13 +10,13 @@ import leveldbjnr.LevelDb
 import zd.kvs.el.ElHandler
 import zd.rng
 import zd.rng.store.{ReadonlyStore, WriteStore}
-import zd.rng.{stob}
+import zd.rng.stob
+import scala.concurrent._
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
 import scala.util.{Try, Success, Failure}
 import zero.ext._, either._, option._
 
-class Ring(system: ActorSystem) extends Dba {
+class Rng(system: ActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")
 
   val cfg = system.settings.config.getConfig("ring")
@@ -42,10 +42,30 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  def isReady: Future[Boolean] = {
+  private def isReady(): Future[Boolean] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     hash.ask(rng.Ready)(t).mapTo[Boolean]
+  }
+
+  def onReady(): Future[Unit] = {
+    val p = Promise[Unit]()
+    def loop(): Unit = {
+      import system.dispatcher
+      system.scheduler.scheduleOnce(1 second){
+        isReady() onComplete {
+          case Success(true) =>
+            log.info("KVS is ready")
+            p.success(())
+          case _ =>
+            log.info("KVS isn't ready yet...")
+            loop()
+        }
+      }
+      ()
+    }
+    loop()
+    p.future
   }
 
   def get(key: String): Res[Option[V]] = {
@@ -129,12 +149,10 @@ class Ring(system: ActorSystem) extends Dba {
 }
 
 object IdCounter {
-  def props: Props = Props(new IdCounter)
+  def props(kvs: ElApi): Props = Props(new IdCounter(kvs))
   val shardName = "nextid"
 }
-class IdCounter extends Actor with ActorLogging {
-  val kvs = zd.kvs.Kvs(context.system)
-
+class IdCounter(kvs: ElApi) extends Actor with ActorLogging {
   implicit val strHandler: ElHandler[String] = new ElHandler[String] {
     def pickle(e: String): Res[Array[Byte]] = e.getBytes("UTF-8").right
     def unpickle(a: Array[Byte]): Res[String] = new String(a,"UTF-8").right
@@ -142,14 +160,14 @@ class IdCounter extends Actor with ActorLogging {
 
   def receive: Receive = {
     case name: String =>
-      kvs.el.get[String](s"IdCounter.${name}").fold(
+      kvs.get[String](s"IdCounter.${name}").fold(
         l => log.error("can't get counter for name={} err={}", name, l)
       , r => r.cata(prev => put(name, prev), put(name, prev="0"))
       )
   }
 
   def put(name:String, prev: String): Unit = {
-    kvs.el.put[String](s"IdCounter.$name", (prev.toLong+1).toString).fold(
+    kvs.put[String](s"IdCounter.$name", (prev.toLong+1).toString).fold(
       l => log.error(s"Failed to increment `$name` id=$l"),
       r => sender ! r
     )

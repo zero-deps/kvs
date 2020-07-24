@@ -55,10 +55,9 @@ ThisBuild / turbo := true
 ThisBuild / useCoursier := true
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val root = project.in(file(".")).aggregate(core, search, demo)
+lazy val kvs = project.in(file(".")).aggregate(core, search, demo)
   .settings(
-    name := s"kvs-${name.value}"
-  , skip in publish := true
+    skip in publish := true
   )
 
 lazy val core = project.in(file("core"))
