@@ -1,8 +1,8 @@
-val scalaVersion_ = "2.13.2"
+val scalaVersion_ = "2.13.3"
 val akkaVersion = "2.5.31"
-val extVersion = "2.1.1"
+val extVersion = "2.2.0.7.g8f0877e"
 val leveldbVersion = "1.0.4"
-val protoVersion = "1.7.1"
+val protoVersion = "1.8"
 val logbackVersion = "1.2.3"
 val scalatestVersion = "3.1.1"
 
@@ -26,7 +26,6 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Xlint:inaccessible"
   , "-Xlint:infer-any"
   , "-Xlint:missing-interpolator"
-  , "-Xlint:nullary-override"
   , "-Xlint:nullary-unit"
   , "-Xlint:option-implicit"
   , "-Xlint:package-object-classes"
@@ -42,6 +41,7 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Ywarn-unused:imports"
   , "-Ywarn-unused:params"
   , "-encoding", "UTF-8"
+  , "-Wconf:cat=deprecation&msg=Auto-application:silent"
 )
 
 ThisBuild / resolvers += Resolver.jcenterRepo
