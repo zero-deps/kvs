@@ -1,9 +1,7 @@
 package zd.kvs
 
-import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
+import akka._, actor._
 import scala.concurrent._
-import scala.concurrent.duration._
-import scala.util.{Success}
 import zd.kvs.el.ElHandler
 import zd.kvs.en.{En, IdEn, EnHandler, Fd, FdHandler}
 import zd.kvs.file.{File, FileHandler}
@@ -52,24 +50,24 @@ trait ReadOnlyKvs {
   def get(fid: Bytes, id: Bytes): Res[Option[En]]
 }
 
-/** Akka Extension to interact with KVS storage as built into Akka */
-object Kvs extends ExtensionId[Kvs] with ExtensionIdProvider {
-  override def lookup(): Kvs.type = Kvs
-  override def createExtension(system: ExtendedActorSystem): Kvs = new Kvs(system)
-}
-class Kvs(system: ExtendedActorSystem) extends Extension with ReadOnlyKvs {
-  val cfg = system.settings.config
-  val store = cfg.getString("kvs.store")
-
-  implicit val dba: Dba = system.dynamicAccess.createInstanceFor[Dba](store,
-    List(classOf[ActorSystem]->system)).get
-
-  if (cfg.getBoolean("akka.cluster.jmx.enabled")) {
-    val jmx = new KvsJmx(this,system)
-    jmx.createMBean()
-    sys.addShutdownHook(jmx.unregisterMBean())
+object Kvs {
+  def apply(system: ActorSystem): Kvs = rng(system)
+  def rng(system: ActorSystem): Kvs = {
+    val kvs = new Kvs()(new store.Rng(system))
+    if (system.settings.config.getBoolean("akka.cluster.jmx.enabled")) {
+      val jmx = new KvsJmx(kvs)
+      jmx.createMBean()
+      sys.addShutdownHook(jmx.unregisterMBean())
+    }
+    kvs
   }
+  def mem(): Kvs = new Kvs()(new store.Mem())
+  def fs(): Kvs = ???
+  def sql(): Kvs = ???
+  def leveldb(): Kvs = ???
+}
 
+class Kvs(implicit val dba: Dba) extends ReadOnlyKvs {
   val el = new ElApi {
     def put(k: Bytes, v: Bytes): Res[Unit] = ElHandler.put(k, v)
     def get(k: Bytes): Res[Option[Bytes]] = ElHandler.get(k)
@@ -89,6 +87,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension with ReadOnlyKvs {
   def all(fid: Bytes, next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[IdEn]]] = EnHandler.all(fid, next, removed)
   def all(fd: Fd, next: Option[Option[Bytes]], removed: Boolean): LazyList[Res[IdEn]] = EnHandler.all(fd, next, removed)
   def get(fid: Bytes, id: Bytes): Res[Option[En]] = EnHandler.get(fid, id)
+  def head(fid: Bytes): Res[Option[En]] = EnHandler.head(fid)
   def remove(fid: Bytes, id: Bytes): Res[Option[En]] = EnHandler.remove_soft(fid, id)
   def cleanup(fid: Bytes): Res[Unit] = EnHandler.cleanup(fid)
   def fix(fid: Bytes): Res[((Long,Long),(Long,Long),(Bytes,Bytes))] = EnHandler.fix(fid)
@@ -107,27 +106,7 @@ class Kvs(system: ExtendedActorSystem) extends Extension with ReadOnlyKvs {
     def load(path: String): Res[Any] = dba.load(path)
   }
 
-  def onReady: Future[Unit] = {
-    import system.dispatcher
-    import system.log
-    val p = Promise[Unit]()
-    def loop(): Unit = {
-      val _ = system.scheduler.scheduleOnce(1 second){
-        dba.isReady.onComplete{
-          case Success(true) =>
-            log.info("KVS is ready")
-            p.success(())
-          case _ =>
-            log.info("KVS isn't ready yet...")
-            loop()
-        }
-      }
-    }
-    loop()
-    p.future
-  }
+  def onReady(): Future[Unit] = dba.onReady()
 
-  def compact(): Unit = {
-    dba.compact()
-  }
+  def compact(): Unit = dba.compact()
 }

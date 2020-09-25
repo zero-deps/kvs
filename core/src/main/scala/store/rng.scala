@@ -9,13 +9,13 @@ import akka.util.{Timeout}
 import leveldbjnr.LevelDb
 import zd.kvs.rng
 import zd.kvs.rng.store.{ReadonlyStore, WriteStore}
-import scala.concurrent.duration._
+import scala.concurrent._, duration._
 import scala.concurrent.{Await, Future}
 import scala.util.{Try, Success, Failure}
 import zero.ext._, either._
 import zd.proto.Bytes
 
-class Ring(system: ActorSystem) extends Dba {
+class Rng(system: ActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")
 
   val cfg = system.settings.config.getConfig("ring")
@@ -41,10 +41,30 @@ class Ring(system: ActorSystem) extends Dba {
     }
   }
 
-  override def isReady: Future[Boolean] = {
+  private def isReady(): Future[Boolean] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     hash.ask(rng.Ready)(t).mapTo[Boolean]
+  }
+
+  def onReady(): Future[Unit] = {
+    val p = Promise[Unit]()
+    def loop(): Unit = {
+      import system.dispatcher
+      system.scheduler.scheduleOnce(1 second){
+        isReady() onComplete {
+          case Success(true) =>
+            log.info("KVS is ready")
+            p.success(())
+          case _ =>
+            log.info("KVS isn't ready yet...")
+            loop()
+        }
+      }
+      ()
+    }
+    loop()
+    p.future
   }
 
   override def get(key: Bytes): Res[Option[Bytes]] = {

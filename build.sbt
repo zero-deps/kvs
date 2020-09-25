@@ -41,8 +41,11 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Ywarn-unused:imports"
   , "-Ywarn-unused:params"
   , "-encoding", "UTF-8"
+  , "-Xmaxerrs", "1"
+  , "-Xmaxwarns", "3"
   , "-Wconf:cat=deprecation&msg=Auto-application:silent"
 )
+ThisBuild / Test / scalacOptions += "-deprecation"
 
 ThisBuild / resolvers += Resolver.jcenterRepo
 ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
@@ -53,15 +56,13 @@ ThisBuild / turbo := true
 ThisBuild / useCoursier := true
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val root = project.in(file(".")).aggregate(core, search, demo)
+lazy val kvs = project.in(file(".")).aggregate(core, search, demo)
   .settings(
-    name := s"kvs-${name.value}"
-  , skip in publish := true
+    skip in publish := true
   )
 
 lazy val core = project.in(file("core"))
   .settings(
-    scalacOptions in Test := Nil,
     libraryDependencies ++= Seq(
       "ch.qos.logback" % "logback-classic" % logbackVersion,
       "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion,

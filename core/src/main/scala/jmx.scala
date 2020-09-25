@@ -1,6 +1,5 @@
 package zd.kvs
 
-import akka.actor.ActorSystem
 import java.lang.management.ManagementFactory
 import javax.management.{ObjectName,StandardMBean}
 import scala.util._
@@ -12,10 +11,9 @@ trait KvsMBean {
   def compact(): String
 }
 
-class KvsJmx(kvs: Kvs, system: ActorSystem) {
+class KvsJmx(kvs: Kvs) {
   private val server = ManagementFactory.getPlatformMBeanServer
   private val name = new ObjectName("zd:type=Kvs")
-  import system.log
 
   def createMBean(): Unit = {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
@@ -29,7 +27,7 @@ class KvsJmx(kvs: Kvs, system: ActorSystem) {
       }
     }
     Try(server.registerMBean(mbean,name))
-    log.info("Registered KVS JMX MBean [{}]",name)
+    ()
   }
 
   def unregisterMBean(): Unit = {

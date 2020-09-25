@@ -6,6 +6,7 @@ import akka.testkit._
 import com.typesafe.config.ConfigFactory
 import org.scalatest._
 import org.scalatest.freespec.AnyFreeSpecLike
+import org.scalatest.matchers.should.Matchers
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
@@ -18,11 +19,12 @@ class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(con
   def data(n: Int): Bytes = Bytes.unsafeWrap(s"val=${n}".getBytes)
 
   var kvs: Kvs = null
-  override def beforeAll = {
+  override def beforeAll(): Unit = {
     kvs = Kvs(system)
     Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
+    ()
   }
-  override def afterAll = TestKit.shutdownActorSystem(system)
+  override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
   
   def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
 

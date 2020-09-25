@@ -76,6 +76,14 @@ object EnHandler {
     } yield IdEn(id=id, en=en)
   }
 
+  def head(fid: Bytes)(implicit dba: Dba): Res[Option[En]] = {
+    fh.get(fid).flatMap{
+      case None => none.right
+      case Some(fd) if fd.head.isEmpty => none.right
+      case Some(Fd(_, Some(top), _, _, _)) => get(fid, top)
+    }
+  }
+
   /**
    * Adds the entry to the container. Creates the container if it's absent.
    */
