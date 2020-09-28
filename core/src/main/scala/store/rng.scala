@@ -13,7 +13,7 @@ import scala.concurrent._, duration._
 import scala.concurrent.{Await, Future}
 import scala.util.{Try, Success, Failure}
 import zero.ext._, either._
-import zd.proto.Bytes
+import zd.proto._, api._, macrosapi._
 
 class Rng(system: ActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")
@@ -29,7 +29,15 @@ class Rng(system: ActorSystem) extends Dba {
 
   val hash = system.actorOf(rng.Hash.props().withDeploy(Deploy.local), name="ring_hash")
 
-  override def put(key: Bytes, value: Bytes): Res[Unit] = {
+  implicit val elkeyc = caseCodecAuto[ElKey]
+  implicit val fdkeyc = caseCodecAuto[FdKey]
+  implicit val enkeyc = caseCodecAuto[EnKey]
+  implicit val pathc = caseCodecAuto[PathKey]
+  implicit val chunkc = caseCodecAuto[ChunkKey]
+  implicit val keyc = sealedTraitCodecAuto[Key]
+
+  override def put(key1: Key, value: Bytes): Res[Unit] = {
+    val key = encodeToBytes[Key](key1)
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     val putF = hash.ask(rng.Put(key, value))(t).mapTo[Ack]
@@ -41,33 +49,8 @@ class Rng(system: ActorSystem) extends Dba {
     }
   }
 
-  private def isReady(): Future[Boolean] = {
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
-    val t = Timeout(d)
-    hash.ask(rng.Ready)(t).mapTo[Boolean]
-  }
-
-  def onReady(): Future[Unit] = {
-    val p = Promise[Unit]()
-    def loop(): Unit = {
-      import system.dispatcher
-      system.scheduler.scheduleOnce(1 second){
-        isReady() onComplete {
-          case Success(true) =>
-            log.info("KVS is ready")
-            p.success(())
-          case _ =>
-            log.info("KVS isn't ready yet...")
-            loop()
-        }
-      }
-      ()
-    }
-    loop()
-    p.future
-  }
-
-  override def get(key: Bytes): Res[Option[Bytes]] = {
+  override def get(key1: Key): Res[Option[Bytes]] = {
+    val key = encodeToBytes[Key](key1)
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Get(key))(t).mapTo[Ack]
@@ -79,7 +62,8 @@ class Rng(system: ActorSystem) extends Dba {
     }
   }
 
-  override def delete(key: Bytes): Res[Unit] = {
+  override def delete(key1: Key): Res[Unit] = {
+    val key = encodeToBytes[Key](key1)
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Delete(key))(t).mapTo[Ack]
@@ -116,5 +100,31 @@ class Rng(system: ActorSystem) extends Dba {
 
   override def compact(): Unit = {
     leveldb.compact()
+  }
+
+  private def isReady(): Future[Boolean] = {
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val t = Timeout(d)
+    hash.ask(rng.Ready)(t).mapTo[Boolean]
+  }
+
+  def onReady(): Future[Unit] = {
+    val p = Promise[Unit]()
+    def loop(): Unit = {
+      import system.dispatcher
+      system.scheduler.scheduleOnce(1 second){
+        isReady() onComplete {
+          case Success(true) =>
+            log.info("KVS is ready")
+            p.success(())
+          case _ =>
+            log.info("KVS isn't ready yet...")
+            loop()
+        }
+      }
+      ()
+    }
+    loop()
+    p.future
   }
 }

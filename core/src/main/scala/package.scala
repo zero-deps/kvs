@@ -1,6 +1,6 @@
 package zd
 
-import zd.proto.api.{MessageCodec, encode, decode}
+import zd.proto.api._
 import zd.proto.Bytes
 import java.util.Arrays
 
@@ -50,18 +50,18 @@ package object kvs {
   }
 
   object BytesExt {
-    val Empty: Bytes = Bytes.unsafeWrap(Array())
+    val Empty: Bytes = Bytes.empty
     val MinValue: Bytes = Bytes.unsafeWrap(Array(Byte.MinValue))
     def max(x: Bytes, y: Bytes): Bytes = {
       if (Arrays.compare(x.unsafeArray, y.unsafeArray) > 0) x else y
     }
   }
 
-  implicit class FdIdExt(fd: en.FdId) {
-    def +:(data: Bytes)(implicit kvs: Kvs): Res[en.IdEn] = en.EnHandler.prepend(fd.id, data)(kvs.dba)
-    def +:(id_data: (Bytes, Bytes))(implicit kvs: Kvs): Res[en.En] = en.EnHandler.prepend(fd.id, id_data._1, id_data._2)(kvs.dba)
+  implicit class FdIdExt(fid: FdKey) {
+    def +:(data: Bytes)(implicit kvs: Kvs): Res[en.`Key,En`] = en.EnHandler.prepend(fid, data)(kvs.dba)
+    def +:(`key,data`: (Bytes, Bytes))(implicit kvs: Kvs): Res[en.En] = en.EnHandler.prepend(EnKey(fid, `key,data`._1), `key,data`._2)(kvs.dba)
   }
 
-  def pickle[A](e: A)(implicit c: MessageCodec[A]): Bytes = Bytes.unsafeWrap(encode[A](e))
-  def unpickle[A](a: Bytes)(implicit c: MessageCodec[A]): A = decode[A](a.unsafeArray)
+  def pickle[A](e: A)(implicit c: MessageCodec[A]): Bytes = encodeToBytes[A](e)
+  def unpickle[A](a: Bytes)(implicit c: MessageCodec[A]): A = decode[A](a)
 }

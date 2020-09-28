@@ -3,41 +3,41 @@ package zd.kvs
 import akka._, actor._
 import scala.concurrent._
 import zd.kvs.el.ElHandler
-import zd.kvs.en.{En, IdEn, EnHandler, Fd, FdHandler}
+import zd.kvs.en.{En, `Key,En`, EnHandler, Fd, FdHandler}
 import zd.kvs.file.{File, FileHandler}
 import zd.kvs.store._
 import zero.ext._, option._
 import zd.proto.Bytes
 
 trait ReadOnlyElApi {
-  def get(k: Bytes): Res[Option[Bytes]]
+  def get(k: ElKey): Res[Option[Bytes]]
 }
 
 trait ElApi extends ReadOnlyElApi {
-  def put(k: Bytes, v: Bytes): Res[Unit]
-  def delete(k: Bytes): Res[Unit]
+  def put(k: ElKey, v: Bytes): Res[Unit]
+  def delete(k: ElKey): Res[Unit]
 }
 
 trait ReadOnlyFdApi {
-  def get(id: Bytes): Res[Option[Fd]]
-  def length(id: Bytes): Res[Long]
+  def get(id: FdKey): Res[Option[Fd]]
+  def length(id: FdKey): Res[Long]
 }
 
 trait FdApi extends ReadOnlyFdApi {
-  def put(fd: Fd): Res[Unit]
-  def delete(id: Bytes): Res[Unit]
+  def put(id: FdKey, fd: Fd): Res[Unit]
+  def delete(id: FdKey): Res[Unit]
 }
 
 trait ReadOnlyFileApi {
-  def stream(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[LazyList[Res[Bytes]]]
-  def size(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[Long]
+  def stream(path: PathKey)(implicit h: FileHandler): Res[LazyList[Res[Bytes]]]
+  def size(path: PathKey)(implicit h: FileHandler): Res[Long]
 }
 
 trait FileApi extends ReadOnlyFileApi {
-  def create(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[File]
-  def append(dir: Bytes, name: Bytes, chunk: Bytes)(implicit h: FileHandler): Res[File]
-  def delete(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[File]
-  def copy(dir: Bytes, name: (Bytes, Bytes))(implicit h: FileHandler): Res[File]
+  def create(path: PathKey)(implicit h: FileHandler): Res[File]
+  def append(path: PathKey, chunk: Bytes)(implicit h: FileHandler): Res[File]
+  def delete(path: PathKey)(implicit h: FileHandler): Res[File]
+  def copy(from: PathKey, to: PathKey)(implicit h: FileHandler): Res[File]
 }
 
 trait ReadOnlyKvs {
@@ -45,9 +45,9 @@ trait ReadOnlyKvs {
   val fd: ReadOnlyFdApi
   val file: ReadOnlyFileApi
 
-  def all(fid: Bytes, next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[IdEn]]]
-  def all(fd: Fd, next: Option[Option[Bytes]], removed: Boolean): LazyList[Res[IdEn]]
-  def get(fid: Bytes, id: Bytes): Res[Option[En]]
+  def all(fid: FdKey, next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[`Key,En`]]]
+  def get(key: EnKey): Res[Option[En]]
+  def apply(key: EnKey): Res[En]
 }
 
 object Kvs {
@@ -69,36 +69,36 @@ object Kvs {
 
 class Kvs(implicit val dba: Dba) extends ReadOnlyKvs {
   val el = new ElApi {
-    def put(k: Bytes, v: Bytes): Res[Unit] = ElHandler.put(k, v)
-    def get(k: Bytes): Res[Option[Bytes]] = ElHandler.get(k)
-    def delete(k: Bytes): Res[Unit] = ElHandler.delete(k)
+    def put(k: ElKey, v: Bytes): Res[Unit] = ElHandler.put(k, v)
+    def get(k: ElKey): Res[Option[Bytes]] = ElHandler.get(k)
+    def delete(k: ElKey): Res[Unit] = ElHandler.delete(k)
   }
 
   val fd = new FdApi {
-    def put(fd: Fd): Res[Unit] = FdHandler.put(fd)
-    def get(id: Bytes): Res[Option[Fd]] = FdHandler.get(id)
-    def delete(id: Bytes): Res[Unit] = FdHandler.delete(id)
-    def length(id: Bytes): Res[Long] = FdHandler.length(id)
+    def put(fid: FdKey, fd: Fd): Res[Unit] = FdHandler.put(fid, fd)
+    def get(id: FdKey): Res[Option[Fd]] = FdHandler.get(id)
+    def delete(id: FdKey): Res[Unit] = FdHandler.delete(id)
+    def length(id: FdKey): Res[Long] = FdHandler.length(id)
   }
 
-  def add(fid: Bytes, data: Bytes): Res[IdEn] = EnHandler.prepend(fid, data)
-  def add(fid: Bytes, id: Bytes, data: Bytes): Res[En] = EnHandler.prepend(fid, id, data)
-  def put(fid: Bytes, id: Bytes, data: Bytes): Res[En] = EnHandler.put(fid, id, data)
-  def all(fid: Bytes, next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[IdEn]]] = EnHandler.all(fid, next, removed)
-  def all(fd: Fd, next: Option[Option[Bytes]], removed: Boolean): LazyList[Res[IdEn]] = EnHandler.all(fd, next, removed)
-  def get(fid: Bytes, id: Bytes): Res[Option[En]] = EnHandler.get(fid, id)
-  def head(fid: Bytes): Res[Option[En]] = EnHandler.head(fid)
-  def remove(fid: Bytes, id: Bytes): Res[Option[En]] = EnHandler.remove_soft(fid, id)
-  def cleanup(fid: Bytes): Res[Unit] = EnHandler.cleanup(fid)
-  def fix(fid: Bytes): Res[((Long,Long),(Long,Long),(Bytes,Bytes))] = EnHandler.fix(fid)
+  def add(fid: FdKey, data: Bytes): Res[`Key,En`] = EnHandler.prepend(fid, data)
+  def add(key: EnKey, data: Bytes): Res[En] = EnHandler.prepend(key, data)
+  def put(key: EnKey, data: Bytes): Res[En] = EnHandler.put(key, data)
+  def all(fid: FdKey, next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[`Key,En`]]] = EnHandler.all(fid, next, removed)
+  def get(key: EnKey): Res[Option[En]] = EnHandler.get(key)
+  def apply(key: EnKey): Res[En] = EnHandler.apply(key)
+  def head(fid: FdKey): Res[Option[`Key,En`]] = EnHandler.head(fid)
+  def remove(key: EnKey): Res[Option[En]] = EnHandler.remove_soft(key)
+  def cleanup(fid: FdKey): Res[Unit] = EnHandler.cleanup(fid)
+  def fix(fid: FdKey): Res[((Long,Long),(Long,Long),(Bytes,Bytes))] = EnHandler.fix(fid)
 
   val file = new FileApi {
-    def create(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[File] = h.create(dir, name)
-    def append(dir: Bytes, name: Bytes, chunk: Bytes)(implicit h: FileHandler): Res[File] = h.append(dir, name, chunk)
-    def stream(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[LazyList[Res[Bytes]]] = h.stream(dir, name)
-    def size(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[Long] = h.size(dir, name)
-    def delete(dir: Bytes, name: Bytes)(implicit h: FileHandler): Res[File] = h.delete(dir, name)
-    def copy(dir: Bytes, name: (Bytes, Bytes))(implicit h: FileHandler): Res[File] = h.copy(dir, name)
+    def create(path: PathKey)(implicit h: FileHandler): Res[File] = h.create(path)
+    def append(path: PathKey, chunk: Bytes)(implicit h: FileHandler): Res[File] = h.append(path, chunk)
+    def stream(path: PathKey)(implicit h: FileHandler): Res[LazyList[Res[Bytes]]] = h.stream(path)
+    def size(path: PathKey)(implicit h: FileHandler): Res[Long] = h.size(path)
+    def delete(path: PathKey)(implicit h: FileHandler): Res[File] = h.delete(path)
+    def copy(from: PathKey, to: PathKey)(implicit h: FileHandler): Res[File] = h.copy(fromPath=from, toPath=to)
   }
 
   object dump {

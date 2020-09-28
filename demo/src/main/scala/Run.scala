@@ -6,9 +6,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
 import zd.kvs.Kvs
-import zd.proto.api.{N, MessageCodec, encode, decode}
-import zd.proto.Bytes
-import zd.proto.macrosapi.caseCodecAuto
+import zd.proto._, api._, macrosapi._
 import zero.ext._, traverse._
 
 object Run extends App {
@@ -25,15 +23,18 @@ object Run extends App {
     |""".stripMargin
   val system = ActorSystem(asname, ConfigFactory.parseString(cfg))
 
+  // codecs
+  implicit val usersc = caseCodecAuto[Users]
+  implicit val userc = caseCodecAuto[User]
+
   // Run kvs
   val kvs = Kvs(system)
   Try(Await.result(kvs.onReady, Duration.Inf))
 
   // Add users to feed
-  val users = Bytes.unsafeWrap(s"users${System.currentTimeMillis}".getBytes)
-  implicit val UserC: MessageCodec[User] = caseCodecAuto[User]
-  kvs.add(users, Bytes.unsafeWrap(encode[User](User(name="John Doe"))))
-  kvs.add(users, Bytes.unsafeWrap(encode[User](User(name="Jane Doe"))))
+  val users = FdKey(encodeToBytes(Users(System.currentTimeMillis)))
+  kvs.add(users, encodeToBytes(User(name="John Doe")))
+  kvs.add(users, encodeToBytes(User(name="Jane Doe")))
 
   // Get all users
   kvs.all(users).flatMap(_.sequence).fold(
@@ -48,3 +49,6 @@ object Run extends App {
 }
 
 final case class User(@N(1) name: String)
+
+sealed trait Feed
+@N(1) final case class Users(@N(1) time: Long) extends Feed

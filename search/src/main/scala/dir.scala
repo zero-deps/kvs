@@ -13,7 +13,7 @@ import zd.kvs.en.FdHandler
 import zd.kvs.file.FileHandler
 import zd.proto.Bytes
 
-class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactory(dir)) {
+class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactory(dir)) {
   implicit val fileh = new FileHandler {
     override val chunkLength = 10 * 1000 * 1000 // 10 MB
   }
@@ -22,7 +22,7 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
   private[this] val outs = TrieMap.empty[String,ByteArrayOutputStream]
   private[this] val nextTempFileCounter = new AtomicLong
 
-  def exists: Res[Boolean] = {
+  def exists(): Res[Boolean] = {
     kvs.fd.get(dir).map(_.isDefined)
   }
   
@@ -31,10 +31,11 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
       xs <- kvs.all(dir)
       ys <- xs.sequence
       _ <- ys.map{ x =>
-        val name = x.id
+        val name = x.key
+        val path = PathKey(dir, name.id)
         for {
-          _ <- kvs.file.delete(dir, name).void.recover{ case _: zd.kvs.FileNotExists => () }
-          _ <- kvs.remove(dir, name)
+          _ <- kvs.file.delete(path).void.recover{ case _: zd.kvs.FileNotExists => () }
+          _ <- kvs.remove(name)
         } yield ()
       }.sequence_
       _ <- kvs.cleanup(dir)
@@ -53,7 +54,7 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     ensureOpen()
     kvs.all(dir).flatMap(_.sequence).fold(
       l => throw new IOException(l.toString)
-    , r => r.map(x => new String(x.id.unsafeArray, "UTF-8")).sorted.toArray
+    , r => r.map(x => new String(x.key.id.unsafeArray, "UTF-8")).sorted.toArray
     )
   }
 
@@ -71,8 +72,8 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
     sync(Collections.singletonList(name))
     val res: Res[Option[Unit]] = for {
-      _ <- kvs.file.delete(dir, name1)
-      x <- kvs.remove(dir, name1)
+      _ <- kvs.file.delete(PathKey(dir, name1))
+      x <- kvs.remove(EnKey(dir, name1))
       _ <- kvs.cleanup(dir)
     } yield x.void
     res.fold(
@@ -101,7 +102,7 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     ensureOpen()
     val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
     sync(Collections.singletonList(name))
-    kvs.file.size(dir, name1).fold(
+    kvs.file.size(PathKey(dir, name1)).fold(
       l => l match {
         case _: zd.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name}")
         case _ => throw new IOException(l.toString)
@@ -125,8 +126,8 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     ensureOpen()
     val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
     val r = for {
-      _ <- kvs.add(dir, name1, Bytes.unsafeWrap(Array.emptyByteArray))
-      _ <- kvs.file.create(dir, name1)
+      _ <- kvs.add(EnKey(dir, name1), Bytes.empty)
+      _ <- kvs.file.create(PathKey(dir, name1))
     } yield ()
     r.fold(
       l => l match {
@@ -156,8 +157,8 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
       val name = Directory.getTempFileName(prefix, suffix, nextTempFileCounter.getAndIncrement)
       val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
       val res = for {
-        _ <- kvs.add(dir, name1, Bytes.unsafeWrap(Array.emptyByteArray))
-        _ <- kvs.file.create(dir, name1)
+        _ <- kvs.add(EnKey(dir, name1), Bytes.empty)
+        _ <- kvs.file.create(PathKey(dir, name1))
       } yield name
       res match {
         case Left(_: EntryExists) => loop()
@@ -189,7 +190,7 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     names.stream.forEach{ name =>
       outs.get(name).map(x => Bytes.unsafeWrap(x.toByteArray)).foreach{ xs =>
         val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
-        kvs.file.append(dir, name1, xs).fold(
+        kvs.file.append(PathKey(dir, name1), xs).fold(
           l => throw new IOException(l.toString),
           _ => ()
         )
@@ -224,10 +225,10 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     val dest1 = Bytes.unsafeWrap(dest.getBytes("UTF-8"))
     sync(Arrays.asList(source, dest))
     val res = for {
-      _ <- kvs.file.copy(dir, source1 -> dest1)
-      _ <- kvs.add(dir, dest1, Bytes.unsafeWrap(Array.emptyByteArray))
-      _ <- kvs.file.delete(dir, source1)
-      _ <- kvs.remove(dir, source1)
+      _ <- kvs.file.copy(from=PathKey(dir, source1), to=PathKey(dir, dest1))
+      _ <- kvs.add(EnKey(dir, dest1), Bytes.empty)
+      _ <- kvs.file.delete(PathKey(dir, source1))
+      _ <- kvs.remove(EnKey(dir, source1))
       _ <- kvs.cleanup(dir)
     } yield ()
     res.fold(
@@ -250,12 +251,12 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     sync(Collections.singletonList(name))
     val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
     val res = for {
-      bs <- kvs.file.stream(dir, name1)
+      bs <- kvs.file.stream(PathKey(dir, name1))
       bs1 <- bs.sequence
     } yield new BytesIndexInput(s"${dir}/${name}", bs1)
     res.fold(
       l => l match {
-        case zd.kvs.FileNotExists(dir, name) => throw new NoSuchFileException(s"${dir}/${name}")
+        case zd.kvs.FileNotExists(path) => throw new NoSuchFileException(s"${path.dir}/${path.name}")
         case _ => throw new IOException(l.toString)
       },
       r => r
@@ -272,11 +273,11 @@ class KvsDirectory(dir: Bytes)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
   }
 }
 
-class KvsLockFactory(dir: Bytes) extends LockFactory {
+class KvsLockFactory(dir: FdKey) extends LockFactory {
   private[this] val locks = TrieMap.empty[Bytes, Unit]
 
   override def obtainLock(d: Directory, lockName: String): Lock = {
-    val key = Bytes.unsafeWrap(dir.unsafeArray ++ lockName.getBytes("UTF-8"))
+    val key = Bytes.unsafeWrap(dir.name.unsafeArray ++ lockName.getBytes("UTF-8"))
     locks.putIfAbsent(key, ()) match {
       case None => return new KvsLock(key)
       case Some(_) => throw new LockObtainFailedException(new String(key.unsafeArray, "UTF-8"))

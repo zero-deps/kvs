@@ -24,9 +24,11 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
   }
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 
-  val dir = stob("dir")
-  val name = stob("name" + java.util.UUID.randomUUID.toString)
-  val name1 = stob("name" + java.util.UUID.randomUUID.toString + "1")
+  val dir = FdKey(stob("dir"))
+  val name = stob("name" + System.currentTimeMillis)
+  val path = PathKey(dir, name)
+  val name1 = stob("name" + System.currentTimeMillis + "_1")
+  val path1 = PathKey(dir, name1)
 
   implicit val fh: FileHandler = new FileHandler {
     override val chunkLength = 5
@@ -36,36 +38,36 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
 
   "file" - {
     "create" in {
-      kvs.file.create(dir, name).isRight should be (true)
+      kvs.file.create(path).isRight should be (true)
     }
     "create if exists" in {
-      kvs.file.create(dir, name).left.value should be (FileAlreadyExists(dir, name))
+      kvs.file.create(path).left.value should be (FileAlreadyExists(path))
     }
     "append" in {
-      val r = kvs.file.append(dir, name, Bytes.unsafeWrap(Array(1, 2, 3, 4, 5, 6)))
+      val r = kvs.file.append(path, Bytes.unsafeWrap(Array(1, 2, 3, 4, 5, 6)))
       r.isRight should be (true)
       r.getOrElse(???).size should be (6)
       r.getOrElse(???).count should be (2)
     }
     "size" in {
-      val r = kvs.file.size(dir, name)
+      val r = kvs.file.size(path)
       r.isRight should be (true)
       r.getOrElse(???) should be (6)
     }
     "size if absent" in {
-      kvs.file.size(dir, name1).left.value should be (FileNotExists(dir, name1))
+      kvs.file.size(path1).left.value should be (FileNotExists(path1))
     }
     "content" in {
-      kvs.file.stream(dir, name) shouldBe LazyList(Bytes.unsafeWrap(Array(1, 2, 3, 4, 5)).right, Bytes.unsafeWrap(Array(6)).right).right
+      kvs.file.stream(path) shouldBe LazyList(Bytes.unsafeWrap(Array(1, 2, 3, 4, 5)).right, Bytes.unsafeWrap(Array(6)).right).right
     }
     "content if absent" in {
-      kvs.file.stream(dir, name1).left.value should be (FileNotExists(dir, name1))
+      kvs.file.stream(path1).left.value should be (FileNotExists(path1))
     }
     "delete" in {
-      kvs.file.delete(dir, name).isRight should be (true)
+      kvs.file.delete(path).isRight should be (true)
     }
     "delete if absent" in {
-      kvs.file.delete(dir, name).left.value should be (FileNotExists(dir, name))
+      kvs.file.delete(path).left.value should be (FileNotExists(path))
     }
   }
 }

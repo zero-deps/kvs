@@ -23,29 +23,30 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
   }
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 
+  def key(x: String): ElKey = ElKey(Bytes.unsafeWrap(x.getBytes))
   def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
 
   "el handler should" - {
     "return error when element is absent" in {
-      kvs.el.get(stob("k")) shouldBe none.right
+      kvs.el.get(key("k")) shouldBe none.right
     }
     "save value" in {
-      kvs.el.put(stob("k"), stob("v")) shouldBe ().right
+      kvs.el.put(key("k"), stob("v")) shouldBe ().right
     }
     "retrieve value" in {
-      kvs.el.get(stob("k")) shouldBe stob("v").some.right
+      kvs.el.get(key("k")) shouldBe stob("v").some.right
     }
     "override value" in {
-      kvs.el.put(stob("k"), stob("v2")) shouldBe ().right
+      kvs.el.put(key("k"), stob("v2")) shouldBe ().right
     }
     "delete value" in {
-      kvs.el.delete(stob("k")) shouldBe ().right
+      kvs.el.delete(key("k")) shouldBe ().right
     }
     "delete value again" in {
-      kvs.el.delete(stob("k")) shouldBe ().right
+      kvs.el.delete(key("k")) shouldBe ().right
     }
     "clean up" in {
-      kvs.el.get(stob("k")) shouldBe none.right
+      kvs.el.get(key("k")) shouldBe none.right
     }
   }
 }

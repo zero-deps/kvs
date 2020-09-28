@@ -4,10 +4,10 @@ import zd.proto.Bytes
 
 sealed trait Err
 
-final case class EntryExists(fid: Bytes, id: Bytes) extends Err
+final case class EntryExists(key: EnKey) extends Err
 
-final case class FileNotExists(dir: Bytes, name: Bytes) extends Err
-final case class FileAlreadyExists(dir: Bytes, name: Bytes) extends Err
+final case class FileNotExists(path: PathKey) extends Err
+final case class FileAlreadyExists(path: PathKey) extends Err
 
 final case class Fail(r: String) extends Err
 final case class Throwed(x: Throwable) extends Err
