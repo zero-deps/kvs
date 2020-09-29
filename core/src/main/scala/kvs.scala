@@ -106,15 +106,15 @@ class Kvs(implicit val dba: Dba) extends ReadOnlyKvs {
   }
   def get[A: Entry](key: ElKey): Res[Option[A]] = {
     val en = implicitly[Entry[A]]
-    EnHandler.get(EnKey(en.fid, key)).map(_.map(x => en.extract(x.data)))
+    EnHandler.get(EnKey(en.fid, key)).map(_.map(x => en.extract(x)))
   }
   def apply[A: Entry](key: ElKey): Res[A] = {
     val en = implicitly[Entry[A]]
-    EnHandler.apply(EnKey(en.fid, key)).map(x => en.extract(x.data))
+    EnHandler.apply(EnKey(en.fid, key)).map(x => en.extract(x))
   }
   def head[A: Entry](): Res[Option[(ElKey, A)]] = {
     val en = implicitly[Entry[A]]
-    EnHandler.head(en.fid).map(_.map(x => x._1 -> en.extract(x._2.data)))
+    EnHandler.head(en.fid).map(_.map(x => x._1 -> en.extract(x._2)))
   }
   def remove[A: Entry](key: ElKey): Res[Option[A]] = {
     val en = implicitly[Entry[A]]

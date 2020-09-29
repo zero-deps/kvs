@@ -299,7 +299,7 @@ class KvsLockFactory(dir: FdKey) extends LockFactory {
         throw new AlreadyClosedException(key.mkString)
       }
       if (!locks.contains(key)) {
-        throw new AlreadyClosedException(new String(key.unsafeArray, "UTF-8"))
+        throw new AlreadyClosedException(key.mkString)
       }
     }
 

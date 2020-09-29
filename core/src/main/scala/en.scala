@@ -2,7 +2,7 @@ package zd.kvs
 package en
 
 import scala.annotation.tailrec
-import zero.ext._, either._, option._
+import zero.ext._, either._, option._, traverse._
 import zd.kvs.store.Dba
 import zd.proto._, api._, macrosapi._
 
@@ -29,19 +29,21 @@ object EnHandler {
       _ <- dba.put(key, pickle(en))
     } yield ()
   }
-  def get(key: EnKey)(implicit dba: Dba): Res[Option[En]] = {
+  private def _get(key: EnKey)(implicit dba: Dba): Res[Option[En]] = {
     dba.get(key) match {
-      case Right(Some(x)) => unpickle[En](x).some.right
-      case Right(None) => None.right
+      case Right(Some(x)) => unpickle[En](x) match {
+        case en if en.removed => none.right
+        case en => en.some.right
+      }
+      case Right(None) => none.right
       case x@Left(_) => x.coerceRight
     }
   }
-  def apply(key: EnKey)(implicit dba: Dba): Res[En] = {
-    dba.get(key) match {
-      case Right(Some(x)) => unpickle[En](x).right
-      case Right(None) => Fail(s"key=$key is not exists").left
-      case x@Left(_) => x.coerceRight
-    }
+  def get(key: EnKey)(implicit dba: Dba): Res[Option[Bytes]] = {
+    _get(key).map(_.map(_.data))
+  }
+  def apply(key: EnKey)(implicit dba: Dba): Res[Bytes] = {
+    get(key).flatMap(_.cata(_.right, Fail(s"key=$key is not exists").left))
   }
   private def delete(key: EnKey)(implicit dba: Dba): Res[Unit] = dba.delete(key)
 
@@ -62,14 +64,8 @@ object EnHandler {
     } yield id
   }
 
-  def head(fid: FdKey)(implicit dba: Dba): Res[Option[(ElKey,En)]] = {
-    fh.get(fid).flatMap{
-      case None => none.right
-      case Some(fd) if fd.head.isEmpty => none.right
-      case Some(Fd(Some(top), _, _, _)) =>
-        val key = top
-        get(EnKey(fid, key)).map(_.map(key -> _))
-    }
+  def head(fid: FdKey)(implicit dba: Dba): Res[Option[(ElKey, Bytes)]] = {
+    all(fid, next=none, removed=false).flatMap(_.headOption.sequence).map(_.map(x => x._1 -> x._2.data))
   }
 
   /**
@@ -77,7 +73,7 @@ object EnHandler {
    */
   def prepend(key: EnKey, data: Bytes)(implicit dba: Dba): Res[Unit] = {
     for {
-      en1 <- get(key)
+      en1 <- _get(key)
       _ <- en1.cata(_ => EntryExists(key).left, ().right)
       fd1 <- fh.get(key.fid)
       fd <- fd1.cata(_.right, fh.put(key.fid, Fd()).map(_ => Fd()))
@@ -96,7 +92,7 @@ object EnHandler {
    */
   def put(key: EnKey, data: Bytes)(implicit dba: Dba): Res[Unit] = {
     for {
-      x <- get(key)
+      x <- _get(key)
       _ <- x.cata(y => _put(key, En(next=y.next, data=data)), prepend(key, data))
     } yield ()
   }
@@ -107,7 +103,7 @@ object EnHandler {
    */
   def remove_soft(key: EnKey)(implicit dba: Dba): Res[Option[En]] = {
     for {
-      en1 <- get(key)
+      en1 <- _get(key)
       _ <- en1.cata(en => {
         val next = en.next
         for {
@@ -189,17 +185,15 @@ object EnHandler {
    * None - start with head; Some(None) - empty seq; Some(Some(id)) - start with id.
    */
   def all(fid: FdKey, next: Option[Option[ElKey]], removed: Boolean)(implicit dba: Dba): Res[LazyList[Res[(ElKey, En)]]] = {
-    def _stream(id: Option[ElKey]): LazyList[Res[(ElKey, En)]] = {
-      id match {
-        case None => LazyList.empty
-        case Some(id) =>
-          val en = apply(EnKey(fid, id))
-          en match {
-            case Right(e) if e.removed && !removed => _stream(e.next)
-            case Right(e) => LazyList.cons((id -> e).right, _stream(e.next))
-            case e@Left(_) => LazyList(e.coerceRight)
-          }
-      }
+    lazy val _stream: Option[ElKey] => LazyList[Res[(ElKey, En)]] = {
+      case None => LazyList.empty
+      case Some(id) =>
+        dba.get(EnKey(fid, id)).map(_.map(unpickle[En](_))) match {
+          case Right(Some(e)) if e.removed && !removed => _stream(e.next)
+          case Right(Some(e)) => LazyList.cons((id -> e).right, _stream(e.next))
+          case Right(None) => LazyList(Fail(s"Feed is corrupted at id=$id").left)
+          case e@Left(_) => LazyList(e.coerceRight)
+        }
     }
     fh.get(fid).map(_.cata(fd => _stream(next.getOrElse(fd.head)), LazyList.empty))
   }

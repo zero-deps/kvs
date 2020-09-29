@@ -69,7 +69,7 @@ class FeedSpec extends TestKit(ActorSystem("FeedSpec"))
         kvs.remove[Int](keyN(5)) shouldBe Right(None)
       }
 
-      "should remove entry(2) from feed without prev/next/data" in {
+      "should remove entry(2)" in {
         val deleted = kvs.remove[Int](key2)
         deleted shouldBe 2.some.right
       }
