@@ -25,10 +25,10 @@ object EnHandler {
   private val fh = FdHandler
   private implicit val encodec: MessageCodec[En] = caseCodecAuto[En]
 
-  private def _put(key: EnKey, en: En)(implicit dba:Dba):Res[En] = {
+  private def _put(key: EnKey, en: En)(implicit dba: Dba): Res[Unit] = {
     for {
       _ <- dba.put(key, pickle(en))
-    } yield en
+    } yield ()
   }
   def get(key: EnKey)(implicit dba: Dba): Res[Option[En]] = {
     dba.get(key) match {
@@ -50,7 +50,7 @@ object EnHandler {
    * Adds the entry to the container. Creates the container if it's absent.
    * ID will be generated.
    */
-  def prepend(fid: FdKey, data: Bytes)(implicit dba: Dba): Res[`Key,En`] = {
+  def prepend(fid: FdKey, data: Bytes)(implicit dba: Dba): Res[EnKey] = {
     for {
       fd1 <- fh.get(fid)
       fd <- fd1.cata(_.right, fh.put(fid, Fd()).map(_ => Fd()))
@@ -60,7 +60,7 @@ object EnHandler {
       key = EnKey(fid, id)
       _ <- _put(key, en)
       _ <- fh.put(fid, fd.copy(head=id.some, length=fd.length+1, maxid=id))
-    } yield `Key,En`(key, en)
+    } yield key
   }
 
   def head(fid: FdKey)(implicit dba: Dba): Res[Option[`Key,En`]] = {
@@ -76,7 +76,7 @@ object EnHandler {
   /**
    * Adds the entry to the container. Creates the container if it's absent.
    */
-  def prepend(key: EnKey, data: Bytes)(implicit dba: Dba): Res[En] = {
+  def prepend(key: EnKey, data: Bytes)(implicit dba: Dba): Res[Unit] = {
     for {
       en1 <- get(key)
       _ <- en1.cata(_ => EntryExists(key).left, ().right)
@@ -87,7 +87,7 @@ object EnHandler {
       _ <- fh.put(key.fid, fd.copy(maxid=maxid)) // in case kvs will fail after adding the en
       _ <- _put(key, en)
       _ <- fh.put(key.fid, fd.copy(head=key.id.some, length=fd.length+1, maxid=maxid))
-    } yield en
+    } yield ()
   }
 
   /**
@@ -95,11 +95,11 @@ object EnHandler {
    * If entry don't exists in containter create container and add it to the head
    * If entry exists in container, put it in the same place
    */
-  def put(key: EnKey, data: Bytes)(implicit dba: Dba): Res[En] = {
+  def put(key: EnKey, data: Bytes)(implicit dba: Dba): Res[Unit] = {
     for {
       x <- get(key)
-      z <- x.cata(y => _put(key, En(next=y.next, data=data)), prepend(key, data))
-    } yield z
+      _ <- x.cata(y => _put(key, En(next=y.next, data=data)), prepend(key, data))
+    } yield ()
   }
 
   /**

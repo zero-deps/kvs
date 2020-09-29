@@ -22,20 +22,27 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
   private[this] val outs = TrieMap.empty[String,ByteArrayOutputStream]
   private[this] val nextTempFileCounter = new AtomicLong
 
+  type File = Unit
+  implicit object FileEntry extends Entry[File] {
+    def fid(): FdKey = dir
+    def extract(xs: Bytes): File = ()
+    def insert(x: File): Bytes = Bytes.empty
+  }
+
   def exists(): Res[Boolean] = {
     kvs.fd.get(dir).map(_.isDefined)
   }
   
   def deleteAll(): Res[Unit] = {
     for {
-      xs <- kvs.all(dir)
+      xs <- kvs.all[File]()
       ys <- xs.sequence
-      _ <- ys.map{ x =>
-        val name = x.key
-        val path = PathKey(dir, name.id)
+      _ <- ys.map{ case (key, _) =>
+        val name = key
+        val path = PathKey(dir, name)
         for {
           _ <- kvs.file.delete(path).void.recover{ case _: zd.kvs.FileNotExists => () }
-          _ <- kvs.remove(name)
+          _ <- kvs.remove[File](name)
         } yield ()
       }.sequence_
       _ <- kvs.cleanup(dir)
@@ -52,9 +59,9 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
   override
   def listAll(): Array[String] = {
     ensureOpen()
-    kvs.all(dir).flatMap(_.sequence).fold(
+    kvs.all[File]().flatMap(_.sequence).fold(
       l => throw new IOException(l.toString)
-    , r => r.map(x => new String(x.key.id.unsafeArray, "UTF-8")).sorted.toArray
+    , r => r.map(x => new String(x._1.unsafeArray, "UTF-8")).sorted.toArray
     )
   }
 
@@ -73,7 +80,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     sync(Collections.singletonList(name))
     val res: Res[Option[Unit]] = for {
       _ <- kvs.file.delete(PathKey(dir, name1))
-      x <- kvs.remove(EnKey(dir, name1))
+      x <- kvs.remove[File](name1)
       _ <- kvs.cleanup(dir)
     } yield x.void
     res.fold(
@@ -126,7 +133,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     ensureOpen()
     val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
     val r = for {
-      _ <- kvs.add(EnKey(dir, name1), Bytes.empty)
+      _ <- kvs.add[File](name1, ())
       _ <- kvs.file.create(PathKey(dir, name1))
     } yield ()
     r.fold(
@@ -157,7 +164,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
       val name = Directory.getTempFileName(prefix, suffix, nextTempFileCounter.getAndIncrement)
       val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
       val res = for {
-        _ <- kvs.add(EnKey(dir, name1), Bytes.empty)
+        _ <- kvs.add[File](name1, ())
         _ <- kvs.file.create(PathKey(dir, name1))
       } yield name
       res match {
@@ -226,9 +233,9 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     sync(Arrays.asList(source, dest))
     val res = for {
       _ <- kvs.file.copy(from=PathKey(dir, source1), to=PathKey(dir, dest1))
-      _ <- kvs.add(EnKey(dir, dest1), Bytes.empty)
+      _ <- kvs.add[File](dest1, ())
       _ <- kvs.file.delete(PathKey(dir, source1))
-      _ <- kvs.remove(EnKey(dir, source1))
+      _ <- kvs.remove[File](source1)
       _ <- kvs.cleanup(dir)
     } yield ()
     res.fold(

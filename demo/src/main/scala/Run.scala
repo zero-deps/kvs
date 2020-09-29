@@ -24,22 +24,26 @@ object Run extends App {
   val system = ActorSystem(asname, ConfigFactory.parseString(cfg))
 
   // codecs
-  implicit val usersc = caseCodecAuto[Users]
-  implicit val userc = caseCodecAuto[User]
+  implicit object UserEntry extends Entry[User] {
+    implicit val usersc = caseCodecAuto[Users]
+    implicit val userc = caseCodecAuto[User]
+    def fid(): FdKey = FdKey(encodeToBytes(Users(System.currentTimeMillis)))
+    def extract(xs: Bytes): User = decode[User](xs)
+    def insert(x: User): Bytes = encodeToBytes(x)
+  }
 
   // Run kvs
   val kvs = Kvs(system)
   Try(Await.result(kvs.onReady, Duration.Inf))
 
   // Add users to feed
-  val users = FdKey(encodeToBytes(Users(System.currentTimeMillis)))
-  kvs.add(users, encodeToBytes(User(name="John Doe")))
-  kvs.add(users, encodeToBytes(User(name="Jane Doe")))
+  kvs.add[User](User(name="John Doe"))
+  kvs.add[User](User(name="Jane Doe"))
 
   // Get all users
-  kvs.all(users).flatMap(_.sequence).fold(
+  kvs.all[User]().flatMap(_.sequence).fold(
     err => system.log.error(err.toString)
-  , xs => xs.foreach(x => system.log.info(decode[User](x.en.data.unsafeArray).name))
+  , xs => xs.foreach(x => system.log.info(x._2.name))
   )
 
   // Stop kvs

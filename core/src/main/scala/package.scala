@@ -57,11 +57,6 @@ package object kvs {
     }
   }
 
-  implicit class FdIdExt(fid: FdKey) {
-    def +:(data: Bytes)(implicit kvs: Kvs): Res[en.`Key,En`] = en.EnHandler.prepend(fid, data)(kvs.dba)
-    def +:(`key,data`: (Bytes, Bytes))(implicit kvs: Kvs): Res[en.En] = en.EnHandler.prepend(EnKey(fid, `key,data`._1), `key,data`._2)(kvs.dba)
-  }
-
   def pickle[A](e: A)(implicit c: MessageCodec[A]): Bytes = encodeToBytes[A](e)
   def unpickle[A](a: Bytes)(implicit c: MessageCodec[A]): A = decode[A](a)
 }

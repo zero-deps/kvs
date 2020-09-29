@@ -2,25 +2,16 @@ package zd.kvs
 
 import akka.actor._
 import akka.testkit._
-import com.typesafe.config.{ConfigFactory}
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatest._
-import scala.concurrent.Await
-import scala.concurrent.duration._
-import scala.util.Try
 import zero.ext._, either._, option._
 import zd.proto.Bytes
 
-class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4011))))
+class ElHandlerTest extends TestKit(ActorSystem("ElHandlerTest"))
   with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
 
-  var kvs: Kvs = null
-  override def beforeAll(): Unit = {
-    kvs = Kvs(system)
-    Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
-    ()
-  }
+  val kvs = Kvs.mem()
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 
   def key(x: String): ElKey = ElKey(Bytes.unsafeWrap(x.getBytes))

@@ -3,7 +3,7 @@ package zd.kvs
 import akka._, actor._
 import scala.concurrent._
 import zd.kvs.el.ElHandler
-import zd.kvs.en.{En, `Key,En`, EnHandler, Fd, FdHandler}
+import zd.kvs.en.{EnHandler, Fd, FdHandler}
 import zd.kvs.file.{File, FileHandler}
 import zd.kvs.store._
 import zero.ext._, option._
@@ -45,9 +45,10 @@ trait ReadOnlyKvs {
   val fd: ReadOnlyFdApi
   val file: ReadOnlyFileApi
 
-  def all(fid: FdKey, next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[`Key,En`]]]
-  def get(key: EnKey): Res[Option[En]]
-  def apply(key: EnKey): Res[En]
+  def all[A: Entry](next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[(Bytes, A)]]]
+  def get[A: Entry](key: Bytes): Res[Option[A]]
+  def apply[A: Entry](key: Bytes): Res[A]
+  def head[A: Entry](): Res[Option[(EnKey, A)]]
 }
 
 object Kvs {
@@ -67,6 +68,12 @@ object Kvs {
   def leveldb(): Kvs = ???
 }
 
+trait Entry[A] {
+  def fid(): FdKey
+  def extract(xs: Bytes): A
+  def insert(x: A): Bytes
+}
+
 class Kvs(implicit val dba: Dba) extends ReadOnlyKvs {
   val el = new ElApi {
     def put(k: ElKey, v: Bytes): Res[Unit] = ElHandler.put(k, v)
@@ -81,14 +88,38 @@ class Kvs(implicit val dba: Dba) extends ReadOnlyKvs {
     def length(id: FdKey): Res[Long] = FdHandler.length(id)
   }
 
-  def add(fid: FdKey, data: Bytes): Res[`Key,En`] = EnHandler.prepend(fid, data)
-  def add(key: EnKey, data: Bytes): Res[En] = EnHandler.prepend(key, data)
-  def put(key: EnKey, data: Bytes): Res[En] = EnHandler.put(key, data)
-  def all(fid: FdKey, next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[`Key,En`]]] = EnHandler.all(fid, next, removed)
-  def get(key: EnKey): Res[Option[En]] = EnHandler.get(key)
-  def apply(key: EnKey): Res[En] = EnHandler.apply(key)
-  def head(fid: FdKey): Res[Option[`Key,En`]] = EnHandler.head(fid)
-  def remove(key: EnKey): Res[Option[En]] = EnHandler.remove_soft(key)
+  def add[A: Entry](data: A): Res[EnKey] = {
+    val en = implicitly[Entry[A]]
+    EnHandler.prepend(en.fid, en.insert(data))
+  }
+  def add[A: Entry](key: Bytes, data: A): Res[Unit] = {
+    val en = implicitly[Entry[A]]
+    EnHandler.prepend(EnKey(en.fid, key), en.insert(data))
+  }
+  def put[A: Entry](key: Bytes, data: A): Res[Unit] = {
+    val en = implicitly[Entry[A]]
+    EnHandler.put(EnKey(en.fid, key), en.insert(data))
+  }
+  def all[A: Entry](next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[(Bytes, A)]]] = {
+    val en = implicitly[Entry[A]]
+    EnHandler.all(en.fid, next, removed).map(_.map(_.map{ x => x.key.id -> en.extract(x.en.data) }))
+  }
+  def get[A: Entry](key: Bytes): Res[Option[A]] = {
+    val en = implicitly[Entry[A]]
+    EnHandler.get(EnKey(en.fid, key)).map(_.map(x => en.extract(x.data)))
+  }
+  def apply[A: Entry](key: Bytes): Res[A] = {
+    val en = implicitly[Entry[A]]
+    EnHandler.apply(EnKey(en.fid, key)).map(x => en.extract(x.data))
+  }
+  def head[A: Entry](): Res[Option[(EnKey, A)]] = {
+    val en = implicitly[Entry[A]]
+    EnHandler.head(en.fid).map(_.map{ x => x.key -> en.extract(x.en.data) })
+  }
+  def remove[A: Entry](key: Bytes): Res[Option[A]] = {
+    val en = implicitly[Entry[A]]
+    EnHandler.remove_soft(EnKey(en.fid, key)).map(_.map(x => en.extract(x.data)))
+  }
   def cleanup(fid: FdKey): Res[Unit] = EnHandler.cleanup(fid)
   def fix(fid: FdKey): Res[((Long,Long),(Long,Long),(Bytes,Bytes))] = EnHandler.fix(fid)
 

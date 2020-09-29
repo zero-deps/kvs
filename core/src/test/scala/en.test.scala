@@ -3,219 +3,191 @@ package en
 
 import akka.actor.ActorSystem
 import akka.testkit._
-import com.typesafe.config.ConfigFactory
-import org.scalatest._
+import org.scalatest.{Entry=>_,_}
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
-import scala.concurrent.Await
-import scala.concurrent.duration._
-import scala.util.Try
 import zero.ext._, either._, option._
 import zd.proto.Bytes
 
-class FeedSpec extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4012))))
+class FeedSpec extends TestKit(ActorSystem("FeedSpec"))
   with AnyFreeSpecLike with Matchers with BeforeAndAfterAll {
 
-  def data(n: Int): Bytes = Bytes.unsafeWrap(s"val=${n}".getBytes)
-
-  var kvs: Kvs = null
-  override def beforeAll(): Unit = {
-    kvs = Kvs(system)
-    Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
-    ()
-  }
+  val kvs = Kvs.mem()
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
-  
-  def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
+
+  val key1 = keyN(1)
+  val key2 = keyN(2)
+  val key3 = keyN(3)
+  def keyN(n: Byte): Bytes = Bytes.unsafeWrap(Array(n))
 
   "feed" - {
     "no 1" - {
-      val fid = FdKey(stob("fid1" + System.currentTimeMillis))
-      
+      implicit object Entry1 extends Entry[Int] {
+        val fid: FdKey = FdKey(keyN(1))
+        def extract(xs: Bytes): Int = xs.mkString.toInt
+        def insert(x: Int): Bytes = Bytes.unsafeWrap(x.toString.getBytes)
+      }
+      val fid = Entry1.fid
       "should be empty at creation" in {
-        kvs.all(fid) shouldBe (Right(LazyList.empty))
+        kvs.all[Int]() shouldBe LazyList.empty.right
       }
 
       "should save e1" in {
-        val saved = kvs.add(EnKey(fid, stob("1")), data(1))
-        saved.map(_.data) shouldBe data(1).right
+        val saved = kvs.add[Int](key1, 1)
+        saved shouldBe ().right
         kvs.fd.length(fid) shouldBe 1L.right
       }
 
       "should save e2" in {
-        val saved = kvs.add(EnKey(fid, stob("2")), data(2))
-        saved.map(_.data) shouldBe data(2).right
+        val saved = kvs.add[Int](key2, 2)
+        saved shouldBe ().right
         kvs.fd.length(fid) shouldBe 2L.right
       }
 
       "should get e1 and e2 from feed" in {
         kvs.fd.length(fid) shouldBe 2L.right 
-        kvs.all(fid).map(_.toList) shouldBe List(`Key,En`(EnKey(fid, stob("2")), en=En(stob("1").some, data(2))).right, `Key,En`(EnKey(fid, stob("1")), en=En(none, data(1))).right).right
+        kvs.all[Int]().map(_.toList) shouldBe List((key2 -> 2).right, (key1 -> 1).right).right
       }
 
       "should save entry(3)" in {
-        val saved = kvs.add(EnKey(fid, stob("3")), data(3))
-        saved.map(_.data) shouldBe data(3).right
+        val saved = kvs.add[Int](key3, 3)
+        saved shouldBe ().right
         kvs.fd.length(fid) shouldBe 3L.right
       }
 
       "should not save entry(2) again" in {
-        kvs.add(EnKey(fid, stob("2")), data(2)).fold(identity, identity) shouldBe EntryExists(EnKey(fid, stob("2")))
+        kvs.add[Int](key2, 2).fold(identity, identity) shouldBe EntryExists(EnKey(fid, key2))
         kvs.fd.length(fid) shouldBe 3L.right
       }
 
       "should get 3 values from feed" in {
-        kvs.all(fid).map(_.toList) shouldBe List(`Key,En`(EnKey(fid, stob("3")), en=En(stob("2").some, data(3))).right, `Key,En`(EnKey(fid, stob("2")), en=En(stob("1").some, data(2))).right, `Key,En`(EnKey(fid, stob("1")), en=En(none, data(1))).right).right
+        kvs.all[Int]().map(_.toList) shouldBe List((key3 -> 3).right, (key2 -> 2).right, (key1 -> 1).right).right
       }
 
       "should remove unexisting entry from feed without error" in {
-        kvs.remove(EnKey(fid, stob("5"))) shouldBe Right(none)
+        kvs.remove[Int](keyN(5)) shouldBe Right(None)
       }
 
       "should remove entry(2) from feed without prev/next/data" in {
-        val deleted = kvs.remove(EnKey(fid, stob("2")))
-        deleted.map(_.map(_.data)) shouldBe data(2).some.right
+        val deleted = kvs.remove[Int](key2)
+        deleted shouldBe 2.some.right
       }
 
       "should get 2 values from feed" in {
         kvs.fd.length(fid) shouldBe 2L.right
 
-        val stream = kvs.all(fid)
-        stream.map(_.toList) shouldBe List(`Key,En`(EnKey(fid, stob("3")), en=En(stob("2").some, data(3))).right, `Key,En`(EnKey(fid, stob("1")), en=En(none, data(1))).right).right
+        val stream = kvs.all[Int]()
+        stream.map(_.toList) shouldBe List((key3 -> 3).right, (key1 -> 1).right).right
       }
 
       "should remove entry(1) from feed" in {
-        val deleted = kvs.remove(EnKey(fid, stob("1")))
-        deleted.map(_.map(_.data)) shouldBe data(1).some.right
+        val deleted = kvs.remove[Int](key1)
+        deleted shouldBe 1.some.right
       }
 
       "should get 1 values from feed" in {
         kvs.fd.length(fid) shouldBe 1L.right
 
-        val stream = kvs.all(fid)
-        stream.map(_.toList) shouldBe List(`Key,En`(EnKey(fid, stob("3")), en=En(stob("2").some, data(3))).right).right
+        val stream = kvs.all[Int]()
+        stream.map(_.toList) shouldBe List((key3 -> 3).right).right
       }
 
       "should remove entry(3) from feed" in {
-        val deleted = kvs.remove(EnKey(fid, stob("3")))
-        deleted.map(_.map(_.data)) shouldBe data(3).some.right
+        val deleted = kvs.remove[Int](key3)
+        deleted shouldBe 3.some.right
       }
 
       "should be empty at the end test" - {
         "length is 0" in { kvs.fd.length(fid) shouldBe 0L.right }
-        "all is empty" in { kvs.all(fid) shouldBe LazyList.empty.right }
+        "all is empty" in { kvs.all[Int]() shouldBe LazyList.empty.right }
         "delete fd is ok" in { kvs.fd.delete(fid) shouldBe Right(()) }
         "delete is idempotent" in { kvs.fd.delete(fid) shouldBe Right(()) }
-        "all is empty on absent feed" in { kvs.all(fid) shouldBe LazyList.empty.right }
+        "all is empty on absent feed" in { kvs.all[Int]() shouldBe LazyList.empty.right }
       }
     }
 
     "no 2" - {
-      val fid = FdKey(stob("fid2" + System.currentTimeMillis))
-      
-      "should not create stack overflow" in {
-        val limit = 100L
-        LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
-          val added = kvs.add(EnKey(fid, Bytes.unsafeWrap(n.toString.getBytes)), data(n))
-          added.map(_.data) shouldBe data(n).right
-        }
-        LazyList.from(start=1, step=1).takeWhile(_ <= limit).foreach{ n =>
-          val removed = kvs.remove(EnKey(fid, Bytes.unsafeWrap(n.toString.getBytes)))
-          removed.map(_.map(_.data)) shouldBe data(n).some.right
-          kvs.fd.length(fid) shouldBe (limit-n).right
-        }
+      implicit object Entry1 extends Entry[Int] {
+        val fid: FdKey = FdKey(keyN(2))
+        def extract(xs: Bytes): Int = xs.mkString.toInt
+        def insert(x: Int): Bytes = Bytes.unsafeWrap(x.toString.getBytes)
+      }
+      val fid = Entry1.fid
+      "first auto id" in {
+        val s = kvs.add[Int](0)
+        s.map(_.id) shouldBe BytesExt.MinValue.right
+      }
+      "second auto id" in {
+        val s = kvs.add[Int](0)
+        s.map(_.id) shouldBe BytesExt.MinValue.increment().right
+      }
+      "insert id 5" in {
+        val s = kvs.add[Int](keyN(5), 0)
+        s.isRight shouldBe true
+      }
+      "next auto id is 6" in {
+        val s = kvs.add[Int](0)
+        s.map(_.id) shouldBe keyN(6).right
+      }
+      "insert id 'a'" in {
+        val s = kvs.add[Int](keyN('a'), 0)
+        s.isRight shouldBe true
+      }
+      "next auto id is 'b'" in {
+        val s = kvs.add[Int](0)
+        s.map(_.id) shouldBe keyN('b').right
+      }
+      "insert id 3" in {
+        val s = kvs.add[Int](key3, 0)
+        s.isRight shouldBe true
+      }
+      "next auto id is 'c'" in {
+        val s = kvs.add[Int](0)
+        s.map(_.id) shouldBe keyN('c').right
       }
     }
 
     "no 3" - {
-      val fid = FdKey(stob("fid3" + System.currentTimeMillis))
-      val d = data(0)
-      "first auto id" in {
-        val s = kvs.add(fid, d)
-        s.map(_.key.id) shouldBe BytesExt.MinValue.right
+      implicit object Entry1 extends Entry[Int] {
+        val fid: FdKey = FdKey(keyN(3))
+        def extract(xs: Bytes): Int = xs.mkString.toInt
+        def insert(x: Int): Bytes = Bytes.unsafeWrap(x.toString.getBytes)
       }
-      "second auto id" in {
-        val s = kvs.add(fid, d)
-        s.map(_.key.id) shouldBe BytesExt.MinValue.increment().right
-      }
-      "insert id 5" in {
-        val s = kvs.add(EnKey(fid, stob("5")), d)
-        s.isRight shouldBe true
-      }
-      "next auto id is 6" in {
-        val s = kvs.add(fid, d)
-        s.map(_.key.id) shouldBe stob("6").right
-      }
-      "insert id 'a'" in {
-        val s = kvs.add(EnKey(fid, stob("a")), d)
-        s.isRight shouldBe true
-      }
-      "next auto id is 'b'" in {
-        val s = kvs.add(fid, d)
-        s.map(_.key.id) shouldBe stob("b").right
-      }
-      "insert id 3" in {
-        val s = kvs.add(EnKey(fid, stob("3")), d)
-        s.isRight shouldBe true
-      }
-      "next auto id is 'c'" in {
-        val s = kvs.add(fid, d)
-        s.map(_.key.id) shouldBe stob("c").right
-      }
-    }
-
-    "no 4" - {
-      val fid = FdKey(stob("fid4" + System.currentTimeMillis))
-      val d = data(0)
+      val fid = Entry1.fid
       // - - + + - - + + - -
       // 9 8 7 6 5 4 3 2 1 0
       // 56 -> 55 -> 52 -> 51
-      "insert five entries" in {
-        0.to(9).foreach(i => kvs.add(EnKey(fid, stob(i.toString)), d))
+      "insert nine entries" in {
+        0.to(9).foreach(i => kvs.add[Int](keyN(i.toByte), 0))
       }
       "maxid is 9" in {
-        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("9").some.right
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe keyN(9).some.right
       }
       "remove entries" in {
-        Seq(0, 1, 4, 5, 8, 9).foreach(i => kvs.remove(EnKey(fid, stob(i.toString))))
+        Seq(0, 1, 4, 5, 8, 9).foreach(i => kvs.remove[Int](keyN(i.toByte)))
       }
       "maxid is 10 nevertheless" in {
-        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("9").some.right
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe keyN(9).some.right
       }
       "cleanup removed entries" in {
         kvs.cleanup(fid) shouldBe ().right
       }
       "entries are deleted" in {
-        kvs.all(fid).map(_.toList) shouldBe List(
-          `Key,En`(EnKey(fid, stob("7")), en=En(next=stob("6").some, d)).right
-        , `Key,En`(EnKey(fid, stob("6")), en=En(next=stob("3").some, d)).right
-        , `Key,En`(EnKey(fid, stob("3")), en=En(next=stob("2").some, d)).right
-        , `Key,En`(EnKey(fid, stob("2")), en=En(next=none, d)).right
+        kvs.all[Int]().map(_.toList) shouldBe List(
+          (keyN(7) -> 0).right
+        , (keyN(6) -> 0).right
+        , (keyN(3) -> 0).right
+        , (keyN(2) -> 0).right
         ).right
       }
       "maxid is reverted to 7" in {
-        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe stob("7").some.right
+        kvs.fd.get(fid).map(_.map(_.maxid)) shouldBe keyN(7).some.right
       }
       "fix feed doesn't break it" in {
         val res = kvs.fix(fid)
         res.map(_._1._1) shouldBe res.map(_._1._2)
         res.map(_._2._1) shouldBe res.map(_._2._2)
         res.map(_._3._1) shouldBe res.map(_._3._2)
-      }
-    }
-
-    "no 5" - {
-      val fid = stob("fid5" + System.currentTimeMillis)
-      implicit def kvs1 = kvs
-      "new syntax for prepend" - {
-        "without id" in {
-          val res = data(0) +: FdKey(fid)
-          res.map(_.key.id) shouldBe BytesExt.MinValue.right
-        }
-        "with id" in {
-          val res = (stob("3") -> data(0)) +: FdKey(fid)
-          res.isRight shouldBe true
-        }
       }
     }
   }
