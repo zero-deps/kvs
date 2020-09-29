@@ -23,11 +23,20 @@ object Run extends App {
     |""".stripMargin
   val system = ActorSystem(asname, ConfigFactory.parseString(cfg))
 
+  // schema
+  final case class User(@N(1) name: String)
+
+  sealed trait Feed
+  @N(1) final case class Users(@N(1) time: Long) extends Feed
+
   // codecs
-  implicit object UserEntry extends Entry[User] {
-    implicit val usersc = caseCodecAuto[Users]
+  implicit val usersc = caseCodecAuto[Users]
+  implicit val feedc = sealedTraitCodecAuto[Feed]
+  val users1 = FdKey(encodeToBytes[Feed](Users(System.currentTimeMillis)))
+  val users2 = FdKey(encodeToBytes[Feed](Users(System.currentTimeMillis+1)))
+
+  implicit object UserEntry extends DataCodec[User] {
     implicit val userc = caseCodecAuto[User]
-    def fid(): FdKey = FdKey(encodeToBytes(Users(System.currentTimeMillis)))
     def extract(xs: Bytes): User = decode[User](xs)
     def insert(x: User): Bytes = encodeToBytes(x)
   }
@@ -37,11 +46,18 @@ object Run extends App {
   Try(Await.result(kvs.onReady, Duration.Inf))
 
   // Add users to feed
-  kvs.add[User](User(name="John Doe"))
-  kvs.add[User](User(name="Jane Doe"))
+  kvs.add[User](users1, User(name="John Doe"))
+  kvs.add[User](users1, User(name="Jane Doe"))
+  // index
+  kvs.add[User](users2, ElKeyExt.from_str("johndoe"), User(name="John Doe"))
+  kvs.add[User](users2, ElKeyExt.from_str("janedoe"), User(name="Jane Doe"))
 
   // Get all users
-  kvs.all[User]().flatMap(_.sequence).fold(
+  kvs.all[User](users1).flatMap(_.sequence).fold(
+    err => system.log.error(err.toString)
+  , xs => xs.foreach(x => system.log.info(x._2.name))
+  )
+  kvs.all[User](users2).flatMap(_.sequence).fold(
     err => system.log.error(err.toString)
   , xs => xs.foreach(x => system.log.info(x._2.name))
   )
@@ -51,8 +67,3 @@ object Run extends App {
   Try(Await.result(system.whenTerminated, Duration.Inf))
 
 }
-
-final case class User(@N(1) name: String)
-
-sealed trait Feed
-@N(1) final case class Users(@N(1) time: Long) extends Feed

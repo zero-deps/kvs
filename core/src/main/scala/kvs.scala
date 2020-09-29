@@ -45,10 +45,10 @@ trait ReadOnlyKvs {
   val fd: ReadOnlyFdApi
   val file: ReadOnlyFileApi
 
-  def all[A: Entry](next: Option[ElKey]=none): Res[LazyList[Res[(ElKey, A)]]]
-  def get[A: Entry](key: ElKey): Res[Option[A]]
-  def apply[A: Entry](key: ElKey): Res[A]
-  def head[A: Entry](): Res[Option[(ElKey, A)]]
+  def all  [A: DataCodec](fid: FdKey, next: Option[ElKey]=none): Res[LazyList[Res[(ElKey, A)]]]
+  def get  [A: DataCodec](fid: FdKey, id: ElKey): Res[Option[A]]
+  def apply[A: DataCodec](fid: FdKey, id: ElKey): Res[A]
+  def head [A: DataCodec](fid: FdKey): Res[Option[A]]
 }
 
 object Kvs {
@@ -68,8 +68,7 @@ object Kvs {
   def leveldb(): Kvs = ???
 }
 
-trait Entry[A] {
-  def fid(): FdKey
+trait DataCodec[A] {
   def extract(xs: Bytes): A
   def insert(x: A): Bytes
 }
@@ -88,37 +87,37 @@ class Kvs(implicit val dba: Dba) extends ReadOnlyKvs {
     def length(id: FdKey): Res[Long] = FdHandler.length(id)
   }
 
-  def add[A: Entry](data: A): Res[ElKey] = {
-    val en = implicitly[Entry[A]]
-    EnHandler.prepend(en.fid, en.insert(data))
+  def add[A: DataCodec](fid: FdKey, data: A): Res[ElKey] = {
+    val en = implicitly[DataCodec[A]]
+    EnHandler.prepend(fid, en.insert(data))
   }
-  def add[A: Entry](key: ElKey, data: A): Res[Unit] = {
-    val en = implicitly[Entry[A]]
-    EnHandler.prepend(EnKey(en.fid, key), en.insert(data))
+  def add[A: DataCodec](fid: FdKey, id: ElKey, data: A): Res[Unit] = {
+    val en = implicitly[DataCodec[A]]
+    EnHandler.prepend(EnKey(fid, id), en.insert(data))
   }
-  def put[A: Entry](key: ElKey, data: A): Res[Unit] = {
-    val en = implicitly[Entry[A]]
-    EnHandler.put(EnKey(en.fid, key), en.insert(data))
+  def put[A: DataCodec](fid: FdKey, id: ElKey, data: A): Res[Unit] = {
+    val en = implicitly[DataCodec[A]]
+    EnHandler.put(EnKey(fid, id), en.insert(data))
   }
-  def all[A: Entry](next: Option[ElKey]=none): Res[LazyList[Res[(ElKey, A)]]] = {
-    val en = implicitly[Entry[A]]
-    EnHandler.all(en.fid, next.map(_.some), removed=false).map(_.map(_.map{ x => x._1 -> en.extract(x._2.data) }))
+  def all[A: DataCodec](fid: FdKey, next: Option[ElKey]=none): Res[LazyList[Res[(ElKey, A)]]] = {
+    val en = implicitly[DataCodec[A]]
+    EnHandler.all(fid, next.map(_.some), removed=false).map(_.map(_.map{ x => x._1 -> en.extract(x._2.data) }))
   }
-  def get[A: Entry](key: ElKey): Res[Option[A]] = {
-    val en = implicitly[Entry[A]]
-    EnHandler.get(EnKey(en.fid, key)).map(_.map(x => en.extract(x)))
+  def get[A: DataCodec](fid: FdKey, id: ElKey): Res[Option[A]] = {
+    val en = implicitly[DataCodec[A]]
+    EnHandler.get(EnKey(fid, id)).map(_.map(x => en.extract(x)))
   }
-  def apply[A: Entry](key: ElKey): Res[A] = {
-    val en = implicitly[Entry[A]]
-    EnHandler.apply(EnKey(en.fid, key)).map(x => en.extract(x))
+  def apply[A: DataCodec](fid: FdKey, id: ElKey): Res[A] = {
+    val en = implicitly[DataCodec[A]]
+    EnHandler.apply(EnKey(fid, id)).map(x => en.extract(x))
   }
-  def head[A: Entry](): Res[Option[(ElKey, A)]] = {
-    val en = implicitly[Entry[A]]
-    EnHandler.head(en.fid).map(_.map(x => x._1 -> en.extract(x._2)))
+  def head[A: DataCodec](fid: FdKey): Res[Option[A]] = {
+    val en = implicitly[DataCodec[A]]
+    EnHandler.head(fid).map(_.map(x => en.extract(x._2)))
   }
-  def remove[A: Entry](key: ElKey): Res[Option[A]] = {
-    val en = implicitly[Entry[A]]
-    EnHandler.remove(EnKey(en.fid, key)).map(_.map(x => en.extract(x.data)))
+  def remove[A: DataCodec](fid: FdKey, id: ElKey): Res[Option[A]] = {
+    val en = implicitly[DataCodec[A]]
+    EnHandler.remove(EnKey(fid, id)).map(_.map(x => en.extract(x.data)))
   }
   def cleanup(fid: FdKey): Res[Unit] = EnHandler.cleanup(fid)
   def fix(fid: FdKey): Res[((Long,Long),(Long,Long),(ElKey,ElKey))] = EnHandler.fix(fid)
