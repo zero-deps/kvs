@@ -1,8 +1,9 @@
 # Abstract scala type database.
 
-[![Scala CI](https://github.com/zero-deps/kvs/workflows/Scala%20CI/badge.svg?branch=master)](https://github.com/zero-deps/kvs/actions?query=branch%3Amaster)
+[![Bintray](https://img.shields.io/bintray/v/zero-deps/maven/kvs-core.svg?label=kvs-core)](https://bintray.com/zero-deps/maven/kvs-core/_latestVersion)
+[![Bintray](https://img.shields.io/bintray/v/zero-deps/maven/kvs-search.svg?label=kvs-search)](https://bintray.com/zero-deps/maven/kvs-search/_latestVersion)
 
-[Bintray releases](https://bintray.com/zero-deps/maven/kvs-core#release)
+[![Scala CI](https://github.com/zero-deps/kvs/workflows/Scala%20CI/badge.svg?branch=master)](https://github.com/zero-deps/kvs/actions?query=branch%3Amaster)
 
 Key Value Storage
 
