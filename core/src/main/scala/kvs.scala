@@ -45,7 +45,7 @@ trait ReadOnlyKvs {
   val fd: ReadOnlyFdApi
   val file: ReadOnlyFileApi
 
-  def all[A: Entry](next: Option[Option[ElKey]]=none, removed: Boolean=false): Res[LazyList[Res[(ElKey, A)]]]
+  def all[A: Entry](next: Option[ElKey]=none): Res[LazyList[Res[(ElKey, A)]]]
   def get[A: Entry](key: ElKey): Res[Option[A]]
   def apply[A: Entry](key: ElKey): Res[A]
   def head[A: Entry](): Res[Option[(ElKey, A)]]
@@ -100,9 +100,9 @@ class Kvs(implicit val dba: Dba) extends ReadOnlyKvs {
     val en = implicitly[Entry[A]]
     EnHandler.put(EnKey(en.fid, key), en.insert(data))
   }
-  def all[A: Entry](next: Option[Option[ElKey]]=none, removed: Boolean=false): Res[LazyList[Res[(ElKey, A)]]] = {
+  def all[A: Entry](next: Option[ElKey]=none): Res[LazyList[Res[(ElKey, A)]]] = {
     val en = implicitly[Entry[A]]
-    EnHandler.all(en.fid, next, removed).map(_.map(_.map{ x => x._1 -> en.extract(x._2.data) }))
+    EnHandler.all(en.fid, next.map(_.some), removed=false).map(_.map(_.map{ x => x._1 -> en.extract(x._2.data) }))
   }
   def get[A: Entry](key: ElKey): Res[Option[A]] = {
     val en = implicitly[Entry[A]]
