@@ -118,7 +118,7 @@ class Kvs(implicit val dba: Dba) extends ReadOnlyKvs {
   }
   def remove[A: Entry](key: ElKey): Res[Option[A]] = {
     val en = implicitly[Entry[A]]
-    EnHandler.remove_soft(EnKey(en.fid, key)).map(_.map(x => en.extract(x.data)))
+    EnHandler.remove(EnKey(en.fid, key)).map(_.map(x => en.extract(x.data)))
   }
   def cleanup(fid: FdKey): Res[Unit] = EnHandler.cleanup(fid)
   def fix(fid: FdKey): Res[((Long,Long),(Long,Long),(ElKey,ElKey))] = EnHandler.fix(fid)

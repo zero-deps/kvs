@@ -29,6 +29,7 @@ object EnHandler {
       _ <- dba.put(key, pickle(en))
     } yield ()
   }
+
   private def _get(key: EnKey)(implicit dba: Dba): Res[Option[En]] = {
     dba.get(key) match {
       case Right(Some(x)) => unpickle[En](x) match {
@@ -39,13 +40,44 @@ object EnHandler {
       case x@Left(_) => x.coerceRight
     }
   }
+
+  /**
+   * Puts the entry to the container
+   * If entry don't exists in containter create container and add it to the head
+   * If entry exists in container, put it in the same place
+   */
+  def put(key: EnKey, data: Bytes)(implicit dba: Dba): Res[Unit] = {
+    for {
+      x <- _get(key)
+      _ <- x.cata(y => _put(key, En(next=y.next, data=data)), prepend(key, data))
+    } yield ()
+  }
+
   def get(key: EnKey)(implicit dba: Dba): Res[Option[Bytes]] = {
     _get(key).map(_.map(_.data))
   }
+
   def apply(key: EnKey)(implicit dba: Dba): Res[Bytes] = {
     get(key).flatMap(_.cata(_.right, Fail(s"key=$key is not exists").left))
   }
-  private def delete(key: EnKey)(implicit dba: Dba): Res[Unit] = dba.delete(key)
+
+  /**
+   * Mark entry for removal. O(1) complexity.
+   * @return marked entry (with data). Or `None` if element is absent.
+   */
+  def remove(key: EnKey)(implicit dba: Dba): Res[Option[En]] = {
+    for {
+      en1 <- _get(key)
+      _ <- en1.cata(en => {
+        val next = en.next
+        for {
+          fd <- fh.get(key.fid).flatMap(_.toRight(Fail(s"feed=${key.fid} is not exists")))
+          _ <- fh.put(key.fid, fd.copy(length=fd.length-1, removed=fd.removed+1))
+          _ <- _put(key, en.copy(removed=true))
+        } yield ()
+      }, ().right)
+    } yield en1
+  }
 
   /**
    * Adds the entry to the container. Creates the container if it's absent.
@@ -62,10 +94,6 @@ object EnHandler {
       _ <- _put(key, en)
       _ <- fh.put(fid, fd.copy(head=id.some, length=fd.length+1, maxid=id))
     } yield id
-  }
-
-  def head(fid: FdKey)(implicit dba: Dba): Res[Option[(ElKey, Bytes)]] = {
-    all(fid, next=none, removed=false).flatMap(_.headOption.sequence).map(_.map(x => x._1 -> x._2.data))
   }
 
   /**
@@ -85,34 +113,28 @@ object EnHandler {
     } yield ()
   }
 
-  /**
-   * Puts the entry to the container
-   * If entry don't exists in containter create container and add it to the head
-   * If entry exists in container, put it in the same place
-   */
-  def put(key: EnKey, data: Bytes)(implicit dba: Dba): Res[Unit] = {
-    for {
-      x <- _get(key)
-      _ <- x.cata(y => _put(key, En(next=y.next, data=data)), prepend(key, data))
-    } yield ()
+  def head(fid: FdKey)(implicit dba: Dba): Res[Option[(ElKey, Bytes)]] = {
+    all(fid, next=none, removed=false).flatMap(_.headOption.sequence).map(_.map(x => x._1 -> x._2.data))
   }
 
-  /**
-   * Mark entry for removal. O(1) complexity.
-   * @return marked entry (with data). Or `None` if element is absent.
+  /** 
+   * Iterates through container and return the stream of entries.
+   * Stream is FILO ordered (most recent is first).
+   * @param next if specified then return entries after this entry
+   * None - start with head; Some(None) - empty seq; Some(Some(id)) - start with id.
    */
-  def remove_soft(key: EnKey)(implicit dba: Dba): Res[Option[En]] = {
-    for {
-      en1 <- _get(key)
-      _ <- en1.cata(en => {
-        val next = en.next
-        for {
-          fd <- fh.get(key.fid).flatMap(_.toRight(Fail(s"feed=${key.fid} is not exists")))
-          _ <- fh.put(key.fid, fd.copy(length=fd.length-1, removed=fd.removed+1))
-          _ <- _put(key, en.copy(removed=true))
-        } yield ()
-      }, ().right)
-    } yield en1
+  def all(fid: FdKey, next: Option[Option[ElKey]], removed: Boolean)(implicit dba: Dba): Res[LazyList[Res[(ElKey, En)]]] = {
+    lazy val _stream: Option[ElKey] => LazyList[Res[(ElKey, En)]] = {
+      case None => LazyList.empty
+      case Some(id) =>
+        dba.get(EnKey(fid, id)).map(_.map(unpickle[En](_))) match {
+          case Right(Some(e)) if e.removed && !removed => _stream(e.next)
+          case Right(Some(e)) => LazyList.cons((id -> e).right, _stream(e.next))
+          case Right(None) => LazyList(Fail(s"Feed is corrupted at id=$id").left)
+          case e@Left(_) => LazyList(e.coerceRight)
+        }
+    }
+    fh.get(fid).map(_.cata(fd => _stream(next.getOrElse(fd.head)), LazyList.empty))
   }
 
   /**
@@ -132,7 +154,7 @@ object EnHandler {
             maxid = if (y2._1 == fd.maxid) fd.maxid.decrement() else fd.maxid
             _ <- fh.put(fid, fd.copy(removed=fd.removed-1, maxid=maxid))
             // delete entry
-            _ <- delete(EnKey(fid, id=y2._1))
+            _ <- dba.delete(EnKey(fid, id=y2._1))
           } yield ()
           res match {
             case Right(()) => 
@@ -155,7 +177,7 @@ object EnHandler {
             maxid = if (y._1 == fd.maxid) fd.maxid.decrement() else fd.maxid
             _ <- fh.put(fid, Fd(head=y._2.next, length=fd.length, removed=fd.removed-1, maxid=maxid))
             // delete entry
-            _ <- delete(EnKey(fid, id=y._1))
+            _ <- dba.delete(EnKey(fid, id=y._1))
           } yield ()
           res match {
             case Right(()) => loop(ys, athead=true)
@@ -176,26 +198,6 @@ object EnHandler {
       xs <- all(fid=fid, next=none, removed=true)
       _ <- loop(xs, athead=true)
     } yield ()
-  }
-
-  /** 
-   * Iterates through container and return the stream of entries.
-   * Stream is FILO ordered (most recent is first).
-   * @param next if specified then return entries after this entry
-   * None - start with head; Some(None) - empty seq; Some(Some(id)) - start with id.
-   */
-  def all(fid: FdKey, next: Option[Option[ElKey]], removed: Boolean)(implicit dba: Dba): Res[LazyList[Res[(ElKey, En)]]] = {
-    lazy val _stream: Option[ElKey] => LazyList[Res[(ElKey, En)]] = {
-      case None => LazyList.empty
-      case Some(id) =>
-        dba.get(EnKey(fid, id)).map(_.map(unpickle[En](_))) match {
-          case Right(Some(e)) if e.removed && !removed => _stream(e.next)
-          case Right(Some(e)) => LazyList.cons((id -> e).right, _stream(e.next))
-          case Right(None) => LazyList(Fail(s"Feed is corrupted at id=$id").left)
-          case e@Left(_) => LazyList(e.coerceRight)
-        }
-    }
-    fh.get(fid).map(_.cata(fd => _stream(next.getOrElse(fd.head)), LazyList.empty))
   }
 
   /**
