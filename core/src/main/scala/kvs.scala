@@ -45,10 +45,10 @@ trait ReadOnlyKvs {
   val fd: ReadOnlyFdApi
   val file: ReadOnlyFileApi
 
-  def all[A: Entry](next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[(Bytes, A)]]]
-  def get[A: Entry](key: Bytes): Res[Option[A]]
-  def apply[A: Entry](key: Bytes): Res[A]
-  def head[A: Entry](): Res[Option[(EnKey, A)]]
+  def all[A: Entry](next: Option[Option[ElKey]]=none, removed: Boolean=false): Res[LazyList[Res[(ElKey, A)]]]
+  def get[A: Entry](key: ElKey): Res[Option[A]]
+  def apply[A: Entry](key: ElKey): Res[A]
+  def head[A: Entry](): Res[Option[(ElKey, A)]]
 }
 
 object Kvs {
@@ -88,40 +88,40 @@ class Kvs(implicit val dba: Dba) extends ReadOnlyKvs {
     def length(id: FdKey): Res[Long] = FdHandler.length(id)
   }
 
-  def add[A: Entry](data: A): Res[EnKey] = {
+  def add[A: Entry](data: A): Res[ElKey] = {
     val en = implicitly[Entry[A]]
     EnHandler.prepend(en.fid, en.insert(data))
   }
-  def add[A: Entry](key: Bytes, data: A): Res[Unit] = {
+  def add[A: Entry](key: ElKey, data: A): Res[Unit] = {
     val en = implicitly[Entry[A]]
     EnHandler.prepend(EnKey(en.fid, key), en.insert(data))
   }
-  def put[A: Entry](key: Bytes, data: A): Res[Unit] = {
+  def put[A: Entry](key: ElKey, data: A): Res[Unit] = {
     val en = implicitly[Entry[A]]
     EnHandler.put(EnKey(en.fid, key), en.insert(data))
   }
-  def all[A: Entry](next: Option[Option[Bytes]]=none, removed: Boolean=false): Res[LazyList[Res[(Bytes, A)]]] = {
+  def all[A: Entry](next: Option[Option[ElKey]]=none, removed: Boolean=false): Res[LazyList[Res[(ElKey, A)]]] = {
     val en = implicitly[Entry[A]]
-    EnHandler.all(en.fid, next, removed).map(_.map(_.map{ x => x.key.id -> en.extract(x.en.data) }))
+    EnHandler.all(en.fid, next, removed).map(_.map(_.map{ x => x._1 -> en.extract(x._2.data) }))
   }
-  def get[A: Entry](key: Bytes): Res[Option[A]] = {
+  def get[A: Entry](key: ElKey): Res[Option[A]] = {
     val en = implicitly[Entry[A]]
     EnHandler.get(EnKey(en.fid, key)).map(_.map(x => en.extract(x.data)))
   }
-  def apply[A: Entry](key: Bytes): Res[A] = {
+  def apply[A: Entry](key: ElKey): Res[A] = {
     val en = implicitly[Entry[A]]
     EnHandler.apply(EnKey(en.fid, key)).map(x => en.extract(x.data))
   }
-  def head[A: Entry](): Res[Option[(EnKey, A)]] = {
+  def head[A: Entry](): Res[Option[(ElKey, A)]] = {
     val en = implicitly[Entry[A]]
-    EnHandler.head(en.fid).map(_.map{ x => x.key -> en.extract(x.en.data) })
+    EnHandler.head(en.fid).map(_.map(x => x._1 -> en.extract(x._2.data)))
   }
-  def remove[A: Entry](key: Bytes): Res[Option[A]] = {
+  def remove[A: Entry](key: ElKey): Res[Option[A]] = {
     val en = implicitly[Entry[A]]
     EnHandler.remove_soft(EnKey(en.fid, key)).map(_.map(x => en.extract(x.data)))
   }
   def cleanup(fid: FdKey): Res[Unit] = EnHandler.cleanup(fid)
-  def fix(fid: FdKey): Res[((Long,Long),(Long,Long),(Bytes,Bytes))] = EnHandler.fix(fid)
+  def fix(fid: FdKey): Res[((Long,Long),(Long,Long),(ElKey,ElKey))] = EnHandler.fix(fid)
 
   val file = new FileApi {
     def create(path: PathKey)(implicit h: FileHandler): Res[File] = h.create(path)

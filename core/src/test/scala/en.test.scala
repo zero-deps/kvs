@@ -18,12 +18,13 @@ class FeedSpec extends TestKit(ActorSystem("FeedSpec"))
   val key1 = keyN(1)
   val key2 = keyN(2)
   val key3 = keyN(3)
-  def keyN(n: Byte): Bytes = Bytes.unsafeWrap(Array(n))
+  def keyN(n: Byte): ElKey = ElKey(Bytes.unsafeWrap(Array(n)))
+  def data(n: Byte): Bytes = Bytes.unsafeWrap(Array(n))
 
   "feed" - {
     "no 1" - {
       implicit object Entry1 extends Entry[Int] {
-        val fid: FdKey = FdKey(keyN(1))
+        val fid: FdKey = FdKey(data(1))
         def extract(xs: Bytes): Int = xs.mkString.toInt
         def insert(x: Int): Bytes = Bytes.unsafeWrap(x.toString.getBytes)
       }
@@ -108,18 +109,18 @@ class FeedSpec extends TestKit(ActorSystem("FeedSpec"))
 
     "no 2" - {
       implicit object Entry1 extends Entry[Int] {
-        val fid: FdKey = FdKey(keyN(2))
+        val fid: FdKey = FdKey(data(2))
         def extract(xs: Bytes): Int = xs.mkString.toInt
         def insert(x: Int): Bytes = Bytes.unsafeWrap(x.toString.getBytes)
       }
       val fid = Entry1.fid
       "first auto id" in {
         val s = kvs.add[Int](0)
-        s.map(_.id) shouldBe BytesExt.MinValue.right
+        s shouldBe ElKeyExt.MinValue.right
       }
       "second auto id" in {
         val s = kvs.add[Int](0)
-        s.map(_.id) shouldBe BytesExt.MinValue.increment().right
+        s shouldBe ElKeyExt.MinValue.increment().right
       }
       "insert id 5" in {
         val s = kvs.add[Int](keyN(5), 0)
@@ -127,7 +128,7 @@ class FeedSpec extends TestKit(ActorSystem("FeedSpec"))
       }
       "next auto id is 6" in {
         val s = kvs.add[Int](0)
-        s.map(_.id) shouldBe keyN(6).right
+        s shouldBe keyN(6).right
       }
       "insert id 'a'" in {
         val s = kvs.add[Int](keyN('a'), 0)
@@ -135,7 +136,7 @@ class FeedSpec extends TestKit(ActorSystem("FeedSpec"))
       }
       "next auto id is 'b'" in {
         val s = kvs.add[Int](0)
-        s.map(_.id) shouldBe keyN('b').right
+        s shouldBe keyN('b').right
       }
       "insert id 3" in {
         val s = kvs.add[Int](key3, 0)
@@ -143,13 +144,13 @@ class FeedSpec extends TestKit(ActorSystem("FeedSpec"))
       }
       "next auto id is 'c'" in {
         val s = kvs.add[Int](0)
-        s.map(_.id) shouldBe keyN('c').right
+        s shouldBe keyN('c').right
       }
     }
 
     "no 3" - {
       implicit object Entry1 extends Entry[Int] {
-        val fid: FdKey = FdKey(keyN(3))
+        val fid: FdKey = FdKey(data(3))
         def extract(xs: Bytes): Int = xs.mkString.toInt
         def insert(x: Int): Bytes = Bytes.unsafeWrap(x.toString.getBytes)
       }

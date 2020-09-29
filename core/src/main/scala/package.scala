@@ -7,54 +7,50 @@ import java.util.Arrays
 package object kvs {
   type Res[A] = Either[Err, A]
 
-  implicit class BytesExt(x: Bytes) {
-    def splitAt(n: Int): (Bytes, Bytes) = {
-      val res = x.unsafeArray.splitAt(n)
-      (Bytes.unsafeWrap(res._1), Bytes.unsafeWrap(res._2))
-    }
-    def length: Int = x.unsafeArray.length
-    def increment(): Bytes = {
+  implicit class ElKeyExt(key: ElKey) {
+    import ElKeyExt._
+    def increment(): ElKey = {
+      val x = key.bytes
       val len = x.length
-      if (length == 0) BytesExt.MinValue
+      if (len == 0) MinValue
       else {
         val last = x.unsafeArray(len-1)
         if (last == Byte.MaxValue) {
           val ext = Arrays.copyOf(x.unsafeArray, len+1)
           ext(len) = Byte.MinValue
-          Bytes.unsafeWrap(ext)
+          ElKey(Bytes.unsafeWrap(ext))
         } else {
           val ext: Array[Byte] = Arrays.copyOf(x.unsafeArray, len)
           ext(len-1) = (ext(len-1) + 1).toByte
-          Bytes.unsafeWrap(ext)
+          ElKey(Bytes.unsafeWrap(ext))
         }
       }
     }
-    def decrement(): Bytes = {
+    def decrement(): ElKey = {
+      val x = key.bytes
       val len = x.length
-      if (length == 0) BytesExt.Empty
+      if (len == 0) EmptyValue
       else {
         val last = x.unsafeArray(len-1)
         if (last == Byte.MinValue) {
-          if (length == 1) BytesExt.Empty
+          if (len == 1) EmptyValue
           else {
             val ext = Arrays.copyOf(x.unsafeArray, len-1)
-            Bytes.unsafeWrap(ext)
+            ElKey(Bytes.unsafeWrap(ext))
           }
         } else {
           val ext: Array[Byte] = Arrays.copyOf(x.unsafeArray, len)
           ext(len-1) = (ext(len-1) - 1).toByte
-          Bytes.unsafeWrap(ext)
+          ElKey(Bytes.unsafeWrap(ext))
         }
       }
     }
   }
 
-  object BytesExt {
-    val Empty: Bytes = Bytes.empty
-    val MinValue: Bytes = Bytes.unsafeWrap(Array(Byte.MinValue))
-    def max(x: Bytes, y: Bytes): Bytes = {
-      if (Arrays.compare(x.unsafeArray, y.unsafeArray) > 0) x else y
-    }
+  object ElKeyExt {
+    val MinValue = ElKey(Bytes.unsafeWrap(Array(Byte.MinValue)))
+    val EmptyValue = ElKey(Bytes.empty)
+    def from_str(x: String): ElKey = ElKey(Bytes.unsafeWrap(x.getBytes("utf8")))
   }
 
   def pickle[A](e: A)(implicit c: MessageCodec[A]): Bytes = encodeToBytes[A](e)

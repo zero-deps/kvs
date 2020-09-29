@@ -16,9 +16,9 @@ class FileHandlerTest extends TestKit(ActorSystem("FileHandlerTest"))
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 
   val dir = FdKey(stob("dir"))
-  val name = stob("name" + System.currentTimeMillis)
+  val name = ElKeyExt.from_str("name" + System.currentTimeMillis)
   val path = PathKey(dir, name)
-  val name1 = stob("name" + System.currentTimeMillis + "_1")
+  val name1 = ElKeyExt.from_str("name" + System.currentTimeMillis + "_1")
   val path1 = PathKey(dir, name1)
 
   implicit val fh: FileHandler = new FileHandler {

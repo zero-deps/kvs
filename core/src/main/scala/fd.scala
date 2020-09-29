@@ -3,24 +3,25 @@ package en
 
 import zd.kvs.store.Dba
 import zero.ext._, either._, option._
-import zd.proto.api.{N, MessageCodec}
-import zd.proto.macrosapi.caseCodecAuto
-import zd.proto.Bytes
+import zd.proto._, api._, macrosapi._
 
 final case class Fd
-  ( @N(1) head: Option[Bytes]
+  ( @N(1) head: Option[ElKey]
   , @N(2) length: Long
   , @N(3) removed: Long
-  , @N(4) maxid: Bytes
+  , @N(4) maxid: ElKey
   )
 object Fd {
-  def apply(head: Option[Bytes]=None, length: Long=0, removed: Long=0, maxid: Bytes=BytesExt.Empty): Fd = {
+  def apply(head: Option[ElKey]=None, length: Long=0, removed: Long=0, maxid: ElKey=ElKey(Bytes.empty)): Fd = {
     new Fd(head=head, length=length, removed=removed, maxid=maxid)
   }
 }
 
 object FdHandler {
-  private implicit val codec: MessageCodec[Fd] = caseCodecAuto[Fd]
+  private implicit val fdc = {
+    implicit val elkeyc = caseCodecAuto[ElKey]
+    caseCodecAuto[Fd]
+  }
 
   def put(id: FdKey, el: Fd)(implicit dba: Dba): Res[Unit] = dba.put(id, pickle(el))
 

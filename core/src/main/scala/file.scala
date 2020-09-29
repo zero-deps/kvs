@@ -104,4 +104,11 @@ trait FileHandler {
       _ <- dba.put(toPath, pickle(to))
     } yield to
   }
+
+  implicit class BytesExt(x: Bytes) {
+    def splitAt(n: Int): (Bytes, Bytes) = {
+      val res = x.unsafeArray.splitAt(n)
+      (Bytes.unsafeWrap(res._1), Bytes.unsafeWrap(res._2))
+    }
+  }
 }

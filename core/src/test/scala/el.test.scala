@@ -14,7 +14,7 @@ class ElHandlerTest extends TestKit(ActorSystem("ElHandlerTest"))
   val kvs = Kvs.mem()
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 
-  def key(x: String): ElKey = ElKey(Bytes.unsafeWrap(x.getBytes))
+  def key(x: String): ElKey = ElKeyExt.from_str(x)
   def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
 
   "el handler should" - {

@@ -61,7 +61,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     ensureOpen()
     kvs.all[File]().flatMap(_.sequence).fold(
       l => throw new IOException(l.toString)
-    , r => r.map(x => new String(x._1.unsafeArray, "UTF-8")).sorted.toArray
+    , r => r.map(x => x._1.bytes.mkString).sorted.toArray
     )
   }
 
@@ -76,7 +76,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
    */
   override
   def deleteFile(name: String): Unit = {
-    val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
+    val name1 = ElKeyExt.from_str(name)
     sync(Collections.singletonList(name))
     val res: Res[Option[Unit]] = for {
       _ <- kvs.file.delete(PathKey(dir, name1))
@@ -107,7 +107,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
   override
   def fileLength(name: String): Long = {
     ensureOpen()
-    val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
+    val name1 = ElKeyExt.from_str(name)
     sync(Collections.singletonList(name))
     kvs.file.size(PathKey(dir, name1)).fold(
       l => l match {
@@ -131,7 +131,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
   override
   def createOutput(name: String, context: IOContext): IndexOutput = {
     ensureOpen()
-    val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
+    val name1 = ElKeyExt.from_str(name)
     val r = for {
       _ <- kvs.add[File](name1, ())
       _ <- kvs.file.create(PathKey(dir, name1))
@@ -162,7 +162,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     ensureOpen()
     @tailrec def loop(): Res[String] = {
       val name = Directory.getTempFileName(prefix, suffix, nextTempFileCounter.getAndIncrement)
-      val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
+      val name1 = ElKeyExt.from_str(name)
       val res = for {
         _ <- kvs.add[File](name1, ())
         _ <- kvs.file.create(PathKey(dir, name1))
@@ -196,7 +196,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     ensureOpen()
     names.stream.forEach{ name =>
       outs.get(name).map(x => Bytes.unsafeWrap(x.toByteArray)).foreach{ xs =>
-        val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
+        val name1 = ElKeyExt.from_str(name)
         kvs.file.append(PathKey(dir, name1), xs).fold(
           l => throw new IOException(l.toString),
           _ => ()
@@ -228,8 +228,8 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
   override
   def rename(source: String, dest: String): Unit = {
     ensureOpen()
-    val source1 = Bytes.unsafeWrap(source.getBytes("UTF-8"))
-    val dest1 = Bytes.unsafeWrap(dest.getBytes("UTF-8"))
+    val source1 = ElKeyExt.from_str(source)
+    val dest1 = ElKeyExt.from_str(dest)
     sync(Arrays.asList(source, dest))
     val res = for {
       _ <- kvs.file.copy(from=PathKey(dir, source1), to=PathKey(dir, dest1))
@@ -256,7 +256,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
   override
   def openInput(name: String, context: IOContext): IndexInput = {
     sync(Collections.singletonList(name))
-    val name1 = Bytes.unsafeWrap(name.getBytes("UTF-8"))
+    val name1 = ElKeyExt.from_str(name)
     val res = for {
       bs <- kvs.file.stream(PathKey(dir, name1))
       bs1 <- bs.sequence
@@ -284,10 +284,10 @@ class KvsLockFactory(dir: FdKey) extends LockFactory {
   private[this] val locks = TrieMap.empty[Bytes, Unit]
 
   override def obtainLock(d: Directory, lockName: String): Lock = {
-    val key = Bytes.unsafeWrap(dir.name.unsafeArray ++ lockName.getBytes("UTF-8"))
+    val key = Bytes.unsafeWrap(dir.bytes.unsafeArray ++ lockName.getBytes("UTF-8"))
     locks.putIfAbsent(key, ()) match {
       case None => return new KvsLock(key)
-      case Some(_) => throw new LockObtainFailedException(new String(key.unsafeArray, "UTF-8"))
+      case Some(_) => throw new LockObtainFailedException(key.mkString)
     }
   }
 
@@ -296,7 +296,7 @@ class KvsLockFactory(dir: FdKey) extends LockFactory {
 
     override def ensureValid(): Unit = {
       if (closed) {
-        throw new AlreadyClosedException(new String(key.unsafeArray, "UTF-8"))
+        throw new AlreadyClosedException(key.mkString)
       }
       if (!locks.contains(key)) {
         throw new AlreadyClosedException(new String(key.unsafeArray, "UTF-8"))
