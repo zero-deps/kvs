@@ -56,7 +56,7 @@ ThisBuild / turbo := true
 ThisBuild / useCoursier := true
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val kvs = project.in(file(".")).aggregate(core, search, demo)
+lazy val kvs = project.in(file(".")).aggregate(core, corezio, search, demo)
   .settings(
     skip in publish := true
   )
@@ -79,6 +79,13 @@ lazy val core = project.in(file("core"))
   , name := s"kvs-${name.value}"
   , publishArtifact := true
   )
+
+lazy val corezio = project.in(file("core-zio")).settings(
+  libraryDependencies ++= Seq(
+    "dev.zio" %% "zio-nio" % "1.0.0-RC9"
+  , "dev.zio" %% "zio-akka-cluster" % "0.1.13" /* "0.2.0" */ excludeAll(ExclusionRule(organization = "dev.zio"))
+  )
+).dependsOn(core)
   
 lazy val search = project.in(file("search"))
   .settings(
