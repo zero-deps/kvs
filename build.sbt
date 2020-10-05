@@ -83,7 +83,7 @@ lazy val core = project.in(file("core"))
 lazy val corezio = project.in(file("core-zio")).settings(
   libraryDependencies ++= Seq(
     "dev.zio" %% "zio-nio" % "1.0.0-RC9"
-  , "dev.zio" %% "zio-akka-cluster" % "0.1.13" /* "0.2.0" */ excludeAll(ExclusionRule(organization = "dev.zio"))
+  , "dev.zio" %% "zio-akka-cluster" % "0.2.0" excludeAll(ExclusionRule(organization = "dev.zio"))
   )
 ).dependsOn(core)
   

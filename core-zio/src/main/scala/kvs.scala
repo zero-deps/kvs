@@ -113,10 +113,11 @@ package object kvszio {
   def writeShard(kvs: zd.kvs.Kvs): ShardMsg => ZIO[Entity[Unit], Nothing, Unit] = {
     case msg: ShardAdd => ZIO.effect(kvs.add(msg.fid, msg.id, msg.data)).ignore
     case msg: ShardPut => ZIO.effect(kvs.put(msg.fid, msg.id, msg.data)).ignore
-    case msg: ShardPutBulk =>
-      ZIO.foreach_(msg.a)(v =>
-        ZIO.effect(kvs.el.put(ElKey(v._1), v._2))
-      ).ignore *> ZIO.accessM(_.replyToSender(()).ignore)
+    case msg: ShardPutBulk => ???
+    // case msg: ShardPutBulk =>
+    //   ZIO.foreach_(msg.a)(v =>
+    //     ZIO.effect(kvs.el.put(ElKey(v._1), v._2))
+    //   ).ignore *> ZIO.accessM(_.replyToSender(()).ignore)
     case msg: ShardRemove => ZIO.effect(kvs.remove(msg.fid, msg.id)).ignore
   }
 
