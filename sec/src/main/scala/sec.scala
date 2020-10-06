@@ -4,13 +4,20 @@ import zio._
 // import encoding._
 // import zio._, stream._, blocking.{blocking => succeedb, _}, clock._
 import zio.akka.cluster.sharding.{Sharding, Entity}
-import zd.proto._//, api._
+import zd.proto._
 // import zd.kvs.{ElKey, EnKey, FdKey}
 // import zd.kvs.en.En
 import com.typesafe.config.Config
 import zd.kvs._
 
-package object kvszio {
+sealed trait ShardMsg
+final case class ShardAdd(fid: FdKey, id: ElKey, data: Bytes) extends ShardMsg
+final case class ShardPut(fid: FdKey, id: ElKey, data: Bytes) extends ShardMsg
+final case class ShardPutBulk(fid: FdKey, a: Vector[(Bytes, Bytes)]) extends ShardMsg
+final case class ShardRemove(fid: FdKey, id: ElKey) extends ShardMsg
+
+package object sec {
+
   // sealed trait KvsErr
   // object KvsErr {
   //     case class IO(e: Throwable) extends RuntimeException(e) with KvsErr
