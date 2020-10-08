@@ -36,6 +36,8 @@ ThisBuild / scalacOptions ++= Seq(
 )
 ThisBuild / Test / scalacOptions += "-deprecation"
 
+ThisBuild / resolvers += Resolver.jcenterRepo
+
 ThisBuild / turbo := true
 ThisBuild / useCoursier := true
 Global / onChangedBuildSource := ReloadOnSourceChanges
