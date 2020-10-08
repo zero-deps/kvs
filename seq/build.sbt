@@ -23,7 +23,7 @@ lazy val kvs_core = project.in(file("../core")).settings(
   )
 )
 
-lazy val kvs_sec = project.in(file(".")).settings(
+lazy val kvs_seq = project.in(file(".")).settings(
   libraryDependencies ++= Seq(
     "dev.zio" %% "zio-nio" % zionio
   , "dev.zio" %% "zio-akka-cluster" % zioakka
