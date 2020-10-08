@@ -45,7 +45,7 @@ trait ReadOnlyKvs {
   val fd: ReadOnlyFdApi
   val file: ReadOnlyFileApi
 
-  def all  [A: DataCodec](fid: FdKey, next: Option[ElKey]=none): Res[LazyList[Res[(ElKey, A)]]]
+  def all  [A: DataCodec](fid: FdKey, after: Option[ElKey]=none): Res[LazyList[Res[(ElKey, A)]]]
   def get  [A: DataCodec](fid: FdKey, id: ElKey): Res[Option[A]]
   def apply[A: DataCodec](fid: FdKey, id: ElKey): Res[A]
   def head [A: DataCodec](fid: FdKey): Res[Option[A]]
@@ -99,9 +99,9 @@ class Kvs(implicit val dba: Dba) extends ReadOnlyKvs {
     val en = implicitly[DataCodec[A]]
     EnHandler.put(EnKey(fid, id), en.insert(data))
   }
-  def all[A: DataCodec](fid: FdKey, next: Option[ElKey]=none): Res[LazyList[Res[(ElKey, A)]]] = {
+  def all[A: DataCodec](fid: FdKey, after: Option[ElKey]=none): Res[LazyList[Res[(ElKey, A)]]] = {
     val en = implicitly[DataCodec[A]]
-    EnHandler.all(fid, next.map(_.some), removed=false).map(_.map(_.map{ x => x._1 -> en.extract(x._2.data) }))
+    EnHandler.all(fid, after.map(_.some), removed=false).map(_.map(_.map{ x => x._1 -> en.extract(x._2.data) }))
   }
   def get[A: DataCodec](fid: FdKey, id: ElKey): Res[Option[A]] = {
     val en = implicitly[DataCodec[A]]
