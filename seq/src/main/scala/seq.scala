@@ -33,6 +33,7 @@ package object seq {
 
   object Kvs {
     trait Service {
+      def apply[A: DataCodec](fid: FdKey, id: ElKey): KIO[A]
       def get[A: DataCodec](fid: FdKey, id: ElKey): KIO[Option[A]]
       def add[A: DataCodec](fid: FdKey, a: A): KIO[A]
       def add[A: DataCodec](fid: FdKey, id: ElKey, a: A): KIO[A]
@@ -43,6 +44,7 @@ package object seq {
       def cleanup(fid: FdKey): KIO[Unit]
     }
 
+    def apply[A: DataCodec](fid: FdKey, id: ElKey): ZIO[Kvs, Err, A] = ZIO.accessM(_.get.apply[A](fid, id))
     def get[A: DataCodec](fid: FdKey, id: ElKey): ZIO[Kvs, Err, Option[A]] = ZIO.accessM(_.get.get[A](fid, id))
     def add[A: DataCodec](fid: FdKey, a: A): KZIO[Kvs, A] = ZIO.accessM(_.get.add(fid, a))
     def add[A: DataCodec](fid: FdKey, id: ElKey, a: A): KZIO[Kvs, A] = ZIO.accessM(_.get.add(fid, id, a))
@@ -58,6 +60,10 @@ package object seq {
         kvs  <- ZIO.effect(zd.kvs.Kvs(as))
         sh   <- Sharding.start("write_shard", onMessage=writeShard(kvs)).provideLayer(ZLayer.succeed(as))
         res  <- ZIO.succeed(new Service {
+                  def apply[A: DataCodec](fid: FdKey, id: ElKey): KIO[A] = for {
+                    res  <- IO.fromEither(kvs.apply[A](fid, id))
+                  } yield res
+
                   def get[A: DataCodec](fid: FdKey, id: ElKey): KIO[Option[A]] = for {
                     res  <- IO.fromEither(kvs.get[A](fid, id))
                   } yield res
