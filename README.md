@@ -2,11 +2,10 @@
 
 ![test](https://github.com/zero-deps/kvs/workflows/test/badge.svg)
 
-[Example](https://github.com/zero-deps/kvs/blob/master/demo/src/main/scala/Run.scala)
+Documentation is located in `docs` directory.
 
-More documentation check in `docs` directory.
-
-More examples check in `src/test/scala` directory.
+[Demo app](https://github.com/zero-deps/kvs/blob/master/demo/src/main/scala/Run.scala).
+More code examples are located in `src/test/scala` directory.
 
 ## Version
 
