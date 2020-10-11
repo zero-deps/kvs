@@ -1,17 +1,17 @@
-# Abstract scala type database.
+# Abstract scala type database
 
-[![Bintray](https://img.shields.io/bintray/v/zero-deps/maven/kvs-core.svg?label=kvs-core)](https://bintray.com/zero-deps/maven/kvs-core/_latestVersion)
-[![Bintray](https://img.shields.io/bintray/v/zero-deps/maven/kvs-search.svg?label=kvs-search)](https://bintray.com/zero-deps/maven/kvs-search/_latestVersion)
-
-[![Scala CI](https://github.com/zero-deps/kvs/workflows/Scala%20CI/badge.svg?branch=master)](https://github.com/zero-deps/kvs/actions?query=branch%3Amaster)
-
-Key Value Storage
+![test](https://github.com/zero-deps/kvs/workflows/test/badge.svg)
 
 [Example](https://github.com/zero-deps/kvs/blob/master/demo/src/main/scala/Run.scala)
 
 More documentation check in `docs` directory.
 
 More examples check in `src/test/scala` directory.
+
+## Version
+
+`main`: current version; can be added as git-submodule  
+`4.x`: legacy but proven version; published to jcenter
 
 ## Backend
 
