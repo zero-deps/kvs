@@ -1,10 +1,11 @@
-package zd.kvs
+package kvs
 package rng
 package model
 
 import zd.proto.api.N
-import zd.kvs.rng.data._
 import zd.proto.Bytes
+
+import rng.data._
 
 sealed trait Msg
 

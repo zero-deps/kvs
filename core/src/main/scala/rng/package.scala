@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 
 import akka.actor.{Address, ActorRef}
 import zd.proto.api.MessageCodec

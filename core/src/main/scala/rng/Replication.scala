@@ -1,13 +1,13 @@
-package zd.kvs
+package kvs
 package rng
 
+import scala.collection.immutable.SortedMap
+import scala.concurrent.duration.Duration
 import akka.actor.{ActorLogging, Props, FSM}
-import akka.cluster.{Cluster}
-import scala.collection.immutable.{SortedMap}
-import scala.concurrent.duration.{Duration}
-import zd.kvs.rng.model.{ReplBucketPut, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}
-import zd.kvs.rng.ReplicationSupervisor.{State}
-import zd.kvs.rng.ReplicationSupervisor.ReplGetBucketsVc
+import akka.cluster.Cluster
+
+import model.{ReplBucketPut, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}
+import ReplicationSupervisor.{State, ReplGetBucketsVc}
 
 object ReplicationSupervisor {
   final case class Progress(done: Int, total: Int, step: Int)

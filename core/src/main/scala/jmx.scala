@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 
 import java.lang.management.ManagementFactory
 import javax.management.{ObjectName,StandardMBean}

@@ -1,18 +1,13 @@
-package zd.kvs
+package kvs
 package rng
 package store
 
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{VectorClock}
 import leveldbjnr._
-import zd.kvs.rng.data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}
-import zd.kvs.rng.data.codec._
-import zd.kvs.rng.data.keycodec._
-import zd.kvs.rng.model.{DumpGetBucketData, DumpBucketData}
-import zd.kvs.rng.model.{ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}
-import zd.kvs.rng.model.{StoreGet, StoreGetAck}
-import zd.kvs.rng.ReplicationSupervisor.ReplGetBucketsVc
 import zd.proto.api.{encode, decode}
+
+import data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}, data.codec._, data.keycodec._, model.{DumpGetBucketData, DumpBucketData}, model.{ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}, model.{StoreGet, StoreGetAck}, ReplicationSupervisor.ReplGetBucketsVc
 
 object ReadonlyStore {
   def props(leveldb: LevelDb): Props = Props(new ReadonlyStore(leveldb))

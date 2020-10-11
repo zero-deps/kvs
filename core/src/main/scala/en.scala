@@ -1,10 +1,11 @@
-package zd.kvs
+package kvs
 package en
 
 import scala.annotation.tailrec
 import zero.ext._, either._, option._, traverse._
-import zd.kvs.store.Dba
 import zd.proto._, api._, macrosapi._
+
+import store.Dba
 
 final case class En
   ( @N(1) next: Option[ElKey]

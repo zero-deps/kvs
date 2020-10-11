@@ -1,13 +1,14 @@
-package zd.kvs
+package kvs
 
 import akka.actor._
 import akka.testkit._
-import zd.kvs.file._
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatest._
 import zero.ext._, either._
 import zd.proto.Bytes
+
+import kvs.file._
 
 class FileHandlerTest extends TestKit(ActorSystem("FileHandlerTest"))
   with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {

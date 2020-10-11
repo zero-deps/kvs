@@ -1,10 +1,9 @@
-package zero.kvs
+package kvs
 
 import com.typesafe.config.Config
 import zio._, stream._, blocking.{blocking => succeedb, _}, clock._
 import zio.akka.cluster.sharding.{Sharding, Entity}
 import zd.proto._
-import zd.kvs._
 
 sealed trait ShardMsg
 final case class ShardAdd1(fid: FdKey, data: Bytes) extends ShardMsg
@@ -57,7 +56,7 @@ package object seq {
     val live: ZLayer[ActorSystem, Err, Kvs] = ZLayer.fromEffect{
       for {
         as   <- ZIO.access[ActorSystem](_.get)
-        kvs  <- ZIO.effect(zd.kvs.Kvs(as))
+        kvs  <- ZIO.effect(_root_.kvs.Kvs(as))
         sh   <- Sharding.start("write_shard", onMessage=writeShard(kvs)).provideLayer(ZLayer.succeed(as))
         res  <- ZIO.succeed(new Service {
                   def apply[A: DataCodec](fid: FdKey, id: ElKey): KIO[A] = for {
@@ -107,7 +106,7 @@ package object seq {
     }.mapError(Throwed(_))
   }
 
-  def writeShard(kvs: zd.kvs.Kvs): ShardMsg => ZIO[Entity[Unit], Nothing, Unit] = {
+  def writeShard(kvs: _root_.kvs.Kvs): ShardMsg => ZIO[Entity[Unit], Nothing, Unit] = {
     case msg: ShardAdd1 => ZIO.effect(kvs.add(msg.fid, msg.data)).ignore
     case msg: ShardAdd => ZIO.effect(kvs.add(msg.fid, msg.id, msg.data)).ignore
     case msg: ShardPut => ZIO.effect(kvs.put(msg.fid, msg.id, msg.data)).ignore

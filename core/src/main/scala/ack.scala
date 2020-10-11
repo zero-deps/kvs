@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 
 import zd.proto.Bytes
 

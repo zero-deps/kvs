@@ -1,13 +1,12 @@
-package zd.kvs
+package kvs
 package rng
 
-import zd.kvs.rng.data.{Data}
-import zd.kvs.rng.GatherGet.AddrOfData
 import scala.annotation.tailrec
 import scala.collection.immutable.{HashMap, HashSet}
 import zero.ext._, option._
 import zd.proto.Bytes
-import zd.kvs.rng.model.KeyBucketData
+
+import data.Data, GatherGet.AddrOfData, model.KeyBucketData
 
 object MergeOps {
   def forDump(xs: Vector[KeyBucketData]): Vector[KeyBucketData] = {

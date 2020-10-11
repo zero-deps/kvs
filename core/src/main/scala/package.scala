@@ -1,5 +1,3 @@
-package zd
-
 import zd.proto.api._
 import zd.proto.Bytes
 import java.util.Arrays

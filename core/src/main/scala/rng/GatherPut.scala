@@ -1,11 +1,11 @@
-package zd.kvs
+package kvs
 package rng
 
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
-import zd.kvs.rng.data.Data
-import zd.kvs.rng.model.{StoreGetAck, StorePut}
 import scala.concurrent.duration._
 import zd.proto.Bytes
+
+import data.Data, model.{StoreGetAck, StorePut}
 
 final case class PutInfo(
     key: Bytes

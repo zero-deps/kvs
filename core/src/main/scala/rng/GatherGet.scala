@@ -1,14 +1,13 @@
-package zd.kvs
+package kvs
 package rng
 
 import annotation.unused
 import akka.actor._
-import zd.kvs.rng.data.Data
-import zd.kvs.rng.model.{StoreGetAck, StorePut, StoreDelete}
 import scala.concurrent.duration._
 import scala.collection.immutable.{HashSet}
 import zd.proto.Bytes
 
+import model.{StoreGetAck, StorePut, StoreDelete}, data.Data
 import GatherGet.DataCollection
 
 class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, @unused R: Int, k: Bytes) extends FSM[FsmState, DataCollection] with ActorLogging {

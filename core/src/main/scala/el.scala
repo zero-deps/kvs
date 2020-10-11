@@ -1,8 +1,9 @@
-package zd.kvs
+package kvs
 package el
 
 import zd.proto.Bytes
-import zd.kvs.store.Dba
+
+import store.Dba
 
 object ElHandler {
   def put(k: ElKey, v: Bytes)(implicit dba: Dba): Res[Unit] = dba.put(k, v)

@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 package search
 
 import java.io.{IOException, ByteArrayOutputStream}
@@ -9,9 +9,9 @@ import org.apache.lucene.store._
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
 import zero.ext._, either._, option._, traverse._
-import zd.kvs.en.FdHandler
-import zd.kvs.file.FileHandler
 import zd.proto.Bytes
+
+import en.FdHandler, file.FileHandler
 
 class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactory(dir)) {
   implicit val fileh = new FileHandler {
@@ -40,7 +40,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
         val name = key
         val path = PathKey(dir, name)
         for {
-          _ <- kvs.file.delete(path).void.recover{ case _: zd.kvs.FileNotExists => () }
+          _ <- kvs.file.delete(path).void.recover{ case _: FileNotExists => () }
           _ <- kvs.remove[File](dir, name)
         } yield ()
       }.sequence_
@@ -84,7 +84,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     } yield x.void
     res.fold(
       l => l match {
-        case _: zd.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name}")
+        case _: _root_.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name}")
         case x => throw new IOException(x.toString)
       },
       r => r match {
@@ -110,7 +110,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     sync(Collections.singletonList(name))
     kvs.file.size(PathKey(dir, name1)).fold(
       l => l match {
-        case _: zd.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name}")
+        case _: _root_.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name}")
         case _ => throw new IOException(l.toString)
       },
       r => r
@@ -137,8 +137,8 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     } yield ()
     r.fold(
       l => l match {
-        case _: zd.kvs.EntryExists => throw new FileAlreadyExistsException(s"${dir}/${name}")
-        case _: zd.kvs.FileAlreadyExists => throw new FileAlreadyExistsException(s"${dir}/${name}")
+        case _: _root_.kvs.EntryExists => throw new FileAlreadyExistsException(s"${dir}/${name}")
+        case _: _root_.kvs.FileAlreadyExists => throw new FileAlreadyExistsException(s"${dir}/${name}")
         case _ => throw new IOException(l.toString)
       },
       _ => {
@@ -262,7 +262,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     } yield new BytesIndexInput(s"${dir}/${name}", bs1)
     res.fold(
       l => l match {
-        case zd.kvs.FileNotExists(path) => throw new NoSuchFileException(s"${path.dir}/${path.name}")
+        case _root_.kvs.FileNotExists(path) => throw new NoSuchFileException(s"${path.dir}/${path.name}")
         case _ => throw new IOException(l.toString)
       },
       r => r

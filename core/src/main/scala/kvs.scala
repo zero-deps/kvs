@@ -1,13 +1,11 @@
-package zd.kvs
+package kvs
 
-import akka._, actor._
 import scala.concurrent._
-import zd.kvs.el.ElHandler
-import zd.kvs.en.{EnHandler, Fd, FdHandler}
-import zd.kvs.file.{File, FileHandler}
-import zd.kvs.store._
+import akka._, actor._
 import zero.ext._, option._
 import zd.proto.Bytes
+
+import store.Dba, el.ElHandler, en.{EnHandler, Fd, FdHandler}, file.{File, FileHandler}
 
 trait ReadOnlyElApi {
   def get(k: ElKey): Res[Option[Bytes]]

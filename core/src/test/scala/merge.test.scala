@@ -1,13 +1,12 @@
-package zd.kvs
+package kvs
 
-import zd.kvs.rng._
-import zd.kvs.rng.data._
-import zd.kvs.rng.model.KeyBucketData
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest._
 import scala.collection.immutable.{HashSet, TreeMap}
 import zd.proto.Bytes
+
+import rng._, rng.data._, rng.model.KeyBucketData
 
 class MergeTest extends AnyFreeSpec with Matchers with EitherValues with BeforeAndAfterAll {
   def v1(v: Long) = "n1" -> v
@@ -17,7 +16,7 @@ class MergeTest extends AnyFreeSpec with Matchers with EitherValues with BeforeA
   def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
 
   "forRepl" - {
-    import zd.kvs.rng.MergeOps.forRepl
+    import rng.MergeOps.forRepl
     "empty" in {
       val xs = Vector.empty
       forRepl(xs) should be (empty)
@@ -136,7 +135,7 @@ class MergeTest extends AnyFreeSpec with Matchers with EitherValues with BeforeA
   }
 
   "forPut" - {
-    import zd.kvs.rng.MergeOps.forPut
+    import rng.MergeOps.forPut
     "stored is none" in {
       val vc1 = vc(v1(1))
       val x = Data(lastModified=1, vc1, stob("v1"))
@@ -187,7 +186,7 @@ class MergeTest extends AnyFreeSpec with Matchers with EitherValues with BeforeA
   }
 
   "forGatherGet" - {
-    import zd.kvs.rng.MergeOps.forGatherGet
+    import rng.MergeOps.forGatherGet
     import akka.actor.{Address}
     def addr(n: Int): Address = Address("","","",n)
     "empty" in {

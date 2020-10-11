@@ -1,9 +1,10 @@
-package zd.kvs
+package kvs
 package en
 
-import zd.kvs.store.Dba
 import zero.ext._, either._, option._
 import zd.proto._, api._, macrosapi._
+
+import store.Dba
 
 final case class Fd
   ( @N(1) head: Option[ElKey]

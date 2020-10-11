@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 
 import akka.actor._
 import akka.testkit._

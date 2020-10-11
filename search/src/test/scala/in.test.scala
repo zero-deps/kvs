@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 package search
 
 import org.scalatest.freespec.AnyFreeSpecLike

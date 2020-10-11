@@ -1,17 +1,17 @@
-package zd.kvs
+package kvs
 package rng
 
 import akka.actor._
 import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import com.typesafe.config.Config
-import zd.kvs.rng.model.{StoreDelete, StoreGet, QuorumState, ChangeState}
-import zd.kvs.rng.model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.concurrent.duration._
 import zero.ext._, option._
 import zd.proto.Bytes
 import zd.proto.api.N
+
+import model.{StoreDelete, StoreGet, QuorumState, ChangeState}, model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
 
 final case class Put(k: Bytes, v: Bytes)
 final case class Get(k: Bytes)

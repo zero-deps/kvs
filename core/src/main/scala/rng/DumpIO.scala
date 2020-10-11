@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 package rng
 
 import akka.actor.{Actor, ActorLogging, Props}
@@ -6,11 +6,12 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption.{READ, WRITE, CREATE}
-import zd.kvs.rng.model.{KeyBucketData}
 import scala.util.Try
 import zd.proto.api.{encode, decode, MessageCodec, N}
 import zd.proto.macrosapi.{caseCodecAuto}
 import zd.proto.Bytes
+
+import model.KeyBucketData
 
 final case class DumpKV
   ( @N(1) kv: Vector[KV]

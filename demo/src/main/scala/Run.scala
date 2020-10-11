@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory

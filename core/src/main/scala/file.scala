@@ -1,10 +1,11 @@
-package zd.kvs
+package kvs
 package file
 
-import zd.kvs.store.Dba
 import scala.annotation.tailrec
 import zd.proto._, api._, macrosapi._
 import zero.ext._, either._, boolean._, option._, traverse._
+
+import store.Dba
 
 final case class File
   ( // count – number of chunks

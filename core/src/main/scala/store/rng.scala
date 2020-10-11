@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 package store
 
 import akka.actor._
@@ -7,13 +7,13 @@ import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.{Timeout}
 import leveldbjnr.LevelDb
-import zd.kvs.rng
-import zd.kvs.rng.store.{ReadonlyStore, WriteStore}
 import scala.concurrent._, duration._
 import scala.concurrent.{Await, Future}
 import scala.util.{Try, Success, Failure}
 import zero.ext._, either._
 import zd.proto._, api._, macrosapi._
+
+import rng.store.{ReadonlyStore, WriteStore}
 
 class Rng(system: ActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")

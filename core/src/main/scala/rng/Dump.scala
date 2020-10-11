@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 package rng
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props, PoisonPill}
@@ -6,12 +6,13 @@ import akka.pattern.ask
 import akka.util.Timeout
 import java.time.format.{DateTimeFormatter}
 import java.time.{LocalDateTime}
-import zd.kvs.rng.model.{DumpBucketData, DumpGetBucketData, KeyBucketData}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration._
 import scala.concurrent.{Await}
 import scala.util.{Try}
 import zero.ext._, traverse._
+
+import model.{DumpBucketData, DumpGetBucketData, KeyBucketData}
 
 object DumpProcessor {
   def props(): Props = Props(new DumpProcessor)

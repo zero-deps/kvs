@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 package en
 
 import akka.actor.ActorSystem

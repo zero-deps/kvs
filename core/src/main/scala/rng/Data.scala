@@ -1,4 +1,4 @@
-package zd.kvs
+package kvs
 package rng
 package data
 
