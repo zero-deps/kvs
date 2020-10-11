@@ -1,17 +1,13 @@
-name: Scala CI
+name: test
 
 on: [push, pull_request]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2.3.3
-    - name: Set up JDK
-      uses: actions/setup-java@v1.4.3
+    - uses: actions/setup-java@v1.4.3
       with:
         java-version: 15
-    - name: Run tests
-      run: sbt test
+    - run: sbt test
