@@ -15,15 +15,15 @@ import zero.ext._, traverse._
 import model.{DumpBucketData, DumpGetBucketData, KeyBucketData}
 
 object DumpProcessor {
-  def props(): Props = Props(new DumpProcessor)
+  def props(conf: Kvs.RngConf): Props = Props(new DumpProcessor(conf))
 
   final case class Load(path: String)
   final case class Save(buckets: SortedMap[Bucket, PreferenceList], path: String)
 }
 
-class DumpProcessor extends Actor with ActorLogging {
+class DumpProcessor(conf: Kvs.RngConf) extends Actor with ActorLogging {
   implicit val timeout = Timeout(120 seconds)
-  val maxBucket: Bucket = context.system.settings.config.getInt("ring.buckets") - 1
+  val maxBucket: Bucket = conf.buckets - 1
   val stores = SelectionMemorize(context.system)
   def receive = waitForStart
 

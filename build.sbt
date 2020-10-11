@@ -1,4 +1,4 @@
-ThisBuild / version := zero.ext.git.version
+ThisBuild / version := "5.0"
 ThisBuild / scalaVersion := "2.13.3"
 ThisBuild / cancelable in Global := true
 ThisBuild / scalacOptions ++= Seq(
@@ -28,10 +28,10 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Ywarn-value-discard"
   , "-Ywarn-unused:implicits"
   , "-Ywarn-unused:imports"
-  // , "-Ywarn-unused:params"
+  , "-Ywarn-unused:params"
   , "-encoding", "UTF-8"
   , "-Xmaxerrs", "1"
-  , "-Xmaxwarns", "3"
+  , "-Xmaxwarns", "1"
   , "-Wconf:cat=deprecation&msg=Auto-application:silent"
 )
 ThisBuild / Test / scalacOptions += "-deprecation"

@@ -2,7 +2,6 @@ package kvs
 package rng
 
 import scala.collection.immutable.SortedMap
-import scala.concurrent.duration.Duration
 import akka.actor.{ActorLogging, Props, FSM}
 import akka.cluster.Cluster
 
@@ -14,13 +13,13 @@ object ReplicationSupervisor {
   final case class State(buckets: SortedMap[Bucket, PreferenceList], bvcs: Map[Bucket, VectorClock], progress: Progress)
   final case class ReplGetBucketsVc(bs: Vector[Int])
 
-  def props(buckets: SortedMap[Bucket, PreferenceList]): Props = {
+  def props(buckets: SortedMap[Bucket, PreferenceList], conf: Kvs.RngConf): Props = {
     val len = buckets.size
-    Props(new ReplicationSupervisor(State(buckets, bvcs=Map.empty, Progress(done=0, total=len, step=len/4))))
+    Props(new ReplicationSupervisor(State(buckets, bvcs=Map.empty, Progress(done=0, total=len, step=len/4)), conf))
   }
 }
 
-class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] with ActorLogging {
+class ReplicationSupervisor(initialState: State, conf: Kvs.RngConf) extends FSM[FsmState, State] with ActorLogging {
   val actorMem = SelectionMemorize(context.system)
   val local: Node = Cluster(context.system).selfAddress
 
@@ -59,7 +58,7 @@ class ReplicationSupervisor(initialState: State) extends FSM[FsmState, State] wi
   }
 
   def getBucketIfNew(b: Bucket, prefList: PreferenceList, bvc: Option[VectorClock]): Unit = {
-    val worker = context.actorOf(ReplicationWorker.props(b, prefList, bvc.getOrElse(emptyVC)))
+    val worker = context.actorOf(ReplicationWorker.props(b, prefList, bvc.getOrElse(emptyVC), conf))
     worker ! "start"
   }
 
@@ -85,16 +84,16 @@ import ReplicationWorker.{ReplState}
 object ReplicationWorker {
   final case class ReplState(prefList: PreferenceList, info: Vector[Vector[KeyBucketData]], vc: VectorClock)
 
-  def props(b: Bucket, prefList: PreferenceList, vc: VectorClock): Props = Props(new ReplicationWorker(b, prefList, vc))
+  def props(b: Bucket, prefList: PreferenceList, vc: VectorClock, conf: Kvs.RngConf): Props = Props(new ReplicationWorker(b, prefList, vc, conf))
 }
 
-class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClock) extends FSM[FsmState, ReplState] with ActorLogging {
+class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClock, conf: Kvs.RngConf) extends FSM[FsmState, ReplState] with ActorLogging {
   import context.system
   val cluster = Cluster(system)
   val local = cluster.selfAddress
   val actorMem = SelectionMemorize(system)
 
-  setTimer("send_by_timeout", "timeout", Duration.fromNanos(context.system.settings.config.getDuration("ring.repl-timeout").toNanos), repeat=true)
+  setTimer("send_by_timeout", "timeout", conf.replTimeout, repeat=true)
   startWith(Collecting, ReplState(_prefList, info=Vector.empty, _vc))
 
   when(Collecting){

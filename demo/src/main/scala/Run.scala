@@ -5,7 +5,6 @@ import com.typesafe.config.ConfigFactory
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
-import zd.kvs.Kvs
 import zd.proto._, api._, macrosapi._
 import zero.ext._, traverse._
 
@@ -42,7 +41,7 @@ object Run extends App {
   }
 
   // Run kvs
-  val kvs = Kvs(system)
+  val kvs = Kvs.rng(system)
   Try(Await.result(kvs.onReady, Duration.Inf))
 
   // Add users to feed

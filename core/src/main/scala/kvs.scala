@@ -1,6 +1,6 @@
 package kvs
 
-import scala.concurrent._
+import scala.concurrent._, duration._
 import akka._, actor._
 import zero.ext._, option._
 import zd.proto.Bytes
@@ -50,17 +50,32 @@ trait ReadOnlyKvs {
 }
 
 object Kvs {
-  def apply(system: ActorSystem): Kvs = rng(system)
-  def rng(system: ActorSystem): Kvs = {
-    val kvs = new Kvs()(new store.Rng(system))
-    if (system.settings.config.getBoolean("akka.cluster.jmx.enabled")) {
+  case class LeveldbConf(dir: String, fsync: Boolean = false)
+  case class Quorum(N: Int, W: Int, R: Int)
+  case class RngConf(
+    quorum: Quorum = Quorum(N=1, W=1, R=1)
+  , buckets: Int = 32768 /* 2^15 */
+  , virtualNodes: Int = 128
+  , hashLength: Int = 32
+  , ringTimeout: FiniteDuration = 11 seconds /* bigger than gatherTimeout */
+  , gatherTimeout: FiniteDuration = 10 seconds
+  , dumpTimeout: FiniteDuration = 1 hour
+  , replTimeout: FiniteDuration = 1 minute
+  , leveldbConf: LeveldbConf = LeveldbConf("rng_data")
+  , jmx: Boolean = true
+  )
+  case class MemConf()
+
+  def rng(system: ActorSystem, conf: RngConf = RngConf()): Kvs = {
+    val kvs = new Kvs()(new store.Rng(system, conf))
+    if (conf.jmx) {
       val jmx = new KvsJmx(kvs)
       jmx.createMBean()
       sys.addShutdownHook(jmx.unregisterMBean())
     }
     kvs
   }
-  def mem(): Kvs = new Kvs()(new store.Mem())
+  def mem(conf: MemConf = MemConf()): Kvs = new Kvs()(new store.Mem(conf))
   def fs(): Kvs = ???
   def sql(): Kvs = ???
   def leveldb(): Kvs = ???

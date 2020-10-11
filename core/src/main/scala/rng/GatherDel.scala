@@ -6,12 +6,9 @@ import akka.cluster.Cluster
 import scala.concurrent.duration._
 import zd.proto.Bytes
 
-class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes) extends FSM[FsmState, Set[Node]] with ActorLogging {
-  import context.system
-
-  val config = system.settings.config.getConfig("ring")
-  val quorum = config.getIntList("quorum")
-  val W: Int = quorum.get(1)
+class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes, conf: Kvs.RngConf) extends FSM[FsmState, Set[Node]] with ActorLogging {
+  val quorum = conf.quorum
+  val W: Int = quorum.W
   val local: Address = Cluster(context.system).selfAddress
   setTimer("send_by_timeout", "timeout", t)
 
@@ -27,9 +24,10 @@ class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Byt
       }
       
     case Event("timeout", nodesLeft) =>
-      //politic of revert is not needed because on read opperation removed data will be saved again,
-      //only notify client about failed opperation.
-      //deleted on other nodes but we don't know about it ? sorry, eventually consistency
+      /* politic of revert is not needed because on read opperation removed data will be saved again,
+       * only notify client about failed opperation.
+       * deleted on other nodes but we don't know about it ? sorry, eventually consistency
+       */
       client ! AckTimeoutFailed("del", k)
       stop()
   }
@@ -50,5 +48,5 @@ class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Byt
 }
 
 object GatherDel {
-  def props(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes): Props = Props(new GatherDel(client, t, prefList, k))
+  def props(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes, conf: Kvs.RngConf): Props = Props(new GatherDel(client, t, prefList, k, conf))
 }

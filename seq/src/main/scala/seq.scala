@@ -56,7 +56,7 @@ package object seq {
     val live: ZLayer[ActorSystem, Err, Kvs] = ZLayer.fromEffect{
       for {
         as   <- ZIO.access[ActorSystem](_.get)
-        kvs  <- ZIO.effect(_root_.kvs.Kvs(as))
+        kvs  <- ZIO.effect(_root_.kvs.Kvs.rng(as))
         sh   <- Sharding.start("write_shard", onMessage=writeShard(kvs)).provideLayer(ZLayer.succeed(as))
         res  <- ZIO.succeed(new Service {
                   def apply[A: DataCodec](fid: FdKey, id: ElKey): KIO[A] = for {

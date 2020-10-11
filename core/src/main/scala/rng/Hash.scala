@@ -4,9 +4,7 @@ package rng
 import akka.actor._
 import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
-import com.typesafe.config.Config
 import scala.collection.immutable.{SortedMap, SortedSet}
-import scala.concurrent.duration._
 import zero.ext._, option._
 import zd.proto.Bytes
 import zd.proto.api.N
@@ -33,38 +31,34 @@ final case class HashRngData(
   replication: Option[ActorRef],
 )
 
-final case class PortVNode
-  (
-    @N(1) port: String
-  , @N(2) vnode: Int
-  )
+final case class PortVNode(
+  @N(1) port: String
+, @N(2) vnode: Int
+)
 
 object Hash {
-  def props(): Props = Props(new Hash)
+  def props(conf: Kvs.RngConf, hashing: Hashing): Props = Props(new Hash(conf, hashing))
 }
 
-class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
+class Hash(conf: Kvs.RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
 
-  val config: Config = system.settings.config.getConfig("ring")
-
-  val quorum = config.getIntList("quorum")
-  val N: Int = quorum.get(0)
-  val W: Int = quorum.get(1)
-  val R: Int = quorum.get(2)
-  val gatherTimeout = Duration.fromNanos(config.getDuration("gather-timeout").toNanos)
-  val vNodesNum = config.getInt("virtual-nodes")
-  val bucketsNum = config.getInt("buckets")
+  val quorum = conf.quorum
+  val N = quorum.N
+  val W = quorum.W
+  val R = quorum.R
+  val gatherTimeout = conf.gatherTimeout
+  val vNodesNum = conf.virtualNodes
+  val bucketsNum = conf.buckets
   val cluster = Cluster(system)
   val local: Node = cluster.selfAddress
-  val hashing = HashingExtension(system)
   val actorsMem = SelectionMemorize(system)
 
   log.info(s"Ring configuration:".blue)
-  log.info(s"ring.quorum.N = ${N}".blue)
-  log.info(s"ring.quorum.W = ${W}".blue)
-  log.info(s"ring.quorum.R = ${R}".blue)
-  log.info(s"ring.leveldb.dir = ${config.getString("leveldb.dir")}".blue)
+  log.info(s"ring.quorum.N = $N".blue)
+  log.info(s"ring.quorum.W = $W".blue)
+  log.info(s"ring.quorum.R = $R".blue)
+  log.info(s"ring.leveldb.dir = ${conf.leveldbConf.dir}".blue)
 
   startWith(QuorumStateUnsatisfied, HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Node], replication=None))
 
@@ -147,7 +141,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         _ ! ChangeState(QuorumStateReadonly),
         _ ! ChangeState(QuorumStateReadonly),
       ))
-      val x = system.actorOf(DumpProcessor.props(), s"dump_wrkr-${now_ms()}")
+      val x = system.actorOf(DumpProcessor.props(conf), s"dump_wrkr-${now_ms()}")
       x.forward(DumpProcessor.Save(data.buckets, path))
       goto(QuorumStateReadonly)
     case Event(Load(path), data) =>
@@ -155,7 +149,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         _ ! ChangeState(QuorumStateReadonly),
         _ ! ChangeState(QuorumStateReadonly),
       ))
-      val x = system.actorOf(DumpProcessor.props(), s"load_wrkr-${now_ms()}")
+      val x = system.actorOf(DumpProcessor.props(conf), s"load_wrkr-${now_ms()}")
       x.forward(DumpProcessor.Load(path))
       goto(QuorumStateReadonly)
     case Event(RestoreState, _) =>
@@ -183,7 +177,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
 
   def doDelete(k: Bytes, client: ActorRef, data: HashRngData): Unit = {
     val nodes = nodesForKey(k, data)
-    val gather = system.actorOf(GatherDel.props(client, gatherTimeout, nodes, k))
+    val gather = system.actorOf(GatherDel.props(client, gatherTimeout, nodes, k, conf))
     val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
     stores.foreach(_.fold(
       _.tell(StoreDelete(k), gather), 
@@ -269,7 +263,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
         }
       } else acc
     }
-    val replication = context.actorOf(ReplicationSupervisor.props(buckets), s"repl-${now_ms()}")
+    val replication = context.actorOf(ReplicationSupervisor.props(buckets, conf), s"repl-${now_ms()}")
     replication ! "go-repl"
     replication
   }

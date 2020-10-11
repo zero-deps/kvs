@@ -10,13 +10,15 @@ import zd.proto.Bytes
 
 import data.codec._, data.keycodec._, data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}, model.{ReplBucketPut, StorePut, StoreDelete, KeyBucketData}
 
-class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
+object WriteStore {
+  def props(leveldb: LevelDb, conf: Kvs.LeveldbConf, hashing: Hashing): Props = Props(new WriteStore(leveldb, conf, hashing))
+}
+
+class WriteStore(leveldb: LevelDb, conf: Kvs.LeveldbConf, hashing: Hashing) extends Actor with ActorLogging {
   import context.system
-  val config = system.settings.config.getConfig("ring.leveldb")
 
   val ro = ReadOpts()
-  val wo = WriteOpts(config.getBoolean("fsync"))
-  val hashing = HashingExtension(system)
+  val wo = WriteOpts(conf.fsync)
 
   val local: Node = Cluster(system).selfAddress
 
@@ -112,8 +114,4 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
       batch.close()
     }
   }
-}
-
-object WriteStore {
-  def props(leveldb: LevelDb): Props = Props(new WriteStore(leveldb))
 }

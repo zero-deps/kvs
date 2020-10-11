@@ -2,15 +2,14 @@ package kvs
 package rng
 
 import akka.actor._
-import com.typesafe.config.Config
 import java.security.MessageDigest
 import scala.annotation.tailrec
 import scala.collection.SortedMap
 import zd.proto.Bytes
 
-class HashingImpl(config: Config) extends Extension {
-  val hashLen = config.getInt("hash-length")
-  val bucketsNum = config.getInt("buckets")
+class Hashing(conf: Kvs.RngConf) {
+  val hashLen = conf.hashLength
+  val bucketsNum = conf.buckets
   val bucketRange = (math.pow(2, hashLen.toDouble) / bucketsNum).ceil.toInt
 
   def hash(word: Bytes): Int = {
@@ -40,12 +39,4 @@ class HashingImpl(config: Config) extends Extension {
 
     findBucketNodes(hashKey, Set.empty[Node])
   }
-}
-
-object HashingExtension extends ExtensionId[HashingImpl] with ExtensionIdProvider {
-
-  override def createExtension(system: ExtendedActorSystem): HashingImpl =
-    new HashingImpl(system.settings.config.getConfig("ring"))
-
-  override def lookup(): HashingExtension.type = HashingExtension
 }

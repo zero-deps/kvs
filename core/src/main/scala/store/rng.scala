@@ -5,7 +5,7 @@ import akka.actor._
 import akka.event.Logging
 import akka.pattern.ask
 import akka.routing.FromConfig
-import akka.util.{Timeout}
+import akka.util.Timeout
 import leveldbjnr.LevelDb
 import scala.concurrent._, duration._
 import scala.concurrent.{Await, Future}
@@ -13,21 +13,20 @@ import scala.util.{Try, Success, Failure}
 import zero.ext._, either._
 import zd.proto._, api._, macrosapi._
 
-import rng.store.{ReadonlyStore, WriteStore}
+import rng.store.{ReadonlyStore, WriteStore}, rng.Hashing
 
-class Rng(system: ActorSystem) extends Dba {
+class Rng(system: ActorSystem, conf: Kvs.RngConf) extends Dba {
   lazy val log = Logging(system, "hash-ring")
-
-  val cfg = system.settings.config.getConfig("ring")
 
   system.eventStream
 
-  val leveldb: LevelDb = LevelDb.open(cfg.getString("leveldb.dir")).fold(l => throw l, r => r)
+  val leveldb: LevelDb = LevelDb.open(conf.leveldbConf.dir).fold(l => throw l, r => r)
 
-  system.actorOf(WriteStore.props(leveldb).withDeploy(Deploy.local), name="ring_write_store")
-  system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb)).withDeploy(Deploy.local), name="ring_readonly_store")
+  val hashing = new Hashing(conf)
+  system.actorOf(WriteStore.props(leveldb, conf.leveldbConf, hashing).withDeploy(Deploy.local), name="ring_write_store")
+  system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb, hashing)).withDeploy(Deploy.local), name="ring_readonly_store")
 
-  val hash = system.actorOf(rng.Hash.props().withDeploy(Deploy.local), name="ring_hash")
+  val hash = system.actorOf(rng.Hash.props(conf, hashing).withDeploy(Deploy.local), name="ring_hash")
 
   implicit val elkeyc = caseCodecAuto[ElKey]
   implicit val fdkeyc = caseCodecAuto[FdKey]
@@ -38,7 +37,7 @@ class Rng(system: ActorSystem) extends Dba {
 
   override def put(key1: Key, value: Bytes): Res[Unit] = {
     val key = encodeToBytes[Key](key1)
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val d = conf.ringTimeout
     val t = Timeout(d)
     val putF = hash.ask(rng.Put(key, value))(t).mapTo[Ack]
     Try(Await.result(putF, d)) match {
@@ -51,7 +50,7 @@ class Rng(system: ActorSystem) extends Dba {
 
   override def get(key1: Key): Res[Option[Bytes]] = {
     val key = encodeToBytes[Key](key1)
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val d = conf.ringTimeout
     val t = Timeout(d)
     val fut = hash.ask(rng.Get(key))(t).mapTo[Ack]
     Try(Await.result(fut, d)) match {
@@ -64,7 +63,7 @@ class Rng(system: ActorSystem) extends Dba {
 
   override def delete(key1: Key): Res[Unit] = {
     val key = encodeToBytes[Key](key1)
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val d = conf.ringTimeout
     val t = Timeout(d)
     val fut = hash.ask(rng.Delete(key))(t).mapTo[Ack]
     Try(Await.result(fut, d)) match {
@@ -87,7 +86,7 @@ class Rng(system: ActorSystem) extends Dba {
   }
 
   override def load(path: String): Res[Any] = {
-    val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
+    val d = conf.dumpTimeout
     val t = Timeout(d)
     val x = hash.ask(rng.Load(path))(t)
     Try(Await.result(x, d)) match {
@@ -103,7 +102,7 @@ class Rng(system: ActorSystem) extends Dba {
   }
 
   private def isReady(): Future[Boolean] = {
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val d = conf.ringTimeout
     val t = Timeout(d)
     hash.ask(rng.Ready)(t).mapTo[Boolean]
   }

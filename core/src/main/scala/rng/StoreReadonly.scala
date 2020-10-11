@@ -10,11 +10,10 @@ import zd.proto.api.{encode, decode}
 import data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}, data.codec._, data.keycodec._, model.{DumpGetBucketData, DumpBucketData}, model.{ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}, model.{StoreGet, StoreGetAck}, ReplicationSupervisor.ReplGetBucketsVc
 
 object ReadonlyStore {
-  def props(leveldb: LevelDb): Props = Props(new ReadonlyStore(leveldb))
+  def props(leveldb: LevelDb, hashing: Hashing): Props = Props(new ReadonlyStore(leveldb, hashing))
 }
 
-class ReadonlyStore(leveldb: LevelDb) extends Actor with ActorLogging {
-  val hashing = HashingExtension(context.system)
+class ReadonlyStore(leveldb: LevelDb, hashing: Hashing) extends Actor with ActorLogging {
   val ro = ReadOpts()
 
   def get(k: Key): Option[Array[Byte]] = leveldb.get(k, ro).fold(l => throw l, r => r)
