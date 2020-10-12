@@ -53,10 +53,13 @@ package object seq {
     def stream[A: DataCodec](fid: FdKey, after: Option[ElKey] = None): ZIO[Kvs, Nothing, Stream[Err, (ElKey, A)]] = ZIO.access(_.get.stream[A](fid, after))
     def cleanup(fid: FdKey): ZIO[Kvs, Nothing, Unit] = ZIO.access(x => { x.get.cleanup(fid); () })
 
-    val live: ZLayer[ActorSystem, Err, Kvs] = ZLayer.fromEffect{
+    def live(conf: _root_.kvs.Kvs.Conf): ZLayer[ActorSystem, Err, Kvs] = ZLayer.fromEffect{
       for {
         as   <- ZIO.access[ActorSystem](_.get)
-        kvs  <- ZIO.effect(_root_.kvs.Kvs.rng(as))
+        kvs  <- conf match {
+                  case x: _root_.kvs.Kvs.RngConf => ZIO.effect(_root_.kvs.Kvs.rng(as, x))
+                  case _: _root_.kvs.Kvs.MemConf => ZIO.effect(_root_.kvs.Kvs.mem())
+                }
         sh   <- Sharding.start("write_shard", onMessage=writeShard(kvs)).provideLayer(ZLayer.succeed(as))
         res  <- ZIO.succeed(new Service {
                   def apply[A: DataCodec](fid: FdKey, id: ElKey): KIO[A] = for {

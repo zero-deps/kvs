@@ -50,6 +50,7 @@ trait ReadOnlyKvs {
 }
 
 object Kvs {
+  sealed trait Conf
   case class LeveldbConf(dir: String, fsync: Boolean = false)
   case class Quorum(N: Int, W: Int, R: Int)
   case class RngConf(
@@ -63,10 +64,10 @@ object Kvs {
   , replTimeout: FiniteDuration = 1 minute
   , leveldbConf: LeveldbConf = LeveldbConf("rng_data")
   , jmx: Boolean = true
-  )
-  case class MemConf()
+  ) extends Conf
+  case class MemConf() extends Conf
 
-  def rng(system: ActorSystem, conf: RngConf = RngConf()): Kvs = {
+  def rng(system: ActorSystem, conf: RngConf): Kvs = {
     val kvs = new Kvs()(new store.Rng(system, conf))
     if (conf.jmx) {
       val jmx = new KvsJmx(kvs)
@@ -75,7 +76,7 @@ object Kvs {
     }
     kvs
   }
-  def mem(conf: MemConf = MemConf()): Kvs = new Kvs()(new store.Mem(conf))
+  def mem(): Kvs = new Kvs()(new store.Mem())
   def fs(): Kvs = ???
   def sql(): Kvs = ???
   def leveldb(): Kvs = ???

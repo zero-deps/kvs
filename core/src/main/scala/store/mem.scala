@@ -1,13 +1,13 @@
 package kvs
 package store
 
-import annotation.unused, concurrent.Future
+import concurrent.Future
 
 import java.util.concurrent.ConcurrentHashMap
 import zero.ext._, option._, either._
 import zd.proto.Bytes
 
-class Mem(@unused conf: Kvs.MemConf) extends Dba {
+class Mem() extends Dba {
   private val db = new ConcurrentHashMap[Key, Bytes]
 
   override def get(key: Key): Res[Option[Bytes]] = fromNullable(db.get(key)).right
