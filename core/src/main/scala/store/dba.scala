@@ -18,3 +18,10 @@ trait Dba {
   def onReady(): Future[Unit]
   def compact(): Unit
 }
+
+sealed trait DbaConf
+case class  RngConf(conf: Rng.Conf    = Rng.Conf()   ) extends DbaConf
+case class  LvlConf(conf: Rng.LvlConf = Rng.LvlConf()) extends DbaConf
+case object MemConf                                    extends DbaConf
+case object FsConf                                     extends DbaConf
+case object SqlConf                                    extends DbaConf

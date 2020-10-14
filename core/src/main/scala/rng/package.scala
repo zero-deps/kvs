@@ -26,4 +26,7 @@ package object rng {
   def addr(s: ActorRef): Node = s.path.address
 
   implicit val PortVNodeC: MessageCodec[PortVNode] = caseCodecAuto[PortVNode]
+
+  type RngConf = kvs.store.Rng.Conf
+  type LvlConf = kvs.store.Rng.LvlConf
 }

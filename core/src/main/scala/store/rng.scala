@@ -15,8 +15,36 @@ import zd.proto._, api._, macrosapi._
 
 import rng.store.{ReadonlyStore, WriteStore}, rng.Hashing
 
-class Rng(system: ActorSystem, conf: Kvs.RngConf) extends Dba {
+object Rng {
+  case class LvlConf(
+    dir: String = "rng_data"
+  , fsync: Boolean = false
+  )
+  case class Quorum(N: Int, W: Int, R: Int)
+  case class Conf(
+    quorum: Quorum = Quorum(N=1, W=1, R=1)
+  , buckets: Int = 32768 /* 2^15 */
+  , virtualNodes: Int = 128
+  , hashLength: Int = 32
+  , ringTimeout: FiniteDuration = 11 seconds /* bigger than gatherTimeout */
+  , gatherTimeout: FiniteDuration = 10 seconds
+  , dumpTimeout: FiniteDuration = 1 hour
+  , replTimeout: FiniteDuration = 1 minute
+  , leveldbConf: LvlConf = LvlConf()
+  , jmx: Boolean = true
+  )
+
+  def apply(as: ActorSystem, conf: Conf): Rng = new Rng(as, conf)
+}
+
+class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba {
   lazy val log = Logging(system, "hash-ring")
+
+  if (conf.jmx) {
+    val jmx = new KvsJmx(this)
+    jmx.createMBean()
+    sys.addShutdownHook(jmx.unregisterMBean())
+  }
 
   system.eventStream
 

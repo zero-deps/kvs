@@ -32,7 +32,7 @@ object FdHandler {
     case x@Left(_) => x.coerceRight
   }
 
-  def length(id: FdKey)(implicit dba: Dba): Res[Long] = get(id).map(_.map(_.length).getOrElse(0L))
+  def length(id: FdKey)(implicit dba: Dba): Res[Long] = get(id).map(_.cata(_.length, 0))
 
   def delete(id: FdKey)(implicit dba: Dba): Res[Unit] = dba.delete(id)
 }

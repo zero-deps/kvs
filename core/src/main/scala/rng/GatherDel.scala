@@ -6,7 +6,7 @@ import akka.cluster.Cluster
 import scala.concurrent.duration._
 import zd.proto.Bytes
 
-class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes, conf: Kvs.RngConf) extends FSM[FsmState, Set[Node]] with ActorLogging {
+class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes, conf: RngConf) extends FSM[FsmState, Set[Node]] with ActorLogging {
   val quorum = conf.quorum
   val W: Int = quorum.W
   val local: Address = Cluster(context.system).selfAddress
@@ -48,5 +48,5 @@ class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Byt
 }
 
 object GatherDel {
-  def props(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes, conf: Kvs.RngConf): Props = Props(new GatherDel(client, t, prefList, k, conf))
+  def props(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes, conf: RngConf): Props = Props(new GatherDel(client, t, prefList, k, conf))
 }

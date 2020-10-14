@@ -14,10 +14,12 @@ More code examples are located in `src/test/scala` directory.
 
 ## Backend
 
- * Ring
- * Memory
- * FS
- * etc.
+* Ring
+* Memory
+* FS
+* SQL
+* LevelDB
+* etc.
 
 ## Test
 

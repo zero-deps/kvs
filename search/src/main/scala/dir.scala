@@ -8,44 +8,39 @@ import java.util.concurrent.atomic.AtomicLong
 import org.apache.lucene.store._
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
-import zero.ext._, either._, option._, traverse._
+import zero.ext._, either._, traverse._
 import zd.proto.Bytes
 
-import en.FdHandler, file.FileHandler
+import en.{FdHandler, EnHandler}, file.FileHandler, store.Dba
 
-class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactory(dir)) {
-  implicit val fileh = new FileHandler {
+class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsLockFactory(dir)) {
+  val flh = new FileHandler {
     override val chunkLength = 10 * 1000 * 1000 // 10 MB
   }
-  implicit private[this] val fdh = FdHandler
+  val enh = EnHandler
+  val fdh = FdHandler
 
   private[this] val outs = TrieMap.empty[String,ByteArrayOutputStream]
   private[this] val nextTempFileCounter = new AtomicLong
 
-  type File = Unit
-  implicit object FileEntry extends DataCodec[File] {
-    def extract(xs: Bytes): File = ()
-    def insert(x: File): Bytes = Bytes.empty
-  }
-
   def exists(): Res[Boolean] = {
-    kvs.fd.get(dir).map(_.isDefined)
+    fdh.get(dir).map(_.isDefined)
   }
   
   def deleteAll(): Res[Unit] = {
     for {
-      xs <- kvs.all[File](dir)
+      xs <- enh.all(dir)
       ys <- xs.sequence
       _ <- ys.map{ case (key, _) =>
         val name = key
         val path = PathKey(dir, name)
         for {
-          _ <- kvs.file.delete(path).void.recover{ case _: FileNotExists => () }
-          _ <- kvs.remove[File](dir, name)
+          _ <- flh.delete(path).void.recover{ case _: FileNotExists => () }
+          _ <- enh.remove(EnKey(dir, name))
         } yield ()
       }.sequence_
-      _ <- kvs.cleanup(dir)
-      _ <- kvs.fd.delete(dir)
+      _ <- enh.cleanup(dir)
+      _ <- fdh.delete(dir)
     } yield ()
   }
 
@@ -58,7 +53,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
   override
   def listAll(): Array[String] = {
     ensureOpen()
-    kvs.all[File](dir).flatMap(_.sequence).fold(
+    enh.all(dir).flatMap(_.sequence).fold(
       l => throw new IOException(l.toString)
     , r => r.map(x => x._1.bytes.mkString).sorted.toArray
     )
@@ -77,19 +72,19 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
   def deleteFile(name: String): Unit = {
     val name1 = ElKeyExt.from_str(name)
     sync(Collections.singletonList(name))
-    val res: Res[Option[Unit]] = for {
-      _ <- kvs.file.delete(PathKey(dir, name1))
-      x <- kvs.remove[File](dir, name1)
-      _ <- kvs.cleanup(dir)
-    } yield x.void
+    val res: Res[Boolean] = for {
+      _ <- flh.delete(PathKey(dir, name1))
+      x <- enh.remove(EnKey(dir, name1))
+      _ <- enh.cleanup(dir)
+    } yield x
     res.fold(
       l => l match {
         case _: _root_.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name}")
         case x => throw new IOException(x.toString)
       },
       r => r match {
-        case Some(()) => ()
-        case None => throw new NoSuchFileException(s"${dir}/${name}")
+        case true => ()
+        case false => throw new NoSuchFileException(s"${dir}/${name}")
       }
     )
   }
@@ -108,7 +103,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     ensureOpen()
     val name1 = ElKeyExt.from_str(name)
     sync(Collections.singletonList(name))
-    kvs.file.size(PathKey(dir, name1)).fold(
+    flh.size(PathKey(dir, name1)).fold(
       l => l match {
         case _: _root_.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name}")
         case _ => throw new IOException(l.toString)
@@ -132,8 +127,8 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     ensureOpen()
     val name1 = ElKeyExt.from_str(name)
     val r = for {
-      _ <- kvs.add[File](dir, name1, ())
-      _ <- kvs.file.create(PathKey(dir, name1))
+      _ <- enh.prepend(EnKey(dir, name1), Bytes.empty)
+      _ <- flh.create(PathKey(dir, name1))
     } yield ()
     r.fold(
       l => l match {
@@ -163,8 +158,8 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
       val name = Directory.getTempFileName(prefix, suffix, nextTempFileCounter.getAndIncrement)
       val name1 = ElKeyExt.from_str(name)
       val res = for {
-        _ <- kvs.add[File](dir, name1, ())
-        _ <- kvs.file.create(PathKey(dir, name1))
+        _ <- enh.prepend(EnKey(dir, name1), Bytes.empty)
+        _ <- flh.create(PathKey(dir, name1))
       } yield name
       res match {
         case Left(_: EntryExists) => loop()
@@ -196,7 +191,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     names.stream.forEach{ name =>
       outs.get(name).map(x => Bytes.unsafeWrap(x.toByteArray)).foreach{ xs =>
         val name1 = ElKeyExt.from_str(name)
-        kvs.file.append(PathKey(dir, name1), xs).fold(
+        flh.append(PathKey(dir, name1), xs).fold(
           l => throw new IOException(l.toString),
           _ => ()
         )
@@ -231,11 +226,11 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     val dest1 = ElKeyExt.from_str(dest)
     sync(Arrays.asList(source, dest))
     val res = for {
-      _ <- kvs.file.copy(from=PathKey(dir, source1), to=PathKey(dir, dest1))
-      _ <- kvs.add[File](dir, dest1, ())
-      _ <- kvs.file.delete(PathKey(dir, source1))
-      _ <- kvs.remove[File](dir, source1)
-      _ <- kvs.cleanup(dir)
+      _ <- flh.copy(fromPath=PathKey(dir, source1), toPath=PathKey(dir, dest1))
+      _ <- enh.prepend(EnKey(dir, dest1), Bytes.empty)
+      _ <- flh.delete(PathKey(dir, source1))
+      _ <- enh.remove(EnKey(dir, source1))
+      _ <- enh.cleanup(dir)
     } yield ()
     res.fold(
       l => throw new IOException(l.toString),
@@ -257,7 +252,7 @@ class KvsDirectory(dir: FdKey)(kvs: Kvs) extends BaseDirectory(new KvsLockFactor
     sync(Collections.singletonList(name))
     val name1 = ElKeyExt.from_str(name)
     val res = for {
-      bs <- kvs.file.stream(PathKey(dir, name1))
+      bs <- flh.stream(PathKey(dir, name1))
       bs1 <- bs.sequence
     } yield new BytesIndexInput(s"${dir}/${name}", bs1)
     res.fold(

@@ -1,22 +1,32 @@
 package kvs
 
 import com.typesafe.config.Config
-import zio._, stream._, blocking.{blocking => succeedb, _}, clock._
+import zio._, stream._
 import zio.akka.cluster.sharding.{Sharding, Entity}
-import zd.proto._
+import zd.proto.Bytes
+import zero.ext._, option._
+
+import store._, en.EnHandler
 
 sealed trait ShardMsg
-final case class ShardAdd1(fid: FdKey, data: Bytes) extends ShardMsg
-final case class ShardAdd(fid: FdKey, id: ElKey, data: Bytes) extends ShardMsg
-final case class ShardPut(fid: FdKey, id: ElKey, data: Bytes) extends ShardMsg
-final case class ShardPutBulk(fid: FdKey, a: Vector[(ElKey, Bytes)]) extends ShardMsg
-final case class ShardRemove(fid: FdKey, id: ElKey) extends ShardMsg
+final case class ShardAdd1   (fid: FdKey,            data: Bytes) extends ShardMsg
+final case class ShardAdd    (fid: FdKey, id: ElKey, data: Bytes) extends ShardMsg
+final case class ShardPut    (fid: FdKey, id: ElKey, data: Bytes) extends ShardMsg
+final case class ShardRemove (fid: FdKey, id: ElKey)              extends ShardMsg
+final case class ShardCleanup(fid: FdKey)                         extends ShardMsg
+final case class ShardFix    (fid: FdKey)                         extends ShardMsg
+// final case class ShardPutBulk(fid: FdKey, a: Vector[(ElKey, Bytes)]) extends ShardMsg
+
+trait DataCodec[A] {
+  def extract(xs: Bytes): A
+  def insert(x: A): Bytes
+}
 
 package object seq {
   type ActorSystem = Has[_root_.akka.actor.ActorSystem]
   type Kvs = Has[Kvs.Service]
   type KIO[A] = IO[Err, A]
-  type KZIO[R, A] = ZIO[R, Err, A]
+  type KZIO[A] = ZIO[Kvs, Err, A]
 
   def actorSystem(name: String): TaskLayer[ActorSystem] = ZLayer.fromManaged{
     ZIO.effect(_root_.akka.actor.ActorSystem(name)).toManaged(as => Task.fromFuture(_ => as.terminate()).either)
@@ -25,99 +35,118 @@ package object seq {
     ZIO.effect(_root_.akka.actor.ActorSystem(name, config)).toManaged(as => Task.fromFuture(_ => as.terminate()).either)
   }
 
-  implicit object BytesDataCodec extends DataCodec[Bytes] {
-    def extract(x: Bytes): Bytes = x
-    def insert(x: Bytes): Bytes = x
-  }
-
   object Kvs {
     trait Service {
-      def apply[A: DataCodec](fid: FdKey, id: ElKey): KIO[A]
-      def get[A: DataCodec](fid: FdKey, id: ElKey): KIO[Option[A]]
-      def add[A: DataCodec](fid: FdKey, a: A): KIO[A]
-      def add[A: DataCodec](fid: FdKey, id: ElKey, a: A): KIO[A]
-      def put[A: DataCodec](fid: FdKey, id: ElKey, a: A): KIO[A]
-      def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Blocking with Clock, Err, Unit]
-      def remove[A: DataCodec](fid: FdKey, id: ElKey): KIO[Unit]
-      def stream[A: DataCodec](fid: FdKey, after: Option[ElKey]): Stream[Err, (ElKey, A)]
-      def cleanup(fid: FdKey): KIO[Unit]
+      def all    [A: DataCodec](fid: FdKey, after: Option[ElKey]): Stream[Err, (ElKey, A)]
+      def apply  [A: DataCodec](fid: FdKey, id: ElKey      ): KIO[A]
+      def get    [A: DataCodec](fid: FdKey, id: ElKey      ): KIO[Option[A]]
+      def head   [A: DataCodec](fid: FdKey                 ): KIO[Option[(ElKey, A)]]
+      def prepend[A: DataCodec](fid: FdKey,            a: A): KIO[ElKey]
+      def prepend[A: DataCodec](fid: FdKey, id: ElKey, a: A): KIO[Unit]
+      def put    [A: DataCodec](fid: FdKey, id: ElKey, a: A): KIO[Unit]
+      def remove [A: DataCodec](fid: FdKey, id: ElKey      ): KIO[Boolean]
+      def cleanup              (fid: FdKey                 ): KIO[Unit]
+      def fix                  (fid: FdKey                 ): KIO[Unit]
+      // def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Blocking with Clock, Err, Unit]
     }
 
-    def apply[A: DataCodec](fid: FdKey, id: ElKey): ZIO[Kvs, Err, A] = ZIO.accessM(_.get.apply[A](fid, id))
-    def get[A: DataCodec](fid: FdKey, id: ElKey): ZIO[Kvs, Err, Option[A]] = ZIO.accessM(_.get.get[A](fid, id))
-    def add[A: DataCodec](fid: FdKey, a: A): KZIO[Kvs, A] = ZIO.accessM(_.get.add(fid, a))
-    def add[A: DataCodec](fid: FdKey, id: ElKey, a: A): KZIO[Kvs, A] = ZIO.accessM(_.get.add(fid, id, a))
-    def put[A: DataCodec](fid: FdKey, id: ElKey, a: A): ZIO[Kvs, Err, A] = ZIO.accessM(_.get.put(fid, id, a))
-    def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Kvs with Blocking with Clock, Err, Unit] = ZIO.accessM(_.get.putBulk(fid, a))
-    def remove[A: DataCodec](fid: FdKey, id: ElKey): ZIO[Kvs, Err, Unit] = ZIO.accessM(_.get.remove[A](fid, id))
-    def stream[A: DataCodec](fid: FdKey, after: Option[ElKey] = None): ZIO[Kvs, Nothing, Stream[Err, (ElKey, A)]] = ZIO.access(_.get.stream[A](fid, after))
-    def cleanup(fid: FdKey): ZIO[Kvs, Nothing, Unit] = ZIO.access(x => { x.get.cleanup(fid); () })
+    def all    [A: DataCodec](fid: FdKey, after: Option[ElKey]=none): ZIO[Kvs, Nothing, Stream[Err, (ElKey, A)]] = ZIO.access(_.get.all[A](fid, after))
+    def apply  [A: DataCodec](fid: FdKey, id: ElKey      ): KZIO[A]                  = ZIO.accessM(_.get.apply[A] (fid, id))
+    def get    [A: DataCodec](fid: FdKey, id: ElKey      ): KZIO[Option[A]]          = ZIO.accessM(_.get.get[A]   (fid, id))
+    def head   [A: DataCodec](fid: FdKey                 ): KZIO[Option[(ElKey, A)]] = ZIO.accessM(_.get.head[A]  (fid))
+    def prepend[A: DataCodec](fid: FdKey,            a: A): KZIO[ElKey]              = ZIO.accessM(_.get.prepend  (fid, a))
+    def prepend[A: DataCodec](fid: FdKey, id: ElKey, a: A): KZIO[Unit]               = ZIO.accessM(_.get.prepend  (fid, id, a))
+    def put    [A: DataCodec](fid: FdKey, id: ElKey, a: A): KZIO[Unit]               = ZIO.accessM(_.get.put      (fid, id, a))
+    def remove [A: DataCodec](fid: FdKey, id: ElKey      ): KZIO[Boolean]            = ZIO.accessM(_.get.remove[A](fid, id))
+    def cleanup              (fid: FdKey                 ): KZIO[Unit]               = ZIO.accessM(_.get.cleanup  (fid))
+    def fix                  (fid: FdKey                 ): KZIO[Unit]               = ZIO.accessM(_.get.fix      (fid))
+    // def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Kvs with Blocking with Clock, Err, Unit] = ZIO.accessM(_.get.putBulk(fid, a))
 
-    def live(conf: _root_.kvs.Kvs.Conf): ZLayer[ActorSystem, Err, Kvs] = ZLayer.fromEffect{
-      for {
-        as   <- ZIO.access[ActorSystem](_.get)
-        kvs  <- conf match {
-                  case x: _root_.kvs.Kvs.RngConf => ZIO.effect(_root_.kvs.Kvs.rng(as, x))
-                  case _: _root_.kvs.Kvs.MemConf => ZIO.effect(_root_.kvs.Kvs.mem())
-                }
-        sh   <- Sharding.start("write_shard", onMessage=writeShard(kvs)).provideLayer(ZLayer.succeed(as))
-        res  <- ZIO.succeed(new Service {
-                  def apply[A: DataCodec](fid: FdKey, id: ElKey): KIO[A] = for {
-                    res  <- IO.fromEither(kvs.apply[A](fid, id))
-                  } yield res
-
-                  def get[A: DataCodec](fid: FdKey, id: ElKey): KIO[Option[A]] = for {
-                    res  <- IO.fromEither(kvs.get[A](fid, id))
-                  } yield res
-
-                  def add[A: DataCodec](fid: FdKey, a: A): KIO[A] = {
-                    val encoded = implicitly[DataCodec[A]].insert(a)
-                    sh.send(hex(fid), ShardAdd1(fid, encoded)).as(a).mapError(Throwed)
+    def live(conf: store.DbaConf): ZLayer[ActorSystem, Err, Kvs] = {
+      def onMessage(implicit dba: Dba): ShardMsg => ZIO[Entity[Unit], Nothing, Unit] = {
+        case msg: ShardAdd1    => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.prepend(      msg.fid,          msg.data)).orDie)
+        case msg: ShardAdd     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.prepend(EnKey(msg.fid, msg.id), msg.data)).orDie)
+        case msg: ShardPut     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.put    (EnKey(msg.fid, msg.id), msg.data)).orDie)
+        case msg: ShardRemove  => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.remove (EnKey(msg.fid, msg.id)          )).orDie)
+        case msg: ShardCleanup => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.cleanup(      msg.fid                   )).orDie)
+        case msg: ShardFix     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.fix    (      msg.fid                   )).orDie)
+        // case msg: ShardPutBulk =>
+        //   ZIO.foreach_(msg.a)(v =>
+        //     ZIO.effect(kvs.el.put(v._1, v._2))
+        //   ).ignore *> ZIO.accessM(_.get.replyToSender(()).ignore)
+      }
+      ZLayer.fromEffect{
+        for {
+          as   <- ZIO.access[ActorSystem](_.get)
+          dba  <- conf match {
+                    case RngConf(conf) => ZIO.effect(Rng(as, conf))
+                    case MemConf       => ZIO.effect(Mem())
+                    case _             => ZIO.fail(new Exception("ni"))
                   }
-
-                  def add[A: DataCodec](fid: FdKey, id: ElKey, a: A): KIO[A] = {
-                    val encoded = implicitly[DataCodec[A]].insert(a)
-                    sh.send(hex(fid), ShardAdd(fid, id, encoded)).as(a).mapError(Throwed)
-                  }
-                  
-                  def put[A: DataCodec](fid: FdKey, id: ElKey, a: A): KIO[A] = {
-                    val encoded = implicitly[DataCodec[A]].insert(a)
-                    sh.send(hex(fid), ShardPut(fid, id, encoded)).as(a).mapError(Throwed)
-                  }
-
-                  def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Blocking with Clock, Err, Unit] = {
-                    val c = implicitly[DataCodec[A]]
-                    for {
-                      b  <- succeedb(UIO.succeed(a.map(kv => (kv._1, c.insert(kv._2))))).timed
-                      _  <- UIO.succeed(println(s"enc=${b._1.toMillis}"))
-                      r  <- sh.ask[Unit](hex(fid), ShardPutBulk(fid, b._2)).mapError(Throwed).timed
-                      _  <- UIO.succeed(println(s"put=${r._1.toMillis}"))
-                    } yield ()
-                  }
-
-                  def remove[A: DataCodec](fid: FdKey, id: ElKey): KIO[Unit] =
-                    sh.send(hex(fid), ShardRemove(fid, id)).mapError(Throwed)
-
-                  def stream[A: DataCodec](fid: FdKey, after: Option[ElKey]): Stream[Err, (ElKey, A)] = 
-                    Stream
-                      .fromIterableM(IO.fromEither(kvs.all[A](fid, after)))
-                      .mapM(IO.fromEither(_))
-                    
-                  def cleanup(fid: FdKey): KIO[Unit] = IO.fromEither(kvs.cleanup(fid))
-                })
-      } yield res
-    }.mapError(Throwed(_))
-  }
-
-  def writeShard(kvs: _root_.kvs.Kvs): ShardMsg => ZIO[Entity[Unit], Nothing, Unit] = {
-    case msg: ShardAdd1 => ZIO.effect(kvs.add(msg.fid, msg.data)).ignore
-    case msg: ShardAdd => ZIO.effect(kvs.add(msg.fid, msg.id, msg.data)).ignore
-    case msg: ShardPut => ZIO.effect(kvs.put(msg.fid, msg.id, msg.data)).ignore
-    case msg: ShardPutBulk =>
-      ZIO.foreach_(msg.a)(v =>
-        ZIO.effect(kvs.el.put(v._1, v._2))
-      ).ignore *> ZIO.accessM(_.get.replyToSender(()).ignore)
-    case msg: ShardRemove => ZIO.effect(kvs.remove(msg.fid, msg.id)).ignore
+          sh   <- Sharding.start("write_shard", onMessage(dba)).provideLayer(ZLayer.succeed(as))
+          res  <- ZIO.succeed(new Service {
+                    private implicit val dba1 = dba
+                    /* readonly api */
+                    def all[A: DataCodec](fid: FdKey, after: Option[ElKey]): Stream[Err, (ElKey, A)] = {
+                      Stream
+                        .fromIterableM(IO.fromEither(EnHandler.all(fid, after)))
+                        .mapM(IO.fromEither(_))
+                        .mapM(x => IO.effect(implicitly[DataCodec[A]].extract(x._2)).orDie.map(x._1 -> _))
+                    }
+                    def apply[A: DataCodec](fid: FdKey, id: ElKey): KIO[A] = {
+                      for {
+                        res  <- IO.fromEither(EnHandler.apply(EnKey(fid, id)))
+                        a    <- IO.effect(implicitly[DataCodec[A]].extract(res)).orDie
+                      } yield a
+                    }
+                    def get[A: DataCodec](fid: FdKey, id: ElKey): KIO[Option[A]] = {
+                      for {
+                        res  <- IO.fromEither(EnHandler.get(EnKey(fid, id)))
+                        a    <- res.cata(res => IO.effect(implicitly[DataCodec[A]].extract(res)).map(_.some).orDie, IO.none)
+                      } yield a
+                    }
+                    def head[A: DataCodec](fid: FdKey): KIO[Option[(ElKey, A)]] = {
+                      for {
+                        res  <- IO.fromEither(EnHandler.head(fid))
+                        a    <- res.cata(res => IO.effect(implicitly[DataCodec[A]].extract(res._2)).map(res._1 -> _).map(_.some).orDie, IO.none)
+                      } yield a
+                    }
+                    /* writable api */
+                    def prepend[A: DataCodec](fid: FdKey, a: A): KIO[ElKey] = {
+                      val encoded = implicitly[DataCodec[A]].insert(a)
+                      sh.ask[Res[ElKey]](hex(fid), ShardAdd1(fid, encoded)).mapError(Throwed).flatMap(IO.fromEither(_))
+                    }
+                    def prepend[A: DataCodec](fid: FdKey, id: ElKey, a: A): KIO[Unit] = {
+                      val encoded = implicitly[DataCodec[A]].insert(a)
+                      sh.ask[Res[Unit]](hex(fid), ShardAdd(fid, id, encoded)).mapError(Throwed).flatMap(IO.fromEither(_))
+                    }
+                    def put[A: DataCodec](fid: FdKey, id: ElKey, a: A): KIO[Unit] = {
+                      val encoded = implicitly[DataCodec[A]].insert(a)
+                      sh.ask[Res[Unit]](hex(fid), ShardPut(fid, id, encoded)).mapError(Throwed).flatMap(IO.fromEither(_))
+                    }
+                    def remove[A: DataCodec](fid: FdKey, id: ElKey): KIO[Boolean] = {
+                      sh.ask[Res[Boolean]](hex(fid), ShardRemove(fid, id)).mapError(Throwed).flatMap(IO.fromEither(_))
+                    }
+                    def cleanup(fid: FdKey): KIO[Unit] = {
+                      sh.ask[Res[Unit]](hex(fid), ShardCleanup(fid)).mapError(Throwed).flatMap(IO.fromEither(_))
+                    }
+                    def fix(fid: FdKey): KIO[Unit] = {
+                      sh.ask[Res[Unit]](hex(fid), ShardCleanup(fid)).mapError(Throwed).flatMap(IO.fromEither(_))
+                    }
+                    // def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Blocking with Clock, Err, Unit] = {
+                    //   import blocking.{blocking => succeedb, _}
+                    //   val c = implicitly[DataCodec[A]]
+                    //   for {
+                    //     b  <- succeedb(UIO.succeed(a.map(kv => (kv._1, c.insert(kv._2))))).timed
+                    //     _  <- UIO.succeed(println(s"enc=${b._1.toMillis}"))
+                    //     r  <- sh.ask[Unit](hex(fid), ShardPutBulk(fid, b._2)).mapError(Throwed).timed
+                    //     _  <- UIO.succeed(println(s"put=${r._1.toMillis}"))
+                    //   } yield ()
+                    // }
+                  })
+        } yield res
+      }.mapError(Throwed)
+    }
   }
 
   private val hexs = "0123456789abcdef".getBytes("ascii")

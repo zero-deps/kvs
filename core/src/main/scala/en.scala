@@ -64,20 +64,20 @@ object EnHandler {
 
   /**
    * Mark entry for removal. O(1) complexity.
-   * @return marked entry (with data). Or `None` if element is absent.
+   * @return true if marked for removal
    */
-  def remove(key: EnKey)(implicit dba: Dba): Res[Option[En]] = {
+  def remove(key: EnKey)(implicit dba: Dba): Res[Boolean] = {
     for {
-      en1 <- _get(key)
-      _ <- en1.cata(en => {
-        val next = en.next
-        for {
-          fd <- fh.get(key.fid).flatMap(_.toRight(Fail(s"feed=${key.fid} is not exists")))
-          _ <- fh.put(key.fid, fd.copy(length=fd.length-1, removed=fd.removed+1))
-          _ <- _put(key, en.copy(removed=true))
-        } yield ()
-      }, ().right)
-    } yield en1
+      en1  <- _get(key)
+      res  <- en1.cata(en =>
+                for {
+                  fd <- fh.get(key.fid).flatMap(_.toRight(Fail(s"feed=${key.fid} is not exists")))
+                  _  <- fh.put(key.fid, fd.copy(length=fd.length-1, removed=fd.removed+1))
+                  _  <- _put(key, en.copy(removed=true))
+                } yield true
+              , false.right
+              )
+    } yield res
   }
 
   /**
@@ -115,7 +115,7 @@ object EnHandler {
   }
 
   def head(fid: FdKey)(implicit dba: Dba): Res[Option[(ElKey, Bytes)]] = {
-    all(fid, after=none, removed=false).flatMap(_.headOption.sequence).map(_.map(x => x._1 -> x._2.data))
+    _all(fid, after=none, withRemoved=false).flatMap(_.headOption.sequence).map(_.map(x => x._1 -> x._2.data))
   }
 
   /** 
@@ -123,20 +123,24 @@ object EnHandler {
    * Stream is FILO ordered (most recent is first).
    * @param `after` if specified then return entries after this entry
    * (None - start with head; Some(None) - empty stream; Some(Some(id)) - start with id).
-   * @param `removed` if true then include removed entries.
+   * @param `withRemoved` if true then include removed entries.
    */
-  def all(fid: FdKey, after: Option[Option[ElKey]], removed: Boolean)(implicit dba: Dba): Res[LazyList[Res[(ElKey, En)]]] = {
+  def _all(fid: FdKey, after: Option[Option[ElKey]]=none, withRemoved: Boolean=false)(implicit dba: Dba): Res[LazyList[Res[(ElKey, En)]]] = {
     lazy val _stream: Option[ElKey] => LazyList[Res[(ElKey, En)]] = {
       case None => LazyList.empty
       case Some(id) =>
         dba.get(EnKey(fid, id)).map(_.map(unpickle[En](_))) match {
-          case Right(Some(e)) if e.removed && !removed => _stream(e.next) /* skip removed */
+          case Right(Some(e)) if e.removed && !withRemoved => _stream(e.next) /* skip removed */
           case Right(Some(e)) => LazyList.cons((id -> e).right, _stream(e.next))
           case Right(None) => LazyList(Fail(s"Feed is corrupted at id=$id").left)
           case e@Left(_) => LazyList(e.coerceRight)
         }
     }
     fh.get(fid).map(_.cata(fd => _stream(after.getOrElse(fd.head)), LazyList.empty))
+  }
+
+  def all(fid: FdKey, after: Option[ElKey]=none)(implicit dba: Dba): Res[LazyList[Res[(ElKey, Bytes)]]] = {
+    _all(fid, after.map(_.some)).map(_.map(_.map(x => x._1 -> x._2.data)))
   }
 
   /**
@@ -190,14 +194,14 @@ object EnHandler {
         case Right(y1) #:: Right(y2) #:: ys if !y2._2.removed =>
           loop(y2.right #:: ys, athead=false)
         case Right(y1) #:: Right(y2) #:: ys if  y2._2.removed =>
-          loop2(y1)(y2.right, ys).flatMap(next => all(fid, after=next.some, removed=true)) match {
+          loop2(y1)(y2.right, ys).flatMap(next => _all(fid, after=next.some, withRemoved=true)) match {
             case Right(zs) => loop(tail=zs, athead=false)
             case Left(l) => l.left
           }
       }
     }
     for {
-      xs <- all(fid=fid, after=none, removed=true)
+      xs <- _all(fid=fid, after=none, withRemoved=true)
       _ <- loop(xs, athead=true)
     } yield ()
   }
@@ -205,7 +209,7 @@ object EnHandler {
   /**
    * Fix length, removed and maxid for feed.
    */
-  def fix(fid: FdKey)(implicit dba: Dba): Res[((Long,Long),(Long,Long),(ElKey,ElKey))] = {
+  def fix(fid: FdKey)(implicit dba: Dba): Res[Unit] = {
     @tailrec def loop(xs: LazyList[Res[(ElKey,En)]], acc: (Long, Long, ElKey)): Res[(Long, Long, ElKey)] = {
       xs match {
         case _ if xs.isEmpty => acc.right
@@ -219,11 +223,11 @@ object EnHandler {
     }
     for {
       fd <- fh.get(fid).flatMap(_.toRight(Fail(s"feed=${fid} is not exists")))
-      xs <- all(fid, after=none, removed=true)
+      xs <- _all(fid, after=none, withRemoved=true)
       acc <- loop(xs, (0L, 0L, ElKey(Bytes.empty)))
       (length, removed, maxid) = acc
       _ <- fh.put(fid, fd.copy(length=length, removed=removed, maxid=maxid))
-    } yield ((fd.length -> length), (fd.removed -> removed), (fd.maxid -> maxid))
+    } yield ()
   }
 
   private def max(x: ElKey, y: ElKey): ElKey = {

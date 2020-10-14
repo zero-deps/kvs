@@ -37,10 +37,10 @@ final case class PortVNode(
 )
 
 object Hash {
-  def props(conf: Kvs.RngConf, hashing: Hashing): Props = Props(new Hash(conf, hashing))
+  def props(conf: RngConf, hashing: Hashing): Props = Props(new Hash(conf, hashing))
 }
 
-class Hash(conf: Kvs.RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData] with ActorLogging {
+class Hash(conf: RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
 
   val quorum = conf.quorum

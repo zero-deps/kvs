@@ -7,7 +7,11 @@ import java.util.concurrent.ConcurrentHashMap
 import zero.ext._, option._, either._
 import zd.proto.Bytes
 
-class Mem() extends Dba {
+object Mem {
+  def apply(): Mem = new Mem
+}
+
+class Mem extends Dba {
   private val db = new ConcurrentHashMap[Key, Bytes]
 
   override def get(key: Key): Res[Option[Bytes]] = fromNullable(db.get(key)).right

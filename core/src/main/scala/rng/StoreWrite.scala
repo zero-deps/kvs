@@ -11,10 +11,10 @@ import zd.proto.Bytes
 import data.codec._, data.keycodec._, data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}, model.{ReplBucketPut, StorePut, StoreDelete, KeyBucketData}
 
 object WriteStore {
-  def props(leveldb: LevelDb, conf: Kvs.LeveldbConf, hashing: Hashing): Props = Props(new WriteStore(leveldb, conf, hashing))
+  def props(leveldb: LevelDb, conf: LvlConf, hashing: Hashing): Props = Props(new WriteStore(leveldb, conf, hashing))
 }
 
-class WriteStore(leveldb: LevelDb, conf: Kvs.LeveldbConf, hashing: Hashing) extends Actor with ActorLogging {
+class WriteStore(leveldb: LevelDb, conf: LvlConf, hashing: Hashing) extends Actor with ActorLogging {
   import context.system
 
   val ro = ReadOpts()

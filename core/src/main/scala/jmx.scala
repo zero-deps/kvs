@@ -4,6 +4,8 @@ import java.lang.management.ManagementFactory
 import javax.management.{ObjectName,StandardMBean}
 import scala.util._
 
+import store.Dba
+
 /** Kvs management access */
 trait KvsMBean {
   def save(path: String): String
@@ -11,18 +13,18 @@ trait KvsMBean {
   def compact(): String
 }
 
-class KvsJmx(kvs: Kvs) {
+class KvsJmx(dba: Dba) {
   private val server = ManagementFactory.getPlatformMBeanServer
   private val name = new ObjectName("zd:type=Kvs")
 
   def createMBean(): Unit = {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
-      def save(path: String): String = kvs.dump.save(path).fold(_.toString, identity)
-      def load(path: String): Any = kvs.dump.load(path).fold(_.toString, identity)
+      def save(path: String): String = dba.save(path).fold(_.toString, identity)
+      def load(path: String): Any = dba.load(path).fold(_.toString, identity)
 
       def compact(): String = {
         val t = System.nanoTime
-        kvs.compact()
+        dba.compact()
         s"done in ${(System.nanoTime - t) / 1000000} ms"
       }
     }

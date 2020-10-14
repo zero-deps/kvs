@@ -7,7 +7,7 @@ import scala.annotation.tailrec
 import scala.collection.SortedMap
 import zd.proto.Bytes
 
-class Hashing(conf: Kvs.RngConf) {
+class Hashing(conf: RngConf) {
   val hashLen = conf.hashLength
   val bucketsNum = conf.buckets
   val bucketRange = (math.pow(2, hashLen.toDouble) / bucketsNum).ceil.toInt
