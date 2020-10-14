@@ -41,7 +41,7 @@ object Run extends App {
   }
 
   // Run kvs
-  val kvs = Kvs.rng(system)
+  val kvs = Kvs.rng(system, Kvs.RngConf())
   Try(Await.result(kvs.onReady, Duration.Inf))
 
   // Add users to feed
