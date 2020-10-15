@@ -6,7 +6,7 @@ import zio.akka.cluster.sharding.{Sharding, Entity}
 import zd.proto.Bytes
 import zero.ext._, option._
 
-import store._, en.EnHandler
+import store._
 
 sealed trait ShardMsg
 final case class ShardAdd1   (fid: FdKey,            data: Bytes) extends ShardMsg
@@ -64,12 +64,12 @@ package object seq {
 
     def live(conf: store.DbaConf): ZLayer[ActorSystem, Err, Kvs] = {
       def onMessage(implicit dba: Dba): ShardMsg => ZIO[Entity[Unit], Nothing, Unit] = {
-        case msg: ShardAdd1    => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.prepend(      msg.fid,          msg.data)).orDie)
-        case msg: ShardAdd     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.prepend(EnKey(msg.fid, msg.id), msg.data)).orDie)
-        case msg: ShardPut     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.put    (EnKey(msg.fid, msg.id), msg.data)).orDie)
-        case msg: ShardRemove  => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.remove (EnKey(msg.fid, msg.id)          )).orDie)
-        case msg: ShardCleanup => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.cleanup(      msg.fid                   )).orDie)
-        case msg: ShardFix     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(EnHandler.fix    (      msg.fid                   )).orDie)
+        case msg: ShardAdd1    => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.prepend(      msg.fid,          msg.data)).orDie)
+        case msg: ShardAdd     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.prepend(EnKey(msg.fid, msg.id), msg.data)).orDie)
+        case msg: ShardPut     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.put    (EnKey(msg.fid, msg.id), msg.data)).orDie)
+        case msg: ShardRemove  => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.remove (EnKey(msg.fid, msg.id)          )).orDie)
+        case msg: ShardCleanup => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.cleanup(      msg.fid                   )).orDie)
+        case msg: ShardFix     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.fix    (      msg.fid                   )).orDie)
         // case msg: ShardPutBulk =>
         //   ZIO.foreach_(msg.a)(v =>
         //     ZIO.effect(kvs.el.put(v._1, v._2))
@@ -89,25 +89,25 @@ package object seq {
                     /* readonly api */
                     def all[A: DataCodec](fid: FdKey, after: Option[ElKey]): Stream[Err, (ElKey, A)] = {
                       Stream
-                        .fromIterableM(IO.fromEither(EnHandler.all(fid, after)))
+                        .fromIterableM(IO.fromEither(feed.all(fid, after)))
                         .mapM(IO.fromEither(_))
                         .mapM(x => IO.effect(implicitly[DataCodec[A]].extract(x._2)).orDie.map(x._1 -> _))
                     }
                     def apply[A: DataCodec](fid: FdKey, id: ElKey): KIO[A] = {
                       for {
-                        res  <- IO.fromEither(EnHandler.apply(EnKey(fid, id)))
+                        res  <- IO.fromEither(feed.apply(EnKey(fid, id)))
                         a    <- IO.effect(implicitly[DataCodec[A]].extract(res)).orDie
                       } yield a
                     }
                     def get[A: DataCodec](fid: FdKey, id: ElKey): KIO[Option[A]] = {
                       for {
-                        res  <- IO.fromEither(EnHandler.get(EnKey(fid, id)))
+                        res  <- IO.fromEither(feed.get(EnKey(fid, id)))
                         a    <- res.cata(res => IO.effect(implicitly[DataCodec[A]].extract(res)).map(_.some).orDie, IO.none)
                       } yield a
                     }
                     def head[A: DataCodec](fid: FdKey): KIO[Option[(ElKey, A)]] = {
                       for {
-                        res  <- IO.fromEither(EnHandler.head(fid))
+                        res  <- IO.fromEither(feed.head(fid))
                         a    <- res.cata(res => IO.effect(implicitly[DataCodec[A]].extract(res._2)).map(res._1 -> _).map(_.some).orDie, IO.none)
                       } yield a
                     }

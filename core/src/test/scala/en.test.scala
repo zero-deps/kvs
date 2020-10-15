@@ -13,8 +13,8 @@ class FeedSpec extends TestKit(ActorSystem("FeedSpec"))
   with AnyFreeSpecLike with Matchers with BeforeAndAfterAll {
 
   implicit val dba = store.Mem()
-  val kvs = en.EnHandler
-  val fd = en.FdHandler
+  val kvs = feed
+  val fd = feed.meta
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 
   val key1 = keyN(1)

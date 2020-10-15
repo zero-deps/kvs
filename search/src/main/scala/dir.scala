@@ -11,14 +11,14 @@ import scala.collection.concurrent.TrieMap
 import zero.ext._, either._, traverse._
 import zd.proto.Bytes
 
-import en.{FdHandler, EnHandler}, file.FileHandler, store.Dba
+import file.FileHandler, store.Dba
 
 class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsLockFactory(dir)) {
   val flh = new FileHandler {
     override val chunkLength = 10 * 1000 * 1000 // 10 MB
   }
-  val enh = EnHandler
-  val fdh = FdHandler
+  val enh = feed
+  val fdh = feed.meta
 
   private[this] val outs = TrieMap.empty[String,ByteArrayOutputStream]
   private[this] val nextTempFileCounter = new AtomicLong

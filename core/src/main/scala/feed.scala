@@ -1,11 +1,21 @@
 package kvs
-package en
 
 import scala.annotation.tailrec
 import zero.ext._, either._, option._, traverse._
 import zd.proto._, api._, macrosapi._
 
 import store.Dba
+
+final case class Fd
+  ( @N(1) head: Option[ElKey]
+  , @N(2) length: Long
+  , @N(3) removed: Long
+  , @N(4) maxid: ElKey
+  )
+
+object Fd {
+  val empty = new Fd(head=none, length=0, removed=0, maxid=ElKey(Bytes.empty))
+}
 
 final case class En
   ( @N(1) next: Option[ElKey]
@@ -18,11 +28,23 @@ final case class En
  * Since we don't know the exact type the pickler/unpickler still needs to be provided explicitly
  * [head] -->next--> [en] -->next--> [nothing]
  */
-object EnHandler {
-  private val fh = FdHandler
-  private implicit val enc = {
-    implicit val elkeyc = caseCodecAuto[ElKey]
-    caseCodecAuto[En]
+object feed {
+  implicit val elkeyc = caseCodecAuto[ElKey]
+  implicit val fdc = caseCodecAuto[Fd]
+  implicit val enc = caseCodecAuto[En]
+
+  object meta {
+    def put(id: FdKey, el: Fd)(implicit dba: Dba): Res[Unit] = dba.put(id, pickle(el))
+
+    def get(id: FdKey)(implicit dba: Dba): Res[Option[Fd]] = dba.get(id) match {
+      case Right(Some(x)) => unpickle[Fd](x).some.right
+      case Right(None) => none.right
+      case x@Left(_) => x.coerceRight
+    }
+
+    def length(id: FdKey)(implicit dba: Dba): Res[Long] = get(id).map(_.cata(_.length, 0))
+
+    def delete(id: FdKey)(implicit dba: Dba): Res[Unit] = dba.delete(id)
   }
 
   private def _put(key: EnKey, en: En)(implicit dba: Dba): Res[Unit] = {
@@ -71,8 +93,8 @@ object EnHandler {
       en1  <- _get(key)
       res  <- en1.cata(en =>
                 for {
-                  fd <- fh.get(key.fid).flatMap(_.toRight(Fail(s"feed=${key.fid} is not exists")))
-                  _  <- fh.put(key.fid, fd.copy(length=fd.length-1, removed=fd.removed+1))
+                  fd <- meta.get(key.fid).flatMap(_.toRight(Fail(s"feed=${key.fid} is not exists")))
+                  _  <- meta.put(key.fid, fd.copy(length=fd.length-1, removed=fd.removed+1))
                   _  <- _put(key, en.copy(removed=true))
                 } yield true
               , false.right
@@ -86,14 +108,14 @@ object EnHandler {
    */
   def prepend(fid: FdKey, data: Bytes)(implicit dba: Dba): Res[ElKey] = {
     for {
-      fd1 <- fh.get(fid)
-      fd <- fd1.cata(_.right, fh.put(fid, Fd()).map(_ => Fd()))
+      fd1 <- meta.get(fid)
+      fd <- fd1.cata(_.right, meta.put(fid, Fd.empty).map(_ => Fd.empty))
       id = fd.maxid.increment()
       en = En(next=fd.head, data=data)
-      _ <- fh.put(fid, fd.copy(maxid=id)) // in case kvs will fail after adding the en
+      _ <- meta.put(fid, fd.copy(maxid=id)) // in case kvs will fail after adding the en
       key = EnKey(fid, id)
       _ <- _put(key, en)
-      _ <- fh.put(fid, fd.copy(head=id.some, length=fd.length+1, maxid=id))
+      _ <- meta.put(fid, fd.copy(head=id.some, length=fd.length+1, maxid=id))
     } yield id
   }
 
@@ -104,13 +126,13 @@ object EnHandler {
     for {
       en1 <- _get(key)
       _ <- en1.cata(_ => EntryExists(key).left, ().right)
-      fd1 <- fh.get(key.fid)
-      fd <- fd1.cata(_.right, fh.put(key.fid, Fd()).map(_ => Fd()))
+      fd1 <- meta.get(key.fid)
+      fd <- fd1.cata(_.right, meta.put(key.fid, Fd.empty).map(_ => Fd.empty))
       en = En(next=fd.head, data=data)
       maxid = max(key.id, fd.maxid)
-      _ <- fh.put(key.fid, fd.copy(maxid=maxid)) // in case kvs will fail after adding the en
+      _ <- meta.put(key.fid, fd.copy(maxid=maxid)) // in case kvs will fail after adding the en
       _ <- _put(key, en)
-      _ <- fh.put(key.fid, fd.copy(head=key.id.some, length=fd.length+1, maxid=maxid))
+      _ <- meta.put(key.fid, fd.copy(head=key.id.some, length=fd.length+1, maxid=maxid))
     } yield ()
   }
 
@@ -136,7 +158,7 @@ object EnHandler {
           case e@Left(_) => LazyList(e.coerceRight)
         }
     }
-    fh.get(fid).map(_.cata(fd => _stream(after.getOrElse(fd.head)), LazyList.empty))
+    meta.get(fid).map(_.cata(fd => _stream(after.getOrElse(fd.head)), LazyList.empty))
   }
 
   def all(fid: FdKey, after: Option[ElKey]=none)(implicit dba: Dba): Res[LazyList[Res[(ElKey, Bytes)]]] = {
@@ -156,9 +178,9 @@ object EnHandler {
             // change link
             _ <- _put(EnKey(fid, id=x1._1), x1._2.copy(next=y2._2.next))
             // update feed
-            fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
+            fd <- meta.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
             maxid = if (y2._1 == fd.maxid) fd.maxid.decrement() else fd.maxid
-            _ <- fh.put(fid, fd.copy(removed=fd.removed-1, maxid=maxid))
+            _ <- meta.put(fid, fd.copy(removed=fd.removed-1, maxid=maxid))
             // delete entry
             _ <- dba.delete(EnKey(fid, id=y2._1))
           } yield ()
@@ -179,9 +201,9 @@ object EnHandler {
         case Right(y) #:: ys if  y._2.removed &&  athead =>
           val res = for {
             // update feed
-            fd <- fh.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
+            fd <- meta.get(fid).flatMap(_.toRight(Fail(s"${fid} is not exists")))
             maxid = if (y._1 == fd.maxid) fd.maxid.decrement() else fd.maxid
-            _ <- fh.put(fid, Fd(head=y._2.next, length=fd.length, removed=fd.removed-1, maxid=maxid))
+            _ <- meta.put(fid, Fd(head=y._2.next, length=fd.length, removed=fd.removed-1, maxid=maxid))
             // delete entry
             _ <- dba.delete(EnKey(fid, id=y._1))
           } yield ()
@@ -222,11 +244,11 @@ object EnHandler {
       }
     }
     for {
-      fd <- fh.get(fid).flatMap(_.toRight(Fail(s"feed=${fid} is not exists")))
+      fd <- meta.get(fid).flatMap(_.toRight(Fail(s"feed=${fid} is not exists")))
       xs <- _all(fid, after=none, withRemoved=true)
       acc <- loop(xs, (0L, 0L, ElKey(Bytes.empty)))
       (length, removed, maxid) = acc
-      _ <- fh.put(fid, fd.copy(length=length, removed=removed, maxid=maxid))
+      _ <- meta.put(fid, fd.copy(length=length, removed=removed, maxid=maxid))
     } yield ()
   }
 
