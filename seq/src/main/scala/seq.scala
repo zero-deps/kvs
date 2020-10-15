@@ -27,6 +27,8 @@ package object seq {
   type Kvs = Has[Kvs.Service]
   type KIO[A] = IO[Err, A]
   type KZIO[A] = ZIO[Kvs, Err, A]
+  type KURIO[A] = URIO[Kvs, A]
+  type KStream[A] = Stream[Err, A]
 
   def actorSystem(name: String): TaskLayer[ActorSystem] = ZLayer.fromManaged{
     ZIO.effect(_root_.akka.actor.ActorSystem(name)).toManaged(as => Task.fromFuture(_ => as.terminate()).either)
@@ -37,7 +39,7 @@ package object seq {
 
   object Kvs {
     trait Service {
-      def all    [A: DataCodec](fid: FdKey, after: Option[ElKey]): Stream[Err, (ElKey, A)]
+      def all    [A: DataCodec](fid: FdKey, after: Option[ElKey]): KStream[(ElKey, A)]
       def apply  [A: DataCodec](fid: FdKey, id: ElKey      ): KIO[A]
       def get    [A: DataCodec](fid: FdKey, id: ElKey      ): KIO[Option[A]]
       def head   [A: DataCodec](fid: FdKey                 ): KIO[Option[(ElKey, A)]]
@@ -47,10 +49,19 @@ package object seq {
       def remove [A: DataCodec](fid: FdKey, id: ElKey      ): KIO[Boolean]
       def cleanup              (fid: FdKey                 ): KIO[Unit]
       def fix                  (fid: FdKey                 ): KIO[Unit]
+      val array: ArrayApi
       // def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Blocking with Clock, Err, Unit]
     }
+    trait ArrayApi {
+      def all[A: DataCodec](fid: FdKey, size: Long): KStream[A]
+      def put[A: DataCodec](fid: FdKey, size: Long, data: A): KIO[Unit]
+    }
+    trait ArrayAccess {
+      def all[A: DataCodec](fid: FdKey, size: Long): KURIO[KStream[A]]
+      def put[A: DataCodec](fid: FdKey, size: Long, data: A): KZIO[Unit]
+    }
 
-    def all    [A: DataCodec](fid: FdKey, after: Option[ElKey]=none): ZIO[Kvs, Nothing, Stream[Err, (ElKey, A)]] = ZIO.access(_.get.all[A](fid, after))
+    def all    [A: DataCodec](fid: FdKey, after: Option[ElKey]=none): KURIO[KStream[(ElKey, A)]] = ZIO.access(_.get.all[A](fid, after))
     def apply  [A: DataCodec](fid: FdKey, id: ElKey      ): KZIO[A]                  = ZIO.accessM(_.get.apply[A] (fid, id))
     def get    [A: DataCodec](fid: FdKey, id: ElKey      ): KZIO[Option[A]]          = ZIO.accessM(_.get.get[A]   (fid, id))
     def head   [A: DataCodec](fid: FdKey                 ): KZIO[Option[(ElKey, A)]] = ZIO.accessM(_.get.head[A]  (fid))
@@ -60,6 +71,10 @@ package object seq {
     def remove [A: DataCodec](fid: FdKey, id: ElKey      ): KZIO[Boolean]            = ZIO.accessM(_.get.remove[A](fid, id))
     def cleanup              (fid: FdKey                 ): KZIO[Unit]               = ZIO.accessM(_.get.cleanup  (fid))
     def fix                  (fid: FdKey                 ): KZIO[Unit]               = ZIO.accessM(_.get.fix      (fid))
+    val array = new ArrayAccess {
+      def all[A: DataCodec](fid: FdKey, size: Long): KURIO[KStream[A]] = ZIO.access(_.get.array.all[A](fid, size))
+      def put[A: DataCodec](fid: FdKey, size: Long, data: A): KZIO[Unit] = ZIO.accessM(_.get.array.put[A](fid, size, data))
+    }
     // def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Kvs with Blocking with Clock, Err, Unit] = ZIO.accessM(_.get.putBulk(fid, a))
 
     def live(conf: store.DbaConf): ZLayer[ActorSystem, Err, Kvs] = {
@@ -87,7 +102,7 @@ package object seq {
           res  <- ZIO.succeed(new Service {
                     private implicit val dba1 = dba
                     /* readonly api */
-                    def all[A: DataCodec](fid: FdKey, after: Option[ElKey]): Stream[Err, (ElKey, A)] = {
+                    def all[A: DataCodec](fid: FdKey, after: Option[ElKey]): KStream[(ElKey, A)] = {
                       Stream
                         .fromIterableM(IO.fromEither(feed.all(fid, after)))
                         .mapM(IO.fromEither(_))
@@ -132,6 +147,16 @@ package object seq {
                     }
                     def fix(fid: FdKey): KIO[Unit] = {
                       sh.ask[Res[Unit]](hex(fid), ShardCleanup(fid)).mapError(Throwed).flatMap(IO.fromEither(_))
+                    }
+                    /* array */
+                    val array = new ArrayApi {
+                      def all[A: DataCodec](fid: FdKey, size: Long): KStream[A] = {
+                        Stream
+                          .fromIterableM(IO.fromEither(kvs.array.all(fid, size)))
+                          .mapM(IO.fromEither(_))
+                          .mapM(x => IO.effect(implicitly[DataCodec[A]].extract(x)).orDie)
+                      }
+                      def put[A: DataCodec](fid: FdKey, size: Long, data: A): KIO[Unit] = ???
                     }
                     // def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Blocking with Clock, Err, Unit] = {
                     //   import blocking.{blocking => succeedb, _}
