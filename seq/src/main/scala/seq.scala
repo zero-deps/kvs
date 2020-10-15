@@ -9,12 +9,16 @@ import zero.ext._, option._
 import store._
 
 sealed trait ShardMsg
-final case class ShardAdd1   (fid: FdKey,            data: Bytes) extends ShardMsg
-final case class ShardAdd    (fid: FdKey, id: ElKey, data: Bytes) extends ShardMsg
-final case class ShardPut    (fid: FdKey, id: ElKey, data: Bytes) extends ShardMsg
-final case class ShardRemove (fid: FdKey, id: ElKey)              extends ShardMsg
-final case class ShardCleanup(fid: FdKey)                         extends ShardMsg
-final case class ShardFix    (fid: FdKey)                         extends ShardMsg
+final case class ShardAdd1    (fid: FdKey,             data: Bytes) extends ShardMsg
+final case class ShardAdd     (fid: FdKey, id: ElKey,  data: Bytes) extends ShardMsg
+final case class ShardPut     (fid: FdKey, id: ElKey,  data: Bytes) extends ShardMsg
+final case class ShardRemove  (fid: FdKey, id: ElKey)               extends ShardMsg
+final case class ShardCleanup (fid: FdKey)                          extends ShardMsg
+final case class ShardFix     (fid: FdKey)                          extends ShardMsg
+
+final case class ShardArrayAdd(fid: FdKey, size: Long, data: Bytes) extends ShardMsg
+final case class ShardArrayPut(fid: FdKey,  idx: Long, data: Bytes) extends ShardMsg
+
 // final case class ShardPutBulk(fid: FdKey, a: Vector[(ElKey, Bytes)]) extends ShardMsg
 
 trait DataCodec[A] {
@@ -54,11 +58,15 @@ package object seq {
     }
     trait ArrayApi {
       def all[A: DataCodec](fid: FdKey, size: Long): KStream[A]
-      def put[A: DataCodec](fid: FdKey, size: Long, data: A): KIO[Unit]
+      def add[A: DataCodec](fid: FdKey, size: Long, a: A): KIO[Unit]
+      def put[A: DataCodec](fid: FdKey,  idx: Long, a: A): KIO[Unit]
+      def get[A: DataCodec](fid: FdKey,  idx: Long      ): KIO[Option[A]]
     }
     trait ArrayAccess {
       def all[A: DataCodec](fid: FdKey, size: Long): KURIO[KStream[A]]
-      def put[A: DataCodec](fid: FdKey, size: Long, data: A): KZIO[Unit]
+      def add[A: DataCodec](fid: FdKey, size: Long, a: A): KZIO[Unit]
+      def put[A: DataCodec](fid: FdKey,  idx: Long, a: A): KZIO[Unit]
+      def get[A: DataCodec](fid: FdKey,  idx: Long      ): KZIO[Option[A]]
     }
 
     def all    [A: DataCodec](fid: FdKey, after: Option[ElKey]=none): KURIO[KStream[(ElKey, A)]] = ZIO.access(_.get.all[A](fid, after))
@@ -72,19 +80,23 @@ package object seq {
     def cleanup              (fid: FdKey                 ): KZIO[Unit]               = ZIO.accessM(_.get.cleanup  (fid))
     def fix                  (fid: FdKey                 ): KZIO[Unit]               = ZIO.accessM(_.get.fix      (fid))
     val array = new ArrayAccess {
-      def all[A: DataCodec](fid: FdKey, size: Long): KURIO[KStream[A]] = ZIO.access(_.get.array.all[A](fid, size))
-      def put[A: DataCodec](fid: FdKey, size: Long, data: A): KZIO[Unit] = ZIO.accessM(_.get.array.put[A](fid, size, data))
+      def all[A: DataCodec](fid: FdKey, size: Long): KURIO[KStream[A]]     = ZIO.access (_.get.array.all[A](fid, size))
+      def add[A: DataCodec](fid: FdKey, size: Long, a: A): KZIO[Unit]      = ZIO.accessM(_.get.array.add[A](fid, size=size, a))
+      def put[A: DataCodec](fid: FdKey,  idx: Long, a: A): KZIO[Unit]      = ZIO.accessM(_.get.array.put[A](fid,  idx=idx,  a))
+      def get[A: DataCodec](fid: FdKey,  idx: Long      ): KZIO[Option[A]] = ZIO.accessM(_.get.array.get[A](fid,  idx=idx))
     }
     // def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Kvs with Blocking with Clock, Err, Unit] = ZIO.accessM(_.get.putBulk(fid, a))
 
     def live(conf: store.DbaConf): ZLayer[ActorSystem, Err, Kvs] = {
       def onMessage(implicit dba: Dba): ShardMsg => ZIO[Entity[Unit], Nothing, Unit] = {
-        case msg: ShardAdd1    => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.prepend(      msg.fid,          msg.data)).orDie)
-        case msg: ShardAdd     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.prepend(EnKey(msg.fid, msg.id), msg.data)).orDie)
-        case msg: ShardPut     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.put    (EnKey(msg.fid, msg.id), msg.data)).orDie)
-        case msg: ShardRemove  => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.remove (EnKey(msg.fid, msg.id)          )).orDie)
-        case msg: ShardCleanup => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.cleanup(      msg.fid                   )).orDie)
-        case msg: ShardFix     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(feed.fix    (      msg.fid                   )).orDie)
+        case msg: ShardAdd1     => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.feed.prepend(      msg.fid,           msg.data)).orDie)
+        case msg: ShardAdd      => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.feed.prepend(EnKey(msg.fid, msg.id),  msg.data)).orDie)
+        case msg: ShardPut      => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.feed.put    (EnKey(msg.fid, msg.id),  msg.data)).orDie)
+        case msg: ShardRemove   => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.feed.remove (EnKey(msg.fid, msg.id)           )).orDie)
+        case msg: ShardCleanup  => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.feed.cleanup(      msg.fid                    )).orDie)
+        case msg: ShardFix      => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.feed.fix    (      msg.fid                    )).orDie)
+        case msg: ShardArrayAdd => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.array.add   (      msg.fid, msg.size, msg.data)).orDie)
+        case msg: ShardArrayPut => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.array.put   (      msg.fid, msg.idx,  msg.data)).orDie)
         // case msg: ShardPutBulk =>
         //   ZIO.foreach_(msg.a)(v =>
         //     ZIO.effect(kvs.el.put(v._1, v._2))
@@ -156,7 +168,20 @@ package object seq {
                           .mapM(IO.fromEither(_))
                           .mapM(x => IO.effect(implicitly[DataCodec[A]].extract(x)).orDie)
                       }
-                      def put[A: DataCodec](fid: FdKey, size: Long, data: A): KIO[Unit] = ???
+                      def add[A: DataCodec](fid: FdKey, size: Long, a: A): KIO[Unit] = {
+                        val encoded = implicitly[DataCodec[A]].insert(a)
+                        sh.ask[Res[Unit]](hex(fid), ShardArrayAdd(fid, size=size, encoded)).mapError(Throwed).flatMap(IO.fromEither(_))
+                      }
+                      def put[A: DataCodec](fid: FdKey, idx: Long, a: A): KIO[Unit] = {
+                        val encoded = implicitly[DataCodec[A]].insert(a)
+                        sh.ask[Res[Unit]](hex(fid), ShardArrayPut(fid, idx=idx, encoded)).mapError(Throwed).flatMap(IO.fromEither(_))
+                      }
+                      def get[A: DataCodec](fid: FdKey, idx: Long): KIO[Option[A]] = {
+                        for {
+                          res  <- IO.fromEither(kvs.array.get(fid)(idx))
+                          a    <- res.cata(res => IO.effect(implicitly[DataCodec[A]].extract(res)).map(_.some).orDie, IO.none)
+                        } yield a
+                      }
                     }
                     // def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Blocking with Clock, Err, Unit] = {
                     //   import blocking.{blocking => succeedb, _}
