@@ -33,6 +33,7 @@ ThisBuild / scalacOptions ++= Seq(
   , "-Xmaxerrs", "1"
   , "-Xmaxwarns", "1"
   , "-Wconf:cat=deprecation&msg=Auto-application:silent"
+  , "-Ymacro-annotations"
 )
 ThisBuild / Test / scalacOptions += "-deprecation"
 

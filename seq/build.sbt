@@ -6,12 +6,13 @@ val logback = "1.2.3"
 val scalatest = "3.1.1"
 val zionio = "1.0.0-RC9"
 val zioakka = "0.2.0"
+val zio = "1.0.3"
 
 lazy val kvs_core = project.in(file("../core")).settings(
   libraryDependencies ++= Seq(
-    "ch.qos.logback" % "logback-classic" % logback,
-    "com.typesafe.akka" %% "akka-cluster-sharding" % akka,
-    "com.typesafe.akka" %% "akka-slf4j"            % akka,
+    "ch.qos.logback"      % "logback-classic" % logback,
+    "com.typesafe.akka"   %% "akka-cluster-sharding" % akka,
+    "com.typesafe.akka"   %% "akka-slf4j"            % akka,
     "io.github.zero-deps" %% "proto-macros" % proto % Compile,
     "io.github.zero-deps" %% "proto-runtime" % proto,
     compilerPlugin("io.github.zero-deps" %% "ext-plug" % ext),
@@ -25,7 +26,8 @@ lazy val kvs_core = project.in(file("../core")).settings(
 
 lazy val kvs_seq = project.in(file(".")).settings(
   libraryDependencies ++= Seq(
-    "dev.zio" %% "zio-nio" % zionio
-  , "dev.zio" %% "zio-akka-cluster" % zioakka
+    "dev.zio" %% "zio-nio" % zionio,
+    "dev.zio" %% "zio-akka-cluster" % zioakka,
+    "dev.zio" %% "zio-macros" % zio,
   )
 ).dependsOn(kvs_core)
