@@ -57,13 +57,13 @@ package object seq {
       // def putBulk[A: DataCodec](fid: FdKey, a: Vector[(ElKey, A)]): ZIO[Blocking with Clock, Err, Unit]
     }
     trait ArrayApi {
-      def all[A: DataCodec](fid: FdKey, size: Long): KStream[A]
+      def all[A: DataCodec](fid: FdKey): KStream[A]
       def add[A: DataCodec](fid: FdKey, size: Long, a: A): KIO[Unit]
       def put[A: DataCodec](fid: FdKey,  idx: Long, a: A): KIO[Unit]
       def get[A: DataCodec](fid: FdKey,  idx: Long      ): KIO[Option[A]]
     }
     trait ArrayAccess {
-      def all[A: DataCodec](fid: FdKey, size: Long): KURIO[KStream[A]]
+      def all[A: DataCodec](fid: FdKey): KURIO[KStream[A]]
       def add[A: DataCodec](fid: FdKey, size: Long, a: A): KZIO[Unit]
       def put[A: DataCodec](fid: FdKey,  idx: Long, a: A): KZIO[Unit]
       def get[A: DataCodec](fid: FdKey,  idx: Long      ): KZIO[Option[A]]
@@ -80,7 +80,7 @@ package object seq {
     def cleanup              (fid: FdKey                 ): KZIO[Unit]               = ZIO.accessM(_.get.cleanup  (fid))
     def fix                  (fid: FdKey                 ): KZIO[Unit]               = ZIO.accessM(_.get.fix      (fid))
     val array = new ArrayAccess {
-      def all[A: DataCodec](fid: FdKey, size: Long): KURIO[KStream[A]]     = ZIO.access (_.get.array.all[A](fid, size))
+      def all[A: DataCodec](fid: FdKey): KURIO[KStream[A]]                 = ZIO.access (_.get.array.all[A](fid))
       def add[A: DataCodec](fid: FdKey, size: Long, a: A): KZIO[Unit]      = ZIO.accessM(_.get.array.add[A](fid, size=size, a))
       def put[A: DataCodec](fid: FdKey,  idx: Long, a: A): KZIO[Unit]      = ZIO.accessM(_.get.array.put[A](fid,  idx=idx,  a))
       def get[A: DataCodec](fid: FdKey,  idx: Long      ): KZIO[Option[A]] = ZIO.accessM(_.get.array.get[A](fid,  idx=idx))
@@ -162,9 +162,9 @@ package object seq {
                     }
                     /* array */
                     val array = new ArrayApi {
-                      def all[A: DataCodec](fid: FdKey, size: Long): KStream[A] = {
+                      def all[A: DataCodec](fid: FdKey): KStream[A] = {
                         Stream
-                          .fromIterableM(IO.fromEither(kvs.array.all(fid, size)))
+                          .fromIterableM(IO.fromEither(kvs.array.all(fid)))
                           .mapM(IO.fromEither(_))
                           .mapM(x => IO.effect(implicitly[DataCodec[A]].extract(x)).orDie)
                       }

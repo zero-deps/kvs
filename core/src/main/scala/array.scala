@@ -6,7 +6,7 @@ import zd.proto._, api._, macrosapi._
 import store.Dba
 
 object array {
-  case class Fd(@N(1) last: Long)
+  case class Fd(@N(1) last: Long, @N(2) size: Long)
   case class Idx(@N(1) idx: Long)
   case class En(@N(1) data: Bytes)
 
@@ -33,17 +33,21 @@ object array {
 
   def put(fid: FdKey, idx: Long, data: Bytes)(implicit dba: Dba): Res[Unit] = {
     for {
-      _ <- dba.put(key(fid, idx), pickle(En(data)))
-      _ <- meta.put(fid, Fd(idx))
+      fd <- meta.get(fid)
+      sz  = Math.min(2L, fd.cata(_.size, idx))
+      _  <- validate_size(sz)
+      _  <- dba.put(key(fid, idx), pickle(En(data)))
+      _  <- meta.put(fid, Fd(last=idx, size=sz))
     } yield ()
   }
 
   def add(fid: FdKey, size: Long, data: Bytes)(implicit dba: Dba): Res[Unit] = {
     for {
+      _    <- validate_size(size)
       last <- meta.get(fid).map(_.cata(_.last, 0L))
       next  = ((last-1) % size)+1
-      _ <- dba.put(key(fid, next), pickle(En(data)))
-      _ <- meta.put(fid, Fd(next))
+      _    <- dba.put(key(fid, next), pickle(En(data)))
+      _    <- meta.put(fid, Fd(last=next, size=size))
     } yield ()
   }
 
@@ -55,10 +59,9 @@ object array {
     }
   }
 
-  def all(fid: FdKey, size: Long)(implicit dba: Dba): Res[LazyList[Res[Bytes]]] = {
+  def all(fid: FdKey)(implicit dba: Dba): Res[LazyList[Res[Bytes]]] = {
     for {
-      _    <- (size <= 0L).fold(Fail("size must be positivie").left, ().right)
-      _    <- (size == 1L).fold(Fail("size is too small for array").left, ().right)
+      size <- meta.get(fid).map(_.cata(_.size, 2L))
       m    <- meta.get(fid)
       last  = m.cata(_.last, 0L)
       xs    = if (last < size) LazyList.range(last+1, size) #::: LazyList.range(1, last)
@@ -67,5 +70,12 @@ object array {
               case e@Left(_) => e.coerceRight
               case Right(Some(a)) => a.right
             }
+  }
+
+  private def validate_size(size: Long): Res[Unit] = {
+    for {
+      _ <- (size <= 0L).fold(Fail("size must be positivie").left, ().right)
+      _ <- (size == 1L).fold(Fail("size is too small for array").left, ().right)
+    } yield ()
   }
 }
