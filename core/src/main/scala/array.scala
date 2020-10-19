@@ -44,8 +44,8 @@ object array {
   def add(fid: FdKey, size: Long, data: Bytes)(implicit dba: Dba): Res[Unit] = {
     for {
       _    <- validate_size(size)
-      last <- meta.get(fid).map(_.cata(_.last, 0L))
-      next  = ((last-1) % size)+1
+      m    <- meta.get(fid)
+      next  = m.cata(m => (m.last % size)+1, 1L)
       _    <- dba.put(key(fid, next), pickle(En(data)))
       _    <- meta.put(fid, Fd(last=next, size=size))
     } yield ()
@@ -61,11 +61,11 @@ object array {
 
   def all(fid: FdKey)(implicit dba: Dba): Res[LazyList[Res[Bytes]]] = {
     for {
-      size <- meta.get(fid).map(_.cata(_.size, 2L))
       m    <- meta.get(fid)
-      last  = m.cata(_.last, 0L)
-      xs    = if (last < size) LazyList.range(last+1, size) #::: LazyList.range(1, last)
-              else LazyList.range(1, size)
+      xs    = m.cata(m =>
+                if (m.last < m.size) LazyList.range(m.last+1, m.size+1) #::: LazyList.range(1, m.last+1)
+                else LazyList.range(1, m.size+1)
+              , LazyList.empty)
     } yield xs.map(get(fid)).collect{
               case e@Left(_) => e.coerceRight
               case Right(Some(a)) => a.right
