@@ -2,11 +2,6 @@
 
 ![test](https://github.com/zero-deps/kvs/workflows/test/badge.svg)
 
-Documentation is located in `docs` directory.
-
-[Demo app](https://github.com/zero-deps/kvs/blob/master/demo/src/main/scala/Run.scala).
-More code examples are located in `src/test/scala` directory.
-
 ## Version
 
 `main`: current version; can be added as git-submodule  
@@ -25,7 +20,6 @@ More code examples are located in `src/test/scala` directory.
 
 ```bash
 sbt test
-sbt 'project demo' run
 ```
 
 ## Resources

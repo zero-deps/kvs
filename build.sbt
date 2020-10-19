@@ -42,18 +42,10 @@ ThisBuild / turbo := true
 ThisBuild / useCoursier := true
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
-lazy val kvs = project.in(file(".")).aggregate(kvs_core, kvs_seq, kvs_search, demo)
+lazy val kvs = project.in(file(".")).aggregate(kvs_core, kvs_seq, kvs_search)
 
 lazy val kvs_core = project.in(file("core"))
 
 lazy val kvs_seq = project.in(file("seq"))
   
 lazy val kvs_search = project.in(file("search"))
-
-lazy val demo = project.in(file("demo"))
-  .settings(
-    mainClass in (Compile, run) := Some("zd.kvs.Run")
-  , fork in run := true
-  , skip in publish := true
-  )
-  .dependsOn(kvs_core)
