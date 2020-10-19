@@ -34,7 +34,7 @@ object array {
   def put(fid: FdKey, idx: Long, data: Bytes)(implicit dba: Dba): Res[Unit] = {
     for {
       fd <- meta.get(fid)
-      sz  = Math.min(2L, fd.cata(_.size, idx))
+      sz  = Math.max(2L, fd.cata(_.size, idx))
       _  <- validate_size(sz)
       _  <- dba.put(key(fid, idx), pickle(En(data)))
       _  <- meta.put(fid, Fd(last=idx, size=sz))
