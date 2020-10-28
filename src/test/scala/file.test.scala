@@ -10,7 +10,7 @@ import org.scalatest._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
-import zero.ext._, either._, traverse._
+import zero.ext._, traverse._
 
 class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4013))))
   with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
@@ -19,6 +19,7 @@ class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStr
   override def beforeAll(): Unit = {
     kvs = Kvs(system)
     Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
+    ()
   }
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
 
