@@ -17,8 +17,6 @@ class Mem extends Dba {
   def onReady(): Future[Unit] = Future.successful(())
   def compact(): Unit = ()
 
-  def iterate(path: String, f: (String, Array[Byte]) => Option[(String, Array[Byte])], afterIterate: () => Unit): Either[Err,Any] = ???
   def load(path: String): Res[Any] = ???
-  def loadJava(path: String): Res[Any] = ???
   def save(path: String): Res[String] = ???
 }

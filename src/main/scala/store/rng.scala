@@ -23,7 +23,8 @@ class Rng(system: ActorSystem) extends Dba {
 
   system.eventStream
 
-  val leveldb: LevelDb = LevelDb.open(cfg.getString("leveldb.dir")).fold(l => throw l, r => r)
+  val leveldbPath = cfg.getString("leveldb.dir")
+  val leveldb: LevelDb = LevelDb.open(leveldbPath).fold(l => throw l, r => r)
 
   system.actorOf(WriteStore.props(leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb)).withDeploy(Deploy.local), name="ring_readonly_store")
@@ -105,29 +106,7 @@ class Rng(system: ActorSystem) extends Dba {
   def load(path: String): Res[Any] = {
     val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
     val t = Timeout(d)
-    val x = hash.ask(rng.Load(path, javaSer=false))(t)
-    Try(Await.result(x, d)) match {
-      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-      case Success(v: String) => v.right
-      case Success(v) => RngFail(s"Unexpected response: ${v}").left
-      case Failure(t) => RngThrow(t).left
-    }
-  }
-  def loadJava(path: String): Res[Any] = {
-    val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
-    val t = Timeout(d)
-    val x = hash.ask(rng.Load(path, javaSer=true))(t)
-    Try(Await.result(x, d)) match {
-      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-      case Success(v: String) => v.right
-      case Success(v) => RngFail(s"Unexpected response: ${v}").left
-      case Failure(t) => RngThrow(t).left
-    }
-  }
-  def iterate(path: String, f: (String, Array[Byte]) => Option[(String, Array[Byte])], afterIterate: () => Unit): Res[Any] = {
-    val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
-    val t = Timeout(d)
-    val x = hash.ask(rng.Iterate(path, (k, v) => f(new String(k, "UTF-8"), v).map{case (k, v) => stob(k) -> v }, afterIterate))(t)
+    val x = hash.ask(rng.Load(path))(t)
     Try(Await.result(x, d)) match {
       case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
       case Success(v: String) => v.right

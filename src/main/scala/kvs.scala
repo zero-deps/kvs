@@ -109,10 +109,6 @@ class Kvs(implicit dba: Dba) extends ReadOnlyKvs {
   object dump {
     def save(path: String): Res[String] = dba.save(path)
     def load(path: String): Res[Any] = dba.load(path)
-    def loadJava(path: String): Res[Any] = dba.loadJava(path)
-    def iterate(path: String, f: (String, Array[Byte]) => Option[(String, Array[Byte])], afterIterate: () => Unit): Unit = {
-      val _ = dba.iterate(path, f, afterIterate)
-    }
   }
 
   def onReady(): Future[Unit] = dba.onReady()

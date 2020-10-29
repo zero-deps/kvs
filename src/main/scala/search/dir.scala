@@ -30,14 +30,14 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
     for {
       xs <- kvs.all[IndexFile](dir)
       ys <- xs.sequence
-      _ <- ys.map{ x =>
-        val name = x.id
-        for {
-          _ <- kvs.file.delete(dir, name).void.recover{ case _: zd.kvs.FileNotExists => () }
-          _ <- kvs.remove[IndexFile](dir, name)
-        } yield ()
-      }.sequence_
-      _ <- kvs.fd.delete(zd.kvs.en.Fd(dir))(feedHandler).void.recover{ case _: zd.kvs.NotFound => () }
+      _  <- ys.map{ x =>
+              val name = x.id
+              for {
+                _ <- kvs.file.delete(dir, name).void.recover{ case _: zd.kvs.FileNotExists => () }
+                _ <- kvs.remove[IndexFile](dir, name)
+              } yield ()
+            }.sequence_
+      _  <- kvs.fd.delete(zd.kvs.en.Fd(dir))(feedHandler).void.recover{ case _: zd.kvs.NotFound => () }
     } yield ()
   }
 

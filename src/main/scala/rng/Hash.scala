@@ -10,6 +10,7 @@ import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.concurrent.duration._
 import java.util.Arrays
 import zero.ext._, option._
+import leveldbjnr.LevelDb
 
 final class Put(val k: Key, val v: Value) {
   override def equals(other: Any): Boolean = other match {
@@ -70,8 +71,8 @@ object Delete {
 }
 
 final case class Save(path: String)
-final case class Load(path: String, javaSer: Boolean)
-final case class Iterate(path: String, f: (Key, Value) => Option[(Key, Value)], afterIterate: () => Unit)
+final case class Load(path: String)
+final case class Iterate(f: PartialFunction[(Key, Value), Option[(Key, Value)]], afterIterate: () => Unit)
 
 final case object RestoreState
 
@@ -153,10 +154,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Save(_), _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
-    case Event(Load(_,_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
-      stay()
-    case Event(Iterate(_,_,_), _) =>
+    case Event(Load(_), _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
     case Event(RestoreState, _) =>
@@ -191,10 +189,7 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Save(_), _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
-    case Event(Load(_,_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
-    case Event(Iterate(_,_,_), _) =>
+    case Event(Load(_), _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
   }
@@ -222,25 +217,13 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       val x = system.actorOf(DumpProcessor.props(), s"dump_wrkr-${now_ms()}")
       x.forward(DumpProcessor.Save(data.buckets, path))
       goto(QuorumStateReadonly)
-    case Event(Load(path, javaSer), data) =>
+    case Event(Load(path), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
         _ ! ChangeState(QuorumStateReadonly),
         _ ! ChangeState(QuorumStateReadonly),
       ))
-      if (javaSer) {
-        val x = system.actorOf(LoadDumpWorkerJava.props(), s"load_wrkr-j-${now_ms()}")
-        x.forward(DumpProcessor.Load(path))
-      } else {
-        val x = system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}")
-        x.forward(DumpProcessor.Load(path))
-      }
-      goto(QuorumStateReadonly)
-    case Event(Iterate(path, f, afterIterate), data) =>
-      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(QuorumStateReadonly),
-        _ ! ChangeState(QuorumStateReadonly),
-      ))
-      system.actorOf(IterateDumpWorker.props(path,f, afterIterate), s"iter_wrkr-${now_ms()}").forward(Iterate(path, f, afterIterate))
+      val x = system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}")
+      x.forward(DumpProcessor.Load(path))
       goto(QuorumStateReadonly)
     case Event(RestoreState, _) =>
       log.info("State is already OK")
