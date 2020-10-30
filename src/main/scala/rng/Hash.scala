@@ -72,7 +72,6 @@ object Delete {
 
 final case class Save(path: String)
 final case class Load(path: String)
-final case class Iterate(f: PartialFunction[(Key, Value), Option[(Key, Value)]], afterIterate: () => Unit)
 
 final case object RestoreState
 

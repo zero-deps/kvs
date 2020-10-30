@@ -1,7 +1,6 @@
 val scalaVersion_ = "2.13.3"
 val akkaVersion = "2.5.31"
 val extVersion = "2.2.0.7.g8f0877e"
-val leveldbVersion = "1.0.4"
 val protoVersion = "1.8"
 val logbackVersion = "1.2.3"
 val scalatestVersion = "3.1.1"
@@ -55,7 +54,7 @@ lazy val kvs = project.in(file("."))
     , "io.github.zero-deps" %% "proto-runtime" % protoVersion
     , compilerPlugin("io.github.zero-deps" %% "ext-plug" % extVersion)
     , "io.github.zero-deps" %% "ext" % extVersion
-    , "io.github.zero-deps" %% "leveldb-jnr" % leveldbVersion
+    , "com.github.jnr" % "jnr-ffi" % "2.1.13"
 
     , "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test
     , "org.scalatest" %% "scalatest" % scalatestVersion % Test
