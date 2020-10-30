@@ -25,9 +25,12 @@ lazy val kvs_core = project.in(file("../core")).settings(
 )
 
 lazy val kvs_seq = project.in(file(".")).settings(
+  mainClass in (Compile, run) := Some("kvs.seq2.App"),
+  fork in run := true,
   libraryDependencies ++= Seq(
     "dev.zio" %% "zio-nio" % zionio,
     "dev.zio" %% "zio-akka-cluster" % zioakka,
     "dev.zio" %% "zio-macros" % zio,
+    compilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
   )
 ).dependsOn(kvs_core)
