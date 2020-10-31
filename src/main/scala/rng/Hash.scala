@@ -10,9 +10,10 @@ import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.concurrent.duration._
 import java.util.Arrays
 import zero.ext._, option._
-import leveldbjnr.LevelDb
+import leveldbjnr._
+import zd.proto.Bytes
 
-final class Put(val k: Key, val v: Value) {
+class Put(val k: Key, val v: Value) {
   override def equals(other: Any): Boolean = other match {
     case that: Put =>
       Arrays.equals(k, that.k) &&
@@ -32,7 +33,7 @@ object Put {
   }
 }
 
-final class Get(val k: Key) {
+class Get(val k: Key) {
   override def equals(other: Any): Boolean = other match {
     case that: Get =>
       Arrays.equals(k, that.k)
@@ -51,7 +52,7 @@ object Get {
   }
 }
 
-final class Delete(val k: Key) {
+class Delete(val k: Key) {
   override def equals(other: Any): Boolean = other match {
     case that: Delete =>
       Arrays.equals(k, that.k)
@@ -70,14 +71,16 @@ object Delete {
   }
 }
 
-final case class Save(path: String)
-final case class Load(path: String)
+case class Save(path: String)
+case class Load(path: String)
+case class Iter(keyPrefix: Bytes)
+case class IterRes(keys: List[String])
 
-final case object RestoreState
+case object RestoreState
 
-final case object Ready
+case object Ready
 
-final class InternalPut(val k: Key, val v: Value) {
+class InternalPut(val k: Key, val v: Value) {
   override def equals(other: Any): Boolean = other match {
     case that: InternalPut =>
       Arrays.equals(k, that.k) &&
@@ -97,7 +100,7 @@ object InternalPut {
   }
 }
 
-final case class HashRngData(
+case class HashRngData(
   nodes: Set[Node],
   buckets: SortedMap[Bucket, PreferenceList],
   vNodes: SortedMap[Bucket, Node],
@@ -105,11 +108,11 @@ final case class HashRngData(
 )
 
 object Hash {
-  def props(): Props = Props(new Hash)
+  def props(leveldb: LevelDb): Props = Props(new Hash(leveldb))
 }
 
 // TODO available/not avaiable nodes
-class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
+class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
 
   val config: Config = system.settings.config.getConfig("ring")
@@ -156,6 +159,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Load(_), _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
+    case Event(Iter(_), _) =>
+      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+      stay()
     case Event(RestoreState, _) =>
       log.warning("Don't know how to restore state when quorum is unsatisfied")
       stay()
@@ -191,6 +197,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Load(_), _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
+    case Event(Iter(_), _) =>
+      sender ! AckQuorumFailed("QuorumStateReadonly")
+      stay()
   }
 
   when(QuorumStateEffective){
@@ -224,6 +233,23 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       val x = system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}")
       x.forward(DumpProcessor.Load(path))
       goto(QuorumStateReadonly)
+    case Event(Iter(keyPrefix), data) =>
+      val it = leveldb.iter()
+      it.seek_to_first()
+      var key: Array[Byte] = null
+      var keys = collection.mutable.ListBuffer.empty[String]
+      while (it.valid()) {
+        key = it.key()
+        val idx = key.indexOfSlice(keyPrefix.unsafeArray)
+        if (idx >= 0) {
+          val slice = key.slice(idx, key.length)
+          keys += new String(slice, "utf8")
+        }
+        it.next()
+      }
+      it.close()
+      sender ! IterRes(keys.toList)
+      stay()
     case Event(RestoreState, _) =>
       log.info("State is already OK")
       stay()

@@ -2,6 +2,7 @@ package zd.kvs
 package store
 
 import scala.concurrent.Future
+import zd.proto.Bytes
 
 /**
  * Database Application Interface.
@@ -17,4 +18,5 @@ trait Dba {
   def onReady(): Future[Unit]
   def nextid(fid: String): Res[String]
   def compact(): Unit
+  def clean(keyPrefix: Bytes): Res[Unit]
 }

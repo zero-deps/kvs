@@ -114,4 +114,6 @@ class Kvs(implicit dba: Dba) extends ReadOnlyKvs {
   def onReady(): Future[Unit] = dba.onReady()
 
   def compact(): Unit = dba.compact()
+
+  def clean(keyPrefix: Bytes): Res[Unit] = dba.clean(keyPrefix)
 }

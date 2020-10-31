@@ -14,7 +14,8 @@ import zd.rng.stob
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
-import zero.ext._, either._, option._
+import zero.ext._, either._, option._, traverse._
+import zd.proto.Bytes
 
 class Rng(system: ActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")
@@ -29,7 +30,7 @@ class Rng(system: ActorSystem) extends Dba {
   system.actorOf(WriteStore.props(leveldb).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb)).withDeploy(Deploy.local), name="ring_readonly_store")
 
-  val hash = system.actorOf(rng.Hash.props().withDeploy(Deploy.local), name="ring_hash")
+  val hash = system.actorOf(rng.Hash.props(leveldb).withDeploy(Deploy.local), name="ring_hash")
 
   def put(key: String, value: V): Res[V] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
@@ -124,6 +125,20 @@ class Rng(system: ActorSystem) extends Dba {
 
   def compact(): Unit = {
     leveldb.compact()
+  }
+
+  def clean(keyPrefix: Bytes): Res[Unit] = {
+    val d = Duration.fromNanos(cfg.getDuration("iter-timeout").toNanos)
+    val t = Timeout(d)
+    val x = hash.ask(rng.Iter(keyPrefix))(t)
+    Try(Await.result(x, d)) match {
+      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
+      case Success(res: zd.rng.IterRes) =>
+        res.keys.foreach(log.info)
+        res.keys.map(delete).sequence_
+      case Success(v) => RngFail(s"Unexpected response: ${v}").left
+      case Failure(t) => RngThrow(t).left
+    }
   }
 }
 

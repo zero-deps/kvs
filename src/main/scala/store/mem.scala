@@ -4,6 +4,7 @@ package store
 import java.util.concurrent.ConcurrentHashMap
 import scala.concurrent.Future
 import zero.ext._, option._, either._
+import zd.proto.Bytes
 
 class Mem extends Dba {
   private val db = new ConcurrentHashMap[String, Array[Byte]]
@@ -19,4 +20,5 @@ class Mem extends Dba {
 
   def load(path: String): Res[Any] = ???
   def save(path: String): Res[String] = ???
+  def clean(keyPrefix: Bytes): Res[Unit] = ???
 }
