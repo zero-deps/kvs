@@ -2,10 +2,16 @@
 
 ![test](https://github.com/zero-deps/kvs/workflows/test/badge.svg)
 
-## Version
+## Usage
 
-`main`: current version; can be added as git-submodule  
-`4.x`: legacy but proven version; published to jcenter
+Add project as a git module.
+
+## Example
+
+```bash
+sbt> project example
+sbt> run
+```
 
 ## Backend
 
@@ -19,7 +25,7 @@
 ## Test
 
 ```bash
-sbt test
+sbt> test
 ```
 
 ## Resources

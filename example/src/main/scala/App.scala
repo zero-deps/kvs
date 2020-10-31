@@ -1,9 +1,11 @@
-package kvs.seq
+package example
 
 import zd.proto.api.{N, encode, decode, encodeToBytes, MessageCodec}
 import zd.proto.Bytes
 import zd.proto.macrosapi.{caseCodecAuto, sealedTraitCodecAuto}
 import zio.Runtime
+
+import kvs.seq._
 
 object App {
   def main(args: Array[String]): Unit = {
