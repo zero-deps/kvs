@@ -6,7 +6,7 @@ import akka.event.Logging
 import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.Timeout
-import leveldbjnr.LevelDb
+import org.rocksdb.{util=>_,_}
 import scala.concurrent._, duration._
 import scala.concurrent.{Await, Future}
 import scala.util.{Try, Success, Failure}
@@ -16,28 +16,23 @@ import zd.proto._, api._, macrosapi._
 import rng.store.{ReadonlyStore, WriteStore}, rng.Hashing
 
 object Rng {
-  case class LvlConf(
-    dir: String = "rng_data"
-  , fsync: Boolean = false
-  )
   case class Quorum(N: Int, W: Int, R: Int)
   case class Conf(
     quorum: Quorum = Quorum(N=1, W=1, R=1)
-  , buckets: Int = 32768 /* 2^15 */
+  , buckets:      Int = 32768 /* 2^15 */
   , virtualNodes: Int = 128
-  , hashLength: Int = 32
-  , ringTimeout: FiniteDuration = 11 seconds /* bigger than gatherTimeout */
+  , hashLength:   Int = 32
+  , ringTimeout:   FiniteDuration = 11 seconds /* bigger than gatherTimeout */
   , gatherTimeout: FiniteDuration = 10 seconds
-  , dumpTimeout: FiniteDuration = 1 hour
-  , replTimeout: FiniteDuration = 1 minute
-  , leveldbConf: LvlConf = LvlConf()
+  , dumpTimeout:   FiniteDuration = 1 hour
+  , replTimeout:   FiniteDuration = 1 minute
+  , dir: String = "data_rng"
   , jmx: Boolean = true
   )
-
   def apply(as: ActorSystem, conf: Conf): Rng = new Rng(as, conf)
 }
 
-class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba {
+class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba with AutoCloseable {
   lazy val log = Logging(system, "hash-ring")
 
   if (conf.jmx) {
@@ -48,11 +43,13 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba {
 
   system.eventStream
 
-  val leveldb: LevelDb = LevelDb.open(conf.leveldbConf.dir).fold(l => throw l, r => r)
+  RocksDB.loadLibrary()
+  val dbopts = new Options().setCreateIfMissing(true)
+  val db = RocksDB.open(dbopts, conf.dir)
 
   val hashing = new Hashing(conf)
-  system.actorOf(WriteStore.props(leveldb, conf.leveldbConf, hashing).withDeploy(Deploy.local), name="ring_write_store")
-  system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb, hashing)).withDeploy(Deploy.local), name="ring_readonly_store")
+  system.actorOf(WriteStore.props(db, hashing).withDeploy(Deploy.local), name="ring_write_store")
+  system.actorOf(FromConfig.props(ReadonlyStore.props(db, hashing)).withDeploy(Deploy.local), name="ring_readonly_store")
 
   val hash = system.actorOf(rng.Hash.props(conf, hashing).withDeploy(Deploy.local), name="ring_hash")
 
@@ -126,7 +123,7 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba {
   }
 
   override def compact(): Unit = {
-    leveldb.compact()
+    db.compactRange()
   }
 
   private def isReady(): Future[Boolean] = {
@@ -153,5 +150,10 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba {
     }
     loop()
     p.future
+  }
+
+  def close(): Unit = {
+    db.close()
+    dbopts.close()
   }
 }

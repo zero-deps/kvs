@@ -4,29 +4,28 @@ package store
 
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{Cluster, VectorClock}
-import leveldbjnr._
+import org.rocksdb._
 import zd.proto.api.{encode, decode}
 import zd.proto.Bytes
+import zero.ext._, option._
 
 import data.codec._, data.keycodec._, data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}, model.{ReplBucketPut, StorePut, StoreDelete, KeyBucketData}
 
 object WriteStore {
-  def props(leveldb: LevelDb, conf: LvlConf, hashing: Hashing): Props = Props(new WriteStore(leveldb, conf, hashing))
+  def props(db: RocksDB, hashing: Hashing): Props = Props(new WriteStore(db, hashing))
 }
 
-class WriteStore(leveldb: LevelDb, conf: LvlConf, hashing: Hashing) extends Actor with ActorLogging {
+class WriteStore(db: RocksDB, hashing: Hashing) extends Actor with ActorLogging {
   import context.system
 
-  val ro = ReadOpts()
-  val wo = WriteOpts(conf.fsync)
+  val wo = new WriteOptions
 
   val local: Node = Cluster(system).selfAddress
 
-  def get(k: Key): Option[Array[Byte]] = leveldb.get(k, ro).fold(l => throw l, r => r)
+  def get(k: Key): Option[Array[Byte]] = fromNullable(db.get(k))
 
   override def postStop(): Unit = {
-    leveldb.close()
-    ro.close()
+    db.close()
     wo.close()
     super.postStop()
   }
@@ -108,7 +107,7 @@ class WriteStore(leveldb: LevelDb, conf: LvlConf, hashing: Hashing) extends Acto
     val batch = new WriteBatch
     try {
       val r = body(batch)
-      leveldb.write(batch, wo)
+      db.write(wo, batch)
       r
     } finally {
       batch.close()

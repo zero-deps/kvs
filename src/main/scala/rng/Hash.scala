@@ -54,12 +54,6 @@ class Hash(conf: RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData
   val local: Node = cluster.selfAddress
   val actorsMem = SelectionMemorize(system)
 
-  log.info(s"Ring configuration:".blue)
-  log.info(s"ring.quorum.N = $N".blue)
-  log.info(s"ring.quorum.W = $W".blue)
-  log.info(s"ring.quorum.R = $R".blue)
-  log.info(s"ring.leveldb.dir = ${conf.leveldbConf.dir}".blue)
-
   startWith(QuorumStateUnsatisfied, HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Node], replication=None))
 
   override def preStart() = {

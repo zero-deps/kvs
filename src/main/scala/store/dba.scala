@@ -7,7 +7,7 @@ import zd.proto.Bytes
 /**
  * Database Application Interface.
  */
-trait Dba {
+trait Dba { _: AutoCloseable =>
   def get(key: Key): Res[Option[Bytes]]
   def put(key: Key, value: Bytes): Res[Unit]
   def delete(key: Key): Res[Unit]
@@ -20,8 +20,7 @@ trait Dba {
 }
 
 sealed trait DbaConf
-case class  RngConf(conf: Rng.Conf    = Rng.Conf()   ) extends DbaConf
-case class  LvlConf(conf: Rng.LvlConf = Rng.LvlConf()) extends DbaConf
-case object MemConf                                    extends DbaConf
-case object FsConf                                     extends DbaConf
-case object SqlConf                                    extends DbaConf
+case class  RngConf(conf: Rng.Conf = Rng.Conf()) extends DbaConf
+case object MemConf                              extends DbaConf
+case object FsConf                               extends DbaConf
+case object SqlConf                              extends DbaConf

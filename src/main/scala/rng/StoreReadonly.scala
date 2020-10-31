@@ -4,19 +4,18 @@ package store
 
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{VectorClock}
-import leveldbjnr._
+import org.rocksdb._
 import zd.proto.api.{encode, decode}
+import zero.ext._, option._
 
 import data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}, data.codec._, data.keycodec._, model.{DumpGetBucketData, DumpBucketData}, model.{ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}, model.{StoreGet, StoreGetAck}, ReplicationSupervisor.ReplGetBucketsVc
 
 object ReadonlyStore {
-  def props(leveldb: LevelDb, hashing: Hashing): Props = Props(new ReadonlyStore(leveldb, hashing))
+  def props(db: RocksDB, hashing: Hashing): Props = Props(new ReadonlyStore(db, hashing))
 }
 
-class ReadonlyStore(leveldb: LevelDb, hashing: Hashing) extends Actor with ActorLogging {
-  val ro = ReadOpts()
-
-  def get(k: Key): Option[Array[Byte]] = leveldb.get(k, ro).fold(l => throw l, r => r)
+class ReadonlyStore(db: RocksDB, hashing: Hashing) extends Actor with ActorLogging {
+  def get(k: Key): Option[Array[Byte]] = fromNullable(db.get(k))
 
   override def receive: Receive = {
     case x: StoreGet =>
@@ -60,10 +59,5 @@ class ReadonlyStore(leveldb: LevelDb, hashing: Hashing) extends Actor with Actor
       sender ! ReplBucketsVc(bvcs)
 
     case _ =>    
-  }
-
-  override def postStop(): Unit = {
-    ro.close()
-    super.postStop()
   }
 }

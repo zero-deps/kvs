@@ -28,5 +28,4 @@ package object rng {
   implicit val PortVNodeC: MessageCodec[PortVNode] = caseCodecAuto[PortVNode]
 
   type RngConf = kvs.store.Rng.Conf
-  type LvlConf = kvs.store.Rng.LvlConf
 }

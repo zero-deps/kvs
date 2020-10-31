@@ -11,16 +11,17 @@ object Mem {
   def apply(): Mem = new Mem
 }
 
-class Mem extends Dba {
+class Mem extends Dba with AutoCloseable {
   private val db = new ConcurrentHashMap[Key, Bytes]
 
-  override def get(key: Key): Res[Option[Bytes]] = fromNullable(db.get(key)).right
-  override def put(key: Key, value: Bytes): Res[Unit] = db.put(key, value).right.void
-  override def delete(key: Key): Res[Unit] = db.remove(key).right.void
+  def get(key: Key): Res[Option[Bytes]] = fromNullable(db.get(key)).right
+  def put(key: Key, value: Bytes): Res[Unit] = db.put(key, value).right.void
+  def delete(key: Key): Res[Unit] = db.remove(key).right.void
 
-  override def load(path: String): Res[Any] = ???
-  override def save(path: String): Res[String] = ???
+  def load(path: String): Res[Any] = ???
+  def save(path: String): Res[String] = ???
 
-  override def onReady(): Future[Unit] = Future.successful(())
-  override def compact(): Unit = ()
+  def onReady(): Future[Unit] = Future.successful(())
+  def compact(): Unit = ()
+  def close(): Unit = ()
 }
