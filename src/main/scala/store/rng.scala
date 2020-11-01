@@ -44,7 +44,9 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba with AutoCloseable {
   system.eventStream
 
   RocksDB.loadLibrary()
-  val dbopts = new Options().setCreateIfMissing(true)
+  val dbopts = new Options()
+    .setCreateIfMissing(true)
+    .setCompressionType(CompressionType.LZ4_COMPRESSION)
   val db = RocksDB.open(dbopts, conf.dir)
 
   val hashing = new Hashing(conf)
