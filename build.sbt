@@ -1,37 +1,27 @@
-val akka      = "2.5.31"
-val ext       = "2.2.0.7.g8f0877e"
-val logback   = "1.2.3"
-val lucene    = "8.4.1"
-val proto     = "1.8"
-val rocksdb   = "6.13.3"
-val scalatest = "3.1.1"
-val scalav    = "2.13.3"
-val zio       = "1.0.3"
-val zioakka   = "0.2.0"
-val zionio    = "1.0.0-RC9"
 
-lazy val kvs = project.in(file(".")).settings(
+val kvs = project.in(file(".")).settings(
   version := "5.0"
-, scalaVersion := scalav
+, scalaVersion := "2.13.3"
 , resolvers += Resolver.jcenterRepo
 , libraryDependencies ++= Seq(
-    "org.rocksdb" % "rocksdbjni" % rocksdb
-  , "ch.qos.logback" % "logback-classic" % logback
-  , "com.typesafe.akka" %% "akka-cluster-sharding" % akka
-  , "com.typesafe.akka" %% "akka-slf4j"            % akka
-  , "io.github.zero-deps" %% "proto-macros"  % proto % Compile
-  , "io.github.zero-deps" %% "proto-runtime" % proto
-  , "io.github.zero-deps" %% "ext" % ext
-  , compilerPlugin("io.github.zero-deps" %% "ext-plug" % ext)
-
-  , "dev.zio" %% "zio-nio" % zionio
-  , "dev.zio" %% "zio-akka-cluster" % zioakka
-  , "dev.zio" %% "zio-macros" % zio
-  , compilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
-  , "org.apache.lucene" % "lucene-analyzers-common" % lucene
-
-  , "com.typesafe.akka" %% "akka-testkit" % akka % Test
-  , "org.scalatest" %% "scalatest" % scalatest % Test
+    "org.rocksdb" % "rocksdbjni" % "6.13.3"
+  , "org.lz4" % "lz4-java" % "1.7.1"
+  , "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
+  , "dev.zio" %% "zio-nio" % "1.0.0-RC9"
+  , "dev.zio" %% "zio-akka-cluster" % "0.2.0"
+  , "dev.zio" %% "zio-macros" % "1.0.3"
+  , "com.typesafe.akka" %% "akka-cluster-sharding" % "2.5.31"
+  , "com.typesafe.akka" %% "akka-slf4j"            % "2.5.31"
+  , "com.typesafe.akka" %% "akka-testkit"          % "2.5.31" % Test
+  , "io.github.zero-deps" %% "proto-macros"  % "1.8" % Compile
+  , "io.github.zero-deps" %% "proto-runtime" % "1.8"
+  , compilerPlugin(
+    "io.github.zero-deps" %% "ext-plug" % "2.2.0.7.g8f0877e")
+  , "io.github.zero-deps" %% "ext"      % "2.2.0.7.g8f0877e"
+  , "ch.qos.logback" % "logback-classic" % "1.2.3"
+  , compilerPlugin(
+    "org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
+  , "org.scalatest" %% "scalatest" % "3.1.1" % Test
   )
 , scalacOptions ++= opts
 , turbo := true
@@ -39,11 +29,11 @@ lazy val kvs = project.in(file(".")).settings(
 , Global / onChangedBuildSource := ReloadOnSourceChanges
 )
 
-lazy val example = project.in(file("example")).dependsOn(kvs).settings(
+val example = project.in(file("example")).dependsOn(kvs).settings(
   mainClass in (Compile, run) := Some("example.App")
 , cancelable in Global := true
 , fork in run := true
-, scalaVersion := scalav
+, scalaVersion := "2.13.3"
 )
 
 val opts = Seq(

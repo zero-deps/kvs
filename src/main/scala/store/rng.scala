@@ -20,12 +20,12 @@ object Rng {
   case class Conf(
     quorum: Quorum = Quorum(N=1, W=1, R=1)
   , buckets:      Int = 32768 /* 2^15 */
-  , virtualNodes: Int = 128
-  , hashLength:   Int = 32
+  , virtualNodes: Int =   128
+  , hashLength:   Int =    32
   , ringTimeout:   FiniteDuration = 11 seconds /* bigger than gatherTimeout */
   , gatherTimeout: FiniteDuration = 10 seconds
-  , dumpTimeout:   FiniteDuration = 1 hour
-  , replTimeout:   FiniteDuration = 1 minute
+  , dumpTimeout:   FiniteDuration =  1 hour
+  , replTimeout:   FiniteDuration =  1 minute
   , dir: String = "data_rng"
   , jmx: Boolean = true
   )
@@ -58,9 +58,9 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba with AutoCloseable {
   implicit val elkeyc = caseCodecAuto[ElKey]
   implicit val fdkeyc = caseCodecAuto[FdKey]
   implicit val enkeyc = caseCodecAuto[EnKey]
-  implicit val pathc = caseCodecAuto[PathKey]
+  implicit val pathc  = caseCodecAuto[PathKey]
   implicit val chunkc = caseCodecAuto[ChunkKey]
-  implicit val keyc = sealedTraitCodecAuto[Key]
+  implicit val keyc   = sealedTraitCodecAuto[Key]
 
   override def put(key1: Key, value: Bytes): Res[Unit] = {
     val key = encodeToBytes[Key](key1)
