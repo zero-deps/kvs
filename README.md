@@ -24,10 +24,10 @@ sbt> run
 ## Backend
 
 * Ring
+* RocksDB
 * Memory
 * FS
 * SQL
-* LevelDB
 * etc.
 
 ## Test
