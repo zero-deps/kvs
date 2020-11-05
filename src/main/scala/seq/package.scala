@@ -4,8 +4,8 @@ import com.typesafe.config.ConfigFactory
 import _root_.akka.actor.{ActorSystem => RootActorSystem}
 import com.typesafe.config.Config
 import zd.proto.Bytes
-import zio.{Has, ZIO, Task, TaskLayer, ZLayer, RLayer, ULayer}
-import kvs.store.{Dba => RootDba, DbaConf => RootDbaConf, RngConf, Rng, MemConf, Mem}
+import zio.{Has, ZIO, ZLayer, RLayer, ULayer}
+import kvs.store.{Dba => RootDba, DbaConf => RootDbaConf, RngConf, RksConf, Rng, Rks, MemConf, Mem}
 
 package object seq {
   type Kvs       = KvsList with KvsArray with KvsFile with KvsSearch
@@ -13,24 +13,28 @@ package object seq {
   type KvsArray  = Has[KvsArray.Service]
   type KvsFile   = Has[KvsFile.Service]
   type KvsSearch = Has[KvsSearch.Service]
-  
+
   type DbaConf     = Has[RootDbaConf]
   type Dba         = Has[Dba.Service]
+  type AkkaConf    = Has[ActorSystem.Conf]
   type ActorSystem = Has[ActorSystem.Service]
 
   object Dba {
     type Service = RootDba
 
     def ringConf(conf: Rng.Conf = Rng.Conf()): ULayer[DbaConf] = ZLayer.succeed(RngConf(conf))
+    def rksConf(conf: Rks.Conf = Rks.Conf()): ULayer[DbaConf]  = ZLayer.succeed(RksConf(conf))
+    def memConf(): ULayer[DbaConf]                             = ZLayer.succeed(MemConf)
 
     val live: RLayer[ActorSystem with DbaConf, Dba] = ZLayer.fromEffect{
       for {
         actorSystem  <- ZIO.access[ActorSystem](_.get)
         dbaConf      <- ZIO.access[DbaConf](_.get)
         res          <- dbaConf match {
-                          case RngConf(conf) => Task.effect(Rng(actorSystem, conf): Service)
-                          case MemConf       => Task.effect(Mem(): Service)
-                          case _             => Task.fail(new Exception("not implemented"))
+                          case RngConf(conf) => ZIO.effect(Rng(actorSystem, conf): Service)
+                          case RksConf(conf) => ZIO.effect(Rks(conf): Service)
+                          case MemConf       => ZIO.effect(Mem(): Service)
+                          case _             => ZIO.fail(new Exception("not implemented"))
                         }
       } yield res
     }
@@ -38,18 +42,22 @@ package object seq {
 
   object ActorSystem {
     type Service = RootActorSystem
+    case class Conf(name: String, config: Config)
 
-    def live(name: String, host: String, port: Int): TaskLayer[ActorSystem] = ZLayer.fromManaged{
+    def staticConf(name: String, host: String, port: Int): ULayer[AkkaConf] = {
       val cfg = s"""
-      |akka.remote.netty.tcp.hostname = $host
-      |akka.remote.netty.tcp.port = $port
-      |akka.cluster.seed-nodes = [ "akka.tcp://$name@$host:$port" ]""".stripMargin
-      val akkaConf = ConfigFactory.parseString(cfg)
-      ZIO.effect(RootActorSystem(name)).toManaged(as => Task.fromFuture(_ => as.terminate()).either)
+        |akka.remote.netty.tcp.hostname = $host
+        |akka.remote.netty.tcp.port = $port
+        |akka.cluster.seed-nodes = [ "akka.tcp://$name@$host:$port" ]""".stripMargin
+      ZLayer.fromEffect(ZIO.succeed(ConfigFactory.parseString(cfg)).map(Conf(name, _)))
     }
 
-    def live(name: String, config: Config): TaskLayer[ActorSystem] = ZLayer.fromManaged{
-      ZIO.effect(RootActorSystem(name, config)).toManaged(as => Task.fromFuture(_ => as.terminate()).either)
+    val live: RLayer[AkkaConf, ActorSystem] = ZLayer.fromManaged{
+      (for {
+        akkaConf <- ZIO.access[AkkaConf](_.get)
+        res      <- ZIO.effect(RootActorSystem(akkaConf.name, akkaConf.config))
+      } yield res)
+        .toManaged(as => ZIO.fromFuture(_ => as.terminate()).either)
     }
   }
 

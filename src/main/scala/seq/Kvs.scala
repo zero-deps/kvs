@@ -8,5 +8,5 @@ object Kvs {
   val file: KvsFile.type = KvsFile
   val search: KvsSearch.type = KvsSearch
 
-  def live: ZLayer[ActorSystem with Dba, Throwable, Kvs] = KvsList.live ++ KvsArray.live ++ KvsFile.live ++ KvsSearch.live
+  val live: ZLayer[ActorSystem with Dba, Throwable, Kvs] = KvsList.live ++ KvsArray.live ++ KvsFile.live ++ KvsSearch.live
 }

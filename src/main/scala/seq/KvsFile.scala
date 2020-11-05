@@ -1,4 +1,4 @@
-package kvs.seq 
+package kvs.seq
 
 import kvs.{FdKey, ElKey, EnKey, Res}
 import zd.proto.api.{MessageCodec, encodeToBytes, decode}
@@ -12,7 +12,7 @@ import zio.macros.accessible
 object KvsFile {
   trait Service {
   }
-  
+
   def live: ZLayer[ActorSystem with Dba, Throwable, KvsFile] = ZLayer.fromEffect {
     for {
       _ <- ZIO.unit

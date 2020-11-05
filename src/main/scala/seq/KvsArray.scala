@@ -11,12 +11,12 @@ import zio.macros.accessible
 @accessible
 object KvsArray {
   trait Service {
-    def all[Fid: ArrayFid[*, A]: MessageCodec, A: MessageCodec](fid: Fid): Stream[Err, A]
-    def add[Fid: ArrayFid[*, A]: MessageCodec, A: MessageCodec](fid: Fid, a: A): IO[Err, Unit]
-    def put[Fid: ArrayFid[*, A]: MessageCodec, A: MessageCodec](fid: Fid, idx: Long, a: A): IO[Err, Unit]
-    def get[Fid: ArrayFid[*, A]: MessageCodec, A: MessageCodec](fid: Fid, idx: Long): IO[Err, Option[A]]
+    def all[Fid, A](fid: Fid)(implicit i: Feed[Fid, A]): Stream[Err, A]
+    def add[Fid, A](fid: Fid, a: A)(implicit i: Feed[Fid, A]): IO[Err, Unit]
+    def put[Fid, A](fid: Fid, idx: Long, a: A)(implicit i: Feed[Fid, A]): IO[Err, Unit]
+    def get[Fid, A](fid: Fid, idx: Long)(implicit i: Feed[Fid, A]): IO[Err, Option[A]]
   }
-  
+
   def live: ZLayer[ActorSystem with Dba, Throwable, KvsArray] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
@@ -26,50 +26,66 @@ object KvsArray {
       new Service {
         private implicit val dba1 = dba
 
-        def all[Fid: ArrayFid[*, A]: MessageCodec, A: MessageCodec](fid: Fid): Stream[Err, A] =
+        def all[Fid, A](fid: Fid)(implicit i: Feed[Fid, A]): Stream[Err, A] =
           Stream
             .fromIterableM(
               for {
-                eFid   <- UIO(encodeToBytes(fid))
-                stream <- IO.fromEither(kvs.array.all(FdKey(eFid))).mapError(KvsErr(_))
+                fdKey  <- i.fdKey(fid)
+                stream <- IO.fromEither(kvs.array.all(fdKey)).mapError(KvsErr(_))
               } yield stream
             )
             .mapM(kvsRes =>
               for {
                 bytes <- IO.fromEither(kvsRes).mapError(KvsErr(_))
-                a     <- IO.effect(decode[A](bytes)).mapError(DecodeErr(_))
+                a     <- i.data(bytes)
               } yield a
             )
 
-        def add[Fid: ArrayFid[*, A]: MessageCodec, A: MessageCodec](fid: Fid, a: A): IO[Err, Unit] =
+        def add[Fid, A](fid: Fid, a: A)(implicit i: Feed[Fid, A]): IO[Err, Unit] =
           for {
-            eFid <- UIO(encodeToBytes(fid))
-            eA   <- UIO(encodeToBytes(a))
-            i    <- UIO(implicitly[ArrayFid[Fid, A]])
-            res  <- sh.ask[Res[Unit]](hex(eFid), Shard.Add(FdKey(eFid), size=i.size, eA)).mapError(ShardErr(_))
-            _    <- IO.fromEither(res).mapError(KvsErr(_))
+            fdKey <- i.fdKey(fid)
+            bytes <- i.bytes(a)
+            res   <- sh.ask[Res[Unit]](hex(fdKey.bytes), Shard.Add(fdKey, size=i.size, bytes)).mapError(ShardErr(_))
+            _     <- IO.fromEither(res).mapError(KvsErr(_))
           } yield ()
 
-        def put[Fid: ArrayFid[*, A]: MessageCodec, A: MessageCodec](fid: Fid, idx: Long, a: A): IO[Err, Unit] =
+        def put[Fid, A](fid: Fid, idx: Long, a: A)(implicit i: Feed[Fid, A]): IO[Err, Unit] =
           for {
-            eFid <- UIO(encodeToBytes(fid))
-            eA   <- UIO(encodeToBytes(a))
-            res  <- sh.ask[Res[Unit]](hex(eFid), Shard.Put(FdKey(eFid), idx=idx, eA)).mapError(ShardErr(_))
-            _    <- IO.fromEither(res).mapError(KvsErr(_))
+            fdKey <- i.fdKey(fid)
+            bytes <- i.bytes(a)
+            res   <- sh.ask[Res[Unit]](hex(fdKey.bytes), Shard.Put(fdKey, idx=idx, bytes)).mapError(ShardErr(_))
+            _     <- IO.fromEither(res).mapError(KvsErr(_))
           } yield ()
-        
-        def get[Fid: ArrayFid[*, A]: MessageCodec, A: MessageCodec](fid: Fid, idx: Long): IO[Err, Option[A]] =
+
+        def get[Fid, A](fid: Fid, idx: Long)(implicit i: Feed[Fid, A]): IO[Err, Option[A]] =
           for {
-            eFid <- UIO(encodeToBytes(fid))
-            res  <- IO.fromEither(kvs.array.get(FdKey(eFid))(idx)).mapError(KvsErr(_))
-            a    <- (for {
-                      bytes <- ZIO.fromOption(res)
-                      a     <- IO.effect(decode[A](bytes)).mapError(e => Some(DecodeErr(e)))
-                    } yield a).optional
+            fdKey  <- i.fdKey(fid)
+            res    <- IO.fromEither(kvs.array.get(fdKey)(idx)).mapError(KvsErr(_))
+            a      <- (for {
+                        bytes <- ZIO.fromOption(res)
+                        a     <- i.data(bytes).mapError(Some(_))
+                      } yield a).optional
           } yield a
       }
     }
   }
+
+  sealed trait Feed[Fid, A] {
+    val size: Long
+    def fdKey(fid: Fid): UIO[FdKey]
+    def bytes(a: A): UIO[Bytes]
+
+    def data(b: Bytes): IO[DecodeErr, A]
+  }
+
+  def feed[Fid: MessageCodec, A: MessageCodec](fidPrefix: String, maxSize: Long) =
+    new Feed[Fid, A] {
+      val size: Long = maxSize
+      def fdKey(fid: Fid): UIO[FdKey] = UIO(FdKey(encodeToBytes(Named(fidPrefix, fid))))
+      def bytes(a: A): UIO[Bytes] = UIO(encodeToBytes(a))
+
+      def data(b: Bytes): IO[DecodeErr, A] = Task(decode[A](b)).mapError(DecodeErr(_))
+    }
 
   private object Shard {
     sealed trait Msg
