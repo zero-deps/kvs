@@ -5,7 +5,8 @@ import zd.proto._, api._, macrosapi._
 
 import store.Dba
 
-object array {
+/* https://en.wikipedia.org/wiki/Circular_buffer */
+object circular {
   case class Fd(@N(1) last: Long, @N(2) size: Long)
   case class Idx(@N(1) idx: Long)
   case class En(@N(1) data: Bytes)
@@ -75,7 +76,7 @@ object array {
   private def validate_size(size: Long): Res[Unit] = {
     for {
       _ <- (size <= 0L).fold(Fail("size must be positivie").left, ().right)
-      _ <- (size == 1L).fold(Fail("size is too small for array").left, ().right)
+      _ <- (size == 1L).fold(Fail("size is too small for circular buffer").left, ().right)
     } yield ()
   }
 }

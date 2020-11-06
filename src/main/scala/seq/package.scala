@@ -8,11 +8,11 @@ import zio.{Has, ZIO, ZLayer, RLayer, ULayer}
 import kvs.store.{Dba => RootDba, DbaConf => RootDbaConf, RngConf, RksConf, Rng, Rks, MemConf, Mem}
 
 package object seq {
-  type Kvs       = KvsList with KvsArray with KvsFile with KvsSearch
-  type KvsList   = Has[KvsList.Service]
-  type KvsArray  = Has[KvsArray.Service]
-  type KvsFile   = Has[KvsFile.Service]
-  type KvsSearch = Has[KvsSearch.Service]
+  type Kvs         = KvsList with KvsCircular with KvsFile with KvsSearch
+  type KvsList     = Has[KvsList.    Service]
+  type KvsCircular = Has[KvsCircular.Service]
+  type KvsFile     = Has[KvsFile.    Service]
+  type KvsSearch   = Has[KvsSearch.  Service]
 
   type DbaConf     = Has[RootDbaConf]
   type Dba         = Has[Dba.Service]

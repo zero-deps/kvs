@@ -9,7 +9,7 @@ import zio.akka.cluster.sharding.{Sharding, Entity}
 import zio.macros.accessible
 
 @accessible
-object KvsArray {
+object KvsCircular {
   trait Service {
     def all[Fid, A](fid: Fid)(implicit i: Feed[Fid, A]): Stream[Err, A]
     def add[Fid, A](fid: Fid, a: A)(implicit i: Feed[Fid, A]): IO[Err, Unit]
@@ -17,11 +17,11 @@ object KvsArray {
     def get[Fid, A](fid: Fid, idx: Long)(implicit i: Feed[Fid, A]): IO[Err, Option[A]]
   }
 
-  def live: ZLayer[ActorSystem with Dba, Throwable, KvsArray] = ZLayer.fromEffect {
+  def live: ZLayer[ActorSystem with Dba, Throwable, KvsCircular] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
       as  <- ZIO.environment[ActorSystem]
-      sh  <- Sharding.start("kvs_array_write_shard", Shard.onMessage(dba)).provide(as)
+      sh  <- Sharding.start("kvs_circular_write_shard", Shard.onMessage(dba)).provide(as)
     } yield {
       new Service {
         private implicit val dba1 = dba
@@ -31,7 +31,7 @@ object KvsArray {
             .fromIterableM(
               for {
                 fdKey  <- i.fdKey(fid)
-                stream <- IO.fromEither(kvs.array.all(fdKey)).mapError(KvsErr(_))
+                stream <- IO.fromEither(kvs.circular.all(fdKey)).mapError(KvsErr(_))
               } yield stream
             )
             .mapM(kvsRes =>
@@ -60,7 +60,7 @@ object KvsArray {
         def get[Fid, A](fid: Fid, idx: Long)(implicit i: Feed[Fid, A]): IO[Err, Option[A]] =
           for {
             fdKey  <- i.fdKey(fid)
-            res    <- IO.fromEither(kvs.array.get(fdKey)(idx)).mapError(KvsErr(_))
+            res    <- IO.fromEither(kvs.circular.get(fdKey)(idx)).mapError(KvsErr(_))
             a      <- (for {
                         bytes <- ZIO.fromOption(res)
                         a     <- i.data(bytes).mapError(Some(_))
@@ -93,8 +93,8 @@ object KvsArray {
     final case class Put(fid: FdKey, idx: Long, data: Bytes) extends Msg
 
     def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit], Nothing, Unit] = {
-      case msg: Add => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.array.add(msg.fid, msg.size, msg.data)).orDie)
-      case msg: Put => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.array.put(msg.fid, msg.idx, msg.data)).orDie)
+      case msg: Add => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.circular.add(msg.fid, msg.size, msg.data)).orDie)
+      case msg: Put => ZIO.accessM[Entity[Unit]](_.get.replyToSender(kvs.circular.put(msg.fid, msg.idx, msg.data)).orDie)
     }
   }
 }

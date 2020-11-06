@@ -1,6 +1,6 @@
 package example
 
-import kvs.seq.{Kvs, KvsList, KvsArray, Dba, ActorSystem}
+import kvs.seq.{Kvs, KvsList, KvsCircular, Dba, ActorSystem}
 import zd.proto.Bytes
 import zd.proto.api.{N, encode, decode, encodeToBytes, MessageCodec}
 import zd.proto.macrosapi.caseCodecAuto
@@ -23,7 +23,7 @@ object App {
         key2 <- Kvs.list.prepend(Fid2, Data())
         _    = key2: Key2
         // _    <- Kvs.list.prepend(Fid2, key2, Data()) // illegal api usege, compile err
-        _    <- Kvs.array.add(Fid3, Data())
+        _    <- Kvs.circular.add(Fid3, Data())
       } yield ()
 
     runtime.unsafeRun(app.provideLayer(kvs))
@@ -53,5 +53,5 @@ case object Fid2 {
 
 case object Fid3 {
   implicit val fid2Codec: MessageCodec[Fid3.type] = caseCodecAuto[Fid3.type]
-  implicit val fid2KvsList: KvsArray.Feed[Fid3.type, Data] = KvsArray.feed("Fid3", 10)
+  implicit val fid2KvsList: KvsCircular.Feed[Fid3.type, Data] = KvsCircular.feed("Fid3", 10)
 }
