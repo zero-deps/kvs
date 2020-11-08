@@ -3,6 +3,7 @@ val kvs = project.in(file(".")).settings(
   version := "5.0"
 , scalaVersion := "2.13.3"
 , resolvers += Resolver.jcenterRepo
+, resolvers += Resolver.githubPackages("zero-deps")
 , libraryDependencies ++= Seq(
     "org.rocksdb" % "rocksdbjni" % "6.13.3"
   , "org.lz4" % "lz4-java" % "1.7.1"
@@ -16,8 +17,8 @@ val kvs = project.in(file(".")).settings(
   , "io.github.zero-deps" %% "proto-macros"  % "1.8" % Compile
   , "io.github.zero-deps" %% "proto-runtime" % "1.8"
   , compilerPlugin(
-    "io.github.zero-deps" %% "ext-plug" % "2.2.0.7.g8f0877e")
-  , "io.github.zero-deps" %% "ext"      % "2.2.0.7.g8f0877e"
+    "io.github.zero-deps" %% "ext-plug" % "2.3.1.g6719341")
+  , "io.github.zero-deps" %% "ext"      % "2.3.1.g6719341"
   , "ch.qos.logback" % "logback-classic" % "1.2.3"
   , compilerPlugin(
     "org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)

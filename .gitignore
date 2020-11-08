@@ -1,4 +1,5 @@
 .DS_Store
-example/data_rng/
+/example/data_rng/
 target/
 *.swp
+/.bsp/
