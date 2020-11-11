@@ -13,7 +13,7 @@ object KvsSearch {
   trait Service {
   }
   
-  def live: ZLayer[ActorSystem with Dba, Throwable, KvsSearch] = ZLayer.fromEffect {
+  val live: ZLayer[ActorSystem with Dba, Throwable, KvsSearch] = ZLayer.fromEffect {
     for {
       _ <- ZIO.unit
     } yield {

@@ -17,7 +17,7 @@ object KvsCircular {
     def get[Fid, A](fid: Fid, idx: Long)(implicit i: Feed[Fid, A]): IO[Err, Option[A]]
   }
 
-  def live: ZLayer[ActorSystem with Dba, Throwable, KvsCircular] = ZLayer.fromEffect {
+  val live: ZLayer[ActorSystem with Dba, Throwable, KvsCircular] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
       as  <- ZIO.environment[ActorSystem]

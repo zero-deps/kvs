@@ -27,7 +27,7 @@ object KvsList {
     def fix[Fid, Key, A](fid: Fid)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Unit]
   }
 
-  def live: ZLayer[ActorSystem with Dba, Throwable, KvsList] = ZLayer.fromEffect {
+  val live: ZLayer[ActorSystem with Dba, Throwable, KvsList] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
       as  <- ZIO.environment[ActorSystem]

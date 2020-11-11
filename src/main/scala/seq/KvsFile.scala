@@ -13,7 +13,7 @@ object KvsFile {
   trait Service {
   }
 
-  def live: ZLayer[ActorSystem with Dba, Throwable, KvsFile] = ZLayer.fromEffect {
+  val live: ZLayer[ActorSystem with Dba, Throwable, KvsFile] = ZLayer.fromEffect {
     for {
       _ <- ZIO.unit
     } yield {
