@@ -1,65 +1,58 @@
-val scalaVersion_ = "2.13.3"
-val akkaVersion = "2.5.31"
-val extVersion = "2.2.0.7.g8f0877e"
-val protoVersion = "1.8"
-val logbackVersion = "1.2.3"
-val scalatestVersion = "3.1.1"
-
-ThisBuild / scalaVersion := scalaVersion_
-ThisBuild / resolvers += Resolver.jcenterRepo
-ThisBuild / scalacOptions ++= Seq(
-    "-deprecation"
-  , "-explaintypes"
-  , "-feature"
-  , "-language:_"
-  , "-unchecked"
-  , "-Xcheckinit"
-  , "-Xfatal-warnings"
-  , "-Xlint:adapted-args"
-  , "-Xlint:constant"
-  , "-Xlint:delayedinit-select"
-  , "-Xlint:inaccessible"
-  , "-Xlint:infer-any"
-  , "-Xlint:missing-interpolator"
-  , "-Xlint:nullary-unit"
-  , "-Xlint:option-implicit"
-  , "-Xlint:package-object-classes"
-  , "-Xlint:poly-implicit-overload"
-  , "-Xlint:private-shadow"
-  , "-Xlint:stars-align"
-  , "-Xlint:type-parameter-shadow"
-  , "-Ywarn-extra-implicit"
-  , "-Ywarn-numeric-widen"
-  , "-Ywarn-value-discard"
-  , "-Ywarn-unused:implicits"
-  , "-Ywarn-unused:imports"
-  , "-Ywarn-unused:params"
-  , "-encoding", "UTF-8"
-  , "-Xmaxerrs", "1"
-  , "-Xmaxwarns", "3"
-  , "-Wconf:cat=deprecation&msg=Auto-application:silent"
+lazy val kvs = project.in(file(".")).settings(
+  libraryDependencies ++= deps
+, resolvers += Resolver.jcenterRepo
+, resolvers += Resolver.githubPackages("zero-deps")
+, scalacOptions ++= opts
+, scalaVersion := "2.13.3"
+, turbo := true
+, useCoursier := true
+, Global / onChangedBuildSource := ReloadOnSourceChanges
 )
 
-ThisBuild / turbo := true
-ThisBuild / useCoursier := true
-Global / onChangedBuildSource := ReloadOnSourceChanges
+val deps = Seq(
+  "ch.qos.logback" % "logback-classic" % "1.2.3"
+, "com.typesafe.akka" %% "akka-cluster-sharding" % "2.5.31"
+, "com.typesafe.akka" %% "akka-slf4j"            % "2.5.31"
+, "com.typesafe.akka" %% "akka-testkit"          % "2.5.31" % Test
+, "io.github.zero-deps" %% "proto-macros"  % "1.8" % Compile
+, "io.github.zero-deps" %% "proto-runtime" % "1.8"
+, compilerPlugin(
+  "io.github.zero-deps" %% "ext-plug" % "2.2.0.7.g8f0877e")
+, "io.github.zero-deps" %% "ext"      % "2.2.0.7.g8f0877e"
+, "com.github.jnr" % "jnr-ffi" % "2.1.13"
+, "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
+, "org.scalatest" %% "scalatest" % "3.1.1" % Test
+)
 
-lazy val kvs = project.in(file("."))
-  .settings(
-    libraryDependencies ++= Seq(
-      "ch.qos.logback" % "logback-classic" % logbackVersion
-    , "com.typesafe.akka" %% "akka-cluster-sharding" % akkaVersion
-    , "com.typesafe.akka" %% "akka-slf4j"            % akkaVersion
-    , "io.github.zero-deps" %% "proto-macros" % protoVersion % Compile
-    , "io.github.zero-deps" %% "proto-runtime" % protoVersion
-    , compilerPlugin("io.github.zero-deps" %% "ext-plug" % extVersion)
-    , "io.github.zero-deps" %% "ext" % extVersion
-    , "com.github.jnr" % "jnr-ffi" % "2.1.13"
-
-    , "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test
-    , "org.scalatest" %% "scalatest" % scalatestVersion % Test
-
-    , "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
-    , "org.scalatest" %% "scalatest" % scalatestVersion % Test
-    )
-  )
+val opts = Seq(
+  "-deprecation"
+, "-explaintypes"
+, "-feature"
+, "-language:_"
+, "-unchecked"
+, "-Xcheckinit"
+, "-Xfatal-warnings"
+, "-Xlint:adapted-args"
+, "-Xlint:constant"
+, "-Xlint:delayedinit-select"
+, "-Xlint:inaccessible"
+, "-Xlint:infer-any"
+, "-Xlint:missing-interpolator"
+, "-Xlint:nullary-unit"
+, "-Xlint:option-implicit"
+, "-Xlint:package-object-classes"
+, "-Xlint:poly-implicit-overload"
+, "-Xlint:private-shadow"
+, "-Xlint:stars-align"
+, "-Xlint:type-parameter-shadow"
+, "-Ywarn-extra-implicit"
+, "-Ywarn-numeric-widen"
+, "-Ywarn-value-discard"
+, "-Ywarn-unused:implicits"
+, "-Ywarn-unused:imports"
+, "-Ywarn-unused:params"
+, "-encoding", "UTF-8"
+, "-Xmaxerrs", "1"
+, "-Xmaxwarns", "3"
+, "-Wconf:cat=deprecation&msg=Auto-application:silent"
+)
