@@ -6,10 +6,11 @@ import com.typesafe.config.Config
 import zd.proto.Bytes
 import zio.{Has, ZIO, ZLayer, RLayer, ULayer}
 import kvs.store.{Dba => RootDba, DbaConf => RootDbaConf, RngConf, RksConf, Rng, Rks, MemConf, Mem}
+import zio._, stream.Stream
 
 package object seq {
-  type Kvs         = KvsList with KvsCircular with KvsFile with KvsSearch
-  type KvsList     = Has[KvsList.    Service]
+  type Kvs         = KvsFeed with KvsCircular with KvsFile with KvsSearch
+  type KvsFeed     = Has[KvsFeed.    Service]
   type KvsCircular = Has[KvsCircular.Service]
   type KvsFile     = Has[KvsFile.    Service]
   type KvsSearch   = Has[KvsSearch.  Service]
@@ -19,12 +20,15 @@ package object seq {
   type AkkaConf    = Has[ActorSystem.Conf]
   type ActorSystem = Has[ActorSystem.Service]
 
+  type     KIO[A] =     IO[Err, A]
+  type KStream[A] = Stream[Err, A]
+
   object Dba {
     type Service = RootDba
 
-    def ringConf(conf: Rng.Conf = Rng.Conf()): ULayer[DbaConf] = ZLayer.succeed(RngConf(conf))
-    def rksConf(conf: Rks.Conf = Rks.Conf()): ULayer[DbaConf]  = ZLayer.succeed(RksConf(conf))
-    def memConf(): ULayer[DbaConf]                             = ZLayer.succeed(MemConf)
+    def rngConf(conf:Rng.Conf=Rng.Conf()): ULayer[DbaConf] = ZLayer.succeed(RngConf(conf))
+    def rksConf(conf:Rks.Conf=Rks.Conf()): ULayer[DbaConf] = ZLayer.succeed(RksConf(conf))
+    def memConf(                        ): ULayer[DbaConf] = ZLayer.succeed(MemConf      )
 
     val live: RLayer[ActorSystem with DbaConf, Dba] = ZLayer.fromEffect{
       for {
@@ -44,11 +48,21 @@ package object seq {
     type Service = RootActorSystem
     case class Conf(name: String, config: Config)
 
-    def staticConf(name: String, host: String, port: Int): ULayer[AkkaConf] = {
+    def staticConf(name: String, host: String, port: Int, ext: String=""): ULayer[AkkaConf] = {
       val cfg = s"""
-        |akka.remote.netty.tcp.hostname = $host
-        |akka.remote.netty.tcp.port = $port
-        |akka.cluster.seed-nodes = [ "akka.tcp://$name@$host:$port" ]""".stripMargin
+        akka {
+          actor {
+            provider = cluster
+            warn-about-java-serializer-usage = on
+          }
+          remote {
+            netty.tcp.hostname = $host
+            netty.tcp.port = $port
+          }
+          cluster.seed-nodes = [ "akka.tcp://$name@$host:$port" ]
+        }
+        $ext
+        """
       ZLayer.fromEffect(ZIO.succeed(ConfigFactory.parseString(cfg)).map(Conf(name, _)))
     }
 

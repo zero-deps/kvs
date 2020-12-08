@@ -1,4 +1,3 @@
-
 val kvs = project.in(file(".")).settings(
   version := "5.0"
 , scalaVersion := "2.13.3"
@@ -8,9 +7,11 @@ val kvs = project.in(file(".")).settings(
     "org.rocksdb" % "rocksdbjni" % "6.13.3"
   , "org.lz4" % "lz4-java" % "1.7.1"
   , "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
-  , "dev.zio" %% "zio-nio" % "1.0.0-RC9"
+  , "dev.zio" %% "zio-nio"          % "1.0.0-RC9"
   , "dev.zio" %% "zio-akka-cluster" % "0.2.0"
-  , "dev.zio" %% "zio-macros" % "1.0.3"
+  , "dev.zio" %% "zio-macros"       % "1.0.3"
+  , "dev.zio" %% "zio-test"         % "1.0.3" % Test
+  , "dev.zio" %% "zio-test-sbt"     % "1.0.3" % Test
   , "com.typesafe.akka" %% "akka-cluster-sharding" % "2.5.31"
   , "com.typesafe.akka" %% "akka-slf4j"            % "2.5.31"
   , "com.typesafe.akka" %% "akka-testkit"          % "2.5.31" % Test
@@ -22,17 +23,16 @@ val kvs = project.in(file(".")).settings(
   , "ch.qos.logback" % "logback-classic" % "1.2.3"
   , compilerPlugin(
     "org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
-  , "org.scalatest" %% "scalatest" % "3.1.1" % Test
   )
+, testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
 , scalacOptions ++= opts
 , turbo := true
 , useCoursier := true
 , Global / onChangedBuildSource := ReloadOnSourceChanges
 )
 
-val example = project.in(file("example")).dependsOn(kvs).settings(
-  mainClass in (Compile, run) := Some("example.App")
-, cancelable in Global := true
+val examples = project.in(file("examples")).dependsOn(kvs).settings(
+  cancelable in Global := true
 , fork in run := true
 , scalaVersion := "2.13.3"
 )
@@ -62,12 +62,12 @@ val opts = Seq(
   , "-Ywarn-extra-implicit"
   , "-Ywarn-numeric-widen"
   , "-Ywarn-value-discard"
-  // , "-Ywarn-unused:implicits"
-  // , "-Ywarn-unused:imports"
+  , "-Ywarn-unused:implicits"
+  , "-Ywarn-unused:imports"
   , "-Ywarn-unused:params"
   , "-encoding", "UTF-8"
   , "-Xmaxerrs", "1"
-  , "-Xmaxwarns", "1"
+  , "-Xmaxwarns", "3"
   , "-Wconf:cat=deprecation&msg=Auto-application:silent"
   , "-Ymacro-annotations"
 )

@@ -1,44 +1,42 @@
 package kvs
 
-import akka.actor._
-import akka.testkit._
-import org.scalatest.freespec.AnyFreeSpecLike
-import org.scalatest.matchers.should.Matchers
-import org.scalatest._
-import zero.ext._, either._, option._
+import zio.test._, Assertion._
 import zd.proto.Bytes
+import zero.ext._, option._
 
-class ElHandlerTest extends TestKit(ActorSystem("ElHandlerTest"))
-  with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
-
+object ElSpec extends DefaultRunnableSpec {
   implicit val dba = store.Mem()
-  val kvs = el.ElHandler
-  override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
+  
+  def spec = suite("ElSpec")(
+    testM("get/put/del") {
+      for {
+              // get absent
+        x1 <- el.get(key1)
+              // put value
+        x2 <- el.put(key1, bs1)
+        x3 <- el.get(key1)
+              // override value
+        x4 <- el.put(key1, bs2)
+        x5 <- el.get(key1)
+              // delete value
+        x6 <- el.del(key1)
+        x7 <- el.get(key1)
+              // delete again
+        x8 <- el.del(key1)
+      } yield assert(x1)(equalTo(none))     &&
+              assert(x2)(isUnit)            &&
+              assert(x3)(equalTo(bs1.some)) &&
+              assert(x4)(isUnit)            &&
+              assert(x5)(equalTo(bs2.some)) &&
+              assert(x6)(isUnit)            &&
+              assert(x7)(equalTo(none))     &&
+              assert(x8)(isUnit)
+    }
+  )
 
-  def key(x: String): ElKey = ElKeyExt.from_str(x)
-  def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
-
-  "el handler should" - {
-    "return error when element is absent" in {
-      kvs.get(key("k")) shouldBe none.right
-    }
-    "save value" in {
-      kvs.put(key("k"), stob("v")) shouldBe ().right
-    }
-    "retrieve value" in {
-      kvs.get(key("k")) shouldBe stob("v").some.right
-    }
-    "override value" in {
-      kvs.put(key("k"), stob("v2")) shouldBe ().right
-    }
-    "delete value" in {
-      kvs.delete(key("k")) shouldBe ().right
-    }
-    "delete value again" in {
-      kvs.delete(key("k")) shouldBe ().right
-    }
-    "clean up" in {
-      kvs.get(key("k")) shouldBe none.right
-    }
-  }
+  def key(b: Byte): ElKey = ElKey(bs(b))
+  def bs (b: Byte): Bytes = Bytes.unsafeWrap(Array(b))
+  val key1 = key(1)
+  val bs1  = bs(1)
+  val bs2  = bs(2)
 }

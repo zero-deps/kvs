@@ -1,22 +1,20 @@
 package kvs
 package store
 
-import scala.concurrent.Future
 import zd.proto.Bytes
+import zio._
 
 /**
  * Database Application Interface.
  */
 trait Dba { _: AutoCloseable =>
-  def get(key: Key): Res[Option[Bytes]]
-  def put(key: Key, value: Bytes): Res[Unit]
-  def delete(key: Key): Res[Unit]
-
-  def save(path: String): Res[String]
-  def load(path: String): Res[Any]
-
-  def onReady(): Future[Unit]
-  def compact(): Unit
+  def get(key: Key): KIO[Option[Bytes]]
+  def apply(key: Key): KIO[Bytes] = get(key).flatMap{
+    case None     => IO.dieMessage("storage is corrupted")
+    case Some(bs) => IO.succeed(bs)
+  }
+  def put(key: Key, value: Bytes): KIO[Unit]
+  def del(key: Key): KIO[Unit]
 }
 
 sealed trait DbaConf

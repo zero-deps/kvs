@@ -11,8 +11,8 @@ class BytesIndexInput(resourceDescription: String, xs: Vector[Bytes], offset: Lo
 
   def this(d: String, xs: Vector[Bytes]) = this(d, xs, 0, xs.foldLeft(0L)((acc, x) => acc + x.unsafeArray.length))
 
-  private[this] var open = true
-  private[this] var pos = offset
+  private var open = true
+  private var pos = offset
 
   override def close(): Unit = open = false
   override def getFilePointer(): Long = { ensureOpen(); pos - offset }
@@ -63,7 +63,7 @@ class BytesIndexInput(resourceDescription: String, xs: Vector[Bytes], offset: Lo
     new BytesIndexInput(sliceDescription, xs, offset+o, l)
   }
   
-  private[this] def ensureOpen(): Unit = {
+  private def ensureOpen(): Unit = {
     if (!open) throw new IOException("closed")
   }
 }

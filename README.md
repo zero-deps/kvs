@@ -17,7 +17,7 @@ Add project as a git module.
 ## Example
 
 ```bash
-sbt> project example
+sbt> project examples
 sbt> run
 ```
 

@@ -1,65 +1,48 @@
 package kvs
+package file
 
-import akka.actor._
-import akka.testkit._
-import org.scalatest.freespec.AnyFreeSpecLike
-import org.scalatest.matchers.should.Matchers
-import org.scalatest._
-import zero.ext._, either._
+import zio._, test._, Assertion._
 import zd.proto.Bytes
 
-import file._
-
-class FileHandlerTest extends TestKit(ActorSystem("FileHandlerTest"))
-  with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
+object FileSpec extends DefaultRunnableSpec {
+  def spec = suite("FileSpec")(
+    testM("size if absent") {
+      assertM(flh.size(path2)           .run)(fails(equalTo(FileNotExists(path2))))
+    }
+  , testM("content if absent") {
+      assertM(flh.stream(path2).runDrain.run)(fails(equalTo(FileNotExists(path2))))
+    }
+  , testM("delete if absent") {
+      assertM(flh.delete(path2)         .run)(fails(equalTo(FileNotExists(path2))))
+    }
+  , testM("create if exists") {
+      for {
+        _ <- flh.create(path3)
+        x <- flh.create(path3)          .run
+      } yield assert(x)                      (fails(equalTo(FileAlreadyExists(path3))))
+    }
+  , testM("create/delete") {
+      for {
+        x1 <- flh.create(path)
+        x2 <- flh.append(path, Bytes.unsafeWrap(Array(1, 2, 3, 4, 5, 6)))
+        x3 <- flh.size(path)
+        x4 <- flh.stream(path).runCollect
+        x5 <- flh.delete(path)
+      } yield assert(x1)(equalTo(File(count=0,size=0,dir=false))) &&
+              assert(x2)(equalTo(File(count=2,size=6,dir=false))) &&
+              assert(x3)(equalTo(6L))                             &&
+              assert(x4)(equalTo(Chunk(Bytes.unsafeWrap(Array(1, 2, 3, 4, 5)), Bytes.unsafeWrap(Array(6))))) &&
+              assert(x5)(equalTo(File(count=2,size=6,dir=false)))
+    }
+  )
 
   implicit val dba = store.Mem()
-  override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
-
-  val dir = FdKey(stob("dir"))
-  val name = ElKeyExt.from_str("name" + System.currentTimeMillis)
-  val path = PathKey(dir, name)
-  val name1 = ElKeyExt.from_str("name" + System.currentTimeMillis + "_1")
-  val path1 = PathKey(dir, name1)
-
-  implicit val flh: FileHandler = new FileHandler {
-    override val chunkLength = 5
-  }
-
-  def stob(x: String): Bytes = Bytes.unsafeWrap(x.getBytes)
-
-  "file" - {
-    "create" in {
-      flh.create(path).isRight should be (true)
-    }
-    "create if exists" in {
-      flh.create(path).left.value should be (FileAlreadyExists(path))
-    }
-    "append" in {
-      val r = flh.append(path, Bytes.unsafeWrap(Array(1, 2, 3, 4, 5, 6)))
-      r.isRight should be (true)
-      r.getOrElse(???).size should be (6)
-      r.getOrElse(???).count should be (2)
-    }
-    "size" in {
-      val r = flh.size(path)
-      r.isRight should be (true)
-      r.getOrElse(???) should be (6)
-    }
-    "size if absent" in {
-      flh.size(path1).left.value should be (FileNotExists(path1))
-    }
-    "content" in {
-      flh.stream(path) shouldBe LazyList(Bytes.unsafeWrap(Array(1, 2, 3, 4, 5)).right, Bytes.unsafeWrap(Array(6)).right).right
-    }
-    "content if absent" in {
-      flh.stream(path1).left.value should be (FileNotExists(path1))
-    }
-    "delete" in {
-      flh.delete(path).isRight should be (true)
-    }
-    "delete if absent" in {
-      flh.delete(path).left.value should be (FileNotExists(path))
-    }
-  }
+  val flh = new FileHandler { override val chunkLength = 5 }
+  val dir   = FdKey(Bytes.unsafeWrap(Array[Byte](0)))
+  val name1 = ElKey(Bytes.unsafeWrap(Array[Byte](1)))
+  val name2 = ElKey(Bytes.unsafeWrap(Array[Byte](2)))
+  val name3 = ElKey(Bytes.unsafeWrap(Array[Byte](3)))
+  val path  = PathKey(dir, name1)
+  val path2 = PathKey(dir, name2)
+  val path3 = PathKey(dir, name3)
 }

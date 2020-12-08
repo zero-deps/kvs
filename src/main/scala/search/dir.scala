@@ -6,43 +6,45 @@ import java.nio.file.{NoSuchFileException, FileAlreadyExistsException}
 import java.util.{Collection, Collections, Arrays}
 import java.util.concurrent.atomic.AtomicLong
 import org.apache.lucene.store._
-import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
-import zero.ext._, either._, traverse._
+import zero.ext._, boolean._, int._, option._
 import zd.proto.Bytes
+import zio._, stream.Stream
 
 import file.FileHandler, store.Dba
 
 class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsLockFactory(dir)) {
   val flh = new FileHandler {
-    override val chunkLength = 10 * 1000 * 1000 // 10 MB
+    override val chunkLength = i"10'000'000" // 10 MB
   }
   val enh = feed
   val fdh = feed.meta
 
-  private[this] val outs = TrieMap.empty[String,ByteArrayOutputStream]
-  private[this] val nextTempFileCounter = new AtomicLong
+  val runtime: Runtime[Any] = Runtime.default
 
-  def exists(): Res[Boolean] = {
-    fdh.get(dir).map(_.isDefined)
-  }
-  
-  def deleteAll(): Res[Unit] = {
-    for {
-      xs <- enh.all(dir)
-      ys <- xs.sequence
-      _ <- ys.map{ case (key, _) =>
-        val name = key
-        val path = PathKey(dir, name)
-        for {
-          _ <- flh.delete(path).void.recover{ case _: FileNotExists => () }
-          _ <- enh.remove(EnKey(dir, name))
-        } yield ()
-      }.sequence_
-      _ <- enh.cleanup(dir)
-      _ <- fdh.delete(dir)
-    } yield ()
-  }
+  private val outs = TrieMap.empty[String,ByteArrayOutputStream]
+  private val nextTempFileCounter = new AtomicLong
+
+  // def exists(): KIO[Boolean] = {
+  //   fdh.get(dir).map(_.isDefined)
+  // }
+
+  // def deleteAll(): Res[Unit] = {
+  //   for {
+  //     xs <- enh.all(dir)
+  //     ys <- xs.sequence
+  //     _ <- ys.map{ case (key, _) =>
+  //       val name = key
+  //       val path = PathKey(dir, name)
+  //       for {
+  //         _ <- flh.delete(path).void.recover{ case _: FileNotExists => () }
+  //         _ <- enh.remove(EnKey(dir, name))
+  //       } yield ()
+  //     }.sequence_
+  //     _ <- enh.cleanup(dir)
+  //     _ <- fdh.delete(dir)
+  //   } yield ()
+  // }
 
   /**
    * Returns names of all files stored in this directory.
@@ -50,13 +52,10 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
    * 
    * //throws IOException in case of I/O error
    */
-  override
-  def listAll(): Array[String] = {
+  override def listAll(): Array[String] = {
     ensureOpen()
-    enh.all(dir).flatMap(_.sequence).fold(
-      l => throw new IOException(l.toString)
-    , r => r.map(x => x._1.bytes.mkString).sorted.toArray
-    )
+    val z = enh.all(dir).map(_._1.bytes.mkString).runCollect.map(_.sorted.toArray)
+    runtime.unsafeRunSync(z).getOrElse(e => throw new IOException(FiberFailure(e)))
   }
 
   /**
@@ -68,25 +67,18 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
    * @param name the name of an existing file.
    * //throws IOException in case of I/O error
    */
-  override
-  def deleteFile(name: String): Unit = {
-    val name1 = ElKeyExt.from_str(name)
+  override def deleteFile(name: String): Unit = {
     sync(Collections.singletonList(name))
-    val res: Res[Boolean] = for {
-      _ <- flh.delete(PathKey(dir, name1))
-      x <- enh.remove(EnKey(dir, name1))
-      _ <- enh.cleanup(dir)
-    } yield x
-    res.fold(
-      l => l match {
-        case _: _root_.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name}")
-        case x => throw new IOException(x.toString)
-      },
-      r => r match {
-        case true => ()
-        case false => throw new NoSuchFileException(s"${dir}/${name}")
-      }
-    )
+    val z = for {
+      name1 <- ElKeyExt.from_str(name)
+      path  <- IO.succeed(PathKey(dir, name1))
+      _     <- flh.delete(path)
+      x     <- enh.remove(EnKey(dir, name1))
+      _     <- x.fold(enh.cleanup(dir), IO.fail(FileNotExists(path)))
+    } yield ()
+    runtime.unsafeRunSync(z).getOrElse(c => throw c.failureOption.collect{
+      case _: FileNotExists => new NoSuchFileException(s"${dir}/${name}")
+    }.getOrElse(new IOException(FiberFailure(c))))
   }
 
   /**
@@ -98,18 +90,16 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
    * @param name the name of an existing file.
    * //throws IOException in case of I/O error
    */
-  override
-  def fileLength(name: String): Long = {
+  override def fileLength(name: String): Long = {
     ensureOpen()
-    val name1 = ElKeyExt.from_str(name)
     sync(Collections.singletonList(name))
-    flh.size(PathKey(dir, name1)).fold(
-      l => l match {
-        case _: _root_.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name}")
-        case _ => throw new IOException(l.toString)
-      },
-      r => r
-    )
+    val z = for {
+      name1 <- ElKeyExt.from_str(name)
+      l     <- flh.size(PathKey(dir, name1))
+    } yield l
+    runtime.unsafeRunSync(z).getOrElse(c => throw c.failureOption.collect{
+      case _: FileNotExists => new NoSuchFileException(s"${dir}/${name}")
+    }.getOrElse(new IOException(FiberFailure(c))))
   }
 
   /**
@@ -122,26 +112,20 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
    * @param name the name of the file to create.
    * //throws IOException in case of I/O error
    */
-  override
-  def createOutput(name: String, context: IOContext): IndexOutput = {
+  override def createOutput(name: String, context: IOContext): IndexOutput = {
     ensureOpen()
-    val name1 = ElKeyExt.from_str(name)
-    val r = for {
-      _ <- enh.prepend(EnKey(dir, name1), Bytes.empty)
-      _ <- flh.create(PathKey(dir, name1))
-    } yield ()
-    r.fold(
-      l => l match {
-        case _: _root_.kvs.EntryExists => throw new FileAlreadyExistsException(s"${dir}/${name}")
-        case _: _root_.kvs.FileAlreadyExists => throw new FileAlreadyExistsException(s"${dir}/${name}")
-        case _ => throw new IOException(l.toString)
-      },
-      _ => {
-        val out = new ByteArrayOutputStream;
-        outs += ((name, out))
-        new OutputStreamIndexOutput(s"${dir}/${name}", name, out, 8192)
-      }
-    )
+    val z = for {
+      name1 <- ElKeyExt.from_str(name)
+      _     <- enh.putIfAbsent(EnKey(dir, name1), Bytes.empty)
+      _     <- flh.create(PathKey(dir, name1))
+      out   <- IO.effectTotal(new ByteArrayOutputStream)
+      _     <- IO.effectTotal(outs += ((name, out)))
+      io    <- IO.effectTotal(new OutputStreamIndexOutput(s"${dir}/${name}", name, out, 8192))
+    } yield io
+    runtime.unsafeRunSync(z).getOrElse(c => throw c.failureOption.collect{
+      case _: EntryExists       => new FileAlreadyExistsException(s"${dir}/${name}")
+      case _: FileAlreadyExists => new FileAlreadyExistsException(s"${dir}/${name}")
+    }.getOrElse(new IOException(FiberFailure(c))))
   }
 
   /**
@@ -151,31 +135,23 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
    * The temporary file name (accessible via {//link IndexOutput#getName()}) will start with
    * {@code prefix}, end with {@code suffix} and have a reserved file extension {@code .tmp}.
    */
-  override
-  def createTempOutput(prefix: String, suffix: String, context: IOContext): IndexOutput = {
+  override def createTempOutput(prefix: String, suffix: String, context: IOContext): IndexOutput = {
     ensureOpen()
-    @tailrec def loop(): Res[String] = {
-      val name = Directory.getTempFileName(prefix, suffix, nextTempFileCounter.getAndIncrement)
-      val name1 = ElKeyExt.from_str(name)
-      val res = for {
-        _ <- enh.prepend(EnKey(dir, name1), Bytes.empty)
-        _ <- flh.create(PathKey(dir, name1))
-      } yield name
-      res match {
-        case Left(_: EntryExists) => loop()
-        case Left(_: FileAlreadyExists) => loop()
-        case x => x
-      }
+    val z = (for {
+      i     <- IO.effectTotal(nextTempFileCounter.getAndIncrement)
+      name  <- IO.effect(Directory.getTempFileName(prefix, suffix, i)).orDie
+      name1 <- ElKeyExt.from_str(name)
+      _     <- enh.putIfAbsent(EnKey(dir, name1), Bytes.empty)
+      _     <- flh.create(PathKey(dir, name1))
+      out   <- IO.effectTotal(new ByteArrayOutputStream)
+      _     <- IO.effectTotal(outs += ((name, out)))
+      io    <- IO.effectTotal(new OutputStreamIndexOutput(s"$dir/$name", name, out, 8192))
+    } yield io).retryWhile{
+      case _: EntryExists       => true
+      case _: FileAlreadyExists => true
+      case _ => false
     }
-    val res = loop()
-    res.fold(
-      l => throw new IOException(l.toString),
-      name => {
-        val out = new ByteArrayOutputStream;
-        outs += ((name, out))
-        new OutputStreamIndexOutput(s"$dir/$name", name, out, 8192)
-      }
-    )
+    runtime.unsafeRunSync(z).getOrElse(c => throw new IOException(FiberFailure(c)))
   }
 
   /**
@@ -185,23 +161,26 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
    * Lucene uses this to properly commit changes to the index, to prevent a machine/OS crash
    * from corrupting the index.
    */
-  override
-  def sync(names: Collection[String]): Unit = {
+  override def sync(names: Collection[String]): Unit = {
     ensureOpen()
-    names.stream.forEach{ name =>
-      outs.get(name).map(x => Bytes.unsafeWrap(x.toByteArray)).foreach{ xs =>
-        val name1 = ElKeyExt.from_str(name)
-        flh.append(PathKey(dir, name1), xs).fold(
-          l => throw new IOException(l.toString),
-          _ => ()
-        )
-        outs -= name
-      }
-    }
+    val z = Stream.fromJavaIterator(names.iterator).mapM{ name =>
+      for {
+        out  <- IO.effectTotal(outs.get(name))
+        _    <- out.cata(out =>
+                  for {
+                    bs    <- IO.effectTotal(Bytes.unsafeWrap(out.toByteArray))
+                    name1 <- ElKeyExt.from_str(name)
+                    _     <- flh.append(PathKey(dir, name1), bs)
+                    _     <- IO.effectTotal(outs -= name)
+                  } yield ()
+                , IO.unit
+                )
+      } yield ()
+    }.runDrain
+    runtime.unsafeRunSync(z).getOrElse(c => throw new IOException(FiberFailure(c)))
   }
 
-  override
-  def syncMetaData(): Unit = {
+  override def syncMetaData(): Unit = {
     ensureOpen()
     ()
   }
@@ -219,23 +198,19 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
    *
    * This method is used by IndexWriter to publish commits.
    */
-  override
-  def rename(source: String, dest: String): Unit = {
+  override def rename(source: String, dest: String): Unit = {
     ensureOpen()
-    val source1 = ElKeyExt.from_str(source)
-    val dest1 = ElKeyExt.from_str(dest)
     sync(Arrays.asList(source, dest))
-    val res = for {
-      _ <- flh.copy(fromPath=PathKey(dir, source1), toPath=PathKey(dir, dest1))
-      _ <- enh.prepend(EnKey(dir, dest1), Bytes.empty)
-      _ <- flh.delete(PathKey(dir, source1))
-      _ <- enh.remove(EnKey(dir, source1))
-      _ <- enh.cleanup(dir)
+    val z = for {
+      source1 <- ElKeyExt.from_str(source)
+      dest1   <- ElKeyExt.from_str(dest)
+      _       <- flh.copy(fromPath=PathKey(dir, source1), toPath=PathKey(dir, dest1))
+      _       <- enh.putIfAbsent(EnKey(dir, dest1), Bytes.empty)
+      _       <- flh.delete(PathKey(dir, source1))
+      _       <- enh.remove(EnKey(dir, source1))
+      _       <- enh.cleanup(dir)
     } yield ()
-    res.fold(
-      l => throw new IOException(l.toString),
-      _ => ()
-    )
+    runtime.unsafeRunSync(z).getOrElse(c => throw new IOException(FiberFailure(c)))
   }
 
   /**
@@ -247,29 +222,22 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
    * @param name the name of an existing file.
    * //throws IOException in case of I/O error
    */
-  override
-  def openInput(name: String, context: IOContext): IndexInput = {
+  override def openInput(name: String, context: IOContext): IndexInput = {
     sync(Collections.singletonList(name))
-    val name1 = ElKeyExt.from_str(name)
-    val res = for {
-      bs <- flh.stream(PathKey(dir, name1))
-      bs1 <- bs.sequence
-    } yield new BytesIndexInput(s"${dir}/${name}", bs1)
-    res.fold(
-      l => l match {
-        case _root_.kvs.FileNotExists(path) => throw new NoSuchFileException(s"${path.dir}/${path.name}")
-        case _ => throw new IOException(l.toString)
-      },
-      r => r
-    )
+    val z = for {
+      name1 <- ElKeyExt.from_str(name)
+      bs    <- flh.stream(PathKey(dir, name1)).runCollect
+    } yield new BytesIndexInput(s"${dir}/${name}", bs.toVector)
+    runtime.unsafeRunSync(z).getOrElse(c => throw c.failureOption.collect{
+      case FileNotExists(path) => new NoSuchFileException(s"${path.dir}/${path.name}")
+    }.getOrElse(new IOException(FiberFailure(c))))
   }
 
   override def close(): Unit = synchronized {
     isOpen = false
   }
 
-  override
-  def getPendingDeletions(): java.util.Set[String] = {
+  override def getPendingDeletions(): java.util.Set[String] = {
     Collections.emptySet[String]
   }
 }

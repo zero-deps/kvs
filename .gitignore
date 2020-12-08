@@ -1,5 +1,6 @@
-.DS_Store
-/example/data_rng/
-target/
 *.swp
+.DS_Store
 /.bsp/
+/data/example-*/
+/data/test-*/
+target/

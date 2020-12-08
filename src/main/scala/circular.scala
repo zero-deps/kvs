@@ -1,7 +1,8 @@
 package kvs
 
-import zero.ext._, either._, option._, boolean._
+import zero.ext._, option._
 import zd.proto._, api._, macrosapi._
+import zio._, stream.Stream
 
 import store.Dba
 
@@ -17,66 +18,58 @@ object circular {
   implicit val enc = caseCodecAuto[En]
 
   object meta {
-    def put(id: FdKey, el: Fd)(implicit dba: Dba): Res[Unit] = dba.put(id, pickle(el))
-
-    def get(id: FdKey)(implicit dba: Dba): Res[Option[Fd]] = dba.get(id) match {
-      case Right(Some(x)) => unpickle[Fd](x).some.right
-      case Right(None) => none.right
-      case x@Left(_) => x.coerceRight
-    }
-
-    def delete(id: FdKey)(implicit dba: Dba): Res[Unit] = dba.delete(id)
+    def del(id: FdKey        )(implicit dba: Dba): KIO[Unit] = dba.del(id)
+    def put(id: FdKey, el: Fd)(implicit dba: Dba): KIO[Unit] =
+      for {
+        p <- pickle(el)
+        x <- dba.put(id, p)
+      } yield x
+    def get(id: FdKey        )(implicit dba: Dba): KIO[Option[Fd]] =
+      dba.get(id).flatMap{
+        case Some(x) => unpickle[Fd](x).map(_.some)
+        case None    => IO.succeed(none)
+      }
   }
 
   private def key(fid: FdKey, idx: Long): EnKey = {
     EnKey(fid, ElKey(encodeToBytes(Idx(idx))))
   }
 
-  def put(fid: FdKey, idx: Long, data: Bytes)(implicit dba: Dba): Res[Unit] = {
+  def put(fid: FdKey, idx: Long, data: Bytes)(implicit dba: Dba): KIO[Unit] = {
     for {
       fd <- meta.get(fid)
       sz  = Math.max(2L, fd.cata(_.size, idx))
-      _  <- validate_size(sz)
-      _  <- dba.put(key(fid, idx), pickle(En(data)))
+      p  <- pickle(En(data))
+      _  <- dba.put(key(fid, idx), p)
       _  <- meta.put(fid, Fd(last=idx, size=sz))
     } yield ()
   }
 
-  def add(fid: FdKey, size: Long, data: Bytes)(implicit dba: Dba): Res[Unit] = {
+  def add(fid: FdKey, size1: Long, data: Bytes)(implicit dba: Dba): KIO[Unit] = {
     for {
-      _    <- validate_size(size)
       m    <- meta.get(fid)
+      size  = Math.max(2L, size1)
       next  = m.cata(m => (m.last % size)+1, 1L)
-      _    <- dba.put(key(fid, next), pickle(En(data)))
+      p    <- pickle(En(data))
+      _    <- dba.put(key(fid, next), p)
       _    <- meta.put(fid, Fd(last=next, size=size))
     } yield ()
   }
 
-  def get(fid: FdKey)(idx: Long)(implicit dba: Dba): Res[Option[Bytes]] = {
-    dba.get(key(fid, idx)) match {
-      case Right(Some(x)) => unpickle[En](x).data.some.right
-      case Right(None) => none.right
-      case x@Left(_) => x.coerceRight
-    }
+  def get(fid: FdKey)(idx: Long)(implicit dba: Dba): KIO[Option[Bytes]] = {
+    for {
+      x <- dba.get(key(fid, idx))
+      y <- x.cata(unpickle[En](_).map(_.data.some), IO.succeed(none))
+    } yield y
   }
 
-  def all(fid: FdKey)(implicit dba: Dba): Res[LazyList[Res[Bytes]]] = {
-    for {
-      m    <- meta.get(fid)
-      xs    = m.cata(m =>
-                if (m.last < m.size) LazyList.range(m.last+1, m.size+1) #::: LazyList.range(1, m.last+1)
-                else LazyList.range(1, m.size+1)
-              , LazyList.empty)
-    } yield xs.map(get(fid)).collect{
-              case e@Left(_) => e.coerceRight
-              case Right(Some(a)) => a.right
-            }
-  }
-
-  private def validate_size(size: Long): Res[Unit] = {
-    for {
-      _ <- (size <= 0L).fold(Fail("size must be positivie").left, ().right)
-      _ <- (size == 1L).fold(Fail("size is too small for circular buffer").left, ().right)
-    } yield ()
+  def all(fid: FdKey)(implicit dba: Dba): KStream[Bytes] = {
+    val res = for {
+      m  <- meta.get(fid)
+    } yield m.cata(m =>
+              if (m.last < m.size) LazyList.range(m.last+1, m.size+1) #::: LazyList.range(1, m.last+1)
+              else LazyList.range(1, m.size+1)
+            , LazyList.empty)
+    Stream.fromIterableM(res).mapM(get(fid)).collect{ case Some(x) => x }
   }
 }

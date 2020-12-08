@@ -1,15 +1,15 @@
 package kvs
 package file
 
-import scala.annotation.tailrec
 import zd.proto._, api._, macrosapi._
-import zero.ext._, either._, boolean._, option._, traverse._
+import zero.ext._, either._
+import zio._, stream.Stream
 
 import store.Dba
 
 final case class File
   ( // count – number of chunks
-    @N(1) count: Int
+    @N(1) count: Long
     // size - size of file in bytes
   , @N(2) size: Long
     // true if directory
@@ -21,70 +21,68 @@ trait FileHandler {
 
   private implicit val filec = caseCodecAuto[File]
 
-  private def get(path: PathKey)(implicit dba: Dba): Res[File] = {
-    dba.get(path) match {
-      case Right(Some(x)) => unpickle[File](x).right
-      case Right(None) => FileNotExists(path).left
-      case x@Left(_) => x.coerceRight
+  private def get(path: PathKey)(implicit dba: Dba): KIO[File] = {
+    dba.get(path).flatMap{
+      case Some(x) => unpickle[File](x)
+      case None    => IO.fail(FileNotExists(path))
     }
   }
 
-  def create(path: PathKey)(implicit dba: Dba): Res[File] = {
-    dba.get(path) match {
-      case Right(Some(_)) => FileAlreadyExists(path).left
-      case Right(None) =>
+  def create(path: PathKey)(implicit dba: Dba): KIO[File] = {
+    dba.get(path).flatMap{
+      case Some(_) => IO.fail(FileAlreadyExists(path))
+      case None    =>
         val f = File(count=0, size=0L, dir=false)
         for {
-          _ <- dba.put(path, pickle(f))
+          p <- pickle(f)
+          _ <- dba.put(path, p)
         } yield f
-      case x@Left(_) => x.coerceRight
     }
   }
 
-  def append(path: PathKey, data: Bytes)(implicit dba: Dba): Res[File] = {
-    @tailrec
-    def writeChunks(count: Int, rem: Bytes): Res[Int] = {
+  def append(path: PathKey, data: Bytes)(implicit dba: Dba): KIO[File] = {
+    //todo: write all chunks in parallel
+    def writeChunks(count: Long, rem: Bytes): KIO[Long] = {
       rem.splitAt(chunkLength) match {
-        case (xs, _) if xs.length == 0 => count.right
+        case (xs, _) if xs.length == 0 => IO.succeed(count)
         case (xs, ys) =>
-          dba.put(ChunkKey(path, count+1), xs) match {
-            case r @ Right(_) => writeChunks(count+1, rem=ys)
-            case l @ Left(_) => l.coerceRight
-          }
+          dba.put(ChunkKey(path, count+1), xs).flatMap(
+            _ => writeChunks(count+1, rem=ys)
+          )
       }
     }
     for {
-      _ <- (data.length == 0).fold(Fail("data is empty").left, ().right)
-      file <- get(path)
+      file  <- get(path)
       count <- writeChunks(file.count, rem=data)
-      file1 = file.copy(count=count, size=file.size+data.length)
-      _ <- dba.put(path, pickle(file1))
+      file1  = file.copy(count=count, size=file.size+data.length)
+      p     <- pickle(file1)
+      _     <- dba.put(path, p)
     } yield file1
   }
 
-  def size(path: PathKey)(implicit dba: Dba): Res[Long] = {
+  def size(path: PathKey)(implicit dba: Dba): KIO[Long] = {
     get(path).map(_.size)
   }
 
-  def stream(path: PathKey)(implicit dba: Dba): Res[LazyList[Res[Bytes]]] = {
-    get(path).map(_.count).flatMap{
-      case n if n < 0 => Fail(s"impossible count=${n}").left
-      case 0 => LazyList.empty.right
+  def stream(path: PathKey)(implicit dba: Dba): KStream[Bytes] = {
+    Stream.fromEffect(get(path).map(_.count)).flatMap{
+      case n if n < 0 => Stream.dieMessage("negative count")
+      case 0 => Stream.empty
       case n if n > 0 =>
-        def k(i: Int): ChunkKey = ChunkKey(path, i)
-        LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.cata(_.right, Fail(s"chunk=${i} is not exists").left))).right
+        def k(i: Long): ChunkKey = ChunkKey(path, i)
+        Stream.fromIterable(LazyList.range(1, n+1)).mapM(i=>dba(k(i)))
     }
   }
 
-  def delete(path: PathKey)(implicit dba: Dba): Res[File] = {
+  def delete(path: PathKey)(implicit dba: Dba): KIO[File] = {
     for {
       file <- get(path)
-      _ <- LazyList.range(1, file.count+1).map(i => dba.delete(ChunkKey(path, i))).sequence_
-      _ <- dba.delete(path)
+      _    <- Stream.fromIterable(LazyList.range(1, file.count+1)).mapM(i=>dba.del(ChunkKey(path, i))).runDrain
+      _    <- dba.del(path)
     } yield file
   }
 
-  def copy(fromPath: PathKey, toPath: PathKey)(implicit dba: Dba): Res[File] = {
+  def copy(fromPath: PathKey, toPath: PathKey)(implicit dba: Dba): KIO[File] = {
     for {
       from <- get(fromPath)
       _ <- get(toPath).fold(
@@ -94,15 +92,13 @@ trait FileHandler {
         },
         _ => FileAlreadyExists(toPath).left
       )
-      _ <- LazyList.range(1, from.count+1).map(i => for {
-        x <- {
-          val k = ChunkKey(fromPath, i)
-          dba.get(k).flatMap(_.cata(_.right, Fail(s"chunk=${i} is not exists").left))
-        }
-        _ <- dba.put(ChunkKey(toPath, i), x)
-      } yield ()).sequence_
+      _ <- Stream.fromIterable(LazyList.range(1, from.count+1)).mapM(i => for {
+        x <- dba    (ChunkKey(fromPath, i))
+        _ <- dba.put(ChunkKey(toPath  , i), x)
+      } yield ()).runDrain
       to = File(from.count, from.size, from.dir)
-      _ <- dba.put(toPath, pickle(to))
+      p <- pickle(to)
+      _ <- dba.put(toPath, p)
     } yield to
   }
 

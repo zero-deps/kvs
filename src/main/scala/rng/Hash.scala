@@ -6,7 +6,7 @@ import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import zero.ext._, option._
-import zd.proto.Bytes
+import zd.proto._, api._
 import zd.proto.api.N
 
 import model.{StoreDelete, StoreGet, QuorumState, ChangeState}, model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
@@ -15,12 +15,7 @@ final case class Put(k: Bytes, v: Bytes)
 final case class Get(k: Bytes)
 final case class Delete(k: Bytes)
 
-final case class Save(path: String)
-final case class Load(path: String)
-
 final case object RestoreState
-
-final case object Ready
 
 final case class InternalPut(k: Bytes, v: Bytes)
 
@@ -72,23 +67,20 @@ class Hash(conf: RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData
     case Event(_: Delete, _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
-    case Event(Save(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
-      stay()
-    case Event(Load(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
-      stay()
     case Event(RestoreState, _) =>
       log.warning("Don't know how to restore state when quorum is unsatisfied")
-      stay()
-    case Event(Ready, _) =>
-      sender ! false
       stay()
   }
 
   when(QuorumStateReadonly){
     case Event(x: Get, data) =>
       doGet(x.k, sender, data)
+      stay()
+    case Event(_: Put, _) =>
+      sender ! AckQuorumFailed("QuorumStateReadonly")
+      stay()
+    case Event(_: Delete, _) =>
+      sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
     case Event(RestoreState, data) =>
       val s = state(data.nodes.size)
@@ -97,29 +89,9 @@ class Hash(conf: RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData
         _ ! ChangeState(s),
       ))
       goto(s)
-    case Event(Ready, _) =>
-      sender ! false
-      stay()
-
-    case Event(_: Put, _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
-    case Event(_: Delete, _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
-    case Event(Save(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
-    case Event(Load(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
   }
 
   when(QuorumStateEffective){
-    case Event(Ready, _) =>
-      sender ! true
-      stay()
-
     case Event(x: Get, data) =>
       doGet(x.k, sender, data)
       stay()
@@ -129,29 +101,12 @@ class Hash(conf: RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData
     case Event(x: Delete, data) =>
       doDelete(x.k, sender, data)
       stay()
-
-    case Event(Save(path), data) =>
-      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(QuorumStateReadonly),
-        _ ! ChangeState(QuorumStateReadonly),
-      ))
-      val x = system.actorOf(DumpProcessor.props(conf), s"dump_wrkr-${now_ms()}")
-      x.forward(DumpProcessor.Save(data.buckets, path))
-      goto(QuorumStateReadonly)
-    case Event(Load(path), data) =>
-      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(QuorumStateReadonly),
-        _ ! ChangeState(QuorumStateReadonly),
-      ))
-      val x = system.actorOf(DumpProcessor.props(conf), s"load_wrkr-${now_ms()}")
-      x.forward(DumpProcessor.Load(path))
-      goto(QuorumStateReadonly)
     case Event(RestoreState, _) =>
       log.info("State is already OK")
       stay()
   }
 
-  /* COMMON FOR ALL STATES*/
+  /* common for all states */
   whenUnhandled {
     case Event(MemberUp(member), data) =>
       val next = joinNodeToRing(member, data)
@@ -218,7 +173,7 @@ class Hash(conf: RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData
 
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
     val newvNodes: Map[VNode, Node] = (1 to vNodesNum).view.map(vnode =>
-      hashing.hash(pickle(PortVNode(port=member.address.hostPort, vnode=vnode))) -> member.address
+      hashing.hash(encodeToBytes(PortVNode(port=member.address.hostPort, vnode=vnode))) -> member.address
     ).to(Map)
     val updvNodes = data.vNodes ++ newvNodes
     val nodes = data.nodes + member.address
@@ -233,7 +188,7 @@ class Hash(conf: RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData
   def removeNodeFromRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
     log.info(s"Removing ${member} from ring")
     val unusedvNodes: Set[VNode] = (1 to vNodesNum).view.map(vnode =>
-      hashing.hash(pickle(PortVNode(port=member.address.hostPort, vnode=vnode)))
+      hashing.hash(encodeToBytes(PortVNode(port=member.address.hostPort, vnode=vnode)))
     ).to(Set)
     val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
     val nodes = data.nodes - member.address
