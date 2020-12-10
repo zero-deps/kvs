@@ -21,18 +21,24 @@ object FileSpec extends DefaultRunnableSpec {
         x <- flh.create(path3)          .run
       } yield assert(x)                      (fails(equalTo(FileAlreadyExists(path3))))
     }
-  , testM("create/delete") {
+  , testM("create/append/delete") {
       for {
         x1 <- flh.create(path)
         x2 <- flh.append(path, Bytes.unsafeWrap(Array(1, 2, 3, 4, 5, 6)))
-        x3 <- flh.size(path)
-        x4 <- flh.stream(path).runCollect
-        x5 <- flh.delete(path)
-      } yield assert(x1)(equalTo(File(count=0,size=0,dir=false))) &&
-              assert(x2)(equalTo(File(count=2,size=6,dir=false))) &&
-              assert(x3)(equalTo(6L))                             &&
-              assert(x4)(equalTo(Chunk(Bytes.unsafeWrap(Array(1, 2, 3, 4, 5)), Bytes.unsafeWrap(Array(6))))) &&
-              assert(x5)(equalTo(File(count=2,size=6,dir=false)))
+        x3 <- flh.append(path, Bytes.unsafeWrap(Array(1, 2, 3, 4, 5, 6)))
+        x4 <- flh.size(path)
+        x5 <- flh.stream(path).runCollect
+        x6 <- flh.delete(path)
+      } yield assert(x1)(equalTo(File(count=0,size= 0,dir=false))) &&
+              assert(x2)(equalTo(File(count=2,size= 6,dir=false))) &&
+              assert(x3)(equalTo(File(count=4,size=12,dir=false))) &&
+              assert(x4)(equalTo(12L))                             &&
+              assert(x5)(equalTo(Chunk( Bytes.unsafeWrap(Array(1, 2, 3, 4, 5))
+                                      , Bytes.unsafeWrap(Array(6            ))
+                                      , Bytes.unsafeWrap(Array(1, 2, 3, 4, 5))
+                                      , Bytes.unsafeWrap(Array(6            ))
+                                      )))                          &&
+              assert(x6)(equalTo(File(count=4,size=12,dir=false)))
     }
   )
 

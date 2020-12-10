@@ -41,19 +41,25 @@ trait FileHandler {
   }
 
   def append(path: PathKey, data: Bytes)(implicit dba: Dba): KIO[File] = {
-    //todo: write all chunks in parallel
-    def writeChunks(count: Long, rem: Bytes): KIO[Long] = {
-      rem.splitAt(chunkLength) match {
-        case (xs, _) if xs.length == 0 => IO.succeed(count)
-        case (xs, ys) =>
-          dba.put(ChunkKey(path, count+1), xs).flatMap(
-            _ => writeChunks(count+1, rem=ys)
-          )
+    def writeChunks(count: Long): KIO[Long] = {
+      val len = data.length
+           if (len  < 0) IO.dieMessage("negative length")
+      else if (len == 0) IO.succeed(count)
+      else {
+        Stream.range(0, len).grouped(chunkLength).map(ch=>ch.head->(ch.last-ch.head+1)).zip(
+          Stream.iterate(count+1)(_+1)
+        ).mapMParUnordered(2){ case ((start, len), count) =>
+          for {
+            xs <- IO.succeed(new Array[Byte](len))
+            _  <- IO.effectTotal(Array.copy(data.unsafeArray, start, xs, 0, len))
+            _  <- dba.put(ChunkKey(path, count), Bytes.unsafeWrap(xs))
+          } yield ()
+        }.runCount.map(count+_)
       }
     }
     for {
       file  <- get(path)
-      count <- writeChunks(file.count, rem=data)
+      count <- writeChunks(file.count)
       file1  = file.copy(count=count, size=file.size+data.length)
       p     <- pickle(file1)
       _     <- dba.put(path, p)
@@ -100,12 +106,5 @@ trait FileHandler {
       p <- pickle(to)
       _ <- dba.put(toPath, p)
     } yield to
-  }
-
-  implicit class BytesExt(x: Bytes) {
-    def splitAt(n: Int): (Bytes, Bytes) = {
-      val res = x.unsafeArray.splitAt(n)
-      (Bytes.unsafeWrap(res._1), Bytes.unsafeWrap(res._2))
-    }
   }
 }
