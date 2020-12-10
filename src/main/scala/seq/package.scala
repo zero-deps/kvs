@@ -53,13 +53,50 @@ package object seq {
         akka {
           actor {
             provider = cluster
-            warn-about-java-serializer-usage = on
+            warn-about-java-serializer-usage         = on
+            enable-additional-serialization-bindings = on
+            allow-java-serialization                 = off
+            deployment {
+              /ring_readonly_store {
+                router = round-robin-pool
+                nr-of-instances = 5
+              }
+            }
+            debug {
+              receive   = off
+              lifecycle = off
+            }
+            serializers {
+              kvsproto = kvs.Serializer
+            }
+            serialization-identifiers {
+              "kvs.Serializer" = 50
+            }
+            serialization-bindings {
+              "kvs.rng.model.ChangeState"         = kvsproto
+              "kvs.rng.model.StoreGetAck"         = kvsproto
+              "kvs.rng.model.StoreDelete"         = kvsproto
+              "kvs.rng.model.StoreGet"            = kvsproto
+              "kvs.rng.model.StorePut"            = kvsproto
+              "kvs.rng.model.DumpBucketData"      = kvsproto
+              "kvs.rng.model.DumpGetBucketData"   = kvsproto
+              "kvs.rng.model.ReplBucketPut"       = kvsproto
+              "kvs.rng.model.ReplBucketUpToDate"  = kvsproto
+              "kvs.rng.model.ReplGetBucketIfNew"  = kvsproto
+              "kvs.rng.model.ReplNewerBucketData" = kvsproto
+            }
           }
           remote {
-            netty.tcp.hostname = $host
-            netty.tcp.port = $port
+            artery {
+              enabled = true
+              transport = tcp
+              canonical {
+                hostname = $host
+                port = $port
+              }
+            }
           }
-          cluster.seed-nodes = [ "akka.tcp://$name@$host:$port" ]
+          cluster.seed-nodes = [ "akka://$name@$host:$port" ]
         }
         $ext
         """
