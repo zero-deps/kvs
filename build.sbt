@@ -8,7 +8,6 @@ val kvs = project.in(file(".")).settings(
   , "org.lz4" % "lz4-java" % "1.7.1"
   , "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
   , "dev.zio" %% "zio-nio"          % "1.0.0-RC9"
-  , "dev.zio" %% "zio-akka-cluster" % "0.2.0"
   , "dev.zio" %% "zio-macros"       % "1.0.3"
   , "dev.zio" %% "zio-test"         % "1.0.3" % Test
   , "dev.zio" %% "zio-test-sbt"     % "1.0.3" % Test

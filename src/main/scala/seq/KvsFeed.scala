@@ -1,12 +1,14 @@
 package kvs.seq
 
-import kvs.{Fd, FdKey, ElKey, EnKey, Res}
+import zero.ext._, either._
 import zd.proto.api.{MessageCodec, encodeToBytes, decode}
 import zd.proto.Bytes
 import zio._
 import zio.akka.cluster.sharding.{Sharding, Entity}
 import zio.macros.accessible
 import zio.stream.Stream
+import _root_.akka.actor.{Actor, ActorLogging, Props}
+import kvs.{Fd, FdKey, ElKey, EnKey, Res}
 
 @accessible
 object KvsFeed {
@@ -92,20 +94,39 @@ object KvsFeed {
 
         def add[Fid, Key, A](fid: Fid, a: A)(implicit i: Increment[Fid, Key, A]): KIO[Key] =
           for {
-            fdKey <- i.fdKey(fid)
-            bytes <- i.bytes(a)
-            res   <- sh.ask[Res[ElKey]](hex(fdKey.bytes), Shard.Add(fdKey, bytes)).mapError(ShardErr(_))
-            elKey <- ZIO.fromEither(res).mapError(KvsErr(_))
-            key   <- i.key(elKey)
+            fdKey  <- i.fdKey(fid)
+            bytes  <- i.bytes(a)
+            elKey  <- ZIO.effectAsyncM { (callback: KIO[ElKey] => Unit) =>
+                        val receiver = as.get.actorOf(Props(new Actor with ActorLogging {
+                          def receive: Receive = {
+                            case Shard.Added(Right(a)) =>
+                              callback(IO.succeed(a))
+                              context.stop(self)
+                            case Shard.Added(Left(e)) =>
+                              callback(IO.fail(KvsErr(e)))
+                              context.stop(self)
+                            case x =>
+                              log.error(s"bad response=$x")
+                              context.stop(self)
+                          }
+                        }))
+                        sh.send(hex(fdKey.bytes), Shard.Add(fdKey, bytes), receiver)
+                      }.mapError(ShardErr(_))
+            key    <- i.key(elKey)
           } yield key
 
         def put[Fid, Key, A](fid: Fid, key: Key, a: A)(implicit i: Manual[Fid, Key, A]): KIO[Unit] =
           for {
-            fdKey <- i.fdKey(fid)
-            elKey <- i.elKey(key)
-            bytes <- i.bytes(a)
-            res   <- sh.ask[Res[Unit]](hex(fdKey.bytes), Shard.Put(fdKey, elKey, bytes)).mapError(ShardErr(_))
-            _     <- ZIO.fromEither(res).mapError(KvsErr(_))
+            fdKey  <- i.fdKey(fid)
+            elKey  <- i.elKey(key)
+            bytes  <- i.bytes(a)
+            _      <- ZIO.effectAsyncM { (callback: KIO[Unit] => Unit) =>
+                        val receiver = as.get.actorOf(Receiver.props{
+                          case Right(a) => callback(IO.succeed(a))
+                          case Left (e) => callback(IO.fail(KvsErr(e)))
+                        })
+                        sh.send(hex(fdKey.bytes), Shard.Put(fdKey, elKey, bytes), receiver)
+                      }.mapError(ShardErr(_))
           } yield ()
 
        def putBulk[Fid, Key, A](fid: Fid, elements: Vector[(Key, A)])(implicit i: Manual[Fid, Key, A]): KIO[Unit] =
@@ -117,29 +138,59 @@ object KvsFeed {
                           bytes <- i.bytes(a)
                         } yield elKey -> bytes
                       }
-            _      <- sh.ask[Unit](hex(fdKey.bytes), Shard.PutBulk(fdKey, data)).mapError(ShardErr(_))
+            _      <- ZIO.effectAsyncM { (callback: KIO[Unit] => Unit) =>
+                        val receiver = as.get.actorOf(Receiver.props{
+                          case Right(a) => callback(IO.succeed(a))
+                          case Left (e) => callback(IO.fail(KvsErr(e)))
+                        })
+                        sh.send(hex(fdKey.bytes), Shard.PutBulk(fdKey, data), receiver)
+                      }.mapError(ShardErr(_))
           } yield ()
 
         def remove[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): KIO[Boolean] =
           for {
-            fdKey <- i.fdKey(fid)
-            elKey <- i.elKey(key)
-            shRes <- sh.ask[Res[Boolean]](hex(fdKey.bytes), Shard.Remove(fdKey, elKey)).mapError(ShardErr(_))
-            res   <- ZIO.fromEither(shRes).mapError(KvsErr(_))
+            fdKey  <- i.fdKey(fid)
+            elKey  <- i.elKey(key)
+            res    <- ZIO.effectAsyncM { (callback: KIO[Boolean] => Unit) =>
+                        val receiver = as.get.actorOf(Props(new Actor with ActorLogging {
+                          def receive: Receive = {
+                            case Shard.Removed(Right(a)) =>
+                              callback(IO.succeed(a))
+                              context.stop(self)
+                            case Shard.Removed(Left(e)) =>
+                              callback(IO.fail(KvsErr(e)))
+                              context.stop(self)
+                            case x =>
+                              log.error(s"bad response=$x")
+                              context.stop(self)
+                          }
+                        }))
+                        sh.send(hex(fdKey.bytes), Shard.Remove(fdKey, elKey), receiver)
+                      }.mapError(ShardErr(_))
           } yield res
 
         def cleanup[Fid, Key, A](fid: Fid)(implicit i: AnyFeed[Fid, Key, A]): KIO[Unit] =
           for {
-            fdKey <- i.fdKey(fid)
-            res   <- sh.ask[Res[Unit]](hex(fdKey.bytes), Shard.Cleanup(fdKey)).mapError(ShardErr(_))
-            _     <- ZIO.fromEither(res).mapError(KvsErr(_))
+            fdKey  <- i.fdKey(fid)
+            _      <- ZIO.effectAsyncM { (callback: KIO[Unit] => Unit) =>
+                        val receiver = as.get.actorOf(Receiver.props{
+                          case Right(a) => callback(IO.succeed(a))
+                          case Left (e) => callback(IO.fail(KvsErr(e)))
+                        })
+                        sh.send(hex(fdKey.bytes), Shard.Cleanup(fdKey), receiver)
+                      }.mapError(ShardErr(_))
           } yield ()
 
         def fix[Fid, Key, A](fid: Fid, fd: Fd)(implicit i: AnyFeed[Fid, Key, A]): KIO[Unit] =
           for {
-            fdKey <- i.fdKey(fid)
-            res   <- sh.ask[Res[Unit]](hex(fdKey.bytes), Shard.Fix(fdKey, fd)).mapError(ShardErr(_))
-            _     <- ZIO.fromEither(res).mapError(KvsErr(_))
+            fdKey  <- i.fdKey(fid)
+            _      <- ZIO.effectAsyncM { (callback: KIO[Unit] => Unit) =>
+                        val receiver = as.get.actorOf(Receiver.props{
+                          case Right(a) => callback(IO.succeed(a))
+                          case Left (e) => callback(IO.fail(KvsErr(e)))
+                        })
+                        sh.send(hex(fdKey.bytes), Shard.Fix(fdKey, fd), receiver)
+                      }.mapError(ShardErr(_))
           } yield ()
       }
     }
@@ -188,37 +239,56 @@ object KvsFeed {
     case class Cleanup(fid: FdKey                          ) extends Msg
     case class Fix    (fid: FdKey, fd: Fd                  ) extends Msg
     case class PutBulk(fid: FdKey, a: Vector[(ElKey,Bytes)]) extends Msg
+    case class Response(x: Res[Unit])
+    case class Added   (x: Res[ElKey])
+    case class Removed (x: Res[Boolean])
 
     def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit], Nothing, Unit] = {
       case msg: Add =>
         for {
           y <- kvs.feed.add(msg.fid, msg.data).either
-          x <- ZIO.accessM[Entity[Unit]](_.get.replyToSender(y: Res[ElKey]).orDie)
+          x <- ZIO.accessM[Entity[Unit]](_.get.replyToSender(Added(y)).orDie)
         } yield x
       case msg: Put =>
         for {
           y <- kvs.feed.put(EnKey(msg.fid, msg.id), msg.data).either
-          x <- ZIO.accessM[Entity[Unit]](_.get.replyToSender(y: Res[Unit]).orDie)
+          x <- ZIO.accessM[Entity[Unit]](_.get.replyToSender(Response(y)).orDie)
         } yield x
       case msg: Remove =>
         for {
           y <- kvs.feed.remove(EnKey(msg.fid, msg.id)).either
-          x <- ZIO.accessM[Entity[Unit]](_.get.replyToSender(y: Res[Boolean]).orDie)
+          x <- ZIO.accessM[Entity[Unit]](_.get.replyToSender(Removed(y)).orDie)
         } yield x
       case msg: Cleanup =>
         for {
           y <- kvs.feed.cleanup(msg.fid).either
-          x <- ZIO.accessM[Entity[Unit]](_.get.replyToSender(y: Res[Unit]).orDie)
+          x <- ZIO.accessM[Entity[Unit]](_.get.replyToSender(Response(y)).orDie)
         } yield x
       case msg: Fix =>
         for {
           y <- kvs.feed.fix(msg.fid, msg.fd).either
-          x <- ZIO.accessM[Entity[Unit]](_.get.replyToSender(y: Res[Unit]).orDie)
+          x <- ZIO.accessM[Entity[Unit]](_.get.replyToSender(Response(y)).orDie)
         } yield x
       case msg: PutBulk =>
         ZIO.foreach_(msg.a){ case (key, v) =>
           Task(kvs.feed.put(EnKey(msg.fid, key), v))
-        }.orDie *> ZIO.accessM(_.get.replyToSender(()).orDie)
+        }.orDie *> ZIO.accessM(_.get.replyToSender(Response(().right)).orDie)
+    }
+  }
+
+  object Receiver {
+    def props(cb: Res[Unit]=>Unit): Props =
+      Props(new Receiver(cb))
+  }
+
+  class Receiver(cb: Res[Unit]=>Unit) extends Actor with ActorLogging {
+    def receive: Receive = {
+      case Shard.Response(x) =>
+        cb(x)
+        context.stop(self)
+      case x =>
+        log.error(s"bad response=$x")
+        context.stop(self)
     }
   }
 }

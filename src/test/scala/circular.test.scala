@@ -47,7 +47,7 @@ object CircularSpec extends DefaultRunnableSpec {
               assert(x4)(equalTo(Chunk(v1))) &&
               assert(x5)(equalTo(Chunk(v2,v3)))
     }
-  ).provideLayerShared(kvsService(4401, dir="circular"))
+  ).provideLayerShared(kvsService(4491, dir="circular"))
 }
 
 case object Bid1 {

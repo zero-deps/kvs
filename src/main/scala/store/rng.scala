@@ -61,37 +61,31 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba with AutoCloseable {
 
   override def put(key: Key, value: Bytes): KIO[Unit] = {
     ZIO.effectAsync { callback =>
-      val cb: Res[Option[Bytes]]=>Unit = {
+      val receiver = system.actorOf(Receiver.props{
         case Right(_) => callback(IO.succeed(()))
         case Left (e) => callback(IO.fail(e))
-      }
-      val key1 = encodeToBytes[Key](key)
-      val receiver = system.actorOf(Receiver.props(cb))
-      hash.tell(rng.Put(key1, value), receiver)
+      })
+      hash.tell(rng.Put(encodeToBytes[Key](key), value), receiver)
     }
   }
 
   override def get(key: Key): KIO[Option[Bytes]] = {
     ZIO.effectAsync { callback =>
-      val cb: Res[Option[Bytes]]=>Unit = {
+      val receiver = system.actorOf(Receiver.props{
         case Right(a) => callback(IO.succeed(a))
         case Left (e) => callback(IO.fail(e))
-      }
-      val key1 = encodeToBytes[Key](key)
-      val receiver = system.actorOf(Receiver.props(cb))
-      hash.tell(rng.Get(key1), receiver)
+      })
+      hash.tell(rng.Get(encodeToBytes[Key](key)), receiver)
     }
   }
 
   override def del(key: Key): KIO[Unit] = {
     ZIO.effectAsync { callback =>
-      val cb: Res[Option[Bytes]]=>Unit = {
+      val receiver = system.actorOf(Receiver.props{
         case Right(_) => callback(IO.succeed(()))
         case Left (e) => callback(IO.fail(e))
-      }
-      val key1 = encodeToBytes[Key](key)
-      val receiver = system.actorOf(Receiver.props(cb))
-      hash.tell(rng.Delete(key1), receiver)
+      })
+      hash.tell(rng.Delete(encodeToBytes[Key](key)), receiver)
     }
   }
 
