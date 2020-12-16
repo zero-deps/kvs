@@ -3,7 +3,7 @@ lazy val kvs = project.in(file(".")).settings(
 , resolvers += Resolver.jcenterRepo
 , resolvers += Resolver.githubPackages("zero-deps")
 , scalacOptions ++= opts
-, scalaVersion := "2.13.3"
+, scalaVersion := "2.13.4"
 , turbo := true
 , useCoursier := true
 , Global / onChangedBuildSource := ReloadOnSourceChanges
@@ -17,8 +17,8 @@ val deps = Seq(
 , "io.github.zero-deps" %% "proto-macros"  % "1.8" % Compile
 , "io.github.zero-deps" %% "proto-runtime" % "1.8"
 , compilerPlugin(
-  "io.github.zero-deps" %% "ext-plug" % "2.2.0.7.g8f0877e")
-, "io.github.zero-deps" %% "ext"      % "2.2.0.7.g8f0877e"
+  "io.github.zero-deps" %% "ext-plug" % "2.4.1.g7c28a4a")
+, "io.github.zero-deps" %% "ext"      % "2.4.1.g7c28a4a"
 , "com.github.jnr" % "jnr-ffi" % "2.1.13"
 , "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
 , "org.scalatest" %% "scalatest" % "3.1.1" % Test
@@ -31,7 +31,7 @@ val opts = Seq(
 , "-language:_"
 , "-unchecked"
 , "-Xcheckinit"
-, "-Xfatal-warnings"
+// , "-Xfatal-warnings"
 , "-Xlint:adapted-args"
 , "-Xlint:constant"
 , "-Xlint:delayedinit-select"

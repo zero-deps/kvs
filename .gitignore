@@ -2,3 +2,4 @@
 target/
 /rng_data_test*
 /tmp
+.bsp/

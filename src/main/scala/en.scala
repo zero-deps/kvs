@@ -87,7 +87,7 @@ trait EnHandler[A <: En] {
       r => r.cata(x => _put(update(en, x.prev)), add(en))
     )
 
-  def removeAfter(en: A)(implicit dba: Dba): Res[Option[Res[Unit]]] = {
+  def removeAfter(en: A, cleanup: A => Res[Unit])(implicit dba: Dba): Res[Unit] = {
     @annotation.tailrec def loop(fd: Fd, en: A, previd: String): Res[Unit] = {
       get(fd.id, previd) match {
         case l@Left(_) => l.coerceRight
@@ -101,13 +101,15 @@ trait EnHandler[A <: En] {
             _ <- fh.put(fd1)
             // delete prev
             _ <- delete(fd.id, prev.id)
+            // additional actions after entry removed
+            _ <- cleanup(prev)
           } yield ()) match {
             case l@Left(_) => l.coerceRight
             case Right(_) => loop(fd1, en, prev.prev)
           }
       }
     }
-    fh.get(Fd(en.fid)).map(_.map(fd => loop(fd, en, en.prev)))
+    fh.get(Fd(en.fid)).flatMap(_.cata(fd => loop(fd, en, en.prev), NotFound(s"fid ${en.fid}").left))
   }
 
   /**

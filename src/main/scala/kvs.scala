@@ -94,7 +94,7 @@ class Kvs(implicit dba: Dba) extends ReadOnlyKvs {
   def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.get(fid, id)
   def head[H <: En](fid: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.head(fid)
   def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.remove(fid, id)
-  def removeAfter[H <: En](en: H)(implicit h: EnHandler[H]): Res[Option[Res[Unit]]] = h.removeAfter(en)
+  def removeAfter[H <: En](en: H, cleanup: H => Res[Unit] = (_: H) => Right(()))(implicit h: EnHandler[H]): Res[Unit] = h.removeAfter(en, cleanup)
 
   val file = new FileApi {
     def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)
