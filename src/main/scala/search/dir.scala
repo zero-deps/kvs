@@ -8,13 +8,13 @@ import java.util.concurrent.atomic.AtomicLong
 import org.apache.lucene.store._
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
-import zero.ext._, either._, traverse._
+import zero.ext._, either._, traverse._, int._
 import zd.kvs.en.{Fd, feedHandler}
 import zd.kvs.file.{File, FileHandler}
 
 class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFactory(dir)) {
   implicit val fileh = new FileHandler {
-    override val chunkLength = 10 * 1000 * 1000 // 10 MB
+    override val chunkLength = i"10'000'000" // 10 MB
   }
   implicit private[this] val indexFileHandler = IndexFileHandler
   implicit private[this] val fdh = feedHandler
