@@ -53,9 +53,6 @@ package object seq {
         akka {
           actor {
             provider = cluster
-            warn-about-java-serializer-usage         = on
-            enable-additional-serialization-bindings = on
-            allow-java-serialization                 = off
             deployment {
               /ring_readonly_store {
                 router = round-robin-pool
@@ -86,15 +83,9 @@ package object seq {
               "kvs.rng.model.ReplNewerBucketData" = kvsproto
             }
           }
-          remote {
-            artery {
-              enabled = true
-              transport = tcp
-              canonical {
-                hostname = $host
-                port = $port
-              }
-            }
+          remote.artery.canonical {
+            hostname = $host
+            port = $port
           }
           cluster.seed-nodes = [ "akka://$name@$host:$port" ]
         }

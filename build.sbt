@@ -9,11 +9,8 @@ val kvs = project.in(file(".")).settings(
   , "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
   , "dev.zio" %% "zio-nio"          % "1.0.0-RC9"
   , "dev.zio" %% "zio-macros"       % "1.0.3"
-  , "dev.zio" %% "zio-test"         % "1.0.3" % Test
   , "dev.zio" %% "zio-test-sbt"     % "1.0.3" % Test
-  , "com.typesafe.akka" %% "akka-cluster-sharding" % "2.5.31"
-  , "com.typesafe.akka" %% "akka-slf4j"            % "2.5.31"
-  , "com.typesafe.akka" %% "akka-testkit"          % "2.5.31" % Test
+  , "com.typesafe.akka" %% "akka-cluster-sharding" % "2.6.10"
   , "io.github.zero-deps" %% "proto-macros"  % "1.8" % Compile
   , "io.github.zero-deps" %% "proto-runtime" % "1.8"
   , compilerPlugin(
@@ -43,7 +40,7 @@ val opts = Seq(
   , "-language:_"
   , "-unchecked"
   , "-Xcheckinit"
-  , "-Xfatal-warnings"
+  // , "-Xfatal-warnings"
   , "-Xlint:adapted-args"
   , "-Xlint:constant"
   , "-Xlint:delayedinit-select"
