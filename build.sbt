@@ -1,5 +1,5 @@
 val kvs = project.in(file(".")).settings(
-  version := "5.0"
+  version := zero.git.version()
 , scalaVersion := "2.13.4"
 , resolvers += Resolver.jcenterRepo
 , resolvers += Resolver.githubPackages("zero-deps")
@@ -16,15 +16,11 @@ val kvs = project.in(file(".")).settings(
   , compilerPlugin(
     "io.github.zero-deps" %% "eq" % "2.5")
   , "io.github.zero-deps" %% "ext" % "2.4.2.g2a97c55"
-  , "ch.qos.logback" % "logback-classic" % "1.2.3"
   , compilerPlugin(
     "org.typelevel" %% "kind-projector" % "0.11.2" cross CrossVersion.full)
   )
 , testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
 , scalacOptions ++= opts
-, turbo := true
-, useCoursier := true
-, Global / onChangedBuildSource := ReloadOnSourceChanges
 )
 
 val examples = project.in(file("examples")).dependsOn(kvs).settings(
@@ -67,3 +63,7 @@ val opts = Seq(
   , "-Wconf:cat=deprecation&msg=Auto-application:silent"
   , "-Ymacro-annotations"
 )
+
+turbo := true
+useCoursier := true
+Global / onChangedBuildSource := ReloadOnSourceChanges

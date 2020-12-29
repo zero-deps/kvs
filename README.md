@@ -1,6 +1,6 @@
 # Abstract scala type database
 
-![test](https://github.com/zero-deps/kvs/workflows/test/badge.svg)
+![ci](https://github.com/zero-deps/kvs/workflows/ci/badge.svg)
 
 Abstract Scala storage framework with high-level API for handling linked lists of polymorphic data (feeds).
 

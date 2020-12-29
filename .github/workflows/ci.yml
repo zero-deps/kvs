@@ -1,4 +1,4 @@
-name: test
+name: ci
 
 on: [push, pull_request]
 
@@ -9,6 +9,7 @@ jobs:
     - uses: actions/checkout@v2.3.4
       with:
         clean: false
+        fetch-depth: 0 # tags
     - uses: actions/setup-java@v1.4.3
       with:
         java-version: 15.0.1
