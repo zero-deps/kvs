@@ -13,7 +13,7 @@ object App {
     val actorSystem = akkaConf >>> ActorSystem.live.orDie
     val dbaConf     = Dba.rngConf(RngConf(dir="../data/example-circular"))
     val dba         = actorSystem ++ dbaConf >>> Dba.live.orDie
-    val kvs         = actorSystem ++ dba     >>> Kvs.live.orDie
+    val kvs         = actorSystem ++ dba ++ ZEnv.live >+> Kvs.live.orDie
 
     val app =
       for {

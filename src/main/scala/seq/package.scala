@@ -6,7 +6,7 @@ import com.typesafe.config.Config
 import zd.proto.Bytes
 import zio.{Has, ZIO, ZLayer, RLayer, ULayer}
 import kvs.store.{Dba => RootDba, DbaConf => RootDbaConf, RngConf, RksConf, Rng, Rks, MemConf, Mem}
-import zio._, stream.Stream
+import zio._, stream.ZStream
 
 package object seq {
   type Kvs         = KvsFeed with KvsCircular with KvsFile with KvsSearch
@@ -20,8 +20,8 @@ package object seq {
   type AkkaConf    = Has[ActorSystem.Conf]
   type ActorSystem = Has[ActorSystem.Service]
 
-  type     KIO[A] =     IO[Err, A]
-  type KStream[A] = Stream[Err, A]
+  type     KIO[A] =     ZIO[ZEnv, Err, A]
+  type KStream[A] = ZStream[ZEnv, Err, A]
 
   object Dba {
     type Service = RootDba

@@ -25,20 +25,27 @@ class Rks(conf: Rks.Conf) extends Dba with AutoCloseable {
   implicit val chunkc = caseCodecAuto[ChunkKey]
   implicit val keyc   = sealedTraitCodecAuto[Key]
 
-  def get(key: Key): KUIO[Option[Bytes]] = {
-    IO.succeed(fromNullable(Bytes.unsafeWrap(db.get(encode[Key](key)))))
-  }
+  private def withRetryOnce[A](op: Array[Byte] => A, key: Key): KIO[A] =
+    for {
+      k <- IO.effectTotal(encode[Key](key))
+      x <- IO.effect(op(k)).mapError(IOErr(_)).retry(Schedule.once)
+    } yield x
 
-  def put(key: Key, value: Bytes): KUIO[Unit] = {
-    IO.succeed(db.put(encode[Key](key), value.unsafeArray))
-  }
+  def get(key: Key): KIO[Option[Bytes]] =
+    for {
+      x  <- withRetryOnce(db.get, key)
+      b  <- if (x == null) IO.succeed(none)
+            else IO.effectTotal(Bytes.unsafeWrap(x).some)
+    } yield b
 
-  def del(key: Key): KUIO[Unit] = {
-    IO.succeed(db.delete(encode[Key](key)))
-  }
+  def put(key: Key, value: Bytes): KIO[Unit] =
+    withRetryOnce(db.put(_, value.unsafeArray), key)
+
+  def del(key: Key): KIO[Unit] =
+    withRetryOnce(db.delete, key)
 
   def close(): Unit = {
-    db.close()
-    dbopts.close()
+    try{    db.close()}catch{case _:Throwable=>()}
+    try{dbopts.close()}catch{case _:Throwable=>()}
   }
 }

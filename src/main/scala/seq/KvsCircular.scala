@@ -18,10 +18,10 @@ object KvsCircular {
     def get[Bid, A](fid: Bid, idx: Long      )(implicit i: Buffer[Bid, A]):     KIO[Option[A]]
   }
 
-  val live: ZLayer[ActorSystem with Dba, Throwable, KvsCircular] = ZLayer.fromEffect {
+  val live: RLayer[ActorSystem with Dba with ZEnv, KvsCircular] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
-      as  <- ZIO.environment[ActorSystem]
+      as  <- ZIO.environment[ActorSystem with ZEnv]
       sh  <- Sharding.start("kvs_circular_write_shard", Shard.onMessage(dba)).provide(as)
     } yield {
       new Service {
@@ -96,7 +96,7 @@ object KvsCircular {
     case class Put(fid: FdKey, idx: Long,  data: Bytes) extends Msg
     case class Response(x: Res[Unit])
 
-    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit], Nothing, Unit] = {
+    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit] with ZEnv, Nothing, Unit] = {
       case msg: Add =>
         for {
           y <- kvs.circular.add(msg.fid, msg.size, msg.data).either

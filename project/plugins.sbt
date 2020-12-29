@@ -1,3 +1,1 @@
-scalacOptions ++= Seq("-feature", "-deprecation")
-
-addSbtPlugin("com.codecommit" % "sbt-github-packages" % "0.5.2")
+addSbtPlugin("com.codecommit" % "sbt-github-packages" % "latest.integration")

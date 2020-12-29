@@ -1,10 +1,10 @@
 val kvs = project.in(file(".")).settings(
   version := "5.0"
-, scalaVersion := "2.13.3"
+, scalaVersion := "2.13.4"
 , resolvers += Resolver.jcenterRepo
 , resolvers += Resolver.githubPackages("zero-deps")
 , libraryDependencies ++= Seq(
-    "org.rocksdb" % "rocksdbjni" % "6.13.3"
+    "org.rocksdb" % "rocksdbjni" % "6.14.6"
   , "org.lz4" % "lz4-java" % "1.7.1"
   , "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
   , "dev.zio" %% "zio-nio"          % "1.0.0-RC9"
@@ -14,11 +14,11 @@ val kvs = project.in(file(".")).settings(
   , "io.github.zero-deps" %% "proto-macros"  % "1.8" % Compile
   , "io.github.zero-deps" %% "proto-runtime" % "1.8"
   , compilerPlugin(
-    "io.github.zero-deps" %% "ext-plug" % "2.3.1.g6719341")
-  , "io.github.zero-deps" %% "ext"      % "2.3.1.g6719341"
+    "io.github.zero-deps" %% "eq" % "2.5")
+  , "io.github.zero-deps" %% "ext" % "2.4.2.g2a97c55"
   , "ch.qos.logback" % "logback-classic" % "1.2.3"
   , compilerPlugin(
-    "org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
+    "org.typelevel" %% "kind-projector" % "0.11.2" cross CrossVersion.full)
   )
 , testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
 , scalacOptions ++= opts
@@ -30,12 +30,12 @@ val kvs = project.in(file(".")).settings(
 val examples = project.in(file("examples")).dependsOn(kvs).settings(
   cancelable in Global := true
 , fork in run := true
-, scalaVersion := "2.13.3"
+, scalaVersion := "2.13.4"
 )
 
 val opts = Seq(
     "-deprecation"
-  , "-explaintypes"
+  // , "-explaintypes"
   , "-feature"
   , "-language:_"
   , "-unchecked"

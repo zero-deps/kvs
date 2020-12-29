@@ -29,10 +29,10 @@ object KvsFeed {
     def fix    [Fid, Key, A](fid: Fid, fd: Fd  )(implicit i: AnyFeed[Fid, Key, A]): KIO[Unit]
   }
 
-  val live: ZLayer[ActorSystem with Dba, Throwable, KvsFeed] = ZLayer.fromEffect {
+  val live: RLayer[ActorSystem with Dba with ZEnv, KvsFeed] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
-      as  <- ZIO.environment[ActorSystem]
+      as  <- ZIO.environment[ActorSystem with ZEnv]
       sh  <- Sharding.start("kvs_list_write_shard", Shard.onMessage(dba)).provide(as)
     } yield {
       new Service {
@@ -243,7 +243,7 @@ object KvsFeed {
     case class Added   (x: Res[ElKey])
     case class Removed (x: Res[Boolean])
 
-    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit], Nothing, Unit] = {
+    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit] with ZEnv, Nothing, Unit] = {
       case msg: Add =>
         for {
           y <- kvs.feed.add(msg.fid, msg.data).either

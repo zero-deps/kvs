@@ -59,39 +59,30 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba with AutoCloseable {
   implicit val chunkc = caseCodecAuto[ChunkKey]
   implicit val keyc   = sealedTraitCodecAuto[Key]
 
-  override def put(key: Key, value: Bytes): KIO[Unit] = {
-    ZIO.effectAsync { callback =>
-      val receiver = system.actorOf(Receiver.props{
-        case Right(_) => callback(IO.succeed(()))
-        case Left (e) => callback(IO.fail(e))
-      })
-      hash.tell(rng.Put(encodeToBytes[Key](key), value), receiver)
-    }
-  }
+  private def withRetryOnce[A](op: Bytes => A, key: Key): KIO[Option[Bytes]] =
+    for {
+      k  <- IO.effectTotal(encodeToBytes[Key](key))
+      x  <- ZIO.effectAsync { callback: (KIO[Option[Bytes]] => Unit) =>
+              val receiver = system.actorOf(Receiver.props{
+                case Right(a) => callback(IO.succeed(a))
+                case Left (e) => callback(IO.fail(e))
+              })
+              hash.tell(op(k), receiver)
+            }.retry(Schedule.once)
+    } yield x
 
-  override def get(key: Key): KIO[Option[Bytes]] = {
-    ZIO.effectAsync { callback =>
-      val receiver = system.actorOf(Receiver.props{
-        case Right(a) => callback(IO.succeed(a))
-        case Left (e) => callback(IO.fail(e))
-      })
-      hash.tell(rng.Get(encodeToBytes[Key](key)), receiver)
-    }
-  }
+  override def put(key: Key, value: Bytes): KIO[Unit] =
+    withRetryOnce(rng.Put(_, value), key).unit
 
-  override def del(key: Key): KIO[Unit] = {
-    ZIO.effectAsync { callback =>
-      val receiver = system.actorOf(Receiver.props{
-        case Right(_) => callback(IO.succeed(()))
-        case Left (e) => callback(IO.fail(e))
-      })
-      hash.tell(rng.Delete(encodeToBytes[Key](key)), receiver)
-    }
-  }
+  override def get(key: Key): KIO[Option[Bytes]] =
+    withRetryOnce(rng.Get(_), key)
+
+  override def del(key: Key): KIO[Unit] =
+    withRetryOnce(rng.Delete(_), key).unit
 
   def close(): Unit = {
-    db.close()
-    dbopts.close()
+    try{    db.close()}catch{case _:Throwable=>}
+    try{dbopts.close()}catch{case _:Throwable=>}
   }
 }
 

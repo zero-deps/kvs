@@ -1,13 +1,13 @@
 import zd.proto.api._
 import zd.proto.Bytes
 import java.util.Arrays
-import zio._, stream.Stream
+import zio._, stream.ZStream
 
 package object kvs {
   type Res[A] = Either[Err, A]
-  type KIO[A] = IO[Err, A]
-  type KUIO[A] = UIO[A]
-  type KStream[A] = Stream[Err, A]
+  type KIO[A] = ZIO[ZEnv, Err, A]
+  type KUIO[A] = ZIO[ZEnv, Nothing, A]
+  type KStream[A] = ZStream[ZEnv, Err, A]
 
   implicit class ElKeyExt(key: ElKey) {
     import ElKeyExt._

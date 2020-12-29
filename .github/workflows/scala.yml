@@ -14,4 +14,4 @@ jobs:
         java-version: 15.0.1
     - env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: sbt test
+      run: sbt 'project examples' compile && sbt test

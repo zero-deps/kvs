@@ -16,7 +16,7 @@ package object test {
   val v3 = Data(3)
   val v4 = Data(4)
 
-  def kvsService(port: Int, dir: String) = {
+  def kvsService(port: Int, dir: String): ULayer[Kvs with ZEnv] = {
     val testConf = """
       akka.loglevel=off
       akka.cluster.jmx.multi-mbeans-in-same-jvm = on
@@ -25,7 +25,7 @@ package object test {
     val actorSystem = akkaConf >>> ActorSystem.live.orDie
     val dbaConf     = Dba.rngConf(RngConf(dir=s"data/test-$dir"))
     val dba         = actorSystem ++ dbaConf >>> Dba.live.orDie
-    val kvs         = actorSystem ++ dba     >>> Kvs.live.orDie
+    val kvs         = actorSystem ++ dba ++ ZEnv.live >+> Kvs.live.orDie
     kvs
   }
 }
