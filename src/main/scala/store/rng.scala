@@ -5,7 +5,6 @@ import akka.actor._
 import akka.event.Logging
 import akka.routing.FromConfig
 import org.rocksdb.{util=>_,_}
-import scala.concurrent._, duration._
 import zero.ext._, either._
 import zd.proto._, api._, macrosapi._
 import zio._
@@ -13,6 +12,7 @@ import zio._
 import rng.store.{ReadonlyStore, WriteStore}, rng.Hashing
 
 object Rng {
+  import scala.concurrent._, duration._
   case class Quorum(N: Int, W: Int, R: Int)
   case class Conf(
     quorum: Quorum = Quorum(N=1, W=1, R=1)
@@ -59,7 +59,8 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba with AutoCloseable {
   implicit val chunkc = caseCodecAuto[ChunkKey]
   implicit val keyc   = sealedTraitCodecAuto[Key]
 
-  private def withRetryOnce[A](op: Bytes => A, key: Key): KIO[Option[Bytes]] =
+  private def withRetryOnce[A](op: Bytes => A, key: Key): KIO[Option[Bytes]] = {
+    import zio.duration._
     for {
       k  <- IO.effectTotal(encodeToBytes[Key](key))
       x  <- ZIO.effectAsync { callback: (KIO[Option[Bytes]] => Unit) =>
@@ -68,8 +69,9 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba with AutoCloseable {
                 case Left (e) => callback(IO.fail(e))
               })
               hash.tell(op(k), receiver)
-            }.retry(Schedule.once)
+            }.retry(Schedule.fromDuration(100 milliseconds))
     } yield x
+  }
 
   override def put(key: Key, value: Bytes): KIO[Unit] =
     withRetryOnce(rng.Put(_, value), key).unit

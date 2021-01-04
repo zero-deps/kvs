@@ -4,7 +4,7 @@ package store
 import zero.ext._, option._
 import zd.proto._, api._, macrosapi._
 import org.rocksdb.{util=>_,_}
-import zio._
+import zio._, duration._
 
 object Rks {
   case class Conf(dir: String = "data_rks")
@@ -28,7 +28,7 @@ class Rks(conf: Rks.Conf) extends Dba with AutoCloseable {
   private def withRetryOnce[A](op: Array[Byte] => A, key: Key): KIO[A] =
     for {
       k <- IO.effectTotal(encode[Key](key))
-      x <- IO.effect(op(k)).mapError(IOErr(_)).retry(Schedule.once)
+      x <- IO.effect(op(k)).mapError(IOErr(_)).retry(Schedule.fromDuration(100 milliseconds))
     } yield x
 
   def get(key: Key): KIO[Option[Bytes]] =
