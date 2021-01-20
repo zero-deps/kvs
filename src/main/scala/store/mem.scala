@@ -18,7 +18,7 @@ class Mem extends Dba {
   def onReady(): Future[Unit] = Future.successful(())
   def compact(): Unit = ()
 
-  def load(path: String): Res[Any] = ???
+  def load(path: String): Res[String] = ???
   def save(path: String): Res[String] = ???
   def clean(keyPrefix: Bytes): Res[Unit] = ???
 }

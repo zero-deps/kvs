@@ -60,11 +60,6 @@ object Kvs {
       extractEntityId = { case msg:String => (msg,msg) },
       extractShardId = { case msg:String => (math.abs(msg.hashCode) % 100).toString }
     )
-    if (system.settings.config.getBoolean("akka.cluster.jmx.enabled")) {
-      val jmx = new KvsJmx(kvs)
-      jmx.createMBean()
-      sys.addShutdownHook(jmx.unregisterMBean())
-    }
     kvs
   }
   def mem(): Kvs = new Kvs()(new store.Mem())
@@ -108,7 +103,7 @@ class Kvs(implicit dba: Dba) extends ReadOnlyKvs {
 
   object dump {
     def save(path: String): Res[String] = dba.save(path)
-    def load(path: String): Res[Any] = dba.load(path)
+    def load(path: String): Res[String] = dba.load(path)
   }
 
   def onReady(): Future[Unit] = dba.onReady()

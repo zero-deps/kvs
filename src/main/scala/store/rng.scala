@@ -104,7 +104,7 @@ class Rng(system: ActorSystem) extends Dba {
       case Failure(t) => RngThrow(t).left
     }
   }
-  def load(path: String): Res[Any] = {
+  def load(path: String): Res[String] = {
     val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
     val t = Timeout(d)
     val x = hash.ask(rng.Load(path))(t)
