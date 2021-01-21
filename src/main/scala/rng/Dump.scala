@@ -31,8 +31,9 @@ class DumpProcessor extends Actor with ActorLogging {
       log.info(s"Loading dump: path=${path}".green)
       DumpIO.props(path) match {
         case Left(t) =>
-          log.error(cause=t, message=s"Invalid path=${path}")
-          sender ! "invalid path"
+          val msg = s"invalid path=$path"
+          log.error(cause=t, message=msg)
+          sender ! msg
           stores.get(addr(self), "ring_hash").fold(
             _ ! RestoreState,
             _ ! RestoreState,
@@ -50,12 +51,13 @@ class DumpProcessor extends Actor with ActorLogging {
       val dumpPath = s"${path}/rng_dump_${timestamp}"
       DumpIO.props(dumpPath) match {
         case Left(t) =>
-          log.error(cause=t, message=s"Invalid path=${path}")
+          val msg = s"invalid path=$path"
+          log.error(cause=t, message=msg)
           stores.get(addr(self), "ring_hash").fold(
             _ ! RestoreState,
             _ ! RestoreState,
           )
-          sender ! path
+          sender ! msg
           context.stop(self)
         case Right(a) =>
           val dumpIO = context.actorOf(a)
