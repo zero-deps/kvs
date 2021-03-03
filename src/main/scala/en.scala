@@ -112,6 +112,20 @@ trait EnHandler[A <: En] {
     fh.get(Fd(en.fid)).flatMap(_.cata(fd => loop(fd, en, en.prev), NotFound(s"fid ${en.fid}").left))
   }
 
+  def clearFeed(fid: String)(implicit dba: Dba): Res[Unit] = {
+    for {
+      en <- head(fid)
+      _ <- en match {
+          case Some(x) => for {
+            _ <- removeAfter(x, (_: A) => Right(()))
+            _ <- remove(fid, x.id)
+          } yield ()
+          case None => Right(())
+        }
+      _ <- fh.delete(Fd(fid))
+    } yield ()
+  }
+
   /**
    * Remove the entry from the container specified
    * @return deleted entry (with data)
