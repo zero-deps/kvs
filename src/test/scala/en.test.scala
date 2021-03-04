@@ -151,6 +151,20 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 0
     }
 
+    "should be empty after `clearFeed`" in {
+      kvs.add(e1); kvs.add(e2); kvs.add(e3)
+      kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 3
+      kvs.clearFeed(fid)
+      kvs.fd.get(Fd(fid)).getOrElse(???) shouldBe None
+      kvs.all[En](fid).getOrElse(???) shouldBe empty
+
+      val added3 = kvs.add(e3).getOrElse(???)
+      (added3.fid, added3.id, added3.data) shouldBe ((e3.fid, e3.id, e3.data))
+      val added1 = kvs.add(e1).getOrElse(???) 
+      (added1.fid, added1.id, added1.data) shouldBe ((e1.fid, e1.id, e1.data))
+      kvs.clearFeed(fid)
+    }
+
     "should not create stack overflow" in {
       val limit = 100
       LazyList.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
