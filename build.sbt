@@ -3,7 +3,7 @@ lazy val kvs = project.in(file(".")).settings(
 , resolvers += Resolver.jcenterRepo
 , resolvers += Resolver.githubPackages("zero-deps")
 , scalacOptions ++= opts
-, scalaVersion := "2.13.4"
+, scalaVersion := "2.13.5"
 , turbo := true
 , useCoursier := true
 , Global / onChangedBuildSource := ReloadOnSourceChanges
@@ -11,9 +11,9 @@ lazy val kvs = project.in(file(".")).settings(
 
 val deps = Seq(
   "ch.qos.logback" % "logback-classic" % "1.2.3"
-, "com.typesafe.akka" %% "akka-cluster-sharding" % "2.5.31"
-, "com.typesafe.akka" %% "akka-slf4j"            % "2.5.31"
-, "com.typesafe.akka" %% "akka-testkit"          % "2.5.31" % Test
+, "com.typesafe.akka" %% "akka-cluster-sharding" % "2.6.13"
+, "com.typesafe.akka" %% "akka-slf4j"            % "2.6.13"
+, "com.typesafe.akka" %% "akka-testkit"          % "2.6.13" % Test
 , "io.github.zero-deps" %% "proto-macros"  % "1.8" % Compile
 , "io.github.zero-deps" %% "proto-runtime" % "1.8"
 , compilerPlugin(
