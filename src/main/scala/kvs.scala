@@ -60,6 +60,11 @@ object Kvs {
       extractEntityId = { case msg:String => (msg,msg) },
       extractShardId = { case msg:String => (math.abs(msg.hashCode) % 100).toString }
     )
+    if (system.settings.config.getBoolean("akka.cluster.jmx.enabled")) {
+      val jmx = new KvsJmx(kvs)
+      jmx.createMBean()
+      sys.addShutdownHook(jmx.unregisterMBean())
+    }
     kvs
   }
   def mem(): Kvs = new Kvs()(new store.Mem())
