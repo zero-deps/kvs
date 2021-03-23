@@ -13,7 +13,7 @@ trait KvsMBean {
 
 class KvsJmx(kvs: Kvs) {
   private val server = ManagementFactory.getPlatformMBeanServer
-  private val name = new ObjectName("kvs:type=Kvs")
+  private val name = new ObjectName("zd:type=Kvs")
 
   def createMBean(): Unit = {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
