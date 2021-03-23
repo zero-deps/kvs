@@ -16,7 +16,7 @@ class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
   var kvs: Kvs = null
   override def beforeAll(): Unit = {
     kvs = Kvs(system)
-    Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
+    Try(Await.result(kvs.onReady(), FiniteDuration(1, MINUTES)))
     ()
   }
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)

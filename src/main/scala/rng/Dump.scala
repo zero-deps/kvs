@@ -21,7 +21,7 @@ object DumpProcessor {
 }
 
 class DumpProcessor extends Actor with ActorLogging {
-  implicit val timeout = Timeout(120 seconds)
+  implicit val timeout: Timeout = Timeout(120 seconds)
   val maxBucket: Bucket = context.system.settings.config.getInt("ring.buckets") - 1
   val stores = SelectionMemorize(context.system)
   def receive = waitForStart

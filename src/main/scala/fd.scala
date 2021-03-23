@@ -3,7 +3,7 @@ package en
 
 import zd.kvs.store.Dba
 import zero.ext._, either._, option._
-import zd.proto.api.{N, encode, decode}
+import zd.proto.api._
 import zd.proto.macrosapi.caseCodecAuto
 
 final case class Fd
@@ -26,7 +26,7 @@ trait FdHandler {
 }
 
 object feedHandler extends FdHandler {
-  implicit private[this] val codec = caseCodecAuto[Fd]
+  implicit private val codec: MessageCodec[Fd] = caseCodecAuto[Fd]
   def pickle(e: Fd): Res[Array[Byte]] = encode[Fd](e).right
   def unpickle(a: Array[Byte]): Res[Fd] = decode[Fd](a).right
 }

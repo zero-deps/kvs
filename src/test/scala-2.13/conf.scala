@@ -7,11 +7,9 @@ object conf {
     |
     |  actor.provider = cluster
     |  
-    |  remote {
-    |    netty.tcp {
-    |      hostname = 127.0.0.1
-    |      port = ${port}
-    |    }
+    |  remote.artery.canonical {
+    |    hostname = 127.0.0.1
+    |    port = ${port}
     |  }
     |
     |  cluster {  

@@ -2,7 +2,7 @@ package zd.kvs
 package search
 
 import zd.kvs.en.{En, EnHandler, feedHandler}
-import zd.proto.api.{N, encode, decode}
+import zd.proto.api._
 import zd.proto.macrosapi.caseCodecAuto
 import zero.ext._, either._
 
@@ -17,7 +17,7 @@ object IndexFileHandler extends EnHandler[IndexFile] {
   override protected def update(en: IndexFile, id: String, prev: String): IndexFile = en.copy(id = id, prev = prev)
   override protected def update(en: IndexFile, prev: String): IndexFile = en.copy(prev = prev)
   
-  private[this] implicit val codec = caseCodecAuto[IndexFile]
+  private implicit val codec: MessageCodec[IndexFile] = caseCodecAuto[IndexFile]
   def pickle(e: IndexFile): Res[Array[Byte]] = encode(e).right
   def unpickle(a: Array[Byte]): Res[IndexFile] = decode[IndexFile](a).right
 }

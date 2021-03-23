@@ -97,7 +97,7 @@ object DumpPut {
   , @N(3) items: Vector[Data]
   ) extends Msg
 
-@N(8) final case object ReplBucketUpToDate extends Msg
+@N(8) case object ReplBucketUpToDate extends Msg
 
 @N(9) final case class ReplGetBucketIfNew
   ( @N(1) b: Int
@@ -169,7 +169,7 @@ final case class ReplGetBucketsVc
 
 sealed trait QuorumState
 object QuorumState {
-  @N(1) final case object QuorumStateUnsatisfied extends QuorumState
-  @N(2) final case object QuorumStateReadonly extends QuorumState
-  @N(3) final case object QuorumStateEffective extends QuorumState
+  @N(1) case object QuorumStateUnsatisfied extends QuorumState
+  @N(2) case object QuorumStateReadonly extends QuorumState
+  @N(3) case object QuorumStateEffective extends QuorumState
 }

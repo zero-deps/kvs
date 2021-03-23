@@ -8,9 +8,7 @@ import zd.proto.macrosapi.{sealedTraitCodecAuto, caseCodecAuto, classCodecAuto, 
 
 class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
   implicit val msgCodec: MessageCodec[Msg] = {
-    import zd.rng.data.codec._
     implicit def tuple2IntACodec[A:MessageCodec]: MessageCodec[Tuple2[Int, A]] = caseCodecIdx[Tuple2[Int, A]]
-
     implicit val replBucketUpToDateCodec: MessageCodec[ReplBucketUpToDate.type] = caseCodecAuto[ReplBucketUpToDate.type]
     implicit val quorumStateCodec: MessageCodec[QuorumState] = {
       import QuorumState._
@@ -20,6 +18,7 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
       sealedTraitCodecAuto[QuorumState]
     }
     implicit val changeStateCodec: MessageCodec[ChangeState] = caseCodecAuto[ChangeState]
+    implicit val dataCodec: MessageCodec[zd.rng.data.Data] = zd.rng.data.codec.dataCodec
     implicit val dumpBucketDataCodec: MessageCodec[DumpBucketData] = caseCodecAuto[DumpBucketData]
     implicit val dumpEnCodec: MessageCodec[DumpEn] = classCodecAuto[DumpEn]
     implicit val dumpGetCodec: MessageCodec[DumpGet] = classCodecAuto[DumpGet]

@@ -15,7 +15,7 @@ import zero.ext._, either._
 object EnHandlerTest {
   final case class En(fid: String, id: String = empty, prev: String = empty, data: String) extends zd.kvs.en.En
 
-  implicit val h = new EnHandler[En] {
+  implicit val h: EnHandler[En] = new EnHandler[En] {
     val fh = feedHandler
     def pickle(e: En): Res[Array[Byte]] = s"${e.fid}^${e.id}^${e.prev}^${e.data}".getBytes.right
     def unpickle(a: Array[Byte]): Res[En] = new String(a).split('^') match {
@@ -52,7 +52,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
   var kvs: Kvs = null
   override def beforeAll(): Unit = {
     kvs = Kvs(system)
-    Try(Await.result(kvs.onReady, FiniteDuration(1, MINUTES)))
+    Try(Await.result(kvs.onReady(), FiniteDuration(1, MINUTES)))
     ()
   }
   override def afterAll(): Unit = TestKit.shutdownActorSystem(system)

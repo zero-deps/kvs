@@ -16,7 +16,7 @@ object DumpIO {
     Try(FileChannel.open(Paths.get(ioPath), READ, WRITE, CREATE)).toEither.map(channel => Props(new DumpIO(ioPath, channel)))
   }
 
-  final case object ReadNext
+  case object ReadNext
   final case class ReadNextRes(kv: Vector[(Key, Value)], last: Boolean)
 
   final case class Put(kv: Vector[Data])

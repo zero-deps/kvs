@@ -50,6 +50,12 @@ trait ReadOnlyKvs {
   def head[H <: En](fid: String)(implicit h: EnHandler[H]): Res[Option[H]]
 }
 
+trait WritableKvs {
+  val el: ElApi
+  val fd: FdApi
+  val file: FileApi
+}
+
 object Kvs {
   def apply(system: ActorSystem): Kvs = rng(system)
   def rng(system: ActorSystem): Kvs = {
@@ -73,7 +79,7 @@ object Kvs {
   def leveldb(): Kvs = ???
 }
 
-class Kvs(implicit dba: Dba) extends ReadOnlyKvs {
+class Kvs(implicit dba: Dba) extends ReadOnlyKvs with WritableKvs {
   val el = new ElApi {
     def put[A: ElHandler](k: String,el: A): Res[A] = implicitly[ElHandler[A]].put(k,el)
     def get[A: ElHandler](k: String): Res[Option[A]] = implicitly[ElHandler[A]].get(k)

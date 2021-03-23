@@ -5,17 +5,17 @@ import org.apache.lucene.store.IndexInput
 import scala.annotation.tailrec
 import java.io._
 
-class BytesIndexInput(resourceDescription: String, xs: Vector[Array[Byte]], offset: Long, length: Long)
+class BytesIndexInput(resourceDescription: String, xs: Vector[Array[Byte]], offset: Long, len: Long)
     extends IndexInput(resourceDescription) {
 
   def this(d: String, xs: Vector[Array[Byte]]) = this(d, xs, 0, xs.foldLeft(0L)((acc, x) => acc + x.length))
 
-  private[this] var open = true
-  private[this] var pos = offset
+  private var open = true
+  private var pos = offset
 
   override def close(): Unit = open = false
   override def getFilePointer(): Long = { ensureOpen(); pos - offset }
-  override def length(): Long = { ensureOpen(); length }
+  override def length(): Long = { ensureOpen(); len }
   override def readByte(): Byte = {
     ensureOpen()
     @tailrec def loop(remaining: Vector[Array[Byte]], p: Long): Byte = {
@@ -55,14 +55,14 @@ class BytesIndexInput(resourceDescription: String, xs: Vector[Array[Byte]], offs
   override def seek(p: Long): Unit = {
     ensureOpen()
     pos = p + offset
-    if (p < 0 || p > length) throw new EOFException
+    if (p < 0 || p > len) throw new EOFException
   }
   override def slice(sliceDescription: String, o: Long, l: Long): IndexInput = {
     ensureOpen()
     new BytesIndexInput(sliceDescription, xs, offset+o, l)
   }
   
-  private[this] def ensureOpen(): Unit = {
+  private def ensureOpen(): Unit = {
     if (!open) throw new IOException("closed")
   }
 }

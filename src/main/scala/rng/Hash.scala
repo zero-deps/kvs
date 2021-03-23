@@ -230,7 +230,7 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
         _ ! ChangeState(QuorumStateReadonly),
         _ ! ChangeState(QuorumStateReadonly),
       ))
-      val x = system.actorOf(DumpProcessor.props, s"load_wrkr-${now_ms()}")
+      val x = system.actorOf(DumpProcessor.props(), s"load_wrkr-${now_ms()}")
       x.forward(DumpProcessor.Load(path))
       goto(QuorumStateReadonly)
     case Event(Iter(keyPrefix), data) =>
@@ -381,7 +381,7 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
     }})
   }
 
-  implicit val ord = Ordering.by[Node, String](n => n.hostPort)
+  implicit val ord: Ordering[Node] = Ordering.by[Node, String](n => n.hostPort)
   def nodesForKey(k: Key, data: HashRngData): PreferenceList = data.buckets.get(hashing.findBucket(k)) match {
     case None => SortedSet.empty[Node]
     case Some(nods) => nods

@@ -8,19 +8,19 @@ import java.util.concurrent.atomic.AtomicLong
 import org.apache.lucene.store._
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
-import zero.ext._, either._, traverse._, int._
-import zd.kvs.en.{Fd, feedHandler}
+import zero.ext._, either._, traverse._
+import zd.kvs.en.{Fd, feedHandler, EnHandler, FdHandler}
 import zd.kvs.file.{File, FileHandler}
 
 class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFactory(dir)) {
-  implicit val fileh = new FileHandler {
-    override val chunkLength = i"10'000'000" // 10 MB
+  implicit val fileh: FileHandler = new FileHandler {
+    override val chunkLength = 10_000_000 // 10 MB
   }
-  implicit private[this] val indexFileHandler = IndexFileHandler
-  implicit private[this] val fdh = feedHandler
+  implicit private val indexFileHandler: EnHandler[IndexFile] = IndexFileHandler
+  implicit private val fdh: FdHandler = feedHandler
 
-  private[this] val outs = TrieMap.empty[String,ByteArrayOutputStream]
-  private[this] val nextTempFileCounter = new AtomicLong
+  private val outs = TrieMap.empty[String,ByteArrayOutputStream]
+  private val nextTempFileCounter = new AtomicLong
 
   def exists: Res[Boolean] = {
     kvs.fd.get(Fd(dir)).map(_.isDefined)
@@ -260,7 +260,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
 }
 
 class KvsLockFactory(dir: String) extends LockFactory {
-  private[this] val locks = TrieMap.empty[String, Unit]
+  private val locks = TrieMap.empty[String, Unit]
 
   override def obtainLock(d: Directory, lockName: String): Lock = {
     val key = dir + lockName
@@ -270,8 +270,8 @@ class KvsLockFactory(dir: String) extends LockFactory {
     }
   }
 
-  private[this] class KvsLock(key: String) extends Lock {
-    @volatile private[this] var closed = false
+  private class KvsLock(key: String) extends Lock {
+    @volatile private var closed = false
 
     override def ensureValid(): Unit = {
       if (closed) {
