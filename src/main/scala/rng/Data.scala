@@ -2,9 +2,7 @@ package kvs
 package rng
 package data
 
-import zd.proto.api.{N, MessageCodec}
-import zd.proto.macrosapi.{caseCodecAuto, sealedTraitCodecAuto}
-import zd.proto.Bytes
+import proto._, macrosapi._
 
 sealed trait StoreKey
 

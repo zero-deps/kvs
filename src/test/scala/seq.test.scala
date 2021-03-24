@@ -1,7 +1,7 @@
 package kvs.seq
 
 import zio._
-import zd.proto._, api._, macrosapi._
+import proto._, macrosapi._
 
 import kvs.store.Rng.{Conf=>RngConf}
 

@@ -1,7 +1,7 @@
 package kvs
 package file
 
-import zd.proto._, api._, macrosapi._
+import proto._, macrosapi._
 import zero.ext._, either._
 import zio._, stream.Stream
 

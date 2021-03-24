@@ -1,7 +1,7 @@
 package kvs
 package store
 
-import zd.proto.Bytes
+import proto.Bytes
 import zio._
 
 /**

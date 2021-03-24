@@ -3,7 +3,7 @@ package store
 
 import java.util.concurrent.ConcurrentHashMap
 import zero.ext._, option._
-import zd.proto.Bytes
+import proto.Bytes
 import net.jpountz.lz4._
 import zio._
 

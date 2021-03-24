@@ -6,7 +6,7 @@ import akka.event.Logging
 import akka.routing.FromConfig
 import org.rocksdb.{util=>_,_}
 import zero.ext._, either._
-import zd.proto._, api._, macrosapi._
+import proto._, macrosapi._
 import zio._
 
 import rng.store.{ReadonlyStore, WriteStore}, rng.Hashing

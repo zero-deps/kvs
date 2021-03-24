@@ -1,8 +1,7 @@
 package kvs
 
 import akka.actor.{Address, ActorRef}
-import zd.proto.api.MessageCodec
-import zd.proto.macrosapi.caseCodecAuto
+import proto._, macrosapi.caseCodecAuto
 
 package object rng {
   type Bucket = Int

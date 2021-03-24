@@ -1,5 +1,4 @@
-import zd.proto.api._
-import zd.proto.Bytes
+import proto._
 import java.util.Arrays
 import zio._, stream.ZStream
 
@@ -24,25 +23,6 @@ package object kvs {
         } else {
           val ext: Array[Byte] = Arrays.copyOf(x.unsafeArray, len)
           ext(len-1) = (ext(len-1) + 1).toByte
-          ElKey(Bytes.unsafeWrap(ext))
-        }
-      }
-    }
-    def decrement(): ElKey = {
-      val x = key.bytes
-      val len = x.length
-      if (len == 0) EmptyValue
-      else {
-        val last = x.unsafeArray(len-1)
-        if (last == Byte.MinValue) {
-          if (len == 1) EmptyValue
-          else {
-            val ext = Arrays.copyOf(x.unsafeArray, len-1)
-            ElKey(Bytes.unsafeWrap(ext))
-          }
-        } else {
-          val ext: Array[Byte] = Arrays.copyOf(x.unsafeArray, len)
-          ext(len-1) = (ext(len-1) - 1).toByte
           ElKey(Bytes.unsafeWrap(ext))
         }
       }

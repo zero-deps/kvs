@@ -3,7 +3,7 @@ package rng
 
 import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import scala.concurrent.duration._
-import zd.proto.Bytes
+import proto.Bytes
 
 import data.Data, model.{StoreGetAck, StorePut}
 

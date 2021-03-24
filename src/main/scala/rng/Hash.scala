@@ -6,8 +6,7 @@ import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import zero.ext._, option._
-import zd.proto._, api._
-import zd.proto.api.N
+import proto._
 
 import model.{StoreDelete, StoreGet, QuorumState, ChangeState}, model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
 

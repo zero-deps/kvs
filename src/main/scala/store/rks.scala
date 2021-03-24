@@ -2,7 +2,7 @@ package kvs
 package store
 
 import zero.ext._, option._
-import zd.proto._, api._, macrosapi._
+import proto._, macrosapi._
 import org.rocksdb.{util=>_,_}
 import zio._, duration._
 

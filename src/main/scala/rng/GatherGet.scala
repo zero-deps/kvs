@@ -5,7 +5,7 @@ import annotation.unused
 import akka.actor._
 import scala.concurrent.duration._
 import scala.collection.immutable.{HashSet}
-import zd.proto.Bytes
+import proto.Bytes
 
 import model.{StoreGetAck, StorePut, StoreDelete}, data.Data
 import GatherGet.DataCollection

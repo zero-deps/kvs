@@ -2,8 +2,8 @@ package kvs
 package rng
 package model
 
-import zd.proto.api.N
-import zd.proto.Bytes
+import proto.N
+import proto.Bytes
 
 import rng.data._
 

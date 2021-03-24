@@ -5,8 +5,8 @@ package store
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{Cluster, VectorClock}
 import org.rocksdb._
-import zd.proto.api.{encode, decode}
-import zd.proto.Bytes
+import proto.{encode, decode}
+import proto.Bytes
 import zero.ext._, option._
 
 import data.codec._, data.keycodec._, data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}, model.{ReplBucketPut, StorePut, StoreDelete, KeyBucketData}

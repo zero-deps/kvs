@@ -3,7 +3,7 @@ package kvs
 import com.typesafe.config.ConfigFactory
 import _root_.akka.actor.{ActorSystem => RootActorSystem}
 import com.typesafe.config.Config
-import zd.proto.Bytes
+import proto.Bytes
 import zio.{Has, ZIO, ZLayer, RLayer, ULayer}
 import kvs.store.{Dba => RootDba, DbaConf => RootDbaConf, RngConf, RksConf, Rng, Rks, MemConf, Mem}
 import zio._, stream.ZStream

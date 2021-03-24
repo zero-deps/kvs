@@ -2,7 +2,7 @@ package kvs
 package search
 
 import zio.test._, Assertion._
-import zd.proto.Bytes
+import proto.Bytes
 
 object SearchInSpec extends DefaultRunnableSpec {
   def makein = new BytesIndexInput("test", Vector(

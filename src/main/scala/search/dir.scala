@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicLong
 import org.apache.lucene.store._
 import scala.collection.concurrent.TrieMap
 import zero.ext._, boolean._, option._
-import zd.proto.Bytes
+import proto.Bytes
 import zio._, stream.Stream
 
 import file.FileHandler, store.Dba

@@ -2,7 +2,7 @@ package kvs
 package file
 
 import zio._, test._, Assertion._
-import zd.proto.Bytes
+import proto.Bytes
 
 object FileSpec extends DefaultRunnableSpec {
   def spec = suite("FileSpec")(

@@ -1,7 +1,7 @@
 package kvs
 
 import zero.ext._, option._
-import zd.proto._, api._, macrosapi._
+import proto._, macrosapi._
 import zio._, stream.Stream
 
 import store.Dba

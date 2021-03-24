@@ -2,7 +2,7 @@ package kvs.seq
 package test
 
 import zio._, test._, Assertion._
-import zd.proto._, api._, macrosapi._
+import proto._, macrosapi._
 
 object FeedSpec extends DefaultRunnableSpec {
   def spec = suite("FeedSpec")(

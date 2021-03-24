@@ -1,7 +1,7 @@
 package kvs
 
 import zio.test._, Assertion._
-import zd.proto.Bytes
+import proto.Bytes
 import zero.ext._, option._
 
 object ElSpec extends DefaultRunnableSpec {

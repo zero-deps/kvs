@@ -11,7 +11,7 @@ object SelectionMemorize extends ExtensionId[SelectionMemorize] with ExtensionId
   override def createExtension(system: ExtendedActorSystem): SelectionMemorize =
     new SelectionMemorize(system)
 
-  override def lookup(): SelectionMemorize.type = SelectionMemorize
+  override def lookup: SelectionMemorize.type = SelectionMemorize
 }
 
 trait ActorRefStorage {

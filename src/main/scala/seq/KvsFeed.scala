@@ -1,8 +1,8 @@
 package kvs.seq
 
 import zero.ext._, either._
-import zd.proto.api.{MessageCodec, encodeToBytes, decode}
-import zd.proto.Bytes
+import proto.{MessageCodec, encodeToBytes, decode}
+import proto.Bytes
 import zio._
 import zio.akka.cluster.sharding.{Sharding, Entity}
 import zio.macros.accessible

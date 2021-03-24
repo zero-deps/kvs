@@ -1,6 +1,6 @@
 package kvs
 
-import zd.proto._, api._
+import proto._
 
 sealed trait Key
 

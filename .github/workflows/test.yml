@@ -1,9 +1,9 @@
-name: ci
+name: test
 
 on: [push, pull_request]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2.3.4
@@ -12,7 +12,5 @@ jobs:
         fetch-depth: 0 # tags
     - uses: actions/setup-java@v1.4.3
       with:
-        java-version: 15.0.1
-    - env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: sbt 'project examples' compile && sbt test
+        java-version: 11
+    - run: sbt 'project examples' +compile && sbt +test

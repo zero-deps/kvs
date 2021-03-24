@@ -2,8 +2,7 @@ package kvs
 
 import akka.actor.{ExtendedActorSystem}
 import akka.serialization.{BaseSerializer}
-import zd.proto.api.{MessageCodec, encode, decode}
-import zd.proto.macrosapi.{sealedTraitCodecAuto, caseCodecAuto, caseCodecIdx}
+import proto._, macrosapi._
 
 import rng.model._, rng.data.codec._
 

@@ -1,6 +1,6 @@
 package kvs
 
-import zd.proto.Bytes
+import proto.Bytes
 import store.Dba
 
 object el {

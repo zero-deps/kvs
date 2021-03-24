@@ -1,6 +1,6 @@
 package akka
 
-import zd.proto.macrosapi.caseCodecNums
+import proto.macrosapi.caseCodecNums
 
 package object cluster {
   implicit val vcodec = caseCodecNums[(String,Long)]("_1"->1, "_2"->2)

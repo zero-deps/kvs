@@ -2,7 +2,7 @@ package kvs.seq
 package test
 
 import zio._, test._, Assertion._
-import zd.proto._, macrosapi._
+import proto._, macrosapi._
 import zero.ext._, option._
 
 object CircularSpec extends DefaultRunnableSpec {

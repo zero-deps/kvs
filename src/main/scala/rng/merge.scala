@@ -4,7 +4,7 @@ package rng
 import scala.annotation.tailrec
 import scala.collection.immutable.{HashMap, HashSet}
 import zero.ext._, option._
-import zd.proto.Bytes
+import proto.Bytes
 
 import data.Data, GatherGet.AddrOfData, model.KeyBucketData
 

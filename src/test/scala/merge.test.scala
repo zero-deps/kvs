@@ -2,7 +2,7 @@ package kvs
 
 import zio.test._, Assertion._
 import scala.collection.immutable.{HashSet, TreeMap}
-import zd.proto.Bytes
+import proto.Bytes
 import zero.ext._, option._
 
 import rng._, rng.data._, rng.model.KeyBucketData

@@ -4,7 +4,7 @@ package search
 import org.apache.lucene.store.IndexInput
 import scala.annotation.tailrec
 import java.io._
-import zd.proto.Bytes
+import proto.Bytes
 
 class BytesIndexInput(resourceDescription: String, xs: Vector[Bytes], offset: Long, length: Long)
     extends IndexInput(resourceDescription) {

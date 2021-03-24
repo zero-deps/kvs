@@ -5,7 +5,7 @@ import akka.actor._
 import java.security.MessageDigest
 import scala.annotation.tailrec
 import scala.collection.SortedMap
-import zd.proto.Bytes
+import proto.Bytes
 
 class Hashing(conf: RngConf) {
   val hashLen = conf.hashLength

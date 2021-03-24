@@ -1,6 +1,6 @@
 package kvs
 
-import zd.proto.Bytes
+import proto.Bytes
 
 sealed trait Ack
 case class AckSuccess      (v: Option[Bytes])     extends Ack

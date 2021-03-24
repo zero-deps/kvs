@@ -4,7 +4,7 @@ package rng
 import akka.actor._
 import akka.cluster.Cluster
 import scala.concurrent.duration._
-import zd.proto.Bytes
+import proto.Bytes
 
 class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Bytes, conf: RngConf) extends FSM[FsmState, Set[Node]] with ActorLogging {
   val quorum = conf.quorum
