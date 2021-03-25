@@ -2,7 +2,7 @@ package zd.kvs
 package store
 
 import scala.concurrent.Future
-import zd.proto.Bytes
+import proto.Bytes
 
 /**
  * Database Application Interface.

@@ -2,8 +2,7 @@ package zd.kvs
 package search
 
 import zd.kvs.en.{En, EnHandler, feedHandler}
-import zd.proto.api._
-import zd.proto.macrosapi.caseCodecAuto
+import proto._, macrosapi._
 import zero.ext._, either._
 
 final case class IndexFile

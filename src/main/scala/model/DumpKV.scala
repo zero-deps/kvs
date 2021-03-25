@@ -1,7 +1,6 @@
 package zd.rng.dump
 
-import zd.proto.api.{MessageCodec, N}
-import zd.proto.macrosapi.{caseCodecAuto, classCodecAuto}
+import proto._, macrosapi._
 import java.util.Arrays
 
 final case class DumpKV

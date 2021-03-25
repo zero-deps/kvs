@@ -10,7 +10,7 @@ import zd.rng.model.{StoreGet, StoreGetAck}
 import zd.rng.model.{DumpGet, DumpEn}
 import zd.rng.model.{DumpGetBucketData, DumpBucketData}
 import zd.rng.model.{ReplGetBucketsVc, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData}
-import zd.proto.api.decode
+import proto._
 
 object ReadonlyStore {
   def props(leveldb: LevelDb): Props = Props(new ReadonlyStore(leveldb))

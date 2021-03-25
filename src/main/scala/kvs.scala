@@ -7,7 +7,7 @@ import scala.concurrent._
 import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
 import zd.kvs.el.ElHandler
 import zd.kvs.file.{File, FileHandler}
-import zd.proto.Bytes
+import proto.Bytes
 
 trait ReadOnlyElApi {
   def get[A: ElHandler](k: String): Res[Option[A]]

@@ -3,8 +3,7 @@ package zd.kvs
 import akka.actor.{ExtendedActorSystem}
 import akka.serialization.{BaseSerializer}
 import zd.rng.model._
-import zd.proto.api.{MessageCodec, encode, decode}
-import zd.proto.macrosapi.{sealedTraitCodecAuto, caseCodecAuto, classCodecAuto, caseCodecIdx}
+import proto._, macrosapi._
 
 class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
   implicit val msgCodec: MessageCodec[Msg] = {

@@ -15,7 +15,7 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
 import zero.ext._, either._, option._, traverse._
-import zd.proto.Bytes
+import proto.Bytes
 
 class Rng(system: ActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")

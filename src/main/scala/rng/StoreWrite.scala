@@ -5,7 +5,7 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{Cluster, VectorClock}
 import java.util.Arrays
 import leveldbjnr._
-import zd.proto.api.{encode, decode}
+import proto._
 import zd.rng.data.codec._
 import zd.rng.data.{Data, BucketInfo}
 import zd.rng.dump.codec._

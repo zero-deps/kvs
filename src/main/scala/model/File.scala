@@ -1,7 +1,7 @@
 package zd.kvs
 package file
 
-import zd.proto.api.N
+import proto._
 
 final case class File
   ( // name – unique value inside directory

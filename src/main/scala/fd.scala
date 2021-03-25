@@ -3,8 +3,7 @@ package en
 
 import zd.kvs.store.Dba
 import zero.ext._, either._, option._
-import zd.proto.api._
-import zd.proto.macrosapi.caseCodecAuto
+import proto._, macrosapi._
 
 final case class Fd
   ( @N(1) id: String

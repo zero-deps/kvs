@@ -1,7 +1,7 @@
 package zd.rng
 package model
 
-import zd.proto.api.N
+import proto._
 import zd.rng.data._
 import java.util.Arrays
 

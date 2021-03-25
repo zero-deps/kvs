@@ -1,8 +1,7 @@
 package zd.rng
 package data
 
-import zd.proto.api.{N, MessageCodec}
-import zd.proto.macrosapi.{caseCodecAuto, classCodecAuto}
+import proto._, macrosapi._
 import java.util.Arrays
 
 final class Data

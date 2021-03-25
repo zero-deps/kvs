@@ -9,20 +9,35 @@ lazy val kvs = project.in(file(".")).settings(
       case _ => Seq("-source:3.0-migration", "-language:postfixOps")
     }
   }
-, resolvers += Resolver.githubPackages("zero-deps")
+).dependsOn(proto, ext)
+
+lazy val proto = project.in(file("deps/proto/proto")).settings(
+  scalaVersion := "2.13.5"
+, crossScalaVersions := "2.13.5" :: Nil
+, libraryDependencies += "com.google.protobuf" % "protobuf-java" % "3.15.6"
+).dependsOn(protoops)
+
+lazy val protoops = project.in(file("deps/proto/ops")).settings(
+  scalaVersion := "2.13.5"
+, crossScalaVersions := "2.13.5" :: Nil
+, libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
+).dependsOn(protosyntax, ext)
+
+lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
+  scalaVersion := "2.13.5"
+, crossScalaVersions := "2.13.5" :: Nil
 )
 
-lazy val ext = project.in(file("deps/ext"))
+lazy val ext = project.in(file("deps/proto/deps/ext")).settings(
+  scalaVersion := "2.13.5"
+, crossScalaVersions := "2.13.5" :: Nil
+)
 
 val deps = Seq(
   "ch.qos.logback" % "logback-classic" % "1.2.3"
 , "com.typesafe.akka" %% "akka-cluster-sharding" % "2.6.13" cross CrossVersion.for3Use2_13
 , "com.typesafe.akka" %% "akka-slf4j"            % "2.6.13" cross CrossVersion.for3Use2_13
 , "com.typesafe.akka" %% "akka-testkit"          % "2.6.13" % Test cross CrossVersion.for3Use2_13
-, "io.github.zero-deps" %% "proto-macros" % "2.0.4.gdde2aab"
-, "io.github.zero-deps" %% "proto-api"    % "2.0.4.gdde2aab"
-// , compilerPlugin("io.github.zero-deps" %% "eq" % "2.5.2.gf1bc95b")
-, "io.github.zero-deps" %% "ext" % "2.4.2.g2a97c55" cross CrossVersion.for3Use2_13
 , "com.github.jnr" % "jnr-ffi" % "2.1.13"
 , "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
 , "org.scalatest" %% "scalatest" % "3.2.6" % Test

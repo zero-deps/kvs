@@ -4,9 +4,7 @@ package file
 import zd.kvs.store.Dba
 import scala.annotation.tailrec
 import scala.util.{Try, Success, Failure}
-import zd.proto.Bytes
-import zd.proto.api.{MessageCodec, encode, decode}
-import zd.proto.macrosapi.caseCodecAuto
+import proto._, macrosapi._
 import zero.ext._, either._, boolean._, option._, traverse._
 
 trait FileHandler {

@@ -9,7 +9,7 @@ import zd.rng.data.{Data}
 import zd.rng.dump.codec._
 import zd.rng.dump.{DumpKV, KV}
 import scala.util.Try
-import zd.proto.api.{encode, decode}
+import proto._
 
 object DumpIO {
   def props(ioPath: String): Throwable Either Props = {

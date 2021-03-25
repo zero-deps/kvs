@@ -11,7 +11,7 @@ import scala.concurrent.duration._
 import java.util.Arrays
 import zero.ext._, option._
 import leveldbjnr._
-import zd.proto.Bytes
+import proto.Bytes
 
 class Put(val k: Key, val v: Value) {
   override def equals(other: Any): Boolean = other match {
