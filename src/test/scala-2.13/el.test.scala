@@ -1,7 +1,6 @@
 package zd.kvs
 
 import akka.actor._
-import akka.testkit._
 import com.typesafe.config.{ConfigFactory}
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -10,16 +9,8 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
 
-class ElHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4011))))
-  with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
-
-  var kvs: Kvs = null
-  override def beforeAll(): Unit = {
-    kvs = Kvs(system)
-    Try(Await.result(kvs.onReady(), FiniteDuration(1, MINUTES)))
-    ()
-  }
-  override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
+class ElHandlerTest extends AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
+  val kvs = Kvs.mem()
 
   "el handler should" - {
     "return error when element is absent" in {

@@ -2,7 +2,6 @@ package zd.kvs
 package en
 
 import akka.actor.ActorSystem
-import akka.testkit._
 import com.typesafe.config.ConfigFactory
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.freespec.AnyFreeSpecLike
@@ -35,9 +34,7 @@ object EnHandlerTest {
   }
 }
 
-class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4012))))
-  with AnyFreeSpecLike with Matchers with BeforeAndAfterAll {
-
+class EnHandlerTest extends AnyFreeSpecLike with Matchers with BeforeAndAfterAll {
   import EnHandlerTest._
 
   val mod = 50
@@ -49,13 +46,7 @@ class EnHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseStrin
   val e3 = entry(3)
   val e5 = entry(5)
 
-  var kvs: Kvs = null
-  override def beforeAll(): Unit = {
-    kvs = Kvs(system)
-    Try(Await.result(kvs.onReady(), FiniteDuration(1, MINUTES)))
-    ()
-  }
-  override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
+  val kvs = Kvs.mem()
 
   "Feed should" - {
     "be empty at creation" in {

@@ -1,7 +1,6 @@
 package zd.kvs
 
 import akka.actor._
-import akka.testkit._
 import com.typesafe.config.{ConfigFactory}
 import zd.kvs.file._
 import org.scalatest.freespec.AnyFreeSpecLike
@@ -12,16 +11,8 @@ import scala.concurrent.duration._
 import scala.util.Try
 import zero.ext._, traverse._
 
-class FileHandlerTest extends TestKit(ActorSystem("Test", ConfigFactory.parseString(conf.tmpl(port=4013))))
-  with AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
-
-  var kvs: Kvs = null
-  override def beforeAll(): Unit = {
-    kvs = Kvs(system)
-    Try(Await.result(kvs.onReady(), FiniteDuration(1, MINUTES)))
-    ()
-  }
-  override def afterAll(): Unit = TestKit.shutdownActorSystem(system)
+class FileHandlerTest extends AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
+  val kvs = Kvs.mem()
 
   val dir = "dir"
   val name = "name" + java.util.UUID.randomUUID.toString
