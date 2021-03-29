@@ -1,36 +1,46 @@
 lazy val kvs = project.in(file(".")).settings(
   version := zero.git.version()
-, scalaVersion := "2.13.5"
+, scalaVersion := "3.0.0-RC1"
 , crossScalaVersions := "3.0.0-RC1" :: "2.13.5" :: Nil
 , libraryDependencies ++= deps
 , scalacOptions ++= {
     CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, 13)) => opts
-      case _ => Seq("-source:3.0-migration", "-language:postfixOps")
+      case _ => Seq(
+        "-source", "future-migration", "-deprecation", "-rewrite"
+      , "-language:strictEquality", "-language:postfixOps"
+      , "-Yexplicit-nulls"
+      , "release", "11"
+      )
     }
   }
 ).dependsOn(proto, ext)
 
 lazy val proto = project.in(file("deps/proto/proto")).settings(
-  scalaVersion := "2.13.5"
-, crossScalaVersions := "2.13.5" :: Nil
+  scalaVersion := "3.0.0-RC1"
+, crossScalaVersions := "3.0.0-RC1" :: "2.13.5" :: Nil
 , libraryDependencies += "com.google.protobuf" % "protobuf-java" % "3.15.6"
 ).dependsOn(protoops)
 
 lazy val protoops = project.in(file("deps/proto/ops")).settings(
-  scalaVersion := "2.13.5"
-, crossScalaVersions := "2.13.5" :: Nil
-, libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
+  scalaVersion := "3.0.0-RC1"
+, crossScalaVersions := "3.0.0-RC1" :: "2.13.5" :: Nil
+, libraryDependencies ++= {
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, 13)) => Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ => Nil
+    }
+  }
 ).dependsOn(protosyntax, ext)
 
 lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
-  scalaVersion := "2.13.5"
-, crossScalaVersions := "2.13.5" :: Nil
+  scalaVersion := "3.0.0-RC1"
+, crossScalaVersions := "3.0.0-RC1" :: "2.13.5" :: Nil
 )
 
 lazy val ext = project.in(file("deps/proto/deps/ext")).settings(
-  scalaVersion := "2.13.5"
-, crossScalaVersions := "2.13.5" :: Nil
+  scalaVersion := "3.0.0-RC1"
+, crossScalaVersions := "3.0.0-RC1" :: "2.13.5" :: Nil
 )
 
 val deps = Seq(
@@ -47,11 +57,7 @@ val deps = Seq(
 )
 
 val opts = Seq(
-  "-deprecation"
-, "-explaintypes"
-, "-feature"
-, "-language:_"
-, "-unchecked"
+  "-feature", "-language:_", "-unchecked"
 , "-encoding", "UTF-8"
 , "-Wconf:cat=deprecation&msg=Auto-application:silent"
 )
