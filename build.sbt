@@ -36,8 +36,11 @@ lazy val ext = project.in(file("deps/proto/deps/ext")).settings(
 val deps = Seq(
   "ch.qos.logback" % "logback-classic" % "1.2.3"
 , "com.typesafe.akka" %% "akka-cluster-sharding" % "2.6.13" cross CrossVersion.for3Use2_13
-, "com.typesafe.akka" %% "akka-slf4j"            % "2.6.13" cross CrossVersion.for3Use2_13
-, "com.typesafe.akka" %% "akka-testkit"          % "2.6.13" % Test cross CrossVersion.for3Use2_13
+, "com.typesafe.akka" %% "akka-slf4j" % "2.6.13" cross CrossVersion.for3Use2_13
+, "com.typesafe.akka" %% "akka-testkit" % "2.6.13" % Test cross CrossVersion.for3Use2_13
+, "com.typesafe.akka" %% "akka-actor-typed" % "2.6.13" cross CrossVersion.for3Use2_13
+, "com.typesafe.akka" %% "akka-actor-testkit-typed" % "2.6.13" % Test cross CrossVersion.for3Use2_13
+, "com.typesafe.akka" %% "akka-cluster-sharding-typed" % "2.6.13"
 , "com.github.jnr" % "jnr-ffi" % "2.1.13"
 , "org.apache.lucene" % "lucene-analyzers-common" % "8.4.1"
 , "org.scalatest" %% "scalatest" % "3.2.6" % Test
