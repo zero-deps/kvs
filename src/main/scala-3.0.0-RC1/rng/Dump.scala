@@ -11,7 +11,6 @@ import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration.*
 import scala.concurrent.{Await}
 import scala.util.{Try}
-import zero.ext.*
 
 object DumpProcessor {
   def props(): Props = Props(new DumpProcessor)

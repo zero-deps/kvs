@@ -8,7 +8,6 @@ import java.util.concurrent.atomic.AtomicLong
 import org.apache.lucene.store._
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
-import zero.ext._, either._, traverse._
 import zd.kvs.en.{Fd, feedHandler, EnHandler, FdHandler}
 import zd.kvs.file.{File, FileHandler}
 
@@ -33,11 +32,11 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
       _  <- ys.map{ x =>
               val name = x.id
               for {
-                _ <- kvs.file.delete(dir, name).void.recover{ case _: zd.kvs.FileNotExists => () }
+                _ <- kvs.file.delete(dir, name).map(_ => ()).recover{ case _: zd.kvs.FileNotExists => () }
                 _ <- kvs.remove[IndexFile](dir, name)
               } yield ()
             }.sequence_
-      _  <- kvs.fd.delete(zd.kvs.en.Fd(dir))(feedHandler).void.recover{ case _: zd.kvs.NotFound => () }
+      _  <- kvs.fd.delete(zd.kvs.en.Fd(dir))(feedHandler).map(_ => ()).recover{ case _: zd.kvs.NotFound => () }
     } yield ()
   }
 

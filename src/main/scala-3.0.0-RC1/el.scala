@@ -2,7 +2,6 @@ package zd.kvs
 package el
 
 import zd.kvs.store.Dba
-import zero.ext.*, option.*
 
 trait ElHandler[T] {
   def pickle(e: T): Res[Array[Byte]]
@@ -10,7 +9,7 @@ trait ElHandler[T] {
 
   def put(k:String,el:T)(implicit dba:Dba):Res[T] = pickle(el).flatMap(x => dba.put(k,x)).map(_=>el)
   def get(k:String)(implicit dba:Dba):Res[Option[T]] = dba.get(k) match {
-    case Right(Some(x)) => unpickle(x).map(_.some)
+    case Right(Some(x)) => unpickle(x).map(Some(_))
     case Right(None) => Right(None)
     case x@Left(_) => x.coerceRight
   }
@@ -19,11 +18,11 @@ trait ElHandler[T] {
 
 object ElHandler {
   implicit object bytesHandler extends ElHandler[Array[Byte]]{
-    def pickle(e:Array[Byte]):Res[Array[Byte]] = e.right
-    def unpickle(a:Array[Byte]):Res[Array[Byte]] = a.right
+    def pickle(e:Array[Byte]):Res[Array[Byte]] = Right(e)
+    def unpickle(a:Array[Byte]):Res[Array[Byte]] = Right(a)
   }
   implicit object strHandler extends ElHandler[String]{
-    def pickle(e:String):Res[Array[Byte]] = e.getBytes("UTF-8").nn.right
-    def unpickle(a:Array[Byte]):Res[String] = new String(a,"UTF-8").nn.right
+    def pickle(e:String):Res[Array[Byte]] = Right(e.getBytes("UTF-8").nn)
+    def unpickle(a:Array[Byte]):Res[String] = Right(new String(a,"UTF-8").nn)
   }
 }

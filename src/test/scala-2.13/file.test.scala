@@ -9,7 +9,6 @@ import org.scalatest._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
-import zero.ext._, traverse._
 
 class FileHandlerTest extends AnyFreeSpecLike with Matchers with EitherValues with BeforeAndAfterAll {
   val kvs = Kvs.mem()

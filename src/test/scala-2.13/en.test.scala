@@ -9,27 +9,26 @@ import org.scalatest._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.Try
-import zero.ext._, either._
 
 object EnHandlerTest {
   final case class En(fid: String, id: String = empty, prev: String = empty, data: String) extends zd.kvs.en.En
 
   implicit val h: EnHandler[En] = new EnHandler[En] {
     val fh = feedHandler
-    def pickle(e: En): Res[Array[Byte]] = s"${e.fid}^${e.id}^${e.prev}^${e.data}".getBytes.right
+    def pickle(e: En): Res[Array[Byte]] = Right(s"${e.fid}^${e.id}^${e.prev}^${e.data}".getBytes)
     def unpickle(a: Array[Byte]): Res[En] = new String(a).split('^') match {
-      case Array(fid, id, prev, data) => En(fid, id, prev, data).right
-      case _ => UnpickleFail(new Exception("bad data")).left
+      case Array(fid, id, prev, data) => Right(En(fid, id, prev, data))
+      case _ => Left(UnpickleFail(new Exception("bad data")))
     }
     override protected def update(en: En, id: String, prev: String): En = en.copy(id = id, prev = prev)
     override protected def update(en: En, prev: String): En = en.copy(prev = prev)
   }
 
   implicit object feedHandler extends FdHandler {
-    def pickle(e: Fd): Res[Array[Byte]] = s"${e.id}^${e.top}^${e.count}".getBytes.right
+    def pickle(e: Fd): Res[Array[Byte]] = Right(s"${e.id}^${e.top}^${e.count}".getBytes)
     def unpickle(a: Array[Byte]): Res[Fd] = new String(a).split('^') match {
-      case Array(id, top, count) => Fd(id, top, count.toInt).right
-      case _ => UnpickleFail(new Exception("bad data")).left
+      case Array(id, top, count) => Right(Fd(id, top, count.toInt))
+      case _ => Left(UnpickleFail(new Exception("bad data")))
     }
   }
 }
@@ -73,7 +72,7 @@ class EnHandlerTest extends AnyFreeSpecLike with Matchers with BeforeAndAfterAll
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 2
 
       val stream = kvs.all[En](fid)
-      stream.map(_.toList) shouldBe List(e2.copy(prev="1").right, e1.right).right
+      stream.map(_.toList) shouldBe Right(List(Right(e2.copy(prev="1")), Right(e1)))
     }
 
     "should save entry(3)" in {
@@ -89,7 +88,7 @@ class EnHandlerTest extends AnyFreeSpecLike with Matchers with BeforeAndAfterAll
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 3
 
       val stream = kvs.all[En](fid)
-      stream.map(_.toList) shouldBe List(e3.copy(prev="2").right, e2.copy(prev="1").right, e1.right).right
+      stream.map(_.toList) shouldBe Right(List(Right(e3.copy(prev="2")), Right(e2.copy(prev="1")), Right(e1)))
     }
 
     "should not remove unexisting entry from feed" in {
@@ -106,7 +105,7 @@ class EnHandlerTest extends AnyFreeSpecLike with Matchers with BeforeAndAfterAll
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 2
 
       val stream = kvs.all[En](fid)
-      stream.map(_.toList) shouldBe List(e3.copy(prev="1").right, e1.right).right
+      stream.map(_.toList) shouldBe Right(List(Right(e3.copy(prev="1")), Right(e1)))
     }
 
     "should remove entry(1) from feed" in {
@@ -119,7 +118,7 @@ class EnHandlerTest extends AnyFreeSpecLike with Matchers with BeforeAndAfterAll
       kvs.fd.get(Fd(fid)).getOrElse(???).get.count shouldBe 1
 
       val stream = kvs.all[En](fid)
-      stream.map(_.toList) shouldBe List(e3.right).right
+      stream.map(_.toList) shouldBe Right(List(Right(e3)))
     }
 
     "should remove entry(3) from feed" in {

@@ -4,7 +4,6 @@ import zd.rng.data.{Data}
 import zd.rng.GatherGet.AddrOfData
 import scala.annotation.tailrec
 import scala.collection.immutable.{HashMap, HashSet}
-import zero.ext._, option._
 
 object MergeOps {
   case class ArrayWrap(a: Array[Byte]) {
@@ -94,13 +93,13 @@ object MergeOps {
   def forPut(stored: Option[Data], received: Data): Option[Data] = {
     stored match {
       case None => 
-        received.some
+        Some(received)
       case Some(stored) =>
         (stored < received) match {
-          case OkLess(true) => received.some
+          case OkLess(true) => Some(received)
           case OkLess(false) => None
-          case ConflictLess(true, vc) => received.copy(vc=vc).some
-          case ConflictLess(false, vc) => stored.copy(vc=vc).some
+          case ConflictLess(true, vc) => Some(received.copy(vc=vc))
+          case ConflictLess(false, vc) => Some(stored.copy(vc=vc))
         }
     }
   }

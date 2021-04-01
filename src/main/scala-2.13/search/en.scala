@@ -3,7 +3,6 @@ package search
 
 import zd.kvs.en.{En, EnHandler, feedHandler}
 import proto._, macrosapi._
-import zero.ext._, either._
 
 final case class IndexFile
   ( @N(1) fid: String
@@ -17,6 +16,6 @@ object IndexFileHandler extends EnHandler[IndexFile] {
   override protected def update(en: IndexFile, prev: String): IndexFile = en.copy(prev = prev)
   
   private implicit val codec: MessageCodec[IndexFile] = caseCodecAuto[IndexFile]
-  def pickle(e: IndexFile): Res[Array[Byte]] = encode(e).right
-  def unpickle(a: Array[Byte]): Res[IndexFile] = decode[IndexFile](a).right
+  def pickle(e: IndexFile): Res[Array[Byte]] = Right(encode(e))
+  def unpickle(a: Array[Byte]): Res[IndexFile] = Right(decode[IndexFile](a))
 }

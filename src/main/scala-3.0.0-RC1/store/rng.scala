@@ -14,7 +14,6 @@ import zd.rng.stob
 import scala.concurrent.*
 import scala.concurrent.duration.*
 import scala.util.{Try, Success, Failure}
-import zero.ext.*, option.*
 
 class Rng(system: ActorSystem) extends Dba {
   lazy val log = Logging(system, "hash-ring")
@@ -36,10 +35,10 @@ class Rng(system: ActorSystem) extends Dba {
     val t = Timeout(d)
     val putF = hash.ask(rng.Put(stob(key), value))(t).mapTo[rng.Ack]
     Try(Await.result(putF, d)) match {
-      case Success(rng.AckSuccess(_)) => value.right
-      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-      case Success(rng.AckTimeoutFailed(op, k)) => RngAskTimeoutFailed(op, k).left
-      case Failure(t) => RngThrow(t).left
+      case Success(rng.AckSuccess(_)) => Right(value)
+      case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
+      case Success(rng.AckTimeoutFailed(op, k)) => Left(RngAskTimeoutFailed(op, k))
+      case Failure(t) => Left(RngThrow(t))
     }
   }
 
@@ -74,10 +73,10 @@ class Rng(system: ActorSystem) extends Dba {
     val t = Timeout(d)
     val fut = hash.ask(rng.Get(stob(key)))(t).mapTo[rng.Ack]
     Try(Await.result(fut, d)) match {
-      case Success(rng.AckSuccess(v)) => v.right
-      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-      case Success(rng.AckTimeoutFailed(op, k)) => RngAskTimeoutFailed(op, k).left
-      case Failure(t) => RngThrow(t).left
+      case Success(rng.AckSuccess(v)) => Right(v)
+      case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
+      case Success(rng.AckTimeoutFailed(op, k)) => Left(RngAskTimeoutFailed(op, k))
+      case Failure(t) => Left(RngThrow(t))
     }
   }
 
@@ -86,10 +85,10 @@ class Rng(system: ActorSystem) extends Dba {
     val t = Timeout(d)
     val fut = hash.ask(rng.Delete(stob(key)))(t).mapTo[rng.Ack]
     Try(Await.result(fut, d)) match {
-      case Success(rng.AckSuccess(_)) => ().right
-      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-      case Success(rng.AckTimeoutFailed(op, k)) => RngAskTimeoutFailed(op, k).left
-      case Failure(t) => RngThrow(t).left
+      case Success(rng.AckSuccess(_)) => Right(())
+      case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
+      case Success(rng.AckTimeoutFailed(op, k)) => Left(RngAskTimeoutFailed(op, k))
+      case Failure(t) => Left(RngThrow(t))
     }
   }
 
@@ -97,10 +96,10 @@ class Rng(system: ActorSystem) extends Dba {
     val d = 1 hour
     val x = hash.ask(rng.Save(path))(Timeout(d))
     Try(Await.result(x, d)) match {
-      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-      case Success(v: String) => v.right
-      case Success(v) => RngFail(s"Unexpected response: ${v}").left
-      case Failure(t) => RngThrow(t).left
+      case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
+      case Success(v: String) => Right(v)
+      case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
+      case Failure(t) => Left(RngThrow(t))
     }
   }
   def load(path: String): Res[String] = {
@@ -108,10 +107,10 @@ class Rng(system: ActorSystem) extends Dba {
     val t = Timeout(d)
     val x = hash.ask(rng.Load(path))(t)
     Try(Await.result(x, d)) match {
-      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
-      case Success(v: String) => v.right
-      case Success(v) => RngFail(s"Unexpected response: ${v}").left
-      case Failure(t) => RngThrow(t).left
+      case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
+      case Success(v: String) => Right(v)
+      case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
+      case Failure(t) => Left(RngThrow(t))
     }
   }
 
@@ -131,12 +130,12 @@ class Rng(system: ActorSystem) extends Dba {
     val t = Timeout(d)
     val x = hash.ask(rng.Iter(keyPrefix))(t)
     Try(Await.result(x, d)) match {
-      case Success(rng.AckQuorumFailed(why)) => RngAskQuorumFailed(why).left
+      case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
       case Success(res: zd.rng.IterRes) =>
         res.keys.foreach(log.info)
         res.keys.map(delete).sequence_
-      case Success(v) => RngFail(s"Unexpected response: ${v}").left
-      case Failure(t) => RngThrow(t).left
+      case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
+      case Failure(t) => Left(RngThrow(t))
     }
   }
 }
@@ -147,8 +146,8 @@ object IdCounter {
 }
 class IdCounter(kvs: ElApi) extends Actor with ActorLogging {
   implicit val strHandler: ElHandler[String] = new ElHandler[String] {
-    def pickle(e: String): Res[Array[Byte]] = e.getBytes("UTF-8").nn.right
-    def unpickle(a: Array[Byte]): Res[String] = new String(a,"UTF-8").nn.right
+    def pickle(e: String): Res[Array[Byte]] = Right(e.getBytes("UTF-8").nn)
+    def unpickle(a: Array[Byte]): Res[String] = Right(new String(a,"UTF-8").nn)
   }
 
   def receive: Receive = {

@@ -25,4 +25,18 @@ package object rng {
   def now_ms(): Long = System.currentTimeMillis
   
   def addr(s: ActorRef): Node = s.path.address
+
+  implicit class LeftExt[L,R](x: Left[L,R]) {
+    def coerceRight[R2]: Either[L,R2] = x.asInstanceOf[Either[L,R2]]
+  }
+  implicit class SeqEitherSequenceExt[A,B](xs: Seq[Either[A, B]]) {
+    @annotation.tailrec private def _sequence_(ys: Seq[Either[A, B]]): Either[A, Unit] = {
+      ys.headOption match {
+        case None => Right(())
+        case Some(l@Left(_)) => l.coerceRight
+        case Some(Right(z)) => _sequence_(ys.tail)
+      }
+    }
+    def sequence_ : Either[A, Unit] = _sequence_(xs)
+  }
 }

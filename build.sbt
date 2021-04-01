@@ -7,14 +7,14 @@ lazy val kvs = project.in(file(".")).settings(
     CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, 13)) => opts
       case _ => Seq(
-        "-source", "future-migration", "-deprecation", "-rewrite"
+        "-source", "future-migration", "-deprecation", "-nowarn"
       , "-language:strictEquality", "-language:postfixOps"
       , "-Yexplicit-nulls"
       , "release", "11"
       )
     }
   }
-).dependsOn(proto, ext)
+).dependsOn(proto)
 
 lazy val proto = project.in(file("deps/proto/proto")).settings(
   scalaVersion := "3.0.0-RC1"
@@ -31,14 +31,9 @@ lazy val protoops = project.in(file("deps/proto/ops")).settings(
       case _ => Nil
     }
   }
-).dependsOn(protosyntax, ext)
+).dependsOn(protosyntax)
 
 lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
-  scalaVersion := "3.0.0-RC1"
-, crossScalaVersions := "3.0.0-RC1" :: "2.13.5" :: Nil
-)
-
-lazy val ext = project.in(file("deps/proto/deps/ext")).settings(
   scalaVersion := "3.0.0-RC1"
 , crossScalaVersions := "3.0.0-RC1" :: "2.13.5" :: Nil
 )

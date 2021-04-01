@@ -2,7 +2,6 @@ package zd.kvs
 package en
 
 import zd.kvs.store.Dba
-import zero.ext._, either._, option._
 
 trait En {
   val fid: String
@@ -26,8 +25,8 @@ trait EnHandler[A <: En] {
   private def _put(en:A)(implicit dba:Dba):Res[A] = pickle(en).flatMap(x => dba.put(key(en.fid,en.id),x)).map(_=>en)
   def get(fid: String, id: String)(implicit dba: Dba): Res[Option[A]] = {
     dba.get(key(fid,id)) match {
-      case Right(Some(x)) => unpickle(x).map(_.some)
-      case Right(None) => None.right
+      case Right(Some(x)) => unpickle(x).map(Some(_))
+      case Right(None) => Right(None)
       case x@Left(_) => x.coerceRight
     }
   }
@@ -35,7 +34,7 @@ trait EnHandler[A <: En] {
     val k = key(fid,id)
     dba.get(k) match {
       case Right(Some(x)) => unpickle(x)
-      case Right(None) => NotFound(k).left
+      case Right(None) => Left(NotFound(k))
       case x@Left(_) => x.coerceRight
     }
   }
@@ -46,8 +45,8 @@ trait EnHandler[A <: En] {
 
   def head(fid: String)(implicit dba: Dba): Res[Option[A]] = {
     fh.get(Fd(fid)).flatMap{
-      case None => none.right
-      case Some(Fd(_, `empty`, _)) => none.right
+      case None => Right(None)
+      case Some(Fd(_, `empty`, _)) => Right(None)
       case Some(Fd(_, top, _)) => get(fid, top)
     }
   }
@@ -58,12 +57,12 @@ trait EnHandler[A <: En] {
    * @param en entry to add (prev is ignored). If id is empty it will be generated
    */
   def add(en: A)(implicit dba: Dba): Res[A] = {
-    fh.get(Fd(en.fid)).flatMap(_.cata(_.right, fh.put(Fd(en.fid)))).flatMap{ (fd: Fd) =>
+    fh.get(Fd(en.fid)).flatMap(_.cata(Right(_), fh.put(Fd(en.fid)))).flatMap{ (fd: Fd) =>
       ( if (en.id == empty)
           dba.nextid(en.fid) // generate ID if it is empty
         else
           get(en.fid, en.id).flatMap( // id of entry must be unique
-            _.cata(_ => EntryExists(key(en.fid, en.id)).left, en.id.right)
+            _.cata(_ => Left(EntryExists(key(en.fid, en.id))), Right(en.id))
           )
       ).map(id => update(en, id=id, prev=fd.top)).flatMap{ en =>
         // add new entry with prev pointer
@@ -83,7 +82,7 @@ trait EnHandler[A <: En] {
    */
   def put(en: A)(implicit dba: Dba): Res[A] =
     get(en.fid, en.id).fold(
-      l => l.left,
+      l => Left(l),
       r => r.cata(x => _put(update(en, x.prev)), add(en))
     )
 
@@ -91,7 +90,7 @@ trait EnHandler[A <: En] {
     @annotation.tailrec def loop(fd: Fd, en: A, previd: String): Res[Unit] = {
       get(fd.id, previd) match {
         case l@Left(_) => l.coerceRight
-        case Right(None) => ().right
+        case Right(None) => Right(())
         case Right(Some(prev)) =>
           val fd1 = fd.copy(count=fd.count-1)
           (for {
@@ -109,7 +108,7 @@ trait EnHandler[A <: En] {
           }
       }
     }
-    fh.get(Fd(en.fid)).flatMap(_.cata(fd => loop(fd, en, en.prev), NotFound(s"fid ${en.fid}").left))
+    fh.get(Fd(en.fid)).flatMap(_.cata(fd => loop(fd, en, en.prev), Left(NotFound(s"fid ${en.fid}"))))
   }
 
   def clearFeed(fid: String)(implicit dba: Dba): Res[Unit] = {
@@ -136,7 +135,7 @@ trait EnHandler[A <: En] {
       val id = en.id
       val fid = en.fid
       val prev = en.prev
-      fh.get(Fd(fid)).flatMap(_.cata(_.right, NotFound(fid).left)).flatMap{ fd =>
+      fh.get(Fd(fid)).flatMap(_.cata(Right(_), Left(NotFound(fid)))).flatMap{ fd =>
         val top = fd.top
         ( if (id == top)
             // change top and decrement
@@ -179,7 +178,7 @@ trait EnHandler[A <: En] {
     }
     from match {
       case None => fh.get(Fd(fid)).map(_.cata(x => _stream(x.top), LazyList.empty))
-      case Some(en) => _stream(en.prev).right
+      case Some(en) => Right(_stream(en.prev))
     }
   }
 }
