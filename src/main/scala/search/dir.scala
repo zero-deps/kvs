@@ -55,7 +55,7 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
   override def listAll(): Array[String] = {
     ensureOpen()
     val z = enh.all(dir).map(_._1.bytes.mkString).runCollect.map(_.sorted.toArray)
-    runtime.unsafeRunSync(z.provideLayer(ZEnv.live)).getOrElse(e => throw new IOException(FiberFailure(e)))
+    runtime.unsafeRunSync(z).getOrElse(e => throw new IOException(FiberFailure(e)))
   }
 
   /**
@@ -76,7 +76,7 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
       x     <- enh.remove(EnKey(dir, name1))
       _     <- x.fold(enh.cleanup(dir), IO.fail(FileNotExists(path)))
     } yield ()
-    runtime.unsafeRunSync(z.provideLayer(ZEnv.live)).getOrElse(c => throw c.failureOption.collect{
+    runtime.unsafeRunSync(z).getOrElse(c => throw c.failureOption.collect{
       case _: FileNotExists => new NoSuchFileException(s"${dir}/${name}")
     }.getOrElse(new IOException(FiberFailure(c))))
   }
@@ -97,7 +97,7 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
       name1 <- ElKeyExt.from_str(name)
       l     <- flh.size(PathKey(dir, name1))
     } yield l
-    runtime.unsafeRunSync(z.provideLayer(ZEnv.live)).getOrElse(c => throw c.failureOption.collect{
+    runtime.unsafeRunSync(z).getOrElse(c => throw c.failureOption.collect{
       case _: FileNotExists => new NoSuchFileException(s"${dir}/${name}")
     }.getOrElse(new IOException(FiberFailure(c))))
   }
@@ -122,7 +122,7 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
       _     <- IO.effectTotal(outs += ((name, out)))
       io    <- IO.effectTotal(new OutputStreamIndexOutput(s"${dir}/${name}", name, out, 8192))
     } yield io
-    runtime.unsafeRunSync(z.provideLayer(ZEnv.live)).getOrElse(c => throw c.failureOption.collect{
+    runtime.unsafeRunSync(z).getOrElse(c => throw c.failureOption.collect{
       case _: EntryExists       => new FileAlreadyExistsException(s"${dir}/${name}")
       case _: FileAlreadyExists => new FileAlreadyExistsException(s"${dir}/${name}")
     }.getOrElse(new IOException(FiberFailure(c))))
@@ -151,7 +151,7 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
       case _: FileAlreadyExists => true
       case _ => false
     }
-    runtime.unsafeRunSync(z.provideLayer(ZEnv.live)).getOrElse(c => throw new IOException(FiberFailure(c)))
+    runtime.unsafeRunSync(z).getOrElse(c => throw new IOException(FiberFailure(c)))
   }
 
   /**
@@ -177,7 +177,7 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
                 )
       } yield ()
     }.runDrain
-    runtime.unsafeRunSync(z.provideLayer(ZEnv.live)).getOrElse(c => throw new IOException(FiberFailure(c)))
+    runtime.unsafeRunSync(z).getOrElse(c => throw new IOException(FiberFailure(c)))
   }
 
   override def syncMetaData(): Unit = {
@@ -210,7 +210,7 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
       _       <- enh.remove(EnKey(dir, source1))
       _       <- enh.cleanup(dir)
     } yield ()
-    runtime.unsafeRunSync(z.provideLayer(ZEnv.live)).getOrElse(c => throw new IOException(FiberFailure(c)))
+    runtime.unsafeRunSync(z).getOrElse(c => throw new IOException(FiberFailure(c)))
   }
 
   /**
@@ -228,7 +228,7 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
       name1 <- ElKeyExt.from_str(name)
       bs    <- flh.stream(PathKey(dir, name1)).runCollect
     } yield new BytesIndexInput(s"${dir}/${name}", bs.toVector)
-    runtime.unsafeRunSync(z.provideLayer(ZEnv.live)).getOrElse(c => throw c.failureOption.collect{
+    runtime.unsafeRunSync(z).getOrElse(c => throw c.failureOption.collect{
       case FileNotExists(path) => new NoSuchFileException(s"${path.dir}/${path.name}")
     }.getOrElse(new IOException(FiberFailure(c))))
   }

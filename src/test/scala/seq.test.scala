@@ -1,6 +1,6 @@
 package kvs.seq
 
-import zio._
+import zio._, clock._
 import proto._, macrosapi._
 
 import kvs.store.Rng.{Conf=>RngConf}
@@ -16,7 +16,7 @@ package object test {
   val v3 = Data(3)
   val v4 = Data(4)
 
-  def kvsService(port: Int, dir: String): ULayer[Kvs with ZEnv] = {
+  def kvsService(port: Int, dir: String): ZLayer[Clock, Nothing, Kvs with Clock] = {
     val testConf = """
       akka.loglevel=off
       akka.cluster.jmx.multi-mbeans-in-same-jvm = on
@@ -24,8 +24,8 @@ package object test {
     val akkaConf    = ActorSystem.staticConf("KvsActorSystem", "127.0.0.1", port, testConf)
     val actorSystem = akkaConf >>> ActorSystem.live.orDie
     val dbaConf     = Dba.rngConf(RngConf(dir=s"data/test-$dir"))
-    val dba         = actorSystem ++ dbaConf >>> Dba.live.orDie
-    val kvs         = actorSystem ++ dba ++ ZEnv.live >+> Kvs.live.orDie
+    val dba         = actorSystem ++ dbaConf ++ ZLayer.requires[Clock] >>> Dba.live.orDie
+    val kvs         = actorSystem ++ dba ++ ZLayer.requires[Clock] >+> Kvs.live.orDie
     kvs
   }
 }

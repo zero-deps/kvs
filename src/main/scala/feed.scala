@@ -3,7 +3,6 @@ package kvs
 import zero.ext._, option._, boolean._
 import proto._, macrosapi._
 import zio.{IO, ZIO}
-import zio.blocking.Blocking
 import zio.stream.{Stream, ZStream}
 
 import store.Dba
@@ -36,21 +35,21 @@ object feed {
   implicit val enc = caseCodecAuto[En]
 
   object meta {
-    def len(id: FdKey        )(implicit dba: Dba): ZIO[Blocking, Err, Long] = get(id).map(_.cata(_.length, 0))
-    def del(id: FdKey        )(implicit dba: Dba): ZIO[Blocking, Err, Unit] = dba.del(id)
-    def put(id: FdKey, el: Fd)(implicit dba: Dba): ZIO[Blocking, Err, Unit] =
+    def len(id: FdKey        )(implicit dba: Dba): IO[Err, Long] = get(id).map(_.cata(_.length, 0))
+    def del(id: FdKey        )(implicit dba: Dba): IO[Err, Unit] = dba.del(id)
+    def put(id: FdKey, el: Fd)(implicit dba: Dba): IO[Err, Unit] =
       for {
         p <- pickle(el)
         x <- dba.put(id, p)
       } yield x
-    def get(id: FdKey        )(implicit dba: Dba): ZIO[Blocking, Err, Option[Fd]] = 
+    def get(id: FdKey        )(implicit dba: Dba): IO[Err, Option[Fd]] = 
       dba.get(id).flatMap{
         case Some(x) => unpickle[Fd](x).map(_.some)
         case None    => IO.succeed(none)
       }
   }
 
-  private def _get(key: EnKey)(implicit dba: Dba): ZIO[Blocking, Err, Option[En]] = {
+  private def _get(key: EnKey)(implicit dba: Dba): IO[Err, Option[En]] = {
     dba.get(key).flatMap{
       case Some(x) =>
         unpickle[En](x).map{
@@ -66,7 +65,7 @@ object feed {
    * If entry don't exists in containter create container and add it to the head
    * If entry exists in container, put it in the same place
    */
-  def put(key: EnKey, data: Bytes)(implicit dba: Dba): ZIO[Blocking, Err, Unit] = {
+  def put(key: EnKey, data: Bytes)(implicit dba: Dba): IO[Err, Unit] = {
     for {
       x  <- _get(key)
       y  <- x.cata(y =>
@@ -88,11 +87,11 @@ object feed {
     } yield y
   }
 
-  def get(key: EnKey)(implicit dba: Dba): ZIO[Blocking, Err, Option[Bytes]] = {
+  def get(key: EnKey)(implicit dba: Dba): IO[Err, Option[Bytes]] = {
     _get(key).map(_.map(_.data))
   }
 
-  def apply(key: EnKey)(implicit dba: Dba): ZIO[Blocking, Err, Bytes] = {
+  def apply(key: EnKey)(implicit dba: Dba): IO[Err, Bytes] = {
     get(key).flatMap(_.cata(IO.succeed(_), IO.dieMessage("key is not exists")))
   }
 
@@ -100,7 +99,7 @@ object feed {
    * Mark entry for removal. O(1) complexity.
    * @return true if marked for removal
    */
-  def remove(key: EnKey)(implicit dba: Dba): ZIO[Blocking, Err, Boolean] = {
+  def remove(key: EnKey)(implicit dba: Dba): IO[Err, Boolean] = {
     for {
       en1  <- _get(key)
       res  <- en1.cata(en =>
@@ -119,7 +118,7 @@ object feed {
    * Adds the entry to the container. Creates the container if it's absent.
    * ID will be generated.
    */
-  def add(fid: FdKey, data: Bytes)(implicit dba: Dba): ZIO[Blocking, Err, ElKey] = {
+  def add(fid: FdKey, data: Bytes)(implicit dba: Dba): IO[Err, ElKey] = {
     for {
       fd1 <- meta.get(fid)
       fd <- fd1.cata(IO.succeed(_), meta.put(fid, Fd.empty).map(_ => Fd.empty))
@@ -136,7 +135,7 @@ object feed {
   /**
    * Adds the entry to the container. Creates the container if it's absent.
    */
-  def putIfAbsent(key: EnKey, data: Bytes)(implicit dba: Dba): ZIO[Blocking, Err, Unit] = {
+  def putIfAbsent(key: EnKey, data: Bytes)(implicit dba: Dba): IO[Err, Unit] = {
     for {
       en1 <- _get(key)
       _   <- en1.cata(_ => IO.fail(EntryExists(key)), IO.succeed(()))
@@ -144,12 +143,12 @@ object feed {
     } yield x
   }
 
-  def head(fid: FdKey)(implicit dba: Dba): ZIO[Blocking, Err, Option[(ElKey, Bytes)]] = {
+  def head(fid: FdKey)(implicit dba: Dba): IO[Err, Option[(ElKey, Bytes)]] = {
     all(fid).runHead
   }
 
   /* all items with removed starting from specified key */
-  private def entries(fid: FdKey, start: ElKey)(implicit dba: Dba): ZStream[Blocking, Err, (ElKey, En)] = {
+  private def entries(fid: FdKey, start: ElKey)(implicit dba: Dba): Stream[Err, (ElKey, En)] = {
     Stream.
       unfoldM(start.some: Option[ElKey]){
         case None     => IO.succeed(none)
@@ -162,7 +161,7 @@ object feed {
   }
 
   /* all items with removed starting from beggining */
-  private def entries(fid: FdKey)(implicit dba: Dba): ZStream[Blocking, Err, (ElKey, En)] = {
+  private def entries(fid: FdKey)(implicit dba: Dba): Stream[Err, (ElKey, En)] = {
     Stream.fromEffect(meta.get(fid)).flatMap{
       case None    => Stream.empty
       case Some(a) => a.head.cata(entries(fid, _), Stream.empty)
@@ -170,29 +169,29 @@ object feed {
   }
 
   /* all items without removed starting from specified key */
-  private def entries_live(fid: FdKey, start: ElKey)(implicit dba: Dba): ZStream[Blocking, Err, (ElKey, En)] = {
+  private def entries_live(fid: FdKey, start: ElKey)(implicit dba: Dba): Stream[Err, (ElKey, En)] = {
     entries(fid, start).
       filterNot{ case (_,en) => en.removed }
   }
 
   /* all items without removed starting from beggining */
-  private def entries_live(fid: FdKey)(implicit dba: Dba): ZStream[Blocking, Err, (ElKey, En)] = {
+  private def entries_live(fid: FdKey)(implicit dba: Dba): Stream[Err, (ElKey, En)] = {
     entries(fid).
       filterNot{ case (_,en) => en.removed }
   }
 
   /* all data without removed from beggining */
-  def all(fid: FdKey)(implicit dba: Dba): ZStream[Blocking, Err, (ElKey, Bytes)] = {
+  def all(fid: FdKey)(implicit dba: Dba): Stream[Err, (ElKey, Bytes)] = {
     entries_live(fid).map{ case (id,en) => id->en.data }
   }
 
   /* all data without removed from specified key */
-  def all(fid: FdKey, start: ElKey)(implicit dba: Dba): ZStream[Blocking, Err, (ElKey, Bytes)] = {
+  def all(fid: FdKey, start: ElKey)(implicit dba: Dba): Stream[Err, (ElKey, Bytes)] = {
     entries_live(fid, start).map{ case (id,en) => id->en.data }
   }
 
   /* delete all entries marked for removal, O(n) complexity */
-  def cleanup(fid: FdKey)(implicit dba: Dba): ZIO[Blocking, Err, Unit] = {
+  def cleanup(fid: FdKey)(implicit dba: Dba): IO[Err, Unit] = {
     meta.get(fid).flatMap{
       case None => IO.unit
       case Some(fd) =>
@@ -231,7 +230,7 @@ object feed {
   }
 
   /* fix length, removed and maxid for feed */
-  def fix(fid: FdKey, fd: Fd)(implicit dba: Dba): ZIO[Blocking, Err, Unit] = {
+  def fix(fid: FdKey, fd: Fd)(implicit dba: Dba): IO[Err, Unit] = {
     for {
       x  <- entries(fid).fold((0L,0L,ElKey(Bytes.empty))){
               case ((l,r,m),(id,en)) =>

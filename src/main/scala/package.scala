@@ -1,7 +1,6 @@
 import java.util.Arrays
 import proto._
-import zio.{ZIO, URIO, IO}
-import zio.blocking.Blocking
+import zio._
 
 package object kvs {
   type Res[A] = Either[Err, A]
@@ -30,9 +29,9 @@ package object kvs {
   object ElKeyExt {
     val MinValue = ElKey(Bytes.unsafeWrap(Array(Byte.MinValue)))
     val EmptyValue = ElKey(Bytes.empty)
-    def from_str(x: String): URIO[Blocking, ElKey] = IO.effect(ElKey(Bytes.unsafeWrap(x.getBytes("utf8")))).orDie
+    def from_str(x: String): UIO[ElKey] = IO.effectTotal(ElKey(Bytes.unsafeWrap(x.getBytes("utf8"))))
   }
 
-  def pickle  [A](e: A)    (implicit c: MessageCodec[A]): URIO[Blocking, Bytes] = IO.effectTotal(encodeToBytes[A](e))
-  def unpickle[A](a: Bytes)(implicit c: MessageCodec[A]): URIO[Blocking, A]     = IO.effect(decode[A](a)).orDie // is defect
+  def pickle  [A](e: A)    (implicit c: MessageCodec[A]): UIO[Bytes] = IO.effectTotal(encodeToBytes[A](e))
+  def unpickle[A](a: Bytes)(implicit c: MessageCodec[A]): UIO[A]     = IO.effect(decode[A](a)).orDie // is defect
 }

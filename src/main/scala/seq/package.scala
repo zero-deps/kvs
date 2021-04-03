@@ -21,9 +21,6 @@ package object seq {
   type AkkaConf    = Has[ActorSystem.Conf]
   type ActorSystem = Has[ActorSystem.Service]
 
-  // type     IO[Err, A] =     ZIO[ZEnv, Err, A]
-  // type Stream[Err, A] = ZStream[ZEnv, Err, A]
-
   object Dba {
     type Service = RootDba
 

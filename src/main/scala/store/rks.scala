@@ -5,7 +5,6 @@ import zero.ext._, option._
 import proto._, macrosapi._
 import org.rocksdb.{util=>_,_}
 import zio.{ZIO, IO, Schedule, Has}
-import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.duration._
 
