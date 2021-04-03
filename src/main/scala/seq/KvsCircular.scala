@@ -5,7 +5,6 @@ import proto.{MessageCodec, encodeToBytes, decode}
 import proto.Bytes
 import zio._
 import zio.stream.{ZStream, Stream}
-import zio.clock.Clock
 import zio.akka.cluster.sharding.{Sharding, Entity}
 import zio.macros.accessible
 import _root_.akka.actor.{Actor, ActorLogging, Props}
@@ -19,12 +18,11 @@ object KvsCircular {
     def get[Bid, A](fid: Bid, idx: Long)(implicit i: Buffer[Bid, A]): IO[Err, Option[A]]
   }
 
-  val live: RLayer[ActorSystem with Dba with Clock, KvsCircular] = ZLayer.fromEffect {
+  val live: RLayer[ActorSystem with Dba, KvsCircular] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
       as  <- ZIO.service[ActorSystem.Service]
-      env <- ZIO.environment[ActorSystem with Clock]
-      sh  <- Sharding.start("kvs_circular_write_shard", Shard.onMessage(dba)).provide(env)
+      sh  <- Sharding.start("kvs_circular_write_shard", Shard.onMessage(dba))
     } yield {
       new Service {
         private implicit val dba1 = dba
