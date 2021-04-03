@@ -4,6 +4,8 @@ package circular
 import kvs.seq._, kvs.store.Rng.{Conf=>RngConf}
 import proto._, macrosapi._
 import zio._, zio.console._
+import zio.blocking.Blocking
+import zio.clock.Clock
 
 object App {
   def main(args: Array[String]): Unit = {
@@ -12,8 +14,8 @@ object App {
     val akkaConf    = ActorSystem.staticConf("KvsActorSystem", "127.0.0.1", 4343, "akka.loglevel=off")
     val actorSystem = akkaConf >>> ActorSystem.live.orDie
     val dbaConf     = Dba.rngConf(RngConf(dir="../data/example-circular"))
-    val dba         = actorSystem ++ dbaConf >>> Dba.live.orDie
-    val kvs         = actorSystem ++ dba ++ ZEnv.live >+> Kvs.live.orDie
+    val dba         = actorSystem ++ dbaConf ++ ZLayer.requires[Clock] >>> Dba.live
+    val kvs         = actorSystem ++ dba ++ ZLayer.requires[Clock with Blocking] >+> Kvs.live
 
     val app =
       for {
@@ -21,7 +23,7 @@ object App {
         _    <- putStrLn("all done.")
       } yield ()
 
-    runtime.unsafeRun(app.provideLayer(ZEnv.live ++ kvs))
+    runtime.unsafeRun(app.provideCustomLayer(kvs))
   }
 }
 

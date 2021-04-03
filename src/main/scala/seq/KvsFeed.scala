@@ -31,7 +31,7 @@ object KvsFeed {
     def fix    [Fid, Key, A](fid: Fid, fd: Fd  )(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Unit]
   }
 
-  val live: RLayer[ActorSystem with Dba with ZEnv, KvsFeed] = ZLayer.fromEffect {
+  val live: RLayer[ActorSystem with Dba with Blocking with Clock, KvsFeed] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
       as  <- ZIO.service[ActorSystem.Service]
