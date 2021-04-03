@@ -6,7 +6,6 @@ import proto.Bytes
 import zio._
 import zio.akka.cluster.sharding.{Sharding, Entity}
 import zio.macros.accessible
-import zio.clock.Clock
 import zio.stream.{ZStream, Stream}
 import _root_.akka.actor.{Actor, ActorLogging, Props}
 import kvs.{Fd, FdKey, ElKey, EnKey, Res}
@@ -30,12 +29,11 @@ object KvsFeed {
     def fix    [Fid, Key, A](fid: Fid, fd: Fd  )(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Unit]
   }
 
-  val live: RLayer[ActorSystem with Dba with Clock, KvsFeed] = ZLayer.fromEffect {
+  val live: RLayer[ActorSystem with Dba, KvsFeed] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
       as  <- ZIO.service[ActorSystem.Service]
-      env <- ZIO.environment[ActorSystem with Clock]
-      sh  <- Sharding.start("kvs_list_write_shard", Shard.onMessage(dba)).provide(env)
+      sh  <- Sharding.start("kvs_list_write_shard", Shard.onMessage(dba))
     } yield {
       new Service {
         private implicit val dba1 = dba

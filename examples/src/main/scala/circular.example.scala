@@ -11,10 +11,10 @@ object App {
     val runtime = Runtime.default
 
     val akkaConf    = ActorSystem.staticConf("KvsActorSystem", "127.0.0.1", 4343, "akka.loglevel=off")
-    val actorSystem = akkaConf >>> ActorSystem.live.orDie
+    val actorSystem = akkaConf >>> ActorSystem.live
     val dbaConf     = Dba.rngConf(RngConf(dir="../data/example-circular"))
     val dba         = actorSystem ++ dbaConf ++ ZLayer.requires[Clock] >>> Dba.live
-    val kvs         = actorSystem ++ dba ++ ZLayer.requires[Clock] >+> Kvs.live
+    val kvs         = actorSystem ++ dba >+> Kvs.live
 
     val app =
       for {
