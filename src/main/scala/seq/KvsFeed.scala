@@ -6,7 +6,6 @@ import proto.Bytes
 import zio._
 import zio.akka.cluster.sharding.{Sharding, Entity}
 import zio.macros.accessible
-import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.stream.{ZStream, Stream}
 import _root_.akka.actor.{Actor, ActorLogging, Props}
@@ -31,11 +30,11 @@ object KvsFeed {
     def fix    [Fid, Key, A](fid: Fid, fd: Fd  )(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Unit]
   }
 
-  val live: RLayer[ActorSystem with Dba with Blocking with Clock, KvsFeed] = ZLayer.fromEffect {
+  val live: RLayer[ActorSystem with Dba with Clock, KvsFeed] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
       as  <- ZIO.service[ActorSystem.Service]
-      env <- ZIO.environment[ActorSystem with Blocking with Clock]
+      env <- ZIO.environment[ActorSystem with Clock]
       sh  <- Sharding.start("kvs_list_write_shard", Shard.onMessage(dba)).provide(env)
     } yield {
       new Service {
@@ -51,7 +50,7 @@ object KvsFeed {
                         } yield k2->a2
                       }
           } yield xs
-        }.provide(env)
+        }
 
         def all[Fid, Key, A](fid: Fid, start: ElKey)(implicit i: AnyFeed[Fid, Key, A]): Stream[Err, (Key, A)] = {
           for {
@@ -63,7 +62,7 @@ object KvsFeed {
                         } yield k2->a2
                       }
           } yield xs
-        }.provide(env)
+        }
 
         def apply[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, A] = {
           for {
@@ -72,7 +71,7 @@ object KvsFeed {
             bytes <- kvs.feed.apply(EnKey(fdKey, elKey)).mapError(KvsErr(_))
             a     <- i.data(bytes)
           } yield a
-        }.provide(env)
+        }
 
         def get[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Option[A]] = {
           for {
@@ -84,7 +83,7 @@ object KvsFeed {
                         a     <- i.data(bytes).mapError(Some(_))
                       } yield a).optional
           } yield a
-        }.provide(env)
+        }
 
         def head[Fid, Key, A](fid: Fid)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Option[(Key, A)]] = {
           for {
@@ -96,7 +95,7 @@ object KvsFeed {
                         a   <- i.data(res._2).mapError(Some(_))
                       } yield key -> a).optional
           } yield a
-        }.provide(env)
+        }
 
         def add[Fid, Key, A](fid: Fid, a: A)(implicit i: Increment[Fid, Key, A]): IO[Err, Key] =
           for {
@@ -249,7 +248,7 @@ object KvsFeed {
     case class Added   (x: Res[ElKey])
     case class Removed (x: Res[Boolean])
 
-    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit] with Blocking, Nothing, Unit] = {
+    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit], Nothing, Unit] = {
       case msg: Add =>
         for {
           y <- kvs.feed.add(msg.fid, msg.data).either

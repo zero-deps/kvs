@@ -5,7 +5,6 @@ import proto.{MessageCodec, encodeToBytes, decode}
 import proto.Bytes
 import zio._
 import zio.stream.{ZStream, Stream}
-import zio.blocking.Blocking
 import zio.clock.Clock
 import zio.akka.cluster.sharding.{Sharding, Entity}
 import zio.macros.accessible
@@ -20,11 +19,11 @@ object KvsCircular {
     def get[Bid, A](fid: Bid, idx: Long)(implicit i: Buffer[Bid, A]): IO[Err, Option[A]]
   }
 
-  val live: RLayer[ActorSystem with Dba with Blocking with Clock, KvsCircular] = ZLayer.fromEffect {
+  val live: RLayer[ActorSystem with Dba with Clock, KvsCircular] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
       as  <- ZIO.service[ActorSystem.Service]
-      env <- ZIO.environment[ActorSystem with Blocking with Clock]
+      env <- ZIO.environment[ActorSystem with Clock]
       sh  <- Sharding.start("kvs_circular_write_shard", Shard.onMessage(dba)).provide(env)
     } yield {
       new Service {
@@ -35,7 +34,7 @@ object KvsCircular {
             fdKey <- Stream.fromEffect(i.fdKey(fid))
             xs    <- kvs.circular.all(fdKey).mapError(KvsErr(_)).mapM(i.data)
           } yield xs
-        }.provide(env)
+        }
 
         def add[Bid, A](fid: Bid, a: A)(implicit i: Buffer[Bid, A]): IO[Err, Unit] = {
           for {
@@ -73,7 +72,7 @@ object KvsCircular {
                         a     <- i.data(bytes).mapError(Some(_))
                       } yield a).optional
           } yield a
-        }.provide(env)
+        }
       }
     }
   }
@@ -100,7 +99,7 @@ object KvsCircular {
     case class Put(fid: FdKey, idx: Long,  data: Bytes) extends Msg
     case class Response(x: Res[Unit])
 
-    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit] with Blocking, Nothing, Unit] = {
+    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit], Nothing, Unit] = {
       case msg: Add =>
         for {
           y <- kvs.circular.add(msg.fid, msg.size, msg.data).either

@@ -9,7 +9,6 @@ import proto._, macrosapi._
 import rng.store.{ReadonlyStore, WriteStore}, rng.Hashing
 import zero.ext._, either._
 import zio._
-import zio.blocking.Blocking
 import zio.clock.Clock
 
 object Rng {
