@@ -5,11 +5,12 @@ import akka.actor._
 import akka.event.Logging
 import akka.routing.FromConfig
 import org.rocksdb.{util=>_,_}
-import zero.ext._, either._
 import proto._, macrosapi._
-import zio._
-
 import rng.store.{ReadonlyStore, WriteStore}, rng.Hashing
+import zero.ext._, either._
+import zio._
+import zio.blocking.Blocking
+import zio.clock.Clock
 
 object Rng {
   import scala.concurrent._, duration._
@@ -26,11 +27,13 @@ object Rng {
   , dir: String = "data_rng"
   , jmx: Boolean = true
   )
-  def apply(as: ActorSystem, conf: Conf): Rng = new Rng(as, conf)
+  def apply(as: ActorSystem, conf: Conf, clock: Clock.Service): Rng = new Rng(as, conf, clock)
 }
 
-class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba with AutoCloseable {
+class Rng(system: ActorSystem, conf: Rng.Conf, clock: Clock.Service) extends Dba with AutoCloseable {
   lazy val log = Logging(system, "hash-ring")
+
+  val env = Has(clock)
 
   if (conf.jmx) {
     val jmx = new KvsJmx(this)
@@ -59,11 +62,11 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba with AutoCloseable {
   implicit val chunkc = caseCodecAuto[ChunkKey]
   implicit val keyc   = sealedTraitCodecAuto[Key]
 
-  private def withRetryOnce[A](op: Bytes => A, key: Key): KIO[Option[Bytes]] = {
+  private def withRetryOnce[A](op: Bytes => A, key: Key): ZIO[Clock, Err, Option[Bytes]] = {
     import zio.duration._
     for {
       k  <- IO.effectTotal(encodeToBytes[Key](key))
-      x  <- ZIO.effectAsync { callback: (KIO[Option[Bytes]] => Unit) =>
+      x  <- ZIO.effectAsync { callback: (IO[Err, Option[Bytes]] => Unit) =>
               val receiver = system.actorOf(Receiver.props{
                 case Right(a) => callback(IO.succeed(a))
                 case Left (e) => callback(IO.fail(e))
@@ -71,16 +74,16 @@ class Rng(system: ActorSystem, conf: Rng.Conf) extends Dba with AutoCloseable {
               hash.tell(op(k), receiver)
             }.retry(Schedule.fromDuration(100 milliseconds))
     } yield x
-  }
+  }.provide(env)
 
-  override def put(key: Key, value: Bytes): KIO[Unit] =
-    withRetryOnce(rng.Put(_, value), key).unit
+  override def put(key: Key, value: Bytes): IO[Err, Unit] =
+    withRetryOnce(rng.Put(_, value), key).unit.provide(env)
 
-  override def get(key: Key): KIO[Option[Bytes]] =
-    withRetryOnce(rng.Get(_), key)
+  override def get(key: Key): IO[Err, Option[Bytes]] =
+    withRetryOnce(rng.Get(_), key).provide(env)
 
-  override def del(key: Key): KIO[Unit] =
-    withRetryOnce(rng.Delete(_), key).unit
+  override def del(key: Key): IO[Err, Unit] =
+    withRetryOnce(rng.Delete(_), key).unit.provide(env)
 
   def close(): Unit = {
     try{    db.close()}catch{case _:Throwable=>}

@@ -1,12 +1,10 @@
-import proto._
 import java.util.Arrays
-import zio._, stream.ZStream
+import proto._
+import zio.{ZIO, URIO, IO}
+import zio.blocking.Blocking
 
 package object kvs {
   type Res[A] = Either[Err, A]
-  type KIO[A] = ZIO[ZEnv, Err, A]
-  type KUIO[A] = ZIO[ZEnv, Nothing, A]
-  type KStream[A] = ZStream[ZEnv, Err, A]
 
   implicit class ElKeyExt(key: ElKey) {
     import ElKeyExt._
@@ -32,9 +30,9 @@ package object kvs {
   object ElKeyExt {
     val MinValue = ElKey(Bytes.unsafeWrap(Array(Byte.MinValue)))
     val EmptyValue = ElKey(Bytes.empty)
-    def from_str(x: String): KUIO[ElKey] = IO.effect(ElKey(Bytes.unsafeWrap(x.getBytes("utf8")))).orDie
+    def from_str(x: String): URIO[Blocking, ElKey] = IO.effect(ElKey(Bytes.unsafeWrap(x.getBytes("utf8")))).orDie
   }
 
-  def pickle  [A](e: A)    (implicit c: MessageCodec[A]): KUIO[Bytes] = IO.effectTotal(encodeToBytes[A](e))
-  def unpickle[A](a: Bytes)(implicit c: MessageCodec[A]): KUIO[A]     = IO.effect(decode[A](a)).orDie // is defect
+  def pickle  [A](e: A)    (implicit c: MessageCodec[A]): URIO[Blocking, Bytes] = IO.effectTotal(encodeToBytes[A](e))
+  def unpickle[A](a: Bytes)(implicit c: MessageCodec[A]): URIO[Blocking, A]     = IO.effect(decode[A](a)).orDie // is defect
 }

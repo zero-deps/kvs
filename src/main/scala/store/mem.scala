@@ -16,7 +16,7 @@ class Mem extends Dba with AutoCloseable {
   private val db = new ConcurrentHashMap[Key, (DecompressedLength, Bytes)]
   private val lz4 = LZ4Factory.safeInstance()
 
-  def get(key: Key): KUIO[Option[Bytes]] = {
+  def get(key: Key): IO[Err, Option[Bytes]] = {
     IO.effectTotal(fromNullable(db.get(key)).map{ case (decompressedLength, compressed) =>
       val decompressor = lz4.fastDecompressor
       val restored = new Array[Byte](decompressedLength)
@@ -25,7 +25,7 @@ class Mem extends Dba with AutoCloseable {
     })
   }
 
-  def put(key: Key, value: Bytes): KUIO[Unit] = {
+  def put(key: Key, value: Bytes): IO[Err, Unit] = {
     val decompressedLength = value.length
     val compressor = lz4.highCompressor
     val maxCompressedLength = compressor.maxCompressedLength(decompressedLength)
@@ -35,7 +35,7 @@ class Mem extends Dba with AutoCloseable {
     IO.succeed(())
   }
 
-  def del(key: Key): KUIO[Unit] = {
+  def del(key: Key): IO[Err, Unit] = {
     db.remove(key)
     IO.succeed(())
   }
