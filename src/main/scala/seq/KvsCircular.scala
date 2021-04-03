@@ -4,7 +4,9 @@ import kvs.{FdKey, Res}
 import proto.{MessageCodec, encodeToBytes, decode}
 import proto.Bytes
 import zio._
-import zio.stream.Stream
+import zio.stream.{ZStream, Stream}
+import zio.blocking.Blocking
+import zio.clock.Clock
 import zio.akka.cluster.sharding.{Sharding, Entity}
 import zio.macros.accessible
 import _root_.akka.actor.{Actor, ActorLogging, Props}
@@ -12,34 +14,35 @@ import _root_.akka.actor.{Actor, ActorLogging, Props}
 @accessible
 object KvsCircular {
   trait Service {
-    def all[Bid, A](fid: Bid                 )(implicit i: Buffer[Bid, A]): KStream[A]
-    def add[Bid, A](fid: Bid,            a: A)(implicit i: Buffer[Bid, A]):     KIO[Unit]
-    def put[Bid, A](fid: Bid, idx: Long, a: A)(implicit i: Buffer[Bid, A]):     KIO[Unit]
-    def get[Bid, A](fid: Bid, idx: Long      )(implicit i: Buffer[Bid, A]):     KIO[Option[A]]
+    def all[Bid, A](fid: Bid)(implicit i: Buffer[Bid, A]): Stream[Err, A]
+    def add[Bid, A](fid: Bid, a: A)(implicit i: Buffer[Bid, A]): IO[Err, Unit]
+    def put[Bid, A](fid: Bid, idx: Long, a: A)(implicit i: Buffer[Bid, A]): IO[Err, Unit]
+    def get[Bid, A](fid: Bid, idx: Long)(implicit i: Buffer[Bid, A]): IO[Err, Option[A]]
   }
 
-  val live: RLayer[ActorSystem with Dba with ZEnv, KvsCircular] = ZLayer.fromEffect {
+  val live: RLayer[ActorSystem with Dba with Blocking with Clock, KvsCircular] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
-      as  <- ZIO.environment[ActorSystem with ZEnv]
-      sh  <- Sharding.start("kvs_circular_write_shard", Shard.onMessage(dba)).provide(as)
+      as  <- ZIO.service[ActorSystem.Service]
+      env <- ZIO.environment[ActorSystem with Blocking with Clock]
+      sh  <- Sharding.start("kvs_circular_write_shard", Shard.onMessage(dba)).provide(env)
     } yield {
       new Service {
         private implicit val dba1 = dba
 
-        def all[Bid, A](fid: Bid)(implicit i: Buffer[Bid, A]): KStream[A] = {
+        def all[Bid, A](fid: Bid)(implicit i: Buffer[Bid, A]): Stream[Err, A] = {
           for {
             fdKey <- Stream.fromEffect(i.fdKey(fid))
             xs    <- kvs.circular.all(fdKey).mapError(KvsErr(_)).mapM(i.data)
           } yield xs
-        }
+        }.provide(env)
 
-        def add[Bid, A](fid: Bid, a: A)(implicit i: Buffer[Bid, A]): KIO[Unit] = {
+        def add[Bid, A](fid: Bid, a: A)(implicit i: Buffer[Bid, A]): IO[Err, Unit] = {
           for {
             fdKey  <- i.fdKey(fid)
             bytes  <- i.bytes(a)
-            _      <- ZIO.effectAsyncM { (callback: KIO[Unit] => Unit) =>
-                        val receiver = as.get.actorOf(Receiver.props{
+            _      <- ZIO.effectAsyncM { (callback: IO[Err, Unit] => Unit) =>
+                        val receiver = as.actorOf(Receiver.props{
                           case Right(_) => callback(IO.succeed(()))
                           case Left (e) => callback(IO.fail(KvsErr(e)))
                         })
@@ -48,12 +51,12 @@ object KvsCircular {
           } yield ()
         }
 
-        def put[Bid, A](fid: Bid, idx: Long, a: A)(implicit i: Buffer[Bid, A]): KIO[Unit] =
+        def put[Bid, A](fid: Bid, idx: Long, a: A)(implicit i: Buffer[Bid, A]): IO[Err, Unit] =
           for {
             fdKey  <- i.fdKey(fid)
             bytes  <- i.bytes(a)
-            _      <- ZIO.effectAsyncM { (callback: KIO[Unit] => Unit) =>
-                        val receiver = as.get.actorOf(Receiver.props{
+            _      <- ZIO.effectAsyncM { (callback: IO[Err, Unit] => Unit) =>
+                        val receiver = as.actorOf(Receiver.props{
                           case Right(_) => callback(IO.succeed(()))
                           case Left (e) => callback(IO.fail(KvsErr(e)))
                         })
@@ -61,7 +64,7 @@ object KvsCircular {
                       }.mapError(ShardErr(_))
           } yield ()
 
-        def get[Bid, A](fid: Bid, idx: Long)(implicit i: Buffer[Bid, A]): KIO[Option[A]] =
+        def get[Bid, A](fid: Bid, idx: Long)(implicit i: Buffer[Bid, A]): IO[Err, Option[A]] = {
           for {
             fdKey  <- i.fdKey(fid)
             res    <- kvs.circular.get(fdKey)(idx).mapError(KvsErr(_))
@@ -70,6 +73,7 @@ object KvsCircular {
                         a     <- i.data(bytes).mapError(Some(_))
                       } yield a).optional
           } yield a
+        }.provide(env)
       }
     }
   }
@@ -96,7 +100,7 @@ object KvsCircular {
     case class Put(fid: FdKey, idx: Long,  data: Bytes) extends Msg
     case class Response(x: Res[Unit])
 
-    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit] with ZEnv, Nothing, Unit] = {
+    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit] with Blocking, Nothing, Unit] = {
       case msg: Add =>
         for {
           y <- kvs.circular.add(msg.fid, msg.size, msg.data).either

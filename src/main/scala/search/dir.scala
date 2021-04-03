@@ -25,7 +25,7 @@ class KvsDirectory(dir: FdKey)(implicit dba: Dba) extends BaseDirectory(new KvsL
   private val outs = TrieMap.empty[String,ByteArrayOutputStream]
   private val nextTempFileCounter = new AtomicLong
 
-  // def exists(): KIO[Boolean] = {
+  // def exists(): IO[Err, Boolean] = {
   //   fdh.get(dir).map(_.isDefined)
   // }
 

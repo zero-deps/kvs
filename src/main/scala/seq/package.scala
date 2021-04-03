@@ -1,12 +1,13 @@
 package kvs
 
-import com.typesafe.config.ConfigFactory
 import _root_.akka.actor.{ActorSystem => RootActorSystem}
 import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import kvs.store.{Dba => RootDba, DbaConf => RootDbaConf, RngConf, RksConf, Rng, Rks, MemConf, Mem}
 import proto.Bytes
 import zio.{Has, ZIO, ZLayer, RLayer, ULayer}
-import kvs.store.{Dba => RootDba, DbaConf => RootDbaConf, RngConf, RksConf, Rng, Rks, MemConf, Mem}
-import zio._, stream.ZStream
+import zio.clock.Clock
+import zio.stream.ZStream
 
 package object seq {
   type Kvs         = KvsFeed with KvsCircular with KvsFile with KvsSearch
@@ -20,8 +21,8 @@ package object seq {
   type AkkaConf    = Has[ActorSystem.Conf]
   type ActorSystem = Has[ActorSystem.Service]
 
-  type     KIO[A] =     ZIO[ZEnv, Err, A]
-  type KStream[A] = ZStream[ZEnv, Err, A]
+  // type     IO[Err, A] =     ZIO[ZEnv, Err, A]
+  // type Stream[Err, A] = ZStream[ZEnv, Err, A]
 
   object Dba {
     type Service = RootDba
@@ -30,13 +31,14 @@ package object seq {
     def rksConf(conf:Rks.Conf=Rks.Conf()): ULayer[DbaConf] = ZLayer.succeed(RksConf(conf))
     def memConf(                        ): ULayer[DbaConf] = ZLayer.succeed(MemConf      )
 
-    val live: RLayer[ActorSystem with DbaConf, Dba] = ZLayer.fromEffect{
+    val live: RLayer[ActorSystem with DbaConf with Clock, Dba] = ZLayer.fromEffect{
       for {
-        actorSystem  <- ZIO.access[ActorSystem](_.get)
-        dbaConf      <- ZIO.access[DbaConf](_.get)
+        actorSystem  <- ZIO.service[ActorSystem.Service]
+        dbaConf      <- ZIO.service[RootDbaConf]
+        clock        <- ZIO.service[Clock.Service]
         res          <- dbaConf match {
-                          case RngConf(conf) => ZIO.effect(Rng(actorSystem, conf): Service)
-                          case RksConf(conf) => ZIO.effect(Rks(conf): Service)
+                          case RngConf(conf) => ZIO.effect(Rng(actorSystem, conf, clock): Service)
+                          case RksConf(conf) => ZIO.effect(Rks(conf, clock): Service)
                           case MemConf       => ZIO.effect(Mem(): Service)
                           case _             => ZIO.fail(new Exception("not implemented"))
                         }

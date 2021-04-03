@@ -6,39 +6,42 @@ import proto.Bytes
 import zio._
 import zio.akka.cluster.sharding.{Sharding, Entity}
 import zio.macros.accessible
-import zio.stream.Stream
+import zio.blocking.Blocking
+import zio.clock.Clock
+import zio.stream.{ZStream, Stream}
 import _root_.akka.actor.{Actor, ActorLogging, Props}
 import kvs.{Fd, FdKey, ElKey, EnKey, Res}
 
 @accessible
 object KvsFeed {
   trait Service {
-    def all  [Fid, Key, A](fid: Fid              )(implicit i: AnyFeed[Fid, Key, A]): KStream[(Key, A)]
-    def all  [Fid, Key, A](fid: Fid, start: ElKey)(implicit i: AnyFeed[Fid, Key, A]): KStream[(Key, A)]
-    def apply[Fid, Key, A](fid: Fid, key: Key    )(implicit i: AnyFeed[Fid, Key, A]):     KIO[A]
-    def get  [Fid, Key, A](fid: Fid, key: Key    )(implicit i: AnyFeed[Fid, Key, A]):     KIO[Option[A]]
-    def head [Fid, Key, A](fid: Fid              )(implicit i: AnyFeed[Fid, Key, A]):     KIO[Option[(Key, A)]]
+    def all  [Fid, Key, A](fid: Fid              )(implicit i: AnyFeed[Fid, Key, A]): Stream[Err, (Key, A)]
+    def all  [Fid, Key, A](fid: Fid, start: ElKey)(implicit i: AnyFeed[Fid, Key, A]): Stream[Err, (Key, A)]
+    def apply[Fid, Key, A](fid: Fid, key: Key    )(implicit i: AnyFeed[Fid, Key, A]):     IO[Err, A]
+    def get  [Fid, Key, A](fid: Fid, key: Key    )(implicit i: AnyFeed[Fid, Key, A]):     IO[Err, Option[A]]
+    def head [Fid, Key, A](fid: Fid              )(implicit i: AnyFeed[Fid, Key, A]):     IO[Err, Option[(Key, A)]]
 
-    def add[Fid, Key, A](fid: Fid, a: A)(implicit i: Increment[Fid, Key, A]): KIO[Key]
+    def add[Fid, Key, A](fid: Fid, a: A)(implicit i: Increment[Fid, Key, A]): IO[Err, Key]
 
-    def put    [Fid, Key, A](fid: Fid, key: Key, a: A     )(implicit i: Manual[Fid, Key, A]): KIO[Unit]
-    def putBulk[Fid, Key, A](fid: Fid, a: Vector[(Key, A)])(implicit i: Manual[Fid, Key, A]): KIO[Unit]
+    def put    [Fid, Key, A](fid: Fid, key: Key, a: A     )(implicit i: Manual[Fid, Key, A]): IO[Err, Unit]
+    def putBulk[Fid, Key, A](fid: Fid, a: Vector[(Key, A)])(implicit i: Manual[Fid, Key, A]): IO[Err, Unit]
 
-    def remove [Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): KIO[Boolean]
-    def cleanup[Fid, Key, A](fid: Fid          )(implicit i: AnyFeed[Fid, Key, A]): KIO[Unit]
-    def fix    [Fid, Key, A](fid: Fid, fd: Fd  )(implicit i: AnyFeed[Fid, Key, A]): KIO[Unit]
+    def remove [Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Boolean]
+    def cleanup[Fid, Key, A](fid: Fid          )(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Unit]
+    def fix    [Fid, Key, A](fid: Fid, fd: Fd  )(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Unit]
   }
 
   val live: RLayer[ActorSystem with Dba with ZEnv, KvsFeed] = ZLayer.fromEffect {
     for {
       dba <- ZIO.service[Dba.Service]
-      as  <- ZIO.environment[ActorSystem with ZEnv]
-      sh  <- Sharding.start("kvs_list_write_shard", Shard.onMessage(dba)).provide(as)
+      as  <- ZIO.service[ActorSystem.Service]
+      env <- ZIO.environment[ActorSystem with Blocking with Clock]
+      sh  <- Sharding.start("kvs_list_write_shard", Shard.onMessage(dba)).provide(env)
     } yield {
       new Service {
         private implicit val dba1 = dba
 
-        def all[Fid, Key, A](fid: Fid)(implicit i: AnyFeed[Fid, Key, A]): KStream[(Key, A)] = {
+        def all[Fid, Key, A](fid: Fid)(implicit i: AnyFeed[Fid, Key, A]): Stream[Err, (Key, A)] = {
           for {
             fdKey  <- Stream.fromEffect(i.fdKey(fid))
             xs     <- kvs.feed.all(fdKey).mapError(KvsErr(_)).mapM{ case (k,a) =>
@@ -48,9 +51,9 @@ object KvsFeed {
                         } yield k2->a2
                       }
           } yield xs
-        }
+        }.provide(env)
 
-        def all[Fid, Key, A](fid: Fid, start: ElKey)(implicit i: AnyFeed[Fid, Key, A]): KStream[(Key, A)] = {
+        def all[Fid, Key, A](fid: Fid, start: ElKey)(implicit i: AnyFeed[Fid, Key, A]): Stream[Err, (Key, A)] = {
           for {
             fdKey  <- Stream.fromEffect(i.fdKey(fid))
             xs     <- kvs.feed.all(fdKey, start).mapError(KvsErr(_)).mapM{ case (k,a) =>
@@ -60,17 +63,18 @@ object KvsFeed {
                         } yield k2->a2
                       }
           } yield xs
-        }
+        }.provide(env)
 
-        def apply[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): KIO[A] =
+        def apply[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, A] = {
           for {
             fdKey <- i.fdKey(fid)
             elKey <- i.elKey(key)
             bytes <- kvs.feed.apply(EnKey(fdKey, elKey)).mapError(KvsErr(_))
             a     <- i.data(bytes)
           } yield a
+        }.provide(env)
 
-        def get[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): KIO[Option[A]] =
+        def get[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Option[A]] = {
           for {
             fdKey  <- i.fdKey(fid)
             elKey  <- i.elKey(key)
@@ -80,8 +84,9 @@ object KvsFeed {
                         a     <- i.data(bytes).mapError(Some(_))
                       } yield a).optional
           } yield a
+        }.provide(env)
 
-        def head[Fid, Key, A](fid: Fid)(implicit i: AnyFeed[Fid, Key, A]): KIO[Option[(Key, A)]] =
+        def head[Fid, Key, A](fid: Fid)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Option[(Key, A)]] = {
           for {
             fdKey  <- i.fdKey(fid)
             kvsRes <- kvs.feed.head(fdKey).mapError(KvsErr(_))
@@ -91,13 +96,14 @@ object KvsFeed {
                         a   <- i.data(res._2).mapError(Some(_))
                       } yield key -> a).optional
           } yield a
+        }.provide(env)
 
-        def add[Fid, Key, A](fid: Fid, a: A)(implicit i: Increment[Fid, Key, A]): KIO[Key] =
+        def add[Fid, Key, A](fid: Fid, a: A)(implicit i: Increment[Fid, Key, A]): IO[Err, Key] =
           for {
             fdKey  <- i.fdKey(fid)
             bytes  <- i.bytes(a)
-            elKey  <- ZIO.effectAsyncM { (callback: KIO[ElKey] => Unit) =>
-                        val receiver = as.get.actorOf(Props(new Actor with ActorLogging {
+            elKey  <- ZIO.effectAsyncM { (callback: IO[Err, ElKey] => Unit) =>
+                        val receiver = as.actorOf(Props(new Actor with ActorLogging {
                           def receive: Receive = {
                             case Shard.Added(Right(a)) =>
                               callback(IO.succeed(a))
@@ -115,13 +121,13 @@ object KvsFeed {
             key    <- i.key(elKey)
           } yield key
 
-        def put[Fid, Key, A](fid: Fid, key: Key, a: A)(implicit i: Manual[Fid, Key, A]): KIO[Unit] =
+        def put[Fid, Key, A](fid: Fid, key: Key, a: A)(implicit i: Manual[Fid, Key, A]): IO[Err, Unit] =
           for {
             fdKey  <- i.fdKey(fid)
             elKey  <- i.elKey(key)
             bytes  <- i.bytes(a)
-            _      <- ZIO.effectAsyncM { (callback: KIO[Unit] => Unit) =>
-                        val receiver = as.get.actorOf(Receiver.props{
+            _      <- ZIO.effectAsyncM { (callback: IO[Err, Unit] => Unit) =>
+                        val receiver = as.actorOf(Receiver.props{
                           case Right(a) => callback(IO.succeed(a))
                           case Left (e) => callback(IO.fail(KvsErr(e)))
                         })
@@ -129,7 +135,7 @@ object KvsFeed {
                       }.mapError(ShardErr(_))
           } yield ()
 
-       def putBulk[Fid, Key, A](fid: Fid, elements: Vector[(Key, A)])(implicit i: Manual[Fid, Key, A]): KIO[Unit] =
+       def putBulk[Fid, Key, A](fid: Fid, elements: Vector[(Key, A)])(implicit i: Manual[Fid, Key, A]): IO[Err, Unit] =
           for {
             fdKey  <- i.fdKey(fid)
             data   <- ZIO.foreach(elements){ case (key, a) =>
@@ -138,8 +144,8 @@ object KvsFeed {
                           bytes <- i.bytes(a)
                         } yield elKey -> bytes
                       }
-            _      <- ZIO.effectAsyncM { (callback: KIO[Unit] => Unit) =>
-                        val receiver = as.get.actorOf(Receiver.props{
+            _      <- ZIO.effectAsyncM { (callback: IO[Err, Unit] => Unit) =>
+                        val receiver = as.actorOf(Receiver.props{
                           case Right(a) => callback(IO.succeed(a))
                           case Left (e) => callback(IO.fail(KvsErr(e)))
                         })
@@ -147,12 +153,12 @@ object KvsFeed {
                       }.mapError(ShardErr(_))
           } yield ()
 
-        def remove[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): KIO[Boolean] =
+        def remove[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Boolean] =
           for {
             fdKey  <- i.fdKey(fid)
             elKey  <- i.elKey(key)
-            res    <- ZIO.effectAsyncM { (callback: KIO[Boolean] => Unit) =>
-                        val receiver = as.get.actorOf(Props(new Actor with ActorLogging {
+            res    <- ZIO.effectAsyncM { (callback: IO[Err, Boolean] => Unit) =>
+                        val receiver = as.actorOf(Props(new Actor with ActorLogging {
                           def receive: Receive = {
                             case Shard.Removed(Right(a)) =>
                               callback(IO.succeed(a))
@@ -169,11 +175,11 @@ object KvsFeed {
                       }.mapError(ShardErr(_))
           } yield res
 
-        def cleanup[Fid, Key, A](fid: Fid)(implicit i: AnyFeed[Fid, Key, A]): KIO[Unit] =
+        def cleanup[Fid, Key, A](fid: Fid)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Unit] =
           for {
             fdKey  <- i.fdKey(fid)
-            _      <- ZIO.effectAsyncM { (callback: KIO[Unit] => Unit) =>
-                        val receiver = as.get.actorOf(Receiver.props{
+            _      <- ZIO.effectAsyncM { (callback: IO[Err, Unit] => Unit) =>
+                        val receiver = as.actorOf(Receiver.props{
                           case Right(a) => callback(IO.succeed(a))
                           case Left (e) => callback(IO.fail(KvsErr(e)))
                         })
@@ -181,11 +187,11 @@ object KvsFeed {
                       }.mapError(ShardErr(_))
           } yield ()
 
-        def fix[Fid, Key, A](fid: Fid, fd: Fd)(implicit i: AnyFeed[Fid, Key, A]): KIO[Unit] =
+        def fix[Fid, Key, A](fid: Fid, fd: Fd)(implicit i: AnyFeed[Fid, Key, A]): IO[Err, Unit] =
           for {
             fdKey  <- i.fdKey(fid)
-            _      <- ZIO.effectAsyncM { (callback: KIO[Unit] => Unit) =>
-                        val receiver = as.get.actorOf(Receiver.props{
+            _      <- ZIO.effectAsyncM { (callback: IO[Err, Unit] => Unit) =>
+                        val receiver = as.actorOf(Receiver.props{
                           case Right(a) => callback(IO.succeed(a))
                           case Left (e) => callback(IO.fail(KvsErr(e)))
                         })
@@ -243,7 +249,7 @@ object KvsFeed {
     case class Added   (x: Res[ElKey])
     case class Removed (x: Res[Boolean])
 
-    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit] with ZEnv, Nothing, Unit] = {
+    def onMessage(implicit dba: Dba.Service): Msg => ZIO[Entity[Unit] with Blocking, Nothing, Unit] = {
       case msg: Add =>
         for {
           y <- kvs.feed.add(msg.fid, msg.data).either

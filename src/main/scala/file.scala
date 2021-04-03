@@ -1,34 +1,32 @@
 package kvs
 package file
 
+import kvs.store.Dba
 import proto._, macrosapi._
 import zero.ext._, either._
-import zio._, stream.Stream
+import zio.{ZIO, IO} 
+import zio.blocking.Blocking
+import zio.stream.{ZStream, Stream}
 
-import store.Dba
-
-final case class File
-  ( // count – number of chunks
-    @N(1) count: Long
-    // size - size of file in bytes
-  , @N(2) size: Long
-    // true if directory
-  , @N(3) dir: Boolean
-  )
+final case class File( 
+  @N(1) count: Long,  // count – number of chunks
+  @N(2) size: Long,   // size - size of file in bytes
+  @N(3) dir: Boolean, // true if directory
+)
 
 trait FileHandler {
   protected val chunkLength: Int
 
   private implicit val filec = caseCodecAuto[File]
 
-  private def get(path: PathKey)(implicit dba: Dba): KIO[File] = {
+  private def get(path: PathKey)(implicit dba: Dba): ZIO[Blocking, Err, File] = {
     dba.get(path).flatMap{
       case Some(x) => unpickle[File](x)
       case None    => IO.fail(FileNotExists(path))
     }
   }
 
-  def create(path: PathKey)(implicit dba: Dba): KIO[File] = {
+  def create(path: PathKey)(implicit dba: Dba): ZIO[Blocking, Err, File] = {
     dba.get(path).flatMap{
       case Some(_) => IO.fail(FileAlreadyExists(path))
       case None    =>
@@ -40,8 +38,8 @@ trait FileHandler {
     }
   }
 
-  def append(path: PathKey, data: Bytes)(implicit dba: Dba): KIO[File] = {
-    def writeChunks(count: Long): KIO[Long] = {
+  def append(path: PathKey, data: Bytes)(implicit dba: Dba): ZIO[Blocking, Err, File] = {
+    def writeChunks(count: Long): IO[Err, Long] = {
       val len = data.length
            if (len  < 0) IO.dieMessage("negative length")
       else if (len == 0) IO.succeed(count)
@@ -66,11 +64,11 @@ trait FileHandler {
     } yield file1
   }
 
-  def size(path: PathKey)(implicit dba: Dba): KIO[Long] = {
+  def size(path: PathKey)(implicit dba: Dba): ZIO[Blocking, Err, Long] = {
     get(path).map(_.size)
   }
 
-  def stream(path: PathKey)(implicit dba: Dba): KStream[Bytes] = {
+  def stream(path: PathKey)(implicit dba: Dba): ZStream[Blocking, Err, Bytes] = {
     Stream.fromEffect(get(path).map(_.count)).flatMap{
       case n if n < 0 => Stream.dieMessage("negative count")
       case 0 => Stream.empty
@@ -80,7 +78,7 @@ trait FileHandler {
     }
   }
 
-  def delete(path: PathKey)(implicit dba: Dba): KIO[File] = {
+  def delete(path: PathKey)(implicit dba: Dba): ZIO[Blocking, Err, File] = {
     for {
       file <- get(path)
       _    <- Stream.fromIterable(LazyList.range(1, file.count+1)).mapM(i=>dba.del(ChunkKey(path, i))).runDrain
@@ -88,7 +86,7 @@ trait FileHandler {
     } yield file
   }
 
-  def copy(fromPath: PathKey, toPath: PathKey)(implicit dba: Dba): KIO[File] = {
+  def copy(fromPath: PathKey, toPath: PathKey)(implicit dba: Dba): ZIO[Blocking, Err, File] = {
     for {
       from <- get(fromPath)
       _ <- get(toPath).fold(
