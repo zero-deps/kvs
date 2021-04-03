@@ -1,6 +1,8 @@
 package kvs.seq
 
-import zio._
+import zio.RLayer
+import zio.blocking.Blocking
+import zio.clock.Clock
 
 object Kvs {
   val feed    : KvsFeed    .type = KvsFeed
@@ -8,6 +10,6 @@ object Kvs {
   val file    : KvsFile    .type = KvsFile
   val search  : KvsSearch  .type = KvsSearch
 
-  val live: RLayer[ActorSystem with Dba with ZEnv, Kvs] =
+  val live: RLayer[ActorSystem with Dba with Clock with Blocking, Kvs] =
     KvsFeed.live ++ KvsCircular.live ++ KvsFile.live ++ KvsSearch.live
 }
