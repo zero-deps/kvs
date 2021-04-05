@@ -1,7 +1,6 @@
 package kvs
 package store
 
-import zero.ext._, option._
 import proto._, macrosapi._
 import org.rocksdb.{util=>_,_}
 import zio.{ZIO, IO, Schedule, Has}
@@ -38,8 +37,8 @@ class Rks(conf: Rks.Conf, clock: Clock.Service) extends Dba with AutoCloseable {
   def get(key: Key): IO[Err, Option[Bytes]] =
     for {
       x  <- withRetryOnce(db.get, key).provide(env)
-      b  <- if (x == null) IO.succeed(none)
-            else IO.effectTotal(Bytes.unsafeWrap(x).some)
+      b  <- if (x == null) IO.succeed(None)
+            else IO.effectTotal(Some(Bytes.unsafeWrap(x)))
     } yield b
 
   def put(key: Key, value: Bytes): IO[Err, Unit] =

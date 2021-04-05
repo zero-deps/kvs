@@ -3,7 +3,6 @@ package file
 
 import kvs.store.Dba
 import proto._, macrosapi._
-import zero.ext._, either._
 import zio.{ZIO, IO} 
 import zio.stream.{ZStream, Stream}
 
@@ -90,10 +89,10 @@ trait FileHandler {
       from <- get(fromPath)
       _ <- get(toPath).fold(
         l => l match {
-          case _: FileNotExists => ().right
-          case _ => l.left
+          case _: FileNotExists => Right(())
+          case _ => Left(l)
         },
-        _ => FileAlreadyExists(toPath).left
+        _ => Left(FileAlreadyExists(toPath))
       )
       _ <- Stream.fromIterable(LazyList.range(1, from.count+1)).mapM(i => for {
         x <- dba    (ChunkKey(fromPath, i))

@@ -6,7 +6,6 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.{VectorClock}
 import org.rocksdb._
 import proto.{encode, decode}
-import zero.ext._, option._
 
 import data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}, data.codec._, data.keycodec._, model.{DumpGetBucketData, DumpBucketData}, model.{ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}, model.{StoreGet, StoreGetAck}, ReplicationSupervisor.ReplGetBucketsVc
 
@@ -15,7 +14,7 @@ object ReadonlyStore {
 }
 
 class ReadonlyStore(db: RocksDB, hashing: Hashing) extends Actor with ActorLogging {
-  def get(k: Key): Option[Array[Byte]] = fromNullable(db.get(k))
+  def get(k: Key): Option[Array[Byte]] = Option(db.get(k))
 
   override def receive: Receive = {
     case x: StoreGet =>

@@ -7,7 +7,6 @@ import akka.cluster.{Cluster, VectorClock}
 import org.rocksdb._
 import proto.{encode, decode}
 import proto.Bytes
-import zero.ext._, option._
 
 import data.codec._, data.keycodec._, data.{Data, BucketInfo, StoreKey, DataKey, BucketInfoKey}, model.{ReplBucketPut, StorePut, StoreDelete, KeyBucketData}
 
@@ -22,7 +21,7 @@ class WriteStore(db: RocksDB, hashing: Hashing) extends Actor with ActorLogging 
 
   val local: Node = Cluster(system).selfAddress
 
-  def get(k: Key): Option[Array[Byte]] = fromNullable(db.get(k))
+  def get(k: Key): Option[Array[Byte]] = Option(db.get(k))
 
   override def postStop(): Unit = {
     db.close()

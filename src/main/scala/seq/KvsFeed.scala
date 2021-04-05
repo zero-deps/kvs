@@ -1,6 +1,5 @@
 package kvs.seq
 
-import zero.ext._, either._
 import proto.{MessageCodec, encodeToBytes, decode}
 import proto.Bytes
 import zio._
@@ -275,7 +274,7 @@ object KvsFeed {
       case msg: PutBulk =>
         ZIO.foreach_(msg.a){ case (key, v) =>
           Task(kvs.feed.put(EnKey(msg.fid, key), v))
-        }.orDie *> ZIO.accessM(_.get.replyToSender(Response(().right)).orDie)
+        }.orDie *> ZIO.accessM(_.get.replyToSender(Response(Right(()))).orDie)
     }
   }
 

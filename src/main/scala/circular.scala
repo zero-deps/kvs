@@ -1,6 +1,5 @@
 package kvs
 
-import zero.ext._, option._
 import proto._, macrosapi._
 import zio.{ZIO, IO} 
 import zio.stream._
@@ -27,8 +26,8 @@ object circular {
       } yield x
     def get(id: FdKey        )(implicit dba: Dba): IO[Err, Option[Fd]] =
       dba.get(id).flatMap{
-        case Some(x) => unpickle[Fd](x).map(_.some)
-        case None    => IO.succeed(none)
+        case Some(x) => unpickle[Fd](x).map(Some(_))
+        case None    => IO.succeed(None)
       }
   }
 
@@ -60,7 +59,7 @@ object circular {
   def get(fid: FdKey)(idx: Long)(implicit dba: Dba): IO[Err, Option[Bytes]] = {
     for {
       x <- dba.get(key(fid, idx))
-      y <- x.cata(unpickle[En](_).map(_.data.some), IO.succeed(none))
+      y <- x.cata(unpickle[En](_).map(x => Some(x.data)), IO.succeed(None))
     } yield y
   }
 

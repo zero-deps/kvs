@@ -2,7 +2,6 @@ package kvs
 package store
 
 import java.util.concurrent.ConcurrentHashMap
-import zero.ext._, option._
 import proto.Bytes
 import net.jpountz.lz4._
 import zio._
@@ -17,7 +16,7 @@ class Mem extends Dba with AutoCloseable {
   private val lz4 = LZ4Factory.safeInstance()
 
   def get(key: Key): IO[Err, Option[Bytes]] = {
-    IO.effectTotal(fromNullable(db.get(key)).map{ case (decompressedLength, compressed) =>
+    IO.effectTotal(Option(db.get(key)).map{ case (decompressedLength, compressed) =>
       val decompressor = lz4.fastDecompressor
       val restored = new Array[Byte](decompressedLength)
       decompressor.decompress(compressed.unsafeArray, 0, restored, 0, decompressedLength)

@@ -3,7 +3,6 @@ package kvs
 import zio.test._, Assertion._
 import scala.collection.immutable.{HashSet, TreeMap}
 import proto.Bytes
-import zero.ext._, option._
 
 import rng._, rng.data._, rng.model.KeyBucketData
 
@@ -180,7 +179,7 @@ object MergeSpec extends DefaultRunnableSpec {
     }
 
   , test("forGatherGet: empty") {
-      assert(forGatherGet(Vector.empty))(equalTo((none: Option[Data]) -> HashSet.empty[Node]))
+      assert(forGatherGet(Vector.empty))(equalTo((None: Option[Data]) -> HashSet.empty[Node]))
     }
   , test("forGatherGet: newer in tail") {
       val xs = Vector(

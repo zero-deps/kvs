@@ -7,7 +7,6 @@ import akka.routing.FromConfig
 import org.rocksdb.{util=>_,_}
 import proto._, macrosapi._
 import rng.store.{ReadonlyStore, WriteStore}, rng.Hashing
-import zero.ext._, either._
 import zio._
 import zio.clock.Clock
 
@@ -98,9 +97,9 @@ class Receiver(cb: Res[Option[Bytes]]=>Unit) extends Actor with ActorLogging {
   def receive: Receive = {
     case x: Ack =>
       val res = x match {
-        case AckSuccess(v)       => v.right
-        case x: AckQuorumFailed  => AckFail(x).left
-        case x: AckTimeoutFailed => AckFail(x).left
+        case AckSuccess(v)       => Right(v)
+        case x: AckQuorumFailed  => Left(AckFail(x))
+        case x: AckTimeoutFailed => Left(AckFail(x))
       }
       cb(res)
       context.stop(self)

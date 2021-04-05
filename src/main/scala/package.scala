@@ -34,4 +34,15 @@ package object kvs {
 
   def pickle  [A](e: A)    (implicit c: MessageCodec[A]): UIO[Bytes] = IO.effectTotal(encodeToBytes[A](e))
   def unpickle[A](a: Bytes)(implicit c: MessageCodec[A]): UIO[A]     = IO.effect(decode[A](a)).orDie // is defect
+
+  implicit class OptionExt[A](x: Option[A]) {
+    def cata[B](f: A => B, b: => B): B = x match {
+      case Some(a) => f(a)
+      case None => b
+    }
+  }
+
+  implicit class BooleanExt(x: Boolean) {
+    def fold[A](t: => A, f: => A): A = if (x) t else f
+  }
 }

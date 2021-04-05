@@ -2,7 +2,6 @@ package kvs
 
 import zio.test._, Assertion._
 import proto.Bytes
-import zero.ext._, option._
 
 object ElSpec extends DefaultRunnableSpec {
   implicit val dba = store.Mem()
@@ -23,13 +22,13 @@ object ElSpec extends DefaultRunnableSpec {
         x7 <- el.get(key1)
               // delete again
         x8 <- el.del(key1)
-      } yield assert(x1)(equalTo(none))     &&
-              assert(x2)(isUnit)            &&
-              assert(x3)(equalTo(bs1.some)) &&
-              assert(x4)(isUnit)            &&
-              assert(x5)(equalTo(bs2.some)) &&
-              assert(x6)(isUnit)            &&
-              assert(x7)(equalTo(none))     &&
+      } yield assert(x1)(equalTo(None))      &&
+              assert(x2)(isUnit)             &&
+              assert(x3)(equalTo(Some(bs1))) &&
+              assert(x4)(isUnit)             &&
+              assert(x5)(equalTo(Some(bs2))) &&
+              assert(x6)(isUnit)             &&
+              assert(x7)(equalTo(None))      &&
               assert(x8)(isUnit)
     }
   )

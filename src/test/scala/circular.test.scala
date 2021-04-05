@@ -3,7 +3,6 @@ package test
 
 import zio._, test._, Assertion._
 import proto._, macrosapi._
-import zero.ext._, option._
 
 object CircularSpec extends DefaultRunnableSpec {
   def spec = suite("CircularSpec")(
@@ -23,7 +22,7 @@ object CircularSpec extends DefaultRunnableSpec {
         x5 <- KvsCircular.all(bid).runCollect
       } yield assert(x1)(equalTo(Chunk.empty)) &&
               assert(x2)(equalTo(())) &&
-              assert(x3)(equalTo(v1.some)) &&
+              assert(x3)(equalTo(Some(v1))) &&
               assert(x4)(equalTo(Chunk(v1))) &&
               assert(x5)(equalTo(Chunk(v2,v3,v4)))
     }
@@ -43,7 +42,7 @@ object CircularSpec extends DefaultRunnableSpec {
         x5 <- KvsCircular.all(bid).runCollect
       } yield assert(x1)(equalTo(Chunk.empty)) &&
               assert(x2)(equalTo(())) &&
-              assert(x3)(equalTo(v1.some)) &&
+              assert(x3)(equalTo(Some(v1))) &&
               assert(x4)(equalTo(Chunk(v1))) &&
               assert(x5)(equalTo(Chunk(v2,v3)))
     }

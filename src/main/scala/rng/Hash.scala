@@ -5,7 +5,6 @@ import akka.actor._
 import akka.cluster.ClusterEvent._
 import akka.cluster.{Member, Cluster}
 import scala.collection.immutable.{SortedMap, SortedSet}
-import zero.ext._, option._
 import proto._
 
 import model.{StoreDelete, StoreGet, QuorumState, ChangeState}, model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
@@ -179,7 +178,7 @@ class Hash(conf: RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
     data.replication map (context stop _)
     val repl = syncNodes(moved)
-    val updData = HashRngData(nodes, data.buckets++moved, updvNodes, repl.some)
+    val updData = HashRngData(nodes, data.buckets++moved, updvNodes, Some(repl))
     log.info(s"Node ${member.address} is joining ring. Nodes in ring = ${updData.nodes.size}, state = ${state(updData.nodes.size)}")
     state(updData.nodes.size) -> updData
   }
@@ -195,7 +194,7 @@ class Hash(conf: RngConf, hashing: Hashing) extends FSM[QuorumState, HashRngData
     log.info(s"Will update ${moved.size} buckets")
     data.replication map (context stop _)
     val repl = syncNodes(moved)
-    val updData = HashRngData(nodes, data.buckets++moved, updvNodes, repl.some)
+    val updData = HashRngData(nodes, data.buckets++moved, updvNodes, Some(repl))
     state(updData.nodes.size) -> updData
   }
 

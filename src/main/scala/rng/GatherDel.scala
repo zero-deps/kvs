@@ -35,7 +35,7 @@ class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Byt
   when(Sent){
     case Event("ok", data) =>
       data - addr1(sender) match {
-      case none if none.isEmpty => stop()
+      case x if x.isEmpty => stop()
       case nodes => stay using(nodes)
     }
 

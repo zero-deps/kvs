@@ -9,7 +9,6 @@ lazy val kvs = project.in(file(".")).settings(
   , "dev.zio" %% "zio-macros"   % "1.0.5"
   , "dev.zio" %% "zio-test-sbt" % "1.0.5" % Test
   , "com.typesafe.akka" %% "akka-cluster-sharding" % "2.6.13"
-  // , compilerPlugin("io.github.zero-deps" %% "eq" % "2.5")
   , compilerPlugin("org.typelevel" %% "kind-projector" % "0.11.3" cross CrossVersion.full)
   )
 , testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
@@ -19,7 +18,7 @@ lazy val kvs = project.in(file(".")).settings(
   , "-Wconf:cat=deprecation&msg=Auto-application:silent"
   , "-Ymacro-annotations"
   )
-).dependsOn(proto, ext)
+).dependsOn(proto)
 
 lazy val proto = project.in(file("deps/proto/proto")).settings(
   scalaVersion := "2.13.5"
@@ -31,14 +30,9 @@ lazy val protoops = project.in(file("deps/proto/ops")).settings(
   scalaVersion := "2.13.5"
 , crossScalaVersions := "2.13.5" :: Nil
 , libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
-).dependsOn(protosyntax, ext)
+).dependsOn(protosyntax)
 
 lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
-  scalaVersion := "2.13.5"
-, crossScalaVersions := "2.13.5" :: Nil
-)
-
-lazy val ext = project.in(file("deps/proto/deps/ext")).settings(
   scalaVersion := "2.13.5"
 , crossScalaVersions := "2.13.5" :: Nil
 )

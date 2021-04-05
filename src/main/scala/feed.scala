@@ -1,6 +1,5 @@
 package kvs
 
-import zero.ext._, option._, boolean._
 import proto._, macrosapi._
 import zio.{IO, ZIO}
 import zio.stream.{Stream, ZStream}
@@ -15,7 +14,7 @@ final case class Fd
   )
 
 object Fd {
-  val empty = new Fd(head=none, length=0, removed=0, maxid=ElKey(Bytes.empty))
+  val empty = new Fd(head=None, length=0, removed=0, maxid=ElKey(Bytes.empty))
 }
 
 final case class En
@@ -44,8 +43,8 @@ object feed {
       } yield x
     def get(id: FdKey        )(implicit dba: Dba): IO[Err, Option[Fd]] = 
       dba.get(id).flatMap{
-        case Some(x) => unpickle[Fd](x).map(_.some)
-        case None    => IO.succeed(none)
+        case Some(x) => unpickle[Fd](x).map(x => Some(x))
+        case None    => IO.succeed(None)
       }
   }
 
@@ -53,10 +52,10 @@ object feed {
     dba.get(key).flatMap{
       case Some(x) =>
         unpickle[En](x).map{
-          case en if en.removed => none
-          case en => en.some
+          case en if en.removed => None
+          case en => Some(en)
         }
-      case None => IO.succeed(none)
+      case None => IO.succeed(None)
     }
   }
 
@@ -81,7 +80,7 @@ object feed {
                 _    <- meta.put(key.fid, fd.copy(maxid=maxid)) // in case kvs will fail after adding the en
                 p    <- pickle(en)
                 x    <- dba.put(key, p)
-                _    <- meta.put(key.fid, fd.copy(head=key.id.some, length=fd.length+1, maxid=maxid))
+                _    <- meta.put(key.fid, fd.copy(head=Some(key.id), length=fd.length+1, maxid=maxid))
               } yield x
             )
     } yield y
@@ -128,7 +127,7 @@ object feed {
       key = EnKey(fid, id)
       p <- pickle(en)
       _ <- dba.put(key, p)
-      _ <- meta.put(fid, fd.copy(head=id.some, length=fd.length+1, maxid=id))
+      _ <- meta.put(fid, fd.copy(head=Some(id), length=fd.length+1, maxid=id))
     } yield id
   }
 
@@ -150,13 +149,13 @@ object feed {
   /* all items with removed starting from specified key */
   private def entries(fid: FdKey, start: ElKey)(implicit dba: Dba): Stream[Err, (ElKey, En)] = {
     Stream.
-      unfoldM(start.some: Option[ElKey]){
-        case None     => IO.succeed(none)
+      unfoldM(Some(start): Option[ElKey]){
+        case None     => IO.succeed(None)
         case Some(id) =>
           for {
             bs <- dba(EnKey(fid, id))
             en <- unpickle[En](bs)
-          } yield ((id->en)->en.next).some
+          } yield Some((id->en)->en.next)
       }
   }
 
@@ -207,10 +206,10 @@ object feed {
           _  <- entries(fid).
                   /* zip with stream of last live entry before removed ones */
                   /* [1(live),2(removed),3(removed),4(live),5(removed)] becomes [1,1,1,4,4] */
-                  zip(entries(fid).scan(none: Option[(ElKey,En)]){
-                    case (None, (id,en)) => (id->en).some
+                  zip(entries(fid).scan(None: Option[(ElKey,En)]){
+                    case (None, (id,en)) => Some(id->en)
                     case (   x, ( _,en)) if en.removed => x
-                    case (   _, (id,en)) => (id->en).some
+                    case (   _, (id,en)) => Some(id->en)
                   }.collect{ case Some(x)=>x }).
                   filter{ case (( _,en),_) => en.removed }.
                   mapM  { case ((id,en),(id2,en2)) =>
