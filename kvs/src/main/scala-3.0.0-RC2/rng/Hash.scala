@@ -119,7 +119,7 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
   val N: Int = quorum.get(0).nn
   val W: Int = quorum.get(1).nn
   val R: Int = quorum.get(2).nn
-  val gatherTimeout = Duration.fromNanos(config.getDuration("gather-timeout").toNanos)
+  val gatherTimeout = Duration.fromNanos(config.getDuration("gather-timeout").nn.toNanos)
   val vNodesNum = config.getInt("virtual-nodes")
   val bucketsNum = config.getInt("buckets")
   val cluster = Cluster(system)

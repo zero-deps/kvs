@@ -20,7 +20,7 @@ object LevelDb {
   copyLib("libleveldb.so")
   copyLib("leveldb.dll")
   sys.props += "java.library.path" -> "./tmp/"
-  val lib = LibraryLoader.create(classOf[Api]).option(LibraryOption.IgnoreError, null).failImmediately().load("leveldb").nn
+  val lib = LibraryLoader.create(classOf[Api]).nn.option(LibraryOption.IgnoreError, null).nn.failImmediately().nn.load("leveldb").nn
 
   private[leveldbjnr] def checkError(error: PointerByReference): Either[Throwable, Unit] = {
     val str = error.getValue
@@ -72,7 +72,7 @@ case class LevelDb(leveldb: Pointer) {
       result.map{ result =>
         val resultLength = resultLengthPointer.intValue
         val resultAsByteArray = new Array[Byte](resultLength)
-        result.get(0, resultAsByteArray, 0, resultLength)
+        result.nn.get(0, resultAsByteArray, 0, resultLength)
         lib.leveldb_free(result)
         resultAsByteArray
       }

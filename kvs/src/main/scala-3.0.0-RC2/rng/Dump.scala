@@ -46,7 +46,7 @@ class DumpProcessor extends Actor with ActorLogging {
 
     case DumpProcessor.Save(buckets, path) =>
       log.info(s"Saving dump: path=${path}".green)
-      val timestamp = LocalDateTime.now.format(DateTimeFormatter.ofPattern("yyyy.MM.dd-HH.mm.ss"))
+      val timestamp = LocalDateTime.now.nn.format(DateTimeFormatter.ofPattern("yyyy.MM.dd-HH.mm.ss"))
       val dumpPath = s"${path}/rng_dump_${timestamp}"
       DumpIO.props(dumpPath) match {
         case Left(t) =>

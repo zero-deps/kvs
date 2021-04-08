@@ -31,7 +31,7 @@ class Rng(system: ActorSystem) extends Dba {
   val hash = system.actorOf(rng.Hash.props(leveldb).withDeploy(Deploy.local), name="ring_hash")
 
   def put(key: String, value: V): Res[V] = {
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     val putF = hash.ask(rng.Put(stob(key), value))(t).mapTo[rng.Ack]
     Try(Await.result(putF, d)) match {
@@ -43,7 +43,7 @@ class Rng(system: ActorSystem) extends Dba {
   }
 
   private def isReady(): Future[Boolean] = {
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     hash.ask(rng.Ready)(t).mapTo[Boolean]
   }
@@ -69,7 +69,7 @@ class Rng(system: ActorSystem) extends Dba {
   }
 
   def get(key: String): Res[Option[V]] = {
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Get(stob(key)))(t).mapTo[rng.Ack]
     Try(Await.result(fut, d)) match {
@@ -81,7 +81,7 @@ class Rng(system: ActorSystem) extends Dba {
   }
 
   def delete(key: String): Res[Unit] = {
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Delete(stob(key)))(t).mapTo[rng.Ack]
     Try(Await.result(fut, d)) match {
@@ -103,7 +103,7 @@ class Rng(system: ActorSystem) extends Dba {
     }
   }
   def load(path: String): Res[String] = {
-    val d = Duration.fromNanos(cfg.getDuration("dump-timeout").toNanos)
+    val d = Duration.fromNanos(cfg.getDuration("dump-timeout").nn.toNanos)
     val t = Timeout(d)
     val x = hash.ask(rng.Load(path))(t)
     Try(Await.result(x, d)) match {
@@ -116,7 +116,7 @@ class Rng(system: ActorSystem) extends Dba {
 
   def nextid(feed: String): Res[String] = {
     import akka.cluster.sharding.*
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").toNanos)
+    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed)(t).mapTo[String],d)).toEither.leftMap(RngThrow.apply)
   }
@@ -126,7 +126,7 @@ class Rng(system: ActorSystem) extends Dba {
   }
 
   def clean(keyPrefix: Array[Byte]): Res[Unit] = {
-    val d = Duration.fromNanos(cfg.getDuration("iter-timeout").toNanos)
+    val d = Duration.fromNanos(cfg.getDuration("iter-timeout").nn.toNanos)
     val t = Timeout(d)
     val x = hash.ask(rng.Iter(keyPrefix))(t)
     Try(Await.result(x, d)) match {

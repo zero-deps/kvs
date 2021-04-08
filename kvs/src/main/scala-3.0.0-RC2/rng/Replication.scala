@@ -92,7 +92,7 @@ class ReplicationWorker(b: Bucket, _prefList: PreferenceList, _vc: VectorClock) 
   val local = cluster.selfAddress
   val actorMem = SelectionMemorize(system)
 
-  setTimer("send_by_timeout", "timeout", Duration.fromNanos(context.system.settings.config.getDuration("ring.repl-timeout").toNanos), repeat=true)
+  setTimer("send_by_timeout", "timeout", Duration.fromNanos(context.system.settings.config.getDuration("ring.repl-timeout").nn.toNanos), repeat=true)
   startWith(Collecting, ReplState(_prefList, info=Vector.empty, _vc))
 
   when(Collecting){

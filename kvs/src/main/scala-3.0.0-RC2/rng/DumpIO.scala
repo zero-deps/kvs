@@ -48,7 +48,7 @@ class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLoggi
       }
     case msg: DumpIO.Put => 
       val data = encode(DumpKV(msg.kv.map(e => KV(e.key, e.value))))
-      channel.write(ByteBuffer.allocateDirect(4).putInt(data.size).flip.asInstanceOf[ByteBuffer])
+      channel.write(ByteBuffer.allocateDirect(4).nn.putInt(data.size).nn.flip.nn.asInstanceOf[ByteBuffer])
       channel.write(ByteBuffer.wrap(data))
       sender ! DumpIO.PutDone(ioPath)
     case x: DumpIO.PutDone =>
