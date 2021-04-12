@@ -15,7 +15,7 @@ class KvsJmx(kvs: Kvs) {
   private val server = ManagementFactory.getPlatformMBeanServer.nn
   private val name = new ObjectName("kvs:type=Kvs")
 
-  def createMBean(): Unit = {
+  def registerMBean(): Unit = {
     val mbean = new StandardMBean(classOf[KvsMBean]) with KvsMBean {
       def unsafe_save(path: String): String = kvs.dump.save(path).fold(_.toString, identity)
       def unsafe_load(path: String): String = kvs.dump.load(path).fold(_.toString, identity)

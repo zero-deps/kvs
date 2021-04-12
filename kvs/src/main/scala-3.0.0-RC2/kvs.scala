@@ -57,6 +57,7 @@ trait WritableKvs {
 object Kvs {
   def apply(system: ActorSystem): Kvs = rng(system)
   def rng(system: ActorSystem): Kvs = {
+    val log = akka.event.Logging(system, "kvs")
     val kvs = new Kvs()(new store.Rng(system))
     val sharding = ClusterSharding(system)
     val settings = ClusterShardingSettings(system)
@@ -64,10 +65,14 @@ object Kvs {
       extractEntityId = { case msg:String => (msg,msg) },
       extractShardId = { case msg:String => (math.abs(msg.hashCode) % 100).toString }
     )
-    if (system.settings.config.getBoolean("akka.cluster.jmx.enabled")) {
-      val jmx = new KvsJmx(kvs)
-      jmx.createMBean()
-      sys.addShutdownHook(jmx.unregisterMBean())
+    val jmx = KvsJmx(kvs)
+    jmx.registerMBean()
+    CoordinatedShutdown(system).addTask("stop-kvs-jmx", "kvs jmx") { () =>
+      Future {
+        log.info("Unregister KVS JMX...")
+        jmx.unregisterMBean()
+        akka.Done
+      }(using ExecutionContext.global)
     }
     kvs
   }
