@@ -19,4 +19,5 @@ trait Dba {
   def isReady: Future[Boolean]
   def nextid(fid: String): Res[String]
   def compact(): Unit
+  def clean(keyPrefix: String): Res[Unit]
 }

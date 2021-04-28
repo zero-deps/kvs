@@ -103,6 +103,10 @@ case class LevelDb(leveldb: Pointer) {
     checkError(error)
   }
 
+  def iter(): Iter = {
+    new Iter(leveldb)
+  }
+
   def compact(): Unit = {
     lib.leveldb_compact_range(leveldb, null, 0L, null, 0L)
   }
@@ -156,6 +160,41 @@ case class WriteBatch() {
 
   def close(): Unit = {
     lib.leveldb_writebatch_destroy(pointer)
+  }
+}
+
+class Iter(leveldb: Pointer) {
+  import LevelDb.lib
+
+  val p = lib.leveldb_create_iterator(leveldb, new ReadOpts().pointer)
+
+  def seek(key: Array[Byte]): Unit = {
+    lib.leveldb_iter_seek(p, key, key.length.toLong)
+  }
+
+  def seek_to_first(): Unit = {
+    lib.leveldb_iter_seek_to_first(p)
+  }
+
+  def valid(): Boolean = {
+    lib.leveldb_iter_valid(p) != 0.toByte
+  }
+
+  def next(): Unit = {
+    lib.leveldb_iter_next(p)
+  }
+
+  def key(): Array[Byte] = {
+    val resultLengthPointer = new NumberByReference(TypeAlias.size_t)
+    val resultPointer = lib.leveldb_iter_key(p, resultLengthPointer)
+    val resultLength = resultLengthPointer.intValue
+    val resultAsByteArray = new Array[Byte](resultLength)
+    resultPointer.get(0, resultAsByteArray, 0, resultLength)
+    resultAsByteArray
+  }
+
+  def close(): Unit = {
+    val _ = lib.leveldb_iter_destroy(p)
   }
 }
 

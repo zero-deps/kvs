@@ -99,4 +99,6 @@ class Kvs(system: ExtendedActorSystem) extends Extension {
   def compact(): Unit = {
     dba.compact()
   }
+
+  def cleanByPrefix(keyPrefix: String): Res[Unit] = dba.clean(keyPrefix)
 }

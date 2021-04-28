@@ -10,6 +10,7 @@ import scala.collection.immutable.{SortedMap, SortedSet}
 import scala.concurrent.duration._
 import java.util.Arrays
 import zero.ext._, option._
+import leveldbjnr._
 
 final class Put(val k: Key, val v: Value) {
   override def equals(other: Any): Boolean = other match {
@@ -72,6 +73,8 @@ object Delete {
 final case class Save(path: String)
 final case class Load(path: String, javaSer: Boolean)
 final case class Iterate(path: String, f: (Key, Value) => Option[(Key, Value)], afterIterate: () => Unit)
+case class Iter(keyPrefix: String)
+case class IterRes(keys: List[String])
 
 final case object RestoreState
 
@@ -105,11 +108,11 @@ final case class HashRngData(
 )
 
 object Hash {
-  def props(): Props = Props(new Hash)
+  def props(leveldb: LevelDb): Props = Props(new Hash(leveldb))
 }
 
 // TODO available/not avaiable nodes
-class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
+class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
 
   val config: Config = system.settings.config.getConfig("ring")
@@ -159,6 +162,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
     case Event(Iterate(_,_,_), _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
+    case Event(Iter(_), _) =>
+      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+      stay()
     case Event(RestoreState, _) =>
       log.warning("Don't know how to restore state when quorum is unsatisfied")
       stay()
@@ -195,6 +201,9 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
     case Event(Iterate(_,_,_), _) =>
+      sender ! AckQuorumFailed("QuorumStateReadonly")
+      stay()
+    case Event(Iter(_), _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
   }
@@ -242,6 +251,24 @@ class Hash extends FSM[QuorumState, HashRngData] with ActorLogging {
       ))
       system.actorOf(IterateDumpWorker.props(path,f, afterIterate), s"iter_wrkr-${now_ms()}").forward(Iterate(path, f, afterIterate))
       goto(QuorumStateReadonly)
+    case Event(Iter(keyPrefix_), data) =>
+      val keyPrefix = keyPrefix_.getBytes("utf8")
+      val it = leveldb.iter()
+      it.seek_to_first()
+      var key: Array[Byte] = null
+      var keys = collection.mutable.ListBuffer.empty[String]
+      while (it.valid()) {
+        key = it.key()
+        val idx = key.indexOfSlice(keyPrefix)
+        if (idx >= 0) {
+          val slice = key.slice(idx, key.length)
+          keys += new String(slice, "utf8")
+        }
+        it.next()
+      }
+      it.close()
+      sender ! IterRes(keys.toList)
+      stay()
     case Event(RestoreState, _) =>
       log.info("State is already OK")
       stay()
