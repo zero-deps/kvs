@@ -1,7 +1,6 @@
 val scalaVersion_ = "2.13.2"
 val akkaVersion = "2.5.31"
 val extVersion = "2.1.1"
-val leveldbVersion = "1.0.4"
 val protoVersion = "1.7.1"
 val logbackVersion = "1.2.3"
 val scalatestVersion = "3.1.1"
@@ -9,7 +8,7 @@ val scalatestVersion = "3.1.1"
 ThisBuild / organization := "io.github.zero-deps"
 ThisBuild / description := "Abstract Scala Types Key-Value Storage"
 ThisBuild / licenses := "MIT" -> url("https://raw.githubusercontent.com/zero-deps/kvs/master/LICENSE") :: Nil
-ThisBuild / version := zero.ext.git.version
+ThisBuild / version := zero.git.version()
 ThisBuild / scalaVersion := scalaVersion_
 ThisBuild / resolvers += Resolver.jcenterRepo
 ThisBuild / resolvers += Resolver.bintrayRepo("zero-deps", "maven")
@@ -71,8 +70,7 @@ lazy val core = project.in(file("core"))
       "io.github.zero-deps" %% "proto-runtime" % protoVersion,
       compilerPlugin("io.github.zero-deps" %% "ext-plug" % extVersion),
       "io.github.zero-deps" %% "ext" % extVersion,
-      "io.github.zero-deps" %% "leveldb-jnr" % leveldbVersion,
-      "io.github.zero-deps" %% "leveldb-jnr" % leveldbVersion % Test classifier "tests",
+      "com.github.jnr" % "jnr-ffi" % "2.1.13",
 
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,

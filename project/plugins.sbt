@@ -1,5 +1,5 @@
 libraryDependencies += "org.slf4j" % "slf4j-nop" % "latest.integration"
-libraryDependencies += "io.github.zero-deps" %% "ext-git" % "2.1.1"
+addSbtPlugin("io.github.zero-deps" % "sbt-git" % "2.5.4.g35fec15")
 
 scalacOptions ++= Seq("-feature", "-deprecation")
 
