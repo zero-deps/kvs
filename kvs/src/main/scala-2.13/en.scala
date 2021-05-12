@@ -159,6 +159,55 @@ trait EnHandler[A <: En] {
       }
     }
 
+  /**
+   * Remove the entries from the container specified
+   * @return deleted entries (with data)
+   */
+  def remove(_fid: String, _ids: Seq[String])(implicit dba: Dba): Res[Vector[A]] = {
+    val initIds = _ids.toSet
+    @annotation.tailrec def loop(fd: Fd, en: A, ids: Set[String], acc: Vector[A]): Res[(Set[String], Vector[A])] = {
+      if (en.prev == empty || ids.isEmpty)
+        Right((ids, acc))
+      else
+        get1(fd.id, en.prev) match {
+          case l@Left(_) => l.coerceRight
+          case Right(prev) =>
+            if (ids.contains(prev.id)) {
+              val fd1 = fd.copy(count=fd.count-1)
+              (for {
+                // change link
+                updated <- _put(update(en, prev.prev))
+                // decrement count
+                _ <- fh.put(fd1)
+                // delete prev
+                _ <- delete(fd.id, prev.id)
+              } yield updated) match {
+                case l@Left(_) => l.coerceRight
+                case Right(updated) => loop(fd1, updated, ids - prev.id, acc :+ prev)
+              }
+            } else loop(fd, prev, ids, acc)
+        }
+    }
+
+    for {
+      _ <- _ids.isEmpty.fold(Left(InvalidArgument("ids can't be empty")), Right(()))
+      fd <- fh.get(Fd(_fid)).flatMap(_.toRight(NotFound(s"fid ${_fid}")))
+      en <- head(_fid)
+      res <- en match {
+        case Some(en) => for {
+          tpl <- loop(fd, en, initIds, Vector())
+          (ids, removed) = tpl
+          tpl1 <-
+            if (initIds.contains(en.id)) remove(_fid, en.id).map(rem => (ids - en.id, rem +: removed))
+            else Right((ids, removed))
+          (ids1, removed1) = tpl1
+          res <- if (ids1.isEmpty) Right(removed1) else Left(NotFound(s"fid ${_fid} ids ${initIds.diff(ids1).mkString(" ")}"))
+        } yield res
+        case None => Left(NotFound(s"fid ${_fid} ids ${initIds.mkString(" ")}"))
+      }
+    } yield res
+  }
+
   /** Iterates through container and return the stream of entries.
    *
    * Stream is FILO ordered (most recent is first).

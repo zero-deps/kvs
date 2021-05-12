@@ -155,6 +155,24 @@ class EnHandlerTest extends AnyFreeSpecLike with Matchers with BeforeAndAfterAll
       kvs.clearFeed(fid)
     }
 
+    "should remove ids" in {
+      kvs.add(e1); kvs.add(e2); kvs.add(e3); kvs.add(e5)
+      val removed = kvs.remove(fid, Seq("1", "2", "3", "5")).getOrElse(???)
+      removed.size shouldBe 4
+      removed.map(_.id).toSet shouldBe Set("1", "2", "3", "5")
+      kvs.all[En](fid).getOrElse(???) shouldBe empty
+
+      kvs.add(e1); kvs.add(e2); kvs.add(e3); kvs.add(e5)
+      kvs.remove(fid, Seq()) shouldBe Left(InvalidArgument("ids can't be empty"))
+      kvs.remove(fid, Seq("6")) shouldBe a [Left[Err, _]]
+      kvs.remove(fid, Seq("5")).getOrElse(???).size shouldBe 1
+      kvs.all[En](fid).getOrElse(???).size shouldBe 3
+      kvs.remove(fid, Seq("1", "2")).getOrElse(???).size shouldBe 2
+      kvs.all[En](fid).getOrElse(???).size shouldBe 1
+      kvs.remove(fid, Seq("3")).getOrElse(???).size shouldBe 1
+      kvs.all[En](fid).getOrElse(???) shouldBe empty
+    }
+
     "should not create stack overflow" in {
       val limit = 100
       LazyList.from(1,1).takeWhile( _.<=(limit)).foreach{ n =>
