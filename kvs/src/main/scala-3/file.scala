@@ -1,55 +1,60 @@
 package zd.kvs
-package file
 
-import zd.kvs.store.Dba
 import scala.annotation.tailrec
 import scala.util.{Try, Success, Failure}
 import proto.*
 
-trait FileHandler {
+case class File
+  ( @N(1) name: String // name – unique value inside directory
+  , @N(2) count: Int // count – number of chunks
+  , @N(3) size: Long // size - size of file in bytes
+  , @N(4) dir: Boolean // true if directory
+  )
+
+trait FileHandler:
   protected val chunkLength: Int
 
-  private implicit val fileCodec: MessageCodec[File] = caseCodecAuto[File]
+  given MessageCodec[File] = caseCodecAuto
 
-  private def pickle(e: File): Res[Array[Byte]] = Right(encode(e))
-  private def unpickle(a: Array[Byte]): Res[File] = Try(decode[File](a)) match {
+  private inline def pickle(e: File): Array[Byte] = encode(e)
+  private def unpickle(a: Array[Byte]): Either[Err, File] = Try(decode[File](a)) match {
     case Success(x) => Right(x)
     case Failure(x) => Left(UnpickleFail(x))
   }
 
-  private def get(dir: String, name: String)(implicit dba: Dba): Res[File] = {
+  private def get(dir: String, name: String)(using dba: Dba): Either[Err, File] = {
     dba.get(s"${dir}/${name}") match {
       case Right(Some(x)) => unpickle(x)
       case Right(None) => Left(FileNotExists(dir, name))
-      case x@Left(_) => x.coerceRight
+      case Left(e) => Left(e)
     }
   }
 
-  def create(dir: String, name: String)(implicit dba: Dba): Res[File] = {
+  def create(dir: String, name: String)(using dba: Dba): Either[Err, File] = {
     dba.get(s"${dir}/${name}") match {
       case Right(Some(_)) => Left(FileAlreadyExists(dir, name))
       case Right(None) =>
         val f = File(name, count=0, size=0L, dir=false)
+        val x = pickle(f)
         for {
-          x <- pickle(f)
           _ <- dba.put(s"${dir}/${name}", x)
         } yield f
-      case x@Left(_) => x.coerceRight
+      case Left(e) => Left(e)
     }
   }
 
-  def append(dir: String, name: String, data: Array[Byte])(implicit dba: Dba): Res[File] = {
+  def append(dir: String, name: String, data: Array[Byte])(using dba: Dba): Either[Err, File] = {
     append(dir, name, data, data.length)
   }
-  def append(dir: String, name: String, data: Array[Byte], length: Int)(implicit dba: Dba): Res[File] = {
+  def append(dir: String, name: String, data: Array[Byte], length: Int)(using dba: Dba): Either[Err, File] = {
     @tailrec
-    def writeChunks(count: Int, rem: Array[Byte]): Res[Int] = {
+    def writeChunks(count: Int, rem: Array[Byte]): Either[Err, Int] = {
       rem.splitAt(chunkLength) match {
         case (xs, _) if xs.length == 0 => Right(count)
         case (xs, ys) =>
           dba.put(s"${dir}/${name}_chunk_${count+1}", xs) match {
-            case r @ Right(_) => writeChunks(count+1, rem=ys)
-            case l @ Left(_) => l.coerceRight
+            case Right(_) => writeChunks(count+1, rem=ys)
+            case Left(e) => Left(e)
           }
       }
     }
@@ -58,26 +63,26 @@ trait FileHandler {
       file <- get(dir, name)
       count <- writeChunks(file.count, rem=data)
       file1 = file.copy(count=count, size=file.size+length)
-      file2 <- pickle(file1)
+      file2 = pickle(file1)
       _ <- dba.put(s"${dir}/${name}", file2)
     } yield file1
   }
 
-  def size(dir: String, name: String)(implicit dba: Dba): Res[Long] = {
+  def size(dir: String, name: String)(using Dba): Either[Err, Long] = {
     get(dir, name).map(_.size)
   }
 
-  def stream(dir: String, name: String)(implicit dba: Dba): Res[LazyList[Res[Array[Byte]]]] = {
+  def stream(dir: String, name: String)(using dba: Dba): Either[Err, LazyList[Either[Err, Array[Byte]]]] = {
     get(dir, name).map(_.count).flatMap{
       case n if n < 0 => Left(Fail(s"impossible count=${n}"))
       case 0 => Right(LazyList.empty)
       case n if n > 0 =>
         def k(i: Int) = s"${dir}/${name}_chunk_${i}"
-        Right(LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.cata(Right(_), Left(NotFound(k(i)))))))
+        Right(LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.cata(Right(_), Left(KeyNotFound)))))
     }
   }
 
-  def delete(dir: String, name: String)(implicit dba: Dba): Res[File] = {
+  def delete(dir: String, name: String)(using dba: Dba): Either[Err, File] = {
     for {
       file <- get(dir, name)
       _ <- LazyList.range(1, file.count+1).map(i => dba.delete(s"${dir}/${name}_chunk_${i}")).sequence_
@@ -85,7 +90,7 @@ trait FileHandler {
     } yield file
   }
 
-  def copy(dir: String, name: (String, String))(implicit dba: Dba): Res[File] = {
+  def copy(dir: String, name: (String, String))(using dba: Dba): Either[Err, File] = {
     val (fromName, toName) = name
     for {
       from <- get(dir, fromName)
@@ -99,13 +104,12 @@ trait FileHandler {
       _ <- LazyList.range(1, from.count+1).map(i => for {
         x <- {
           val k = s"${dir}/${fromName}_chunk_${i}"
-          dba.get(k).flatMap(_.cata(Right(_), Left(NotFound(k))))
+          dba.get(k).flatMap(_.cata(Right(_), Left(KeyNotFound)))
         }
         _ <- dba.put(s"${dir}/${toName}_chunk_${i}", x)
       } yield ()).sequence_
       to = File(toName, from.count, from.size, from.dir)
-      x <- pickle(to)
+      x = pickle(to)
       _ <- dba.put(s"${dir}/${toName}", x)
     } yield to
   }
-}

@@ -6,7 +6,7 @@ import akka.cluster.given
 import zd.rng.model.*
 import proto.*
 
-class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
+class Serializer(val system: ExtendedActorSystem) extends BaseSerializer:
   implicit val msgCodec: MessageCodec[Msg] = {
     implicit def tuple2IntACodec[A:MessageCodec]: MessageCodec[Tuple2[Int, A]] = caseCodecIdx[Tuple2[Int, A]]
     implicit val replBucketUpToDateCodec: MessageCodec[ReplBucketUpToDate.type] = caseCodecAuto[ReplBucketUpToDate.type]
@@ -50,4 +50,3 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
   override def fromBinary(data: Array[Byte], manifest: Option[Class[?]]): AnyRef = {
     decode[Msg](data)
   }
-}

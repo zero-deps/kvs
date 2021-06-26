@@ -2,63 +2,66 @@ package zd.kvs
 
 import akka.actor.*
 import akka.cluster.sharding.*
-import zd.kvs.store.*
 import scala.concurrent.*
-import zd.kvs.en.{En, EnHandler, Fd, FdHandler}
-import zd.kvs.el.ElHandler
-import zd.kvs.file.{File, FileHandler}
 
-trait ReadOnlyElApi {
-  def get[A: ElHandler](k: String): Res[Option[A]]
-}
+trait ReadableEl:
+  def get[A: ElHandler](k: String): Either[Err, Option[A]]
 
-trait ElApi extends ReadOnlyElApi {
-  def put[A: ElHandler](k: String, el: A): Res[A]
-  def delete[A: ElHandler](k: String): Res[Unit]
-}
+trait WritableEl extends ReadableEl:
+  def put[A: ElHandler](k: String, el: A): Either[Err, A]
+  def delete[A: ElHandler](k: String): Either[Err, Unit]
 
-trait ReadOnlyFdApi {
-  def get(fd: Fd)(implicit fh: FdHandler): Res[Option[Fd]]
-}
+trait ReadableFile:
+  def stream(dir: String, name: String)(using FileHandler): Either[Err, LazyList[Either[Err, Array[Byte]]]]
+  def size(dir: String, name: String)(using FileHandler): Either[Err, Long]
 
-trait FdApi extends ReadOnlyFdApi {
-  def put(fd: Fd)(implicit fh: FdHandler): Res[Fd]
-  def delete(fd: Fd)(implicit fh: FdHandler): Res[Unit]
-}
+trait WritableFile extends ReadableFile:
+  def create(dir: String, name: String)(using FileHandler): Either[Err, File]
+  def append(dir: String, name: String, chunk: Array[Byte])(using FileHandler): Either[Err, File]
+  def delete(dir: String, name: String)(using FileHandler): Either[Err, File]
+  def copy(dir: String, name: (String, String))(using FileHandler): Either[Err, File]
 
-trait ReadOnlyFileApi {
-  def stream(dir: String, name: String)(implicit h: FileHandler): Res[LazyList[Res[Array[Byte]]]]
-  def size(dir: String, name: String)(implicit h: FileHandler): Res[Long]
-}
+class ReadableIdx(using Dba):
+  type Fid = idx.IdxHandler.Fid
+  type Fd = idx.IdxHandler.Fd
+  type A = idx.IdxHandler.Idx
+  protected val h = idx.IdxHandler
+  def get(fid: Fid): Either[Err, Option[Fd]] = h.get(fid)
+  def all(fid: Fid, from: Option[A]=None): Either[Err, LazyList[Either[Err, A]]] = h.all(fid, from)
+  def get(fid: Fid, id: String): Either[Err, Option[A]] = h.get(fid, id)
+  def getOrFail(fid: Fid, id: String): Either[Err, A] =
+    get(fid, id).flatMap{
+      case None => Left(KeyNotFound)
+      case Some(x) => Right(x)
+    }
+  def exists_b(fid: Fid, id: String): Either[Err, Boolean] = h.get(fid, id).map(_.cata(_ => true, false))
+  def not_exists(fid: Fid, id: String): Either[Err, Unit] = h.get(fid, id).flatMap(_.cata(_ => Left(EntryExists(id)), Right(unit)))
+end ReadableIdx
 
-trait FileApi extends ReadOnlyFileApi {
-  def create(dir: String, name: String)(implicit h: FileHandler): Res[File]
-  def append(dir: String, name: String, chunk: Array[Byte])(implicit h: FileHandler): Res[File]
-  def delete(dir: String, name: String)(implicit h: FileHandler): Res[File]
-  def copy(dir: String, name: (String, String))(implicit h: FileHandler): Res[File]
-}
+class WritableIdx(using Dba) extends ReadableIdx:
+  def update(fd: Fd, top: String): Either[Err, Unit] = h.update(fd, top)
+  def create(fid: Fid): Either[Err, Fd] = h.create(fid)
+  def delete(fid: Fid): Either[Err, Unit] = h.delete(fid)
 
-trait ReadOnlyKvs {
-  val el: ReadOnlyElApi
-  val fd: ReadOnlyFdApi
-  val file: ReadOnlyFileApi
+  def add(a: A): Either[Err, A] = h.add(a)
+  def put(a: A): Either[Err, A] = h.put(a)
+  def remove(fid: Fid, id: String): Either[Err, Unit] = h.remove(fid, id)
 
-  def all[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[Res[H]]]
-  def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]]
-  def head[H <: En](fid: String)(implicit h: EnHandler[H]): Res[Option[H]]
-}
+trait ReadableKvs:
+  val el: ReadableEl
+  val file: ReadableFile
+  val index: ReadableIdx
 
-trait WritableKvs {
-  val el: ElApi
-  val fd: FdApi
-  val file: FileApi
-}
+trait WritableKvs extends ReadableKvs:
+  val el: WritableEl
+  val file: WritableFile
+  val index: WritableIdx
 
-object Kvs {
+object Kvs:
   def apply(system: ActorSystem): Kvs = rng(system)
-  def rng(system: ActorSystem): Kvs = {
+  def rng(system: ActorSystem): Kvs =
     val log = akka.event.Logging(system, "kvs")
-    val kvs = new Kvs()(new store.Rng(system))
+    val kvs = new Kvs()(using Rng(system))
     val sharding = ClusterSharding(system)
     val settings = ClusterShardingSettings(system)
     sharding.start(typeName=IdCounter.shardName, entityProps=IdCounter.props(kvs.el), settings=settings,
@@ -75,55 +78,35 @@ object Kvs {
       }(using ExecutionContext.global)
     }
     kvs
-  }
-  def mem(): Kvs = new Kvs()(new store.Mem())
+  def mem(): Kvs = new Kvs()(using Mem())
   def fs(): Kvs = ???
   def sql(): Kvs = ???
   def leveldb(): Kvs = ???
-}
+end Kvs
 
-class Kvs(implicit dba: Dba) extends ReadOnlyKvs with WritableKvs {
-  val el = new ElApi {
-    def put[A: ElHandler](k: String,el: A): Res[A] = implicitly[ElHandler[A]].put(k,el)
-    def get[A: ElHandler](k: String): Res[Option[A]] = implicitly[ElHandler[A]].get(k)
-    def delete[A: ElHandler](k: String): Res[Unit] = implicitly[ElHandler[A]].delete(k)
+class Kvs(using val dba: Dba) extends WritableKvs:
+  val el = new WritableEl {
+    def put[A](k: String, el: A)(using h: ElHandler[A]): Either[Err, A] = h.put(k,el)
+    def get[A](k: String)(using h: ElHandler[A]): Either[Err, Option[A]] = h.get(k)
+    def delete[A](k: String)(using h: ElHandler[A]): Either[Err, Unit] = h.delete(k)
   }
 
-  val fd = new FdApi {
-    def put(fd: Fd)(implicit fh: FdHandler): Res[Fd] = fh.put(fd)
-    def get(fd: Fd)(implicit fh: FdHandler): Res[Option[Fd]] = fh.get(fd)
-    def delete(fd: Fd)(implicit fh: FdHandler): Res[Unit] = fh.delete(fd)
+  val file = new WritableFile {
+    def create(dir: String, name: String)(using h: FileHandler): Either[Err, File] = h.create(dir, name)
+    def append(dir: String, name: String, chunk: Array[Byte])(using h: FileHandler): Either[Err, File] = h.append(dir, name, chunk)
+    def stream(dir: String, name: String)(using h: FileHandler): Either[Err, LazyList[Either[Err, Array[Byte]]]] = h.stream(dir, name)
+    def size(dir: String, name: String)(using h: FileHandler): Either[Err, Long] = h.size(dir, name)
+    def delete(dir: String, name: String)(using h: FileHandler): Either[Err, File] = h.delete(dir, name)
+    def copy(dir: String, name: (String, String))(using h: FileHandler): Either[Err, File] = h.copy(dir, name)
   }
 
-  def nextid(fid: String): Res[String] = dba.nextid(fid)
+  val index = new WritableIdx
 
-  def add[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.add(el)
-  def put[H <: En](el: H)(implicit h: EnHandler[H]): Res[H] = h.put(el)
-  def all[H <: En](fid: String, from: Option[H] = None)(implicit h: EnHandler[H]): Res[LazyList[Res[H]]] = h.all(fid, from)
-  def get[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.get(fid, id)
-  def head[H <: En](fid: String)(implicit h: EnHandler[H]): Res[Option[H]] = h.head(fid)
-  def remove[H <: En](fid: String, id: String)(implicit h: EnHandler[H]): Res[H] = h.remove(fid, id)
-  def remove[H <: En](fid: String, ids: Seq[String])(implicit h: EnHandler[H]): Res[Vector[H]] = h.remove(fid, ids)
-  def removeAfter[H <: En](en: H, cleanup: H => Res[Unit] = (_: H) => Right(()))(implicit h: EnHandler[H]): Res[Unit] = h.removeAfter(en, cleanup)
-  def clearFeed[H <: En](fid: String)(implicit h: EnHandler[H]): Res[Unit] = h.clearFeed(fid)
-
-  val file = new FileApi {
-    def create(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.create(dir, name)
-    def append(dir: String, name: String, chunk: Array[Byte])(implicit h: FileHandler): Res[File] = h.append(dir, name, chunk)
-    def stream(dir: String, name: String)(implicit h: FileHandler): Res[LazyList[Res[Array[Byte]]]] = h.stream(dir, name)
-    def size(dir: String, name: String)(implicit h: FileHandler): Res[Long] = h.size(dir, name)
-    def delete(dir: String, name: String)(implicit h: FileHandler): Res[File] = h.delete(dir, name)
-    def copy(dir: String, name: (String, String))(implicit h: FileHandler): Res[File] = h.copy(dir, name)
-  }
-
-  object dump {
-    def save(path: String): Res[String] = dba.save(path)
-    def load(path: String): Res[String] = dba.load(path)
-  }
+  object dump:
+    def save(path: String): Either[Err, String] = dba.save(path)
+    def load(path: String): Either[Err, String] = dba.load(path)
 
   def onReady(): Future[Unit] = dba.onReady()
-
   def compact(): Unit = dba.compact()
-
-  def clean(keyPrefix: Array[Byte]): Res[Unit] = dba.clean(keyPrefix)
-}
+  def deleteByKeyPrefix(keyPrefix: Array[Byte]): Either[Err, Unit] = dba.deleteByKeyPrefix(keyPrefix)
+end Kvs

@@ -19,7 +19,7 @@ class GatherGet(client: ActorRef, t: FiniteDuration, M: Int, @unused R: Int, k: 
     case Event(StoreGetAck(data), DataCollection(perNode, nodes)) =>
       val xs = (data -> addr(sender)) +: perNode
       nodes + 1 match {
-        case `M` => //todo: wait for first R same answers?
+        case `M` => //todo; wait for first R same answers?
           cancelTimer("send_by_timeout")
           val (correct: Option[Data], outdated: HashSet[Node]) = MergeOps.forGatherGet(xs)
           ;{ // update outdated nodes with correct data

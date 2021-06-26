@@ -1,5 +1,4 @@
 package zd.kvs
-package store
 
 import akka.actor.*
 import akka.event.Logging
@@ -7,7 +6,6 @@ import akka.pattern.ask
 import akka.routing.FromConfig
 import akka.util.{Timeout}
 import leveldbjnr.LevelDb
-import zd.kvs.el.ElHandler
 import zd.rng
 import zd.rng.store.{ReadonlyStore, WriteStore}
 import zd.rng.stob
@@ -30,7 +28,7 @@ class Rng(system: ActorSystem) extends Dba {
 
   val hash = system.actorOf(rng.Hash.props(leveldb).withDeploy(Deploy.local), name="ring_hash")
 
-  def put(key: String, value: V): Res[V] = {
+  def put(key: String, value: V): Either[Err, V] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     val putF = hash.ask(rng.Put(stob(key), value))(t).mapTo[rng.Ack]
@@ -68,7 +66,7 @@ class Rng(system: ActorSystem) extends Dba {
     p.future
   }
 
-  def get(key: String): Res[Option[V]] = {
+  def get(key: String): Either[Err, Option[V]] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Get(stob(key)))(t).mapTo[rng.Ack]
@@ -80,7 +78,7 @@ class Rng(system: ActorSystem) extends Dba {
     }
   }
 
-  def delete(key: String): Res[Unit] = {
+  def delete(key: String): Either[Err, Unit] = {
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Delete(stob(key)))(t).mapTo[rng.Ack]
@@ -92,7 +90,7 @@ class Rng(system: ActorSystem) extends Dba {
     }
   }
 
-  def save(path: String): Res[String] = {
+  def save(path: String): Either[Err, String] = {
     val d = 1 hour
     val x = hash.ask(rng.Save(path))(Timeout(d))
     Try(Await.result(x, d)) match {
@@ -102,7 +100,7 @@ class Rng(system: ActorSystem) extends Dba {
       case Failure(t) => Left(RngThrow(t))
     }
   }
-  def load(path: String): Res[String] = {
+  def load(path: String): Either[Err, String] = {
     val d = Duration.fromNanos(cfg.getDuration("dump-timeout").nn.toNanos)
     val t = Timeout(d)
     val x = hash.ask(rng.Load(path))(t)
@@ -114,7 +112,7 @@ class Rng(system: ActorSystem) extends Dba {
     }
   }
 
-  def nextid(feed: String): Res[String] = {
+  def nextid(feed: String): Either[Err, String] = {
     import akka.cluster.sharding.*
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
@@ -125,7 +123,7 @@ class Rng(system: ActorSystem) extends Dba {
     leveldb.compact()
   }
 
-  def clean(keyPrefix: Array[Byte]): Res[Unit] = {
+  def deleteByKeyPrefix(keyPrefix: Array[Byte]): Either[Err, Unit] = {
     val d = Duration.fromNanos(cfg.getDuration("iter-timeout").nn.toNanos)
     val t = Timeout(d)
     val x = hash.ask(rng.Iter(keyPrefix))(t)
@@ -141,13 +139,13 @@ class Rng(system: ActorSystem) extends Dba {
 }
 
 object IdCounter {
-  def props(kvs: ElApi): Props = Props(new IdCounter(kvs))
+  def props(kvs: WritableEl): Props = Props(new IdCounter(kvs))
   val shardName = "nextid"
 }
-class IdCounter(kvs: ElApi) extends Actor with ActorLogging {
-  implicit val strHandler: ElHandler[String] = new ElHandler[String] {
-    def pickle(e: String): Res[Array[Byte]] = Right(e.getBytes("UTF-8").nn)
-    def unpickle(a: Array[Byte]): Res[String] = Right(new String(a,"UTF-8").nn)
+class IdCounter(kvs: WritableEl) extends Actor with ActorLogging {
+  given ElHandler[String] = new ElHandler[String] {
+    def pickle(e: String): Array[Byte] = e.getBytes("utf8").nn
+    def unpickle(a: Array[Byte]): String = String(a, "utf8").nn
   }
 
   def receive: Receive = {

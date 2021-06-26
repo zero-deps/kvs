@@ -1,4 +1,5 @@
-package zd.rng.dump
+package zd.rng
+package dump
 
 import proto.*
 import java.util.Arrays

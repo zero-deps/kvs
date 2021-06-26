@@ -192,4 +192,4 @@ case class WriteBatch() {
   }
 }
 
-given nullCanEqual[A]: CanEqual[A, A | Null] = CanEqual.derived
+given [A]: CanEqual[A, A | Null] = CanEqual.derived

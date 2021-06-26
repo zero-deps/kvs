@@ -17,16 +17,15 @@ package object rng {
   def stob(s: String): Array[Byte] = s.getBytes("UTF-8").nn
   def itob(v: Int): Array[Byte] = Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte)
 
-  implicit class StringExt(value: String) {
+  extension (value: String)
     def blue: String = s"\u001B[34m${value}\u001B[0m"
     def green: String = s"\u001B[32m${value}\u001B[0m"
-  }
 
   def now_ms(): Long = System.currentTimeMillis
   
   def addr(s: ActorRef): Node = s.path.address
 
-  given noneCanEqual[A]: CanEqual[None.type, Option[A]] = CanEqual.derived
+  given [A]: CanEqual[None.type, Option[A]] = CanEqual.derived
   given CanEqual[String, Any] = CanEqual.derived
   given CanEqual[DumpIO.ReadNext.type, Any] = CanEqual.derived
   given CanEqual[Node, Node] = CanEqual.derived

@@ -1,28 +1,23 @@
 package zd.kvs
-package el
 
-import zd.kvs.store.Dba
+trait ElHandler[T]:
+  def pickle(e: T): Array[Byte]
+  def unpickle(a: Array[Byte]): T
 
-trait ElHandler[T] {
-  def pickle(e: T): Res[Array[Byte]]
-  def unpickle(a: Array[Byte]): Res[T]
+  def put(k: String, el: T)(using dba: Dba): Either[Err, T] =
+    dba.put(k, pickle(el)).map(_ => el)
 
-  def put(k:String,el:T)(implicit dba:Dba):Res[T] = pickle(el).flatMap(x => dba.put(k,x)).map(_=>el)
-  def get(k:String)(implicit dba:Dba):Res[Option[T]] = dba.get(k) match {
-    case Right(Some(x)) => unpickle(x).map(Some(_))
-    case Right(None) => Right(None)
-    case x@Left(_) => x.coerceRight
-  }
-  def delete(k:String)(implicit dba:Dba):Res[Unit] = dba.delete(k)
-}
+  def get(k: String)(using dba: Dba): Either[Err, Option[T]] =
+    dba.get(k).map(_.map(unpickle))
+  
+  def delete(k: String)(using dba: Dba): Either[Err, Unit] =
+    dba.delete(k)
 
-object ElHandler {
-  implicit object bytesHandler extends ElHandler[Array[Byte]]{
-    def pickle(e:Array[Byte]):Res[Array[Byte]] = Right(e)
-    def unpickle(a:Array[Byte]):Res[Array[Byte]] = Right(a)
-  }
-  implicit object strHandler extends ElHandler[String]{
-    def pickle(e:String):Res[Array[Byte]] = Right(e.getBytes("UTF-8").nn)
-    def unpickle(a:Array[Byte]):Res[String] = Right(new String(a,"UTF-8").nn)
-  }
-}
+object ElHandler:
+  given ElHandler[Array[Byte]] = new ElHandler:
+    def pickle(e: Array[Byte]): Array[Byte] = e
+    def unpickle(a: Array[Byte]): Array[Byte] = a
+
+  given ElHandler[String] = new ElHandler:
+    def pickle(e: String): Array[Byte] = e.getBytes("utf8").nn
+    def unpickle(a: Array[Byte]): String = String(a, "utf8").nn

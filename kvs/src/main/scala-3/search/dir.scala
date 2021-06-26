@@ -9,37 +9,32 @@ import org.apache.lucene.store.*
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
 import scala.collection.JavaConverters.*
-import zd.kvs.en.{Fd, feedHandler, EnHandler, FdHandler}
-import zd.kvs.file.{File, FileHandler}
 
-class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFactory(dir)) {
-  implicit val fileh: FileHandler = new FileHandler {
+class KvsDirectory(dir: String)(kvs: WritableFile)(using Dba) extends BaseDirectory(KvsLockFactory(dir)) {
+  given FileHandler = new FileHandler {
     override val chunkLength = 10_000_000 // 10 MB
   }
-  implicit private val indexFileHandler: EnHandler[IndexFile] = IndexFileHandler
-  implicit private val fdh: FdHandler = feedHandler
+  val h = EnHandler
 
-  private val outs = TrieMap.empty[String,ByteArrayOutputStream]
-  private val nextTempFileCounter = new AtomicLong
+  private val outs = TrieMap.empty[String, ByteArrayOutputStream]
+  private val nextTempFileCounter = AtomicLong()
 
-  def exists: Res[Boolean] = {
-    kvs.fd.get(Fd(dir)).map(_.isDefined)
-  }
+  def exists: Either[Err, Boolean] =
+    h.get(Fd(dir)).map(_.isDefined)
   
-  def deleteAll(): Res[Unit] = {
+  def deleteAll(): Either[Err, Unit] =
     for {
-      xs <- kvs.all[IndexFile](dir)
+      xs <- h.all(dir)
       ys <- xs.sequence
       _  <- ys.map{ x =>
               val name = x.id
               for {
-                _ <- kvs.file.delete(dir, name).map(_ => ()).recover{ case _: zd.kvs.FileNotExists => () }
-                _ <- kvs.remove[IndexFile](dir, name)
-              } yield ()
+                _ <- kvs.delete(dir, name).map(_ => ()).recover{ case _: FileNotExists => () }
+                _ <- h.remove(dir, name)
+              } yield unit
             }.sequence_
-      _  <- kvs.fd.delete(zd.kvs.en.Fd(dir))(feedHandler).map(_ => ()).recover{ case _: zd.kvs.NotFound => () }
-    } yield ()
-  }
+      _  <- h.delete(Fd(dir)).map(_ => ()).recover{ case KeyNotFound => () }
+    } yield unit
 
   /**
    * Returns names of all files stored in this directory.
@@ -50,7 +45,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
   override
   def listAll(): Array[String | Null] | Null = {
     ensureOpen()
-    kvs.all[IndexFile](dir).flatMap(_.sequence).fold(
+    h.all(dir).flatMap(_.sequence).fold(
       l => throw new IOException(l.toString)
     , r => r.map(_.id).sorted.toArray
     )
@@ -69,13 +64,13 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
   def deleteFile(name: String | Null): Unit = {
     sync(Collections.singletonList(name.nn).nn)
     val r = for {
-      _ <- kvs.file.delete(dir, name.nn)
-      _ <- kvs.remove[IndexFile](dir, name.nn)
+      _ <- kvs.delete(dir, name.nn)
+      _ <- h.remove(dir, name.nn)
     } yield ()
     r.fold(
       l => l match {
-        case _: zd.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name.nn}")
-        case _: zd.kvs.NotFound => throw new NoSuchFileException(s"${dir}/${name.nn}")
+        case _: FileNotExists => throw new NoSuchFileException(s"${dir}/${name.nn}")
+        case KeyNotFound => throw new NoSuchFileException(s"${dir}/${name.nn}")
         case x => throw new IOException(x.toString)
       },
       _ => ()
@@ -95,9 +90,9 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
   def fileLength(name: String | Null): Long = {
     ensureOpen()
     sync(Collections.singletonList(name.nn).nn)
-    kvs.file.size(dir, name.nn).fold(
+    kvs.size(dir, name.nn).fold(
       l => l match {
-        case _: zd.kvs.FileNotExists => throw new NoSuchFileException(s"${dir}/${name.nn}")
+        case _: FileNotExists => throw new NoSuchFileException(s"${dir}/${name.nn}")
         case _ => throw new IOException(l.toString)
       },
       r => r
@@ -118,13 +113,13 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
   def createOutput(name: String | Null, context: IOContext | Null): IndexOutput | Null = {
     ensureOpen()
     val r = for {
-      _ <- kvs.add(IndexFile(dir, name.nn))
-      _ <- kvs.file.create(dir, name.nn)
+      _ <- h.add(En(dir, name.nn))
+      _ <- kvs.create(dir, name.nn)
     } yield ()
     r.fold(
       l => l match {
-        case _: zd.kvs.EntryExists => throw new FileAlreadyExistsException(s"${dir}/${name.nn}")
-        case _: zd.kvs.FileAlreadyExists => throw new FileAlreadyExistsException(s"${dir}/${name.nn}")
+        case _: EntryExists => throw new FileAlreadyExistsException(s"${dir}/${name.nn}")
+        case _: FileAlreadyExists => throw new FileAlreadyExistsException(s"${dir}/${name.nn}")
         case _ => throw new IOException(l.toString)
       },
       _ => {
@@ -145,11 +140,11 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
   override
   def createTempOutput(prefix: String | Null, suffix: String | Null, context: IOContext | Null): IndexOutput | Null = {
     ensureOpen()
-    @tailrec def loop(): Res[File] = {
+    @tailrec def loop(): Either[Err, File] = {
       val name = Directory.getTempFileName(prefix, suffix, nextTempFileCounter.getAndIncrement).nn
       val res = for {
-        _ <- kvs.add(IndexFile(dir, name))
-        r <- kvs.file.create(dir, name)
+        _ <- h.add(En(dir, name))
+        r <- kvs.create(dir, name)
       } yield r
       res match {
         case Left(_: EntryExists) => loop()
@@ -180,7 +175,7 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
     ensureOpen()
     names.nn.asScala.foreach{ (name: String) =>
       outs.get(name).map(_.toByteArray.nn).foreach{ xs =>
-        kvs.file.append(dir, name, xs).fold(
+        kvs.append(dir, name, xs).fold(
           l => throw new IOException(l.toString),
           _ => ()
         )
@@ -190,10 +185,8 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
   }
 
   override
-  def syncMetaData(): Unit = {
+  def syncMetaData(): Unit =
     ensureOpen()
-    ()
-  }
 
   /**
    * Renames {@code source} file to {@code dest} file where
@@ -213,10 +206,10 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
     ensureOpen()
     sync(Arrays.asList(source, dest).nn)
     val res = for {
-      _ <- kvs.file.copy(dir, source.nn -> dest.nn)
-      _ <- kvs.add(IndexFile(dir, dest.nn))
-      _ <- kvs.file.delete(dir, source.nn)
-      _ <- kvs.remove[IndexFile](dir, source.nn)
+      _ <- kvs.copy(dir, source.nn -> dest.nn)
+      _ <- h.add(En(dir, dest.nn))
+      _ <- kvs.delete(dir, source.nn)
+      _ <- h.remove(dir, source.nn)
     } yield ()
     res.fold(
       l => throw new IOException(l.toString),
@@ -237,12 +230,12 @@ class KvsDirectory(dir: String)(kvs: Kvs) extends BaseDirectory(new KvsLockFacto
   def openInput(name: String | Null, context: IOContext | Null): IndexInput | Null = {
     sync(Collections.singletonList(name.nn).nn)
     val res = for {
-      bs <- kvs.file.stream(dir, name.nn)
+      bs <- kvs.stream(dir, name.nn)
       bs1 <- bs.sequence
     } yield new BytesIndexInput(s"${dir}/${name.nn}", bs1)
     res.fold(
       l => l match {
-        case zd.kvs.FileNotExists(dir, name) => throw new NoSuchFileException(s"${dir}/${name}")
+        case FileNotExists(dir, name) => throw new NoSuchFileException(s"${dir}/${name}")
         case _ => throw new IOException(l.toString)
       },
       r => r

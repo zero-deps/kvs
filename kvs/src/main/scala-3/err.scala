@@ -1,17 +1,17 @@
 package zd.kvs
 
-sealed trait Err
+sealed trait Err derives CanEqual
 
-final case class EntryExists(key: String) extends Err
-final case class NotFound(key: String) extends Err
-final case class FileNotExists(dir: String, name: String) extends Err
-final case class FileAlreadyExists(dir: String, name: String) extends Err
-final case class Fail(r: String) extends Err
-final case class PickleFail(t: Throwable) extends Err
-final case class UnpickleFail(t: Throwable) extends Err
-final case class InvalidArgument(d: String) extends Err
+case class EntryExists(key: String) extends Err
+case object KeyNotFound extends Err
+case class FileNotExists(dir: String, name: String) extends Err
+case class FileAlreadyExists(dir: String, name: String) extends Err
+case class Fail(r: String) extends Err
+case class PickleFail(t: Throwable) extends Err
+case class UnpickleFail(t: Throwable) extends Err
+case class InvalidArgument(d: String) extends Err
 
-final case class RngAskQuorumFailed(why: String) extends Err
-final case class RngAskTimeoutFailed(op: String, key: String) extends Err
-final case class RngThrow(t: Throwable) extends Err
-final case class RngFail(m: String) extends Err
+case class RngAskQuorumFailed(why: String) extends Err
+case class RngAskTimeoutFailed(op: String, key: String) extends Err
+case class RngThrow(t: Throwable) extends Err
+case class RngFail(m: String) extends Err
