@@ -2,25 +2,32 @@ package zd.kvs
 
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.Future
+import util.chaining.*
 
-class Mem extends Dba {
-  private val db = new TrieMap[String, Array[Byte]]
-  private val nextids = new TrieMap[String, Long]
+class Mem extends Dba, AutoCloseable:
+  private val db = TrieMap[String, V]()
+  private val nextids = TrieMap[String, Long]()
 
-  def get(key: String): Either[Err, Option[Array[Byte]]] = Right(db.get(key))
-  def put(key: String, value: Array[Byte]): Either[Err, Array[Byte]] = { db.put(key, value); Right(value) }
-  def delete(key: String): Either[Err, Unit] = { db.remove(key); Right(()) }
+  override def get(key: String): R[Option[V]] =
+    db.get(key).pipe(Right.apply)
+  
+  override def put(key: String, value: V): R[Unit] =
+    db.put(key, value).pipe(Right.apply).map(_ => unit)
+  
+  override def delete(key: String): R[Unit] =
+    db.remove(key).pipe(Right.apply).map(_ => unit)
 
-  def nextid(fid: String): Either[Err, String] =
+  override def nextid(fid: String): R[String] =
     Right(nextids.updateWith(fid){
-      case None => Some(1L)
-      case Some(n) => Some(n + 1)
+      case None => Some(1)
+      case Some(n) => Some(n+1)
     }.get.toString)
 
-  def onReady(): Future[Unit] = Future.successful(())
-  def compact(): Unit = ()
+  override def onReady(): Future[Unit] = Future.successful(())
+  override def compact(): Unit = ()
 
-  def load(path: String): Either[Err, String] = ???
-  def save(path: String): Either[Err, String] = ???
-  def deleteByKeyPrefix(keyPrefix: Array[Byte]): Either[Err, Unit] = ???
-}
+  override def load(path: String): R[String] = ???
+  override def save(path: String): R[String] = ???
+  override def deleteByKeyPrefix(k: K): R[Unit] = ???
+
+  override def close(): Unit = unit

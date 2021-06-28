@@ -7,11 +7,13 @@ lazy val kvs = project.in(file("kvs")).settings(
   scalaVersion := "3.0.0"
 , crossScalaVersions := "3.0.0" :: "2.13.6" :: Nil
 , libraryDependencies ++= Seq(
-    "com.typesafe.akka" % "akka-cluster-sharding_2.13" % "2.6.14"
-  , "com.typesafe.akka" % "akka-slf4j_2.13" % "2.6.14"
+    "com.typesafe.akka" % "akka-cluster-sharding_2.13" % "2.6.15"
+  , "com.typesafe.akka" % "akka-slf4j_2.13" % "2.6.15"
   , "ch.qos.logback" % "logback-classic" % "1.3.0-alpha5"
   , "com.github.jnr" % "jnr-ffi" % "2.2.2"
   , "org.apache.lucene" % "lucene-analyzers-common" % "8.8.2"
+  , "dev.zio" %% "zio" % "1.0.9"
+  , "org.rocksdb" % "rocksdbjni" % "6.20.3"
   , "org.scalatest" %% "scalatest" % "3.2.9" % Test
   )
 , scalacOptions ++= {
@@ -49,11 +51,11 @@ val scalacOptions2 = Seq(
 , "-encoding", "UTF-8"
 )
 val scalacOptions3 = Seq(
-  "-source", "future-migration", "-deprecation", "-nowarn"
+  "-source:future", "-nowarn"
 , "-language:strictEquality", "-language:postfixOps"
 , "-Yexplicit-nulls"
-, "-encoding", "UTF-8"
-, "-release", "11"
+, "-encoding:UTF-8"
+, "-release:11"
 )
 
 turbo := true

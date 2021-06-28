@@ -81,32 +81,34 @@ object Kvs:
   def mem(): Kvs = new Kvs()(using Mem())
   def fs(): Kvs = ???
   def sql(): Kvs = ???
-  def leveldb(): Kvs = ???
+  def rks(dir: String): Kvs = new Kvs()(using Rks(dir))
 end Kvs
 
-class Kvs(using val dba: Dba) extends WritableKvs:
-  val el = new WritableEl {
+class Kvs(using val dba: Dba) extends WritableKvs, AutoCloseable:
+  import dba.R
+
+  val el = new WritableEl:
     def put[A](k: String, el: A)(using h: ElHandler[A]): Either[Err, A] = h.put(k,el)
     def get[A](k: String)(using h: ElHandler[A]): Either[Err, Option[A]] = h.get(k)
     def delete[A](k: String)(using h: ElHandler[A]): Either[Err, Unit] = h.delete(k)
-  }
 
-  val file = new WritableFile {
+  val file = new WritableFile:
     def create(dir: String, name: String)(using h: FileHandler): Either[Err, File] = h.create(dir, name)
     def append(dir: String, name: String, chunk: Array[Byte])(using h: FileHandler): Either[Err, File] = h.append(dir, name, chunk)
     def stream(dir: String, name: String)(using h: FileHandler): Either[Err, LazyList[Either[Err, Array[Byte]]]] = h.stream(dir, name)
     def size(dir: String, name: String)(using h: FileHandler): Either[Err, Long] = h.size(dir, name)
     def delete(dir: String, name: String)(using h: FileHandler): Either[Err, File] = h.delete(dir, name)
     def copy(dir: String, name: (String, String))(using h: FileHandler): Either[Err, File] = h.copy(dir, name)
-  }
 
   val index = new WritableIdx
 
   object dump:
-    def save(path: String): Either[Err, String] = dba.save(path)
-    def load(path: String): Either[Err, String] = dba.load(path)
+    def save(path: String): R[String] = dba.save(path)
+    def load(path: String): R[String] = dba.load(path)
 
   def onReady(): Future[Unit] = dba.onReady()
   def compact(): Unit = dba.compact()
-  def deleteByKeyPrefix(keyPrefix: Array[Byte]): Either[Err, Unit] = dba.deleteByKeyPrefix(keyPrefix)
+  def deleteByKeyPrefix(k: dba.K): R[Unit] = dba.deleteByKeyPrefix(k)
+
+  def close(): Unit = dba.close()
 end Kvs

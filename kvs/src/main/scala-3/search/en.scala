@@ -32,7 +32,7 @@ object EnHandler:
     dba.get(fd.id).map(_.map(decode))
 
   def delete(fd: Fd)(using dba: Dba): Either[Err, Unit] =
-    dba.delete(fd.id)
+    dba.delete(fd.id).void
 
   private inline def key(fid: String, id: String): String = s"${fid}.${id}"
   private inline def key(en: En): String = key(fid=en.fid, id=en.id)
@@ -51,7 +51,7 @@ object EnHandler:
     }
 
   private def delete(fid: String, id: String)(using dba: Dba): Either[Err, Unit] =
-    dba.delete(key(fid, id))
+    dba.delete(key(fid, id)).void
 
   /**
    * Adds the entry to the container

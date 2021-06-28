@@ -1,10 +1,10 @@
 package zd.kvs
 
-import zd.rng._
-import zd.rng.data._
+import zd.rng.*
+import zd.rng.data.*
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
-import org.scalatest._
+import org.scalatest.*
 import scala.collection.immutable.{HashSet, TreeMap}
 
 class MergeTest extends AnyFreeSpec with Matchers with EitherValues with BeforeAndAfterAll {

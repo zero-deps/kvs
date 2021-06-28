@@ -13,42 +13,39 @@ import scala.concurrent.*
 import scala.concurrent.duration.*
 import scala.util.{Try, Success, Failure}
 
-class Rng(system: ActorSystem) extends Dba {
-  lazy val log = Logging(system, "hash-ring")
+class Rng(system: ActorSystem) extends Dba, AutoCloseable:
+  private val log = Logging(system, "hash-ring")
 
-  val cfg = system.settings.config.getConfig("ring").nn
+  private val cfg = system.settings.config.getConfig("ring").nn
 
   system.eventStream
 
-  val leveldbPath = cfg.getString("leveldb.dir").nn
-  val leveldb: LevelDb = LevelDb.open(leveldbPath).fold(l => throw l, r => r)
+  private val leveldbPath = cfg.getString("leveldb.dir").nn
+  private val db: LevelDb = LevelDb.open(leveldbPath).fold(l => throw l, r => r)
 
-  system.actorOf(WriteStore.props(leveldb).withDeploy(Deploy.local), name="ring_write_store")
-  system.actorOf(FromConfig.props(ReadonlyStore.props(leveldb)).withDeploy(Deploy.local), name="ring_readonly_store")
+  system.actorOf(WriteStore.props(db).withDeploy(Deploy.local), name="ring_write_store")
+  system.actorOf(FromConfig.props(ReadonlyStore.props(db)).withDeploy(Deploy.local), name="ring_readonly_store")
 
-  val hash = system.actorOf(rng.Hash.props(leveldb).withDeploy(Deploy.local), name="ring_hash")
+  private val hash = system.actorOf(rng.Hash.props(db).withDeploy(Deploy.local), name="ring_hash")
 
-  def put(key: String, value: V): Either[Err, V] = {
+  override def put(key: K, value: V): R[Unit] =
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     val putF = hash.ask(rng.Put(stob(key), value))(t).mapTo[rng.Ack]
-    Try(Await.result(putF, d)) match {
-      case Success(rng.AckSuccess(_)) => Right(value)
+    Try(Await.result(putF, d)) match
+      case Success(rng.AckSuccess(_)) => Right(())
       case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
       case Success(rng.AckTimeoutFailed(op, k)) => Left(RngAskTimeoutFailed(op, k))
-      case Failure(t) => Left(RngThrow(t))
-    }
-  }
+      case Failure(t) => Left(Failed(t))
 
-  private def isReady(): Future[Boolean] = {
+  private def isReady(): Future[Boolean] =
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     hash.ask(rng.Ready)(t).mapTo[Boolean]
-  }
 
-  def onReady(): Future[Unit] = {
+  override def onReady(): Future[Unit] =
     val p = Promise[Unit]()
-    def loop(): Unit = {
+    def loop(): Unit =
       import system.dispatcher
       system.scheduler.scheduleOnce(1 second){
         isReady() onComplete {
@@ -60,93 +57,81 @@ class Rng(system: ActorSystem) extends Dba {
             loop()
         }
       }
-      ()
-    }
     loop()
     p.future
-  }
 
-  def get(key: String): Either[Err, Option[V]] = {
+  override def get(key: K): R[Option[V]] =
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Get(stob(key)))(t).mapTo[rng.Ack]
-    Try(Await.result(fut, d)) match {
+    Try(Await.result(fut, d)) match
       case Success(rng.AckSuccess(v)) => Right(v)
       case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
       case Success(rng.AckTimeoutFailed(op, k)) => Left(RngAskTimeoutFailed(op, k))
-      case Failure(t) => Left(RngThrow(t))
-    }
-  }
+      case Failure(t) => Left(Failed(t))
 
-  def delete(key: String): Either[Err, Unit] = {
+  override def delete(key: K): R[Unit] =
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
     val fut = hash.ask(rng.Delete(stob(key)))(t).mapTo[rng.Ack]
-    Try(Await.result(fut, d)) match {
+    Try(Await.result(fut, d)) match
       case Success(rng.AckSuccess(_)) => Right(())
       case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
       case Success(rng.AckTimeoutFailed(op, k)) => Left(RngAskTimeoutFailed(op, k))
-      case Failure(t) => Left(RngThrow(t))
-    }
-  }
+      case Failure(t) => Left(Failed(t))
 
-  def save(path: String): Either[Err, String] = {
+  override def save(path: String): R[String] =
     val d = 1 hour
     val x = hash.ask(rng.Save(path))(Timeout(d))
-    Try(Await.result(x, d)) match {
+    Try(Await.result(x, d)) match
       case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
       case Success(v: String) => Right(v)
       case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
-      case Failure(t) => Left(RngThrow(t))
-    }
-  }
-  def load(path: String): Either[Err, String] = {
+      case Failure(t) => Left(Failed(t))
+
+  override def load(path: String): R[String] =
     val d = Duration.fromNanos(cfg.getDuration("dump-timeout").nn.toNanos)
     val t = Timeout(d)
     val x = hash.ask(rng.Load(path))(t)
-    Try(Await.result(x, d)) match {
+    Try(Await.result(x, d)) match
       case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
       case Success(v: String) => Right(v)
       case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
-      case Failure(t) => Left(RngThrow(t))
-    }
-  }
+      case Failure(t) => Left(Failed(t))
 
-  def nextid(feed: String): Either[Err, String] = {
+  override def nextid(feed: String): R[String] =
     import akka.cluster.sharding.*
     val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
     val t = Timeout(d)
-    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed)(t).mapTo[String],d)).toEither.leftMap(RngThrow.apply)
-  }
+    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed)(t).mapTo[String],d)).toEither.leftMap(Failed.apply)
 
-  def compact(): Unit = {
-    leveldb.compact()
-  }
+  override def compact(): Unit =
+    db.compact()
 
-  def deleteByKeyPrefix(keyPrefix: Array[Byte]): Either[Err, Unit] = {
+  override def deleteByKeyPrefix(k: K): R[Unit] =
     val d = Duration.fromNanos(cfg.getDuration("iter-timeout").nn.toNanos)
     val t = Timeout(d)
-    val x = hash.ask(rng.Iter(keyPrefix))(t)
-    Try(Await.result(x, d)) match {
+    val x = hash.ask(rng.Iter(stob(k)))(t)
+    Try(Await.result(x, d)) match
       case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
       case Success(res: zd.rng.IterRes) =>
         res.keys.foreach(log.info)
         res.keys.map(delete).sequence_
       case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
-      case Failure(t) => Left(RngThrow(t))
-    }
-  }
-}
+      case Failure(t) => Left(Failed(t))
 
-object IdCounter {
+  override def close(): Unit =
+    try { db.close() } catch { case _: Throwable => () }
+end Rng
+
+object IdCounter:
   def props(kvs: WritableEl): Props = Props(new IdCounter(kvs))
   val shardName = "nextid"
-}
-class IdCounter(kvs: WritableEl) extends Actor with ActorLogging {
-  given ElHandler[String] = new ElHandler[String] {
+
+class IdCounter(kvs: WritableEl) extends Actor, ActorLogging:
+  given ElHandler[String] = new ElHandler:
     def pickle(e: String): Array[Byte] = e.getBytes("utf8").nn
     def unpickle(a: Array[Byte]): String = String(a, "utf8").nn
-  }
 
   def receive: Receive = {
     case name: String =>
@@ -156,10 +141,9 @@ class IdCounter(kvs: WritableEl) extends Actor with ActorLogging {
       )
   }
 
-  def put(name:String, prev: String): Unit = {
+  def put(name:String, prev: String): Unit =
     kvs.put[String](s"IdCounter.$name", (prev.toLong+1).toString).fold(
       l => log.error(s"Failed to increment `$name` id=$l"),
       r => sender ! r
     )
-  }
-}
+end IdCounter

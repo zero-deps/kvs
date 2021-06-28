@@ -37,7 +37,7 @@ object IdxHandler:
     dba.get(fid).map(_.map(decode))
   
   def delete(fid: Fid)(using dba: Dba): Either[Err, Unit] =
-    dba.delete(fid)
+    dba.delete(fid).void
   
   type A = Idx
   given MessageCodec[A] = caseCodecAuto
@@ -58,7 +58,7 @@ object IdxHandler:
     }
 
   private def delete(fid: Fid, id: String)(using dba: Dba): Either[Err, Unit] =
-    dba.delete(key(fid, id))
+    dba.delete(key(fid, id)).void
 
   /**
    * Adds the entry to the container

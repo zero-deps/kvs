@@ -11,7 +11,7 @@ trait ElHandler[T]:
     dba.get(k).map(_.map(unpickle))
   
   def delete(k: String)(using dba: Dba): Either[Err, Unit] =
-    dba.delete(k)
+    dba.delete(k).void
 
 object ElHandler:
   given ElHandler[Array[Byte]] = new ElHandler:
