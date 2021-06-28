@@ -2,6 +2,7 @@ package zd.kvs
 
 import akka.actor.*
 import akka.cluster.sharding.*
+import akka.event.*
 import scala.concurrent.*
 
 trait ReadableEl:
@@ -81,7 +82,7 @@ object Kvs:
   def mem(): Kvs = new Kvs()(using Mem())
   def fs(): Kvs = ???
   def sql(): Kvs = ???
-  def rks(dir: String): Kvs = new Kvs()(using Rks(dir))
+  def rks(dir: String, log: LoggingAdapter): Kvs = new Kvs()(using Rks(dir, log))
 end Kvs
 
 class Kvs(using val dba: Dba) extends WritableKvs, AutoCloseable:

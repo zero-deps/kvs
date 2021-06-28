@@ -1,5 +1,6 @@
 package zd.kvs
 
+import akka.event.LoggingAdapter
 import proto.*
 import org.rocksdb.*
 import zio.*, clock.*, duration.*
@@ -7,11 +8,19 @@ import scala.util.Try
 import scala.util.chaining.*
 import scala.concurrent.Future
 
-class Rks(dir: String) extends Dba, AutoCloseable:
+class Rks(dir: String, logging: LoggingAdapter) extends Dba, AutoCloseable:
   RocksDB.loadLibrary()
   private val opts = Options().nn
     .setCreateIfMissing(true).nn
     .setCompressionType(CompressionType.LZ4_COMPRESSION).nn
+    .setLogger(new Logger(Options()) {
+      def log(infoLogLevel: InfoLogLevel, logMsg: String): Unit =
+        infoLogLevel match
+          case InfoLogLevel.DEBUG_LEVEL => logging.debug(logMsg)
+          case InfoLogLevel.INFO_LEVEL => logging.info(logMsg)
+          case InfoLogLevel.WARN_LEVEL => logging.warning(logMsg)
+          case _ => logging.error(logMsg)
+    }).nn
   private val db = RocksDB.open(opts, dir).nn
 
   private def withRetryOnce[A](op: Array[Byte] => A, key: K): R[A] =
