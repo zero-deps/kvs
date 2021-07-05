@@ -34,6 +34,14 @@ object EnHandler:
   def delete(fd: Fd)(using dba: Dba): Either[Err, Unit] =
     dba.delete(fd.id).void
 
+  def nextid(fid: String)(using dba: Dba): Either[Err, String] =
+    def key(fid: String): String = s"IdCounter.${fid}" 
+    dba.get(key(fid)).flatMap{ v =>
+      val prev = v.map(String(_, "utf8").nn).getOrElse("0")
+      val next = (prev.toLong+1).toString
+      dba.put(key(fid), next.getBytes("utf8").nn).map(_ => next)
+    }
+
   private inline def key(fid: String, id: String): String = s"${fid}.${id}"
   private inline def key(en: En): String = key(fid=en.fid, id=en.id)
 
@@ -61,7 +69,7 @@ object EnHandler:
   def add(en: En)(using dba: Dba): Either[Err, En] =
     get(Fd(en.fid)).flatMap(_.cata(Right(_), put(Fd(en.fid)))).flatMap{ (fd: Fd) =>
       ( if (en.id == empty)
-          dba.nextid(en.fid) // generate ID if it is empty
+          nextid(en.fid) // generate ID if it is empty
         else
           get(en.fid, en.id).flatMap( // id of entry must be unique
             _.cata(_ => Left(EntryExists(key(en))), Right(en.id))

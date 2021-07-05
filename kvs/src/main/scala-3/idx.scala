@@ -38,6 +38,14 @@ object IdxHandler:
   
   def delete(fid: Fid)(using dba: Dba): Either[Err, Unit] =
     dba.delete(fid).void
+
+  def nextid(fid: Fid)(using dba: Dba): Either[Err, String] =
+    def key(fid: String): String = s"IdCounter.${fid}" 
+    dba.get(key(fid)).flatMap{ v =>
+      val prev = v.map(String(_, "utf8").nn).getOrElse("0")
+      val next = (prev.toLong+1).toString
+      dba.put(key(fid), next.getBytes("utf8").nn).map(_ => next)
+    }
   
   type A = Idx
   given MessageCodec[A] = caseCodecAuto
@@ -68,7 +76,7 @@ object IdxHandler:
   def add(en: A)(using dba: Dba): Either[Err, A] =
     get(en.fid).flatMap(_.cata(Right(_), create(en.fid))).flatMap{ (fd: Fd) =>
       ( if (en.id == empty)
-          dba.nextid(en.fid) // generate ID if it is empty
+          nextid(en.fid) // generate ID if it is empty
         else
           get(en.fid, en.id).flatMap( // id of entry must be unique
             _.cata(_ => Left(EntryExists(key(en.fid, en.id))), Right(en.id))

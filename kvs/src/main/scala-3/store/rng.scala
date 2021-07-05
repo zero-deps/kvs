@@ -99,12 +99,6 @@ class Rng(system: ActorSystem) extends Dba, AutoCloseable:
       case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
       case Failure(t) => Left(Failed(t))
 
-  override def nextid(feed: String): R[String] =
-    import akka.cluster.sharding.*
-    val d = Duration.fromNanos(cfg.getDuration("ring-timeout").nn.toNanos)
-    val t = Timeout(d)
-    Try(Await.result(ClusterSharding(system).shardRegion(IdCounter.shardName).ask(feed)(t).mapTo[String],d)).toEither.leftMap(Failed.apply)
-
   override def compact(): Unit =
     db.compact()
 
@@ -123,27 +117,3 @@ class Rng(system: ActorSystem) extends Dba, AutoCloseable:
   override def close(): Unit =
     try { db.close() } catch { case _: Throwable => () }
 end Rng
-
-object IdCounter:
-  def props(kvs: WritableEl): Props = Props(new IdCounter(kvs))
-  val shardName = "nextid"
-
-class IdCounter(kvs: WritableEl) extends Actor, ActorLogging:
-  given ElHandler[String] = new ElHandler:
-    def pickle(e: String): Array[Byte] = e.getBytes("utf8").nn
-    def unpickle(a: Array[Byte]): String = String(a, "utf8").nn
-
-  def receive: Receive = {
-    case name: String =>
-      kvs.get[String](s"IdCounter.${name}").fold(
-        l => log.error("can't get counter for name={} err={}", name, l)
-      , r => r.cata(prev => put(name, prev), put(name, prev="0"))
-      )
-  }
-
-  def put(name:String, prev: String): Unit =
-    kvs.put[String](s"IdCounter.$name", (prev.toLong+1).toString).fold(
-      l => log.error(s"Failed to increment `$name` id=$l"),
-      r => sender ! r
-    )
-end IdCounter

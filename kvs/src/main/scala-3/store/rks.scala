@@ -42,7 +42,6 @@ class Rks(dir: String, logging: LoggingAdapter) extends Dba, AutoCloseable:
     withRetryOnce(db.delete, key)
 
   def compact(): Unit = db.compactRange()
-  def nextid(fid: String): R[String] = ??? //todo
 
   def save(path: String): R[String] = ??? //todo
   def load(path: String): R[String] = ??? //todo

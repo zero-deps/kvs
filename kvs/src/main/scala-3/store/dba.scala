@@ -11,7 +11,6 @@ trait Dba { self: AutoCloseable =>
   def put(key: K, value: V): R[Unit]
   def get(key: K): R[Option[V]]
   def delete(key: K): R[Unit]
-  def nextid(fid: String): R[String]
 
   def save(path: String): R[String]
   def load(path: String): R[String]

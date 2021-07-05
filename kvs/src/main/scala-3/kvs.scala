@@ -1,7 +1,6 @@
 package zd.kvs
 
 import akka.actor.*
-import akka.cluster.sharding.*
 import akka.event.*
 import scala.concurrent.*
 
@@ -43,6 +42,7 @@ class WritableIdx(using Dba) extends ReadableIdx:
   def update(fd: Fd, top: String): Either[Err, Unit] = h.update(fd, top)
   def create(fid: Fid): Either[Err, Fd] = h.create(fid)
   def delete(fid: Fid): Either[Err, Unit] = h.delete(fid)
+  def nextid(fid: Fid): Either[Err, String] = h.nextid(fid)
 
   def add(a: A): Either[Err, A] = h.add(a)
   def put(a: A): Either[Err, A] = h.put(a)
@@ -63,12 +63,6 @@ object Kvs:
   def rng(system: ActorSystem): Kvs =
     val log = akka.event.Logging(system, "kvs")
     val kvs = new Kvs()(using Rng(system))
-    val sharding = ClusterSharding(system)
-    val settings = ClusterShardingSettings(system)
-    sharding.start(typeName=IdCounter.shardName, entityProps=IdCounter.props(kvs.el), settings=settings,
-      extractEntityId = { case msg:String => (msg,msg) },
-      extractShardId = { case msg:String => (math.abs(msg.hashCode) % 100).toString }
-    )
     val jmx = KvsJmx(kvs)
     jmx.registerMBean()
     CoordinatedShutdown(system).addTask("stop-kvs-jmx", "kvs jmx") { () =>
