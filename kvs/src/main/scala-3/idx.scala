@@ -38,14 +38,6 @@ object IdxHandler:
   
   def delete(fid: Fid)(using dba: Dba): Either[Err, Unit] =
     dba.delete(fid).void
-
-  def nextid(fid: Fid)(using dba: Dba): Either[Err, String] =
-    def key(fid: String): String = s"IdCounter.${fid}" 
-    dba.get(key(fid)).flatMap{ v =>
-      val prev = v.map(String(_, "utf8").nn).getOrElse("0")
-      val next = (prev.toLong+1).toString
-      dba.put(key(fid), next.getBytes("utf8").nn).map(_ => next)
-    }
   
   type A = Idx
   given MessageCodec[A] = caseCodecAuto
@@ -67,6 +59,14 @@ object IdxHandler:
 
   private def delete(fid: Fid, id: String)(using dba: Dba): Either[Err, Unit] =
     dba.delete(key(fid, id)).void
+
+  private def nextid(fid: Fid)(using dba: Dba): Either[Err, String] =
+    def key(fid: String): String = s"IdCounter.${fid}" 
+    dba.get(key(fid)).flatMap{ v =>
+      val prev = v.map(String(_, "utf8").nn).getOrElse("0")
+      val next = (prev.toLong+1).toString
+      dba.put(key(fid), next.getBytes("utf8").nn).map(_ => next)
+    }
 
   /**
    * Adds the entry to the container

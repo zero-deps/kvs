@@ -42,7 +42,6 @@ class WritableIdx(using Dba) extends ReadableIdx:
   def update(fd: Fd, top: String): Either[Err, Unit] = h.update(fd, top)
   def create(fid: Fid): Either[Err, Fd] = h.create(fid)
   def delete(fid: Fid): Either[Err, Unit] = h.delete(fid)
-  def nextid(fid: Fid): Either[Err, String] = h.nextid(fid)
 
   def add(a: A): Either[Err, A] = h.add(a)
   def put(a: A): Either[Err, A] = h.put(a)

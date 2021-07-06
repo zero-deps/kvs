@@ -34,14 +34,6 @@ object EnHandler:
   def delete(fd: Fd)(using dba: Dba): Either[Err, Unit] =
     dba.delete(fd.id).void
 
-  def nextid(fid: String)(using dba: Dba): Either[Err, String] =
-    def key(fid: String): String = s"IdCounter.${fid}" 
-    dba.get(key(fid)).flatMap{ v =>
-      val prev = v.map(String(_, "utf8").nn).getOrElse("0")
-      val next = (prev.toLong+1).toString
-      dba.put(key(fid), next.getBytes("utf8").nn).map(_ => next)
-    }
-
   private inline def key(fid: String, id: String): String = s"${fid}.${id}"
   private inline def key(en: En): String = key(fid=en.fid, id=en.id)
 
@@ -60,6 +52,14 @@ object EnHandler:
 
   private def delete(fid: String, id: String)(using dba: Dba): Either[Err, Unit] =
     dba.delete(key(fid, id)).void
+
+  private def nextid(fid: String)(using dba: Dba): Either[Err, String] =
+    def key(fid: String): String = s"IdCounter.${fid}" 
+    dba.get(key(fid)).flatMap{ v =>
+      val prev = v.map(String(_, "utf8").nn).getOrElse("0")
+      val next = (prev.toLong+1).toString
+      dba.put(key(fid), next.getBytes("utf8").nn).map(_ => next)
+    }
 
   /**
    * Adds the entry to the container
