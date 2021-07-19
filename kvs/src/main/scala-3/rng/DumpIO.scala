@@ -60,3 +60,15 @@ class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLoggi
     super.postStop()
   }
 }
+
+object DumpIterate {
+  def props(f: (Key, Value) => Unit): Props = Props(new DumpIterate(f))
+}
+
+class DumpIterate(f: (Key, Value) => Unit) extends Actor {
+  def receive = {
+    case msg: DumpIO.Put =>
+      msg.kv.foreach(e => f(e.key, e.value))
+      sender ! DumpIO.PutDone("")
+  }
+}

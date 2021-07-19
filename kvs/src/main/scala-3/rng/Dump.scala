@@ -17,6 +17,7 @@ object DumpProcessor {
 
   final case class Load(path: String)
   final case class Save(buckets: SortedMap[Bucket, PreferenceList], path: String)
+  final case class Iterate(buckets: SortedMap[Bucket, PreferenceList], f: (Key, Value) => Unit)
 }
 
 class DumpProcessor extends Actor with ActorLogging {
@@ -66,6 +67,15 @@ class DumpProcessor extends Actor with ActorLogging {
           ))
           context.become(save(buckets, dumpIO, sender)())
       }
+
+    case DumpProcessor.Iterate(buckets, f) =>
+      log.info(s"DumpProcessor. Iterating...".green)
+      val dumpItearte = context.actorOf(DumpIterate.props(f))
+      buckets(0).foreach(n => stores.get(n, "ring_readonly_store").fold(
+        _ ! DumpGetBucketData(0),
+        _ ! DumpGetBucketData(0),
+      ))
+      context.become(save(buckets, dumpItearte, sender)())
   }
 
   def load(dumpIO: ActorRef, client: ActorRef): () => Receive = {

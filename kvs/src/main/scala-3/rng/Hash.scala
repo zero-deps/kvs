@@ -70,6 +70,7 @@ object Delete {
 }
 
 case class Save(path: String)
+case class Iterate(f: (Key, Value) => Unit)
 case class Load(path: String)
 case class Iter(keyPrefix: Array[Byte])
 case class IterRes(keys: List[String])
@@ -154,6 +155,9 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
     case Event(Save(_), _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
+    case Event(Iterate(_), _) =>
+      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+      stay()
     case Event(Load(_), _) =>
       sender ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
@@ -192,6 +196,9 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
     case Event(Save(_), _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
+    case Event(Iterate(_), _) =>
+      sender ! AckQuorumFailed("QuorumStateReadonly")
+      stay()
     case Event(Load(_), _) =>
       sender ! AckQuorumFailed("QuorumStateReadonly")
       stay()
@@ -222,6 +229,14 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
       ))
       val x = system.actorOf(DumpProcessor.props(), s"dump_wrkr-${now_ms()}")
       x.forward(DumpProcessor.Save(data.buckets, path))
+      goto(QuorumStateReadonly)
+    case Event(Iterate(f), data) =>
+      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
+        _ ! ChangeState(QuorumStateReadonly),
+        _ ! ChangeState(QuorumStateReadonly),
+      ))
+      val x = system.actorOf(DumpProcessor.props(), s"dump_wrkr-${now_ms()}")
+      x.forward(DumpProcessor.Iterate(data.buckets, f))
       goto(QuorumStateReadonly)
     case Event(Load(path), data) =>
       data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(

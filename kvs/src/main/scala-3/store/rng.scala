@@ -89,6 +89,15 @@ class Rng(system: ActorSystem) extends Dba, AutoCloseable:
       case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
       case Failure(t) => Left(Failed(t))
 
+  def iterate(f: (K, V) => Unit): R[String] =
+    val d = 1 hour
+    val x = hash.ask(rng.Iterate((key, value) => f(new String(key, "UTF-8"), value)))(Timeout(d))
+    Try(Await.result(x, d)) match
+      case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
+      case Success(v: String) => Right(v)
+      case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
+      case Failure(t) => Left(Failed(t))
+
   override def load(path: String): R[String] =
     val d = Duration.fromNanos(cfg.getDuration("dump-timeout").nn.toNanos)
     val t = Timeout(d)
