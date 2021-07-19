@@ -61,17 +61,7 @@ object Kvs:
   def apply(system: ActorSystem): Kvs = rng(system)
   def rng(system: ActorSystem): Kvs =
     val log = akka.event.Logging(system, "kvs")
-    val kvs = new Kvs()(using Rng(system))
-    val jmx = KvsJmx(kvs)
-    jmx.registerMBean()
-    CoordinatedShutdown(system).addTask("stop-kvs-jmx", "kvs jmx") { () =>
-      Future {
-        log.info("Unregister KVS JMX...")
-        jmx.unregisterMBean()
-        akka.Done
-      }(using ExecutionContext.global)
-    }
-    kvs
+    new Kvs()(using Rng(system))
   def mem(): Kvs = new Kvs()(using Mem())
   def fs(): Kvs = ???
   def sql(): Kvs = ???
