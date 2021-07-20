@@ -28,7 +28,7 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   val `:keys` = stob(":keys")
 
   override def postStop(): Unit = {
-    leveldb.close()
+    try { leveldb.close() } catch { case _: Throwable => () }
     ro.close()
     wo.close()
     super.postStop()
