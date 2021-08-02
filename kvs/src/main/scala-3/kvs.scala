@@ -59,13 +59,11 @@ trait WritableKvs extends ReadableKvs:
 
 object Kvs:
   def apply(system: ActorSystem): Kvs = rng(system)
-  def rng(system: ActorSystem): Kvs =
-    val log = akka.event.Logging(system, "kvs")
-    new Kvs()(using Rng(system))
+  def rng(system: ActorSystem): Kvs = new Kvs()(using Rng(system))
   def mem(): Kvs = new Kvs()(using Mem())
   def fs(): Kvs = ???
   def sql(): Kvs = ???
-  def rks(dir: String, log: LoggingAdapter): Kvs = new Kvs()(using Rks(dir, log))
+  def rks(system: ActorSystem, dir: String): Kvs = new Kvs()(using Rks(system, dir))
 end Kvs
 
 class Kvs(using val dba: Dba) extends WritableKvs, AutoCloseable:

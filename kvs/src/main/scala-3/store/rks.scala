@@ -1,15 +1,24 @@
 package zd.kvs
 
+import akka.actor.*
+import akka.event.Logging
+import akka.pattern.ask
+import akka.util.{Timeout}
 import akka.event.LoggingAdapter
 import proto.*
 import org.rocksdb.*
 import zio.*, clock.*, duration.*
-import scala.util.Try
+import scala.concurrent.*
+import scala.concurrent.duration.*
+import scala.util.{Try, Success, Failure}
 import scala.util.chaining.*
 import scala.concurrent.Future
+import zd.rks.DumpProcessor
 
-class Rks(dir: String, logging: LoggingAdapter) extends Dba, AutoCloseable:
+class Rks(system: ActorSystem, dir: String) extends Dba, AutoCloseable:
   RocksDB.loadLibrary()
+  private val logging: LoggingAdapter = Logging(system, "rks")
+  private val cfg = system.settings.config.getConfig("rks").nn
   private val opts = Options().nn
     .setCreateIfMissing(true).nn
     .setCompressionType(CompressionType.LZ4_COMPRESSION).nn
@@ -43,8 +52,23 @@ class Rks(dir: String, logging: LoggingAdapter) extends Dba, AutoCloseable:
 
   def compact(): Unit = db.compactRange()
 
-  def save(path: String): R[String] = ??? //todo
-  def load(path: String): R[String] = ??? //todo
+  def save(path: String): R[String] =
+    val d = FiniteDuration(1, HOURS)
+    val dump = system.actorOf(DumpProcessor.props(db), s"dump_wrkr-${System.currentTimeMillis}")
+    val x = dump.ask(DumpProcessor.Save(path))(Timeout(d))
+    Try(Await.result(x, d)) match
+      case Success(v: String) => Right(v)
+      case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
+      case Failure(t) => Left(Failed(t))
+
+  def load(path: String): R[String] =
+    val d = concurrent.duration.Duration.fromNanos(cfg.getDuration("dump-timeout").nn.toNanos)
+    val dump = system.actorOf(DumpProcessor.props(db), s"dump_wrkr-${System.currentTimeMillis}")
+    val x = dump.ask(DumpProcessor.Load(path))(Timeout(d))
+    Try(Await.result(x, d)) match
+      case Success(v: String) => Right(v)
+      case Success(v) => Left(RngFail(s"Unexpected response: ${v}"))
+      case Failure(t) => Left(Failed(t))
 
   def onReady(): Future[Unit] = Future.successful(unit)
   def deleteByKeyPrefix(keyPrefix: K): R[Unit] = ???
