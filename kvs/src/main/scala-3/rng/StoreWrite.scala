@@ -9,8 +9,7 @@ import proto.*
 import zd.rng.data.codec.*
 import zd.rng.data.{Data, BucketInfo}
 import zd.rng.dump.codec.*
-import zd.rng.dump.ValueKey
-import zd.rng.model.{DumpPut, ReplBucketPut, StorePut, StoreDelete}
+import zd.rng.model.{ReplBucketPut, StorePut, StoreDelete}
 
 class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
   import context.system
@@ -38,9 +37,6 @@ class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {
     case StorePut(data) => 
       doPut(data)
       sender ! "ok"
-    case x: DumpPut =>
-      withBatch(_.put(x.k, encode(ValueKey(v=x.v, nextKey=x.prev))))
-      sender ! "done"
     case x: StoreDelete => sender ! doDelete(x.key)
     case ReplBucketPut(b, bucketVc, items) => replBucketPut(b, bucketVc, items.toVector)
     case unhandled => log.warning(s"unhandled message: ${unhandled}")

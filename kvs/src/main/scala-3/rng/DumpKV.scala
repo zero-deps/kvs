@@ -31,31 +31,7 @@ object KV {
   }
 }
 
-final class ValueKey
-  ( @N(1) val v: Array[Byte]
-  , @N(2) val nextKey: Array[Byte]
-  ) {
-  override def equals(other: Any): Boolean = other match {
-    case that: ValueKey =>
-      Arrays.equals(v, that.v) &&
-      Arrays.equals(nextKey, that.nextKey)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(v, nextKey)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"ValueKey(v=$v, nextKey=$nextKey)"
-}
-
-object ValueKey {
-  def apply(v: Array[Byte], nextKey: Array[Byte]): ValueKey = {
-    new ValueKey(v=v, nextKey=nextKey)
-  }
-}
-
 object codec {
   implicit val dumpKVCodec: MessageCodec[DumpKV] = caseCodecAuto[DumpKV]
   implicit val kVCodec: MessageCodec[KV] = classCodecAuto[KV]
-  implicit val valueKeyCodec: MessageCodec[ValueKey] = classCodecAuto[ValueKey]
 }

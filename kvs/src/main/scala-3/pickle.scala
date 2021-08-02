@@ -23,7 +23,6 @@ class Serializer(val system: ExtendedActorSystem) extends BaseSerializer:
     implicit val dumpEnCodec: MessageCodec[DumpEn] = classCodecAuto[DumpEn]
     implicit val dumpGetCodec: MessageCodec[DumpGet] = classCodecAuto[DumpGet]
     implicit val dumpGetBucketDataCodec: MessageCodec[DumpGetBucketData] = caseCodecAuto[DumpGetBucketData]
-    implicit val dumpPutCodec: MessageCodec[DumpPut] = classCodecAuto[DumpPut]
     implicit val vcodec: MessageCodec[(String, Long)] = caseCodecNums[Tuple2[String,Long]]("_1"->1,"_2"->2)
     implicit val vccodec: MessageCodec[akka.cluster.VectorClock] = caseCodecNums[akka.cluster.VectorClock]("versions"->1)
     implicit val replBucketPutCodec: MessageCodec[ReplBucketPut] = caseCodecAuto[ReplBucketPut]
