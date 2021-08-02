@@ -27,7 +27,6 @@ package object rng {
 
   given [A]: CanEqual[None.type, Option[A]] = CanEqual.derived
   given CanEqual[String, Any] = CanEqual.derived
-  given CanEqual[DumpIO.ReadNext.type, Any] = CanEqual.derived
   given CanEqual[Node, Node] = CanEqual.derived
   given CanEqual[RestoreState.type, Any] = CanEqual.derived
   given CanEqual[Ready.type, Any] = CanEqual.derived

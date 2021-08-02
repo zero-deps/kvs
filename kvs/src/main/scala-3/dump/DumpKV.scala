@@ -1,4 +1,4 @@
-package zd.rng
+package zd
 package dump
 
 import proto.*

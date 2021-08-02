@@ -7,6 +7,7 @@ import java.time.format.{DateTimeFormatter}
 import java.time.{LocalDateTime}
 import zd.rng.data.{Data}
 import zd.rng.model.{DumpBucketData, DumpGetBucketData}
+import zd.dump.{DumpIO, DumpIterate}
 import scala.collection.immutable.{SortedMap}
 import scala.concurrent.duration.*
 import scala.concurrent.{Await}
@@ -65,17 +66,17 @@ class DumpProcessor extends Actor with ActorLogging {
             _ ! DumpGetBucketData(0),
             _ ! DumpGetBucketData(0),
           ))
-          context.become(save(buckets, dumpIO, sender)())
+          context.become(save(buckets, dumpIO, sender, dumpPath)())
       }
 
     case DumpProcessor.Iterate(buckets, f) =>
       log.info(s"DumpProcessor. Iterating...".green)
-      val dumpItearte = context.actorOf(DumpIterate.props(f))
+      val dumpIterate = context.actorOf(DumpIterate.props(f))
       buckets(0).foreach(n => stores.get(n, "ring_readonly_store").fold(
         _ ! DumpGetBucketData(0),
         _ ! DumpGetBucketData(0),
       ))
-      context.become(save(buckets, dumpItearte, sender)())
+      context.become(save(buckets, dumpIterate, sender, "dump_iterate")())
   }
 
   def load(dumpIO: ActorRef, client: ActorRef): () => Receive = {
@@ -84,7 +85,7 @@ class DumpProcessor extends Actor with ActorLogging {
     var ksize: Long = 0L
     () => {
       case res: DumpIO.ReadNextRes =>
-        if (!res.last) dumpIO ! DumpIO.ReadNext
+        dumpIO ! DumpIO.ReadNext
         keysNumber = keysNumber + res.kv.size
         res.kv.to(LazyList).map{ d =>
           ksize = ksize + d._1.size
@@ -96,20 +97,8 @@ class DumpProcessor extends Actor with ActorLogging {
           Try(Await.result(putF, timeout.duration)).toEither
         }.sequence_ match {
           case Right(_) =>
-            if (res.last) {
-              log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
-            } else if (keysNumber % 1000 == 0L) {
+            if (keysNumber % 1000 == 0L) {
               log.info(s"load info: write done, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
-            }
-            if (res.last) {
-              log.info("Dump is loaded".green)
-              client ! "done"
-              stores.get(addr(self), "ring_hash").fold(
-                _ ! RestoreState,
-                _ ! RestoreState,
-              )
-              dumpIO ! PoisonPill
-              context.stop(self)
             }
           case Left(t) =>
             log.error(cause=t, message="can't put")
@@ -121,10 +110,20 @@ class DumpProcessor extends Actor with ActorLogging {
             context.stop(dumpIO)
             context.stop(self)
         }
+      case _: DumpIO.ReadNextLast.type =>
+        log.info(s"load info: load is completed, total keys=${keysNumber}, size=${size}, ksize=${ksize}")
+        log.info("Dump is loaded".green)
+        client ! "done"
+        stores.get(addr(self), "ring_hash").fold(
+          _ ! RestoreState,
+          _ ! RestoreState,
+        )
+        dumpIO ! PoisonPill
+        context.stop(self)
     }
   }
 
-  def save(buckets: SortedMap[Bucket, PreferenceList], dumpIO: ActorRef, client: ActorRef): () => Receive = {
+  def save(buckets: SortedMap[Bucket, PreferenceList], dumpIO: ActorRef, client: ActorRef, dumpPath: String): () => Receive = {
     var processBucket: Int = 0
     var keysNumber: Long = 0
     var collected: Vector[Vector[Data]] = Vector.empty
@@ -164,9 +163,9 @@ class DumpProcessor extends Actor with ActorLogging {
           keysNumber = keysNumber + merged.size
           if (readyToPut) {
             readyToPut = false
-            dumpIO ! DumpIO.Put(merged)
+            dumpIO ! DumpIO.Put(merged.map(x => x.key -> x.value))
           } else {
-            putQueue = DumpIO.Put(merged) +: putQueue
+            putQueue = DumpIO.Put(merged.map(x => x.key -> x.value)) +: putQueue
           }
           showInfo("main")
         }
@@ -179,15 +178,15 @@ class DumpProcessor extends Actor with ActorLogging {
         client ! "failed"
         context.stop(dumpIO)
         context.stop(self)
-      case DumpIO.PutDone(path) =>
+      case _: DumpIO.PutDone.type =>
         if (putQueue.isEmpty) {
           if (processBucket == maxBucket) {
-            log.info(s"Dump is saved: path=${path}".green)
+            log.info(s"Dump is saved: path=${dumpPath}".green)
             stores.get(addr(self), "ring_hash").fold(
               _ ! RestoreState,
               _ ! RestoreState
             )
-            client ! path
+            client ! dumpPath
             dumpIO ! PoisonPill
             context.stop(self)
           }

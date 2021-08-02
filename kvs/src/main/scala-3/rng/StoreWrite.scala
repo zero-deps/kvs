@@ -8,7 +8,6 @@ import leveldbjnr.*
 import proto.*
 import zd.rng.data.codec.*
 import zd.rng.data.{Data, BucketInfo}
-import zd.rng.dump.codec.*
 import zd.rng.model.{ReplBucketPut, StorePut, StoreDelete}
 
 class WriteStore(leveldb: LevelDb) extends Actor with ActorLogging {

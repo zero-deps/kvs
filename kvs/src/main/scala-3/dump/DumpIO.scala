@@ -1,15 +1,17 @@
-package zd.rng
+package zd
+package dump
 
 import akka.actor.{Actor, ActorLogging, Props}
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption.{READ, WRITE, CREATE}
-import zd.rng.data.{Data}
-import zd.rng.dump.codec.*
-import zd.rng.dump.{DumpKV, KV}
+import codec.*
 import scala.util.Try
 import proto.*
+
+type Key = Array[Byte]
+type Value = Array[Byte]
 
 object DumpIO {
   def props(ioPath: String): Throwable Either Props = {
@@ -17,16 +19,17 @@ object DumpIO {
   }
 
   case object ReadNext
-  final case class ReadNextRes(kv: Vector[(Key, Value)], last: Boolean)
+  final case class ReadNextRes(kv: Vector[(Key, Value)])
+  final case object ReadNextLast
 
-  final case class Put(kv: Vector[Data])
-  final case class PutDone(path: String)
+  final case class Put(kv: Vector[(Key, Value)])
+  final case object PutDone
 }
 
 class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLogging {
 
   def receive = {
-    case DumpIO.ReadNext =>
+    case _: DumpIO.ReadNext.type =>
       val key = ByteBuffer.allocateDirect(4).nn
       val keyRead = channel.read(key)
       if (keyRead == 4) {
@@ -35,24 +38,22 @@ class DumpIO(ioPath: String, channel: FileChannel) extends Actor with ActorLoggi
         val valueRead: Int = channel.read(ByteBuffer.wrap(value))
         if (valueRead == blockSize) {
           val kv: Vector[(Key, Value)] = decode[DumpKV](value).kv.view.map(d => d.k -> d.v).to(Vector)
-          sender ! DumpIO.ReadNextRes(kv, false)
+          sender ! DumpIO.ReadNextRes(kv)
         } else {
           log.error(s"failed to read dump io, blockSize=${blockSize}, valueRead=${valueRead}")
-          sender ! DumpIO.ReadNextRes(Vector.empty, true)
+          sender ! DumpIO.ReadNextLast
         }
       } else if (keyRead == -1) {
-        sender ! DumpIO.ReadNextRes(Vector.empty, true)
+        sender ! DumpIO.ReadNextLast
       } else {
         log.error(s"failed to read dump io, keyRead=${keyRead}")
-        sender ! DumpIO.ReadNextRes(Vector.empty, true)
+        sender ! DumpIO.ReadNextLast
       }
     case msg: DumpIO.Put => 
-      val data = encode(DumpKV(msg.kv.map(e => KV(e.key, e.value))))
+      val data = encode(DumpKV(msg.kv.map(e => KV(e._1, e._2))))
       channel.write(ByteBuffer.allocateDirect(4).nn.putInt(data.size).nn.flip.nn.asInstanceOf[ByteBuffer])
       channel.write(ByteBuffer.wrap(data))
-      sender ! DumpIO.PutDone(ioPath)
-    case x: DumpIO.PutDone =>
-      sender ! x
+      sender ! DumpIO.PutDone
   }
 
   override def postStop(): Unit = {
@@ -68,7 +69,7 @@ object DumpIterate {
 class DumpIterate(f: (Key, Value) => Unit) extends Actor {
   def receive = {
     case msg: DumpIO.Put =>
-      msg.kv.foreach(e => f(e.key, e.value))
-      sender ! DumpIO.PutDone("")
+      msg.kv.foreach(e => f(e._1, e._2))
+      sender ! DumpIO.PutDone
   }
 }
