@@ -2,7 +2,7 @@ package example
 package circular
 
 import kvs.seq._, kvs.store.Rng.{Conf=>RngConf}
-import proto._, macrosapi._
+import proto._
 import zio._, zio.console._
 import zio.clock.Clock
 
