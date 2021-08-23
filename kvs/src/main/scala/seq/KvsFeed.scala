@@ -294,6 +294,9 @@ object KvsFeed {
   def get[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): ZIO[KvsFeed, Err, Option[A]] =
     ZIO.accessM(_.get.get(fid, key))
 
+  def put[Fid, Key, A](fid: Fid, key: Key, a: A)(implicit i: Manual[Fid, Key, A]): ZIO[KvsFeed, Err, Unit] =
+    ZIO.accessM(_.get.put(fid, key, a))
+
   def remove[Fid, Key, A](fid: Fid, key: Key)(implicit i: AnyFeed[Fid, Key, A]): ZIO[KvsFeed, Err, Boolean] =
     ZIO.accessM(_.get.remove(fid, key))
 }
