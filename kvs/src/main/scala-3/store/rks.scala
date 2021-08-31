@@ -26,7 +26,7 @@ class Rks(system: ActorSystem, dir: String) extends Dba, AutoCloseable:
       def log(infoLogLevel: InfoLogLevel, logMsg: String): Unit =
         infoLogLevel match
           case InfoLogLevel.DEBUG_LEVEL => logging.debug(logMsg)
-          case InfoLogLevel.INFO_LEVEL => logging.info(logMsg)
+          case InfoLogLevel.INFO_LEVEL => logging.debug(logMsg)
           case InfoLogLevel.WARN_LEVEL => logging.warning(logMsg)
           case _ => logging.error(logMsg)
     }).nn
