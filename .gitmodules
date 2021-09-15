@@ -2,3 +2,6 @@
 	path = deps/proto
 	url = https://github.com/zero-deps/proto
 	branch = main
+[submodule "zio-nio"]
+	path = deps/zio-nio
+	url = https://github.com/zero-deps/zio-nio

@@ -22,7 +22,7 @@ lazy val kvs = project.in(file("kvs")).settings(
       case _ => scalacOptions3
     }
   }
-).dependsOn(proto)
+).dependsOn(proto, zio_nio)
 
 lazy val proto = project.in(file("deps/proto/proto")).settings(
   scalaVersion := "3.0.0"
@@ -45,6 +45,8 @@ lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
   scalaVersion := "3.0.0"
 , crossScalaVersions := "3.0.0" :: "2.13.6" :: Nil
 )
+
+lazy val zio_nio = project.in(file("deps/zio-nio"))
 
 val scalacOptions2 = Seq(
   "-feature", "-language:_", "-unchecked", "-nowarn"
