@@ -23,7 +23,7 @@ class Rng(system: ActorSystem) extends Dba, AutoCloseable:
   private val leveldbPath = cfg.getString("leveldb.dir").nn
   private val db: LevelDb = LevelDb.open(leveldbPath).fold(l => throw l, r => r)
 
-  system.actorOf(WriteStore.props(db).withDeploy(Deploy.local), name="ring_write_store")
+  private val writeStore = system.actorOf(WriteStore.props(db).withDeploy(Deploy.local), name="ring_write_store")
   system.actorOf(FromConfig.props(ReadonlyStore.props(db)).withDeploy(Deploy.local), name="ring_readonly_store")
 
   private val hash = system.actorOf(rng.Hash.props(db).withDeploy(Deploy.local), name="ring_hash")
@@ -124,5 +124,6 @@ class Rng(system: ActorSystem) extends Dba, AutoCloseable:
       case Failure(t) => Left(Failed(t))
 
   override def close(): Unit =
-    try { db.close() } catch { case _: Throwable => () }
+    hash ! PoisonPill
+    writeStore ! PoisonPill
 end Rng
