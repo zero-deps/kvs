@@ -10,11 +10,11 @@ To reach fault tolerance and scalability ring resolve next problems:
 
 \begin{description}
 
-          \item[Problems:]  Technique
-          \item[Membership and failure detection: ]  reused akka's membership events that uses gossip for communication. FD also reused from akka.
-          \item[Data partitioning:]   consistent hashing.
-          \item[High availability to wright:]   vector clocks increase number of write opperation to merge data on read opperation.
-          \item[Handling nodes failures:] gossip protocol.
+\item[Problems:] Technique
+\item[Membership and failure detection: ] reused akka's membership events that uses gossip for communication. FD also reused from akka.
+\item[Data partitioning:] consistent hashing.
+\item[High availability to wright:] vector clocks increase number of write opperation to merge data on read opperation.
+\item[Handling nodes failures:] gossip protocol.
 
 \end{description}
 
@@ -37,7 +37,7 @@ When data writs first time the vector clock will have one entity ( node-A : 1). 
 
 \section*{Quorum}
 
-Quorum determines the number of nodes that should be participated in operation.  Quorum-like system configured by values: R ,W and N. R is the
+Quorum determines the number of nodes that should be participated in operation. Quorum-like system configured by values: R ,W and N. R is the
 minimum number of nodes that must participate in a successful read operation. W is the minimum number of nodes that must participate.
 N is a preference list, the max number of nodes that can be participated in operation. Also quorum can configure balance of latency
 for read and write operation.
