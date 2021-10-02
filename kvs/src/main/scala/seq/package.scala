@@ -3,42 +3,34 @@ package kvs
 import _root_.akka.actor.{ActorSystem as RootActorSystem}
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-import kvs.store.{Dba as RootDba, DbaConf as RootDbaConf, RngConf, RksConf, Rng, Rks, MemConf, Mem}
+import kvs.store.{Dba as RootDba, DbaConf as RootDbaConf, RngConf, Rng}
 import zio.{Has, ZIO, ZLayer, RLayer, ULayer}
 import zio.clock.Clock
 import zio.stream.ZStream
 
 package object seq {
-  type Kvs         = KvsFeed with KvsCircular with KvsFile with KvsSearch
-  type KvsFeed     = Has[KvsFeed.    Service]
-  type KvsCircular = Has[KvsCircular.Service]
-  type KvsFile     = Has[KvsFile.    Service]
-  type KvsSearch   = Has[KvsSearch.  Service]
+  type Kvs = KvsFeed
+  type KvsFeed = Has[KvsFeed.Service]
 
-  type DbaConf     = Has[RootDbaConf]
-  type Dba         = Has[Dba.Service]
-  type AkkaConf    = Has[ActorSystem.Conf]
+  type DbaConf = Has[RootDbaConf]
+  type Dba = Has[Dba.Service]
+  type AkkaConf = Has[ActorSystem.Conf]
   type ActorSystem = Has[ActorSystem.Service]
 
   object Dba {
     type Service = RootDba
 
     def rngConf(conf:Rng.Conf=Rng.Conf()): ULayer[DbaConf] = ZLayer.succeed(RngConf(conf))
-    def rksConf(conf:Rks.Conf=Rks.Conf()): ULayer[DbaConf] = ZLayer.succeed(RksConf(conf))
-    def memConf(                        ): ULayer[DbaConf] = ZLayer.succeed(MemConf      )
 
     val live: RLayer[ActorSystem with DbaConf with Clock, Dba] = ZLayer.fromEffect{
-      for {
+      for
         actorSystem  <- ZIO.service[ActorSystem.Service]
-        dbaConf      <- ZIO.service[RootDbaConf]
-        clock        <- ZIO.service[Clock.Service]
-        res          <- dbaConf match {
-                          case RngConf(conf) => ZIO.effect(Rng(actorSystem, conf, clock): Service)
-                          case RksConf(conf) => ZIO.effect(Rks(conf, clock): Service)
-                          case MemConf       => ZIO.effect(Mem(): Service)
-                          case _             => ZIO.fail(new Exception("not implemented"))
-                        }
-      } yield res
+        dbaConf <- ZIO.service[RootDbaConf]
+        clock <- ZIO.service[Clock.Service]
+        res <-
+          dbaConf match
+            case RngConf(conf) => ZIO.effect(Rng(actorSystem, conf, clock): Service)
+      yield res
     }
   }
 

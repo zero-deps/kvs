@@ -18,7 +18,3 @@ trait Dba { this: AutoCloseable =>
 
 sealed trait DbaConf
 case class  RngConf(conf: Rng.Conf = Rng.Conf()) extends DbaConf
-case class  RksConf(conf: Rks.Conf = Rks.Conf()) extends DbaConf
-case object MemConf                              extends DbaConf
-case object FsConf                               extends DbaConf
-case object SqlConf                              extends DbaConf

@@ -23,7 +23,6 @@ object Rng {
   , dumpTimeout:   FiniteDuration =  1 hour
   , replTimeout:   FiniteDuration =  1 minute
   , dir: String = "data_rng"
-  , jmx: Boolean = true
   )
   def apply(as: ActorSystem, conf: Conf, clock: Clock.Service): Rng = new Rng(as, conf, clock)
 }
@@ -32,12 +31,6 @@ class Rng(system: ActorSystem, conf: Rng.Conf, clock: Clock.Service) extends Dba
   lazy val log = Logging(system, "hash-ring")
 
   val env = Has(clock)
-
-  if (conf.jmx) {
-    val jmx = new KvsJmx(this)
-    jmx.createMBean()
-    sys.addShutdownHook(jmx.unregisterMBean())
-  }
 
   system.eventStream
 
