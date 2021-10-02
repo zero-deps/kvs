@@ -1,5 +1,4 @@
 .DS_Store
 target/
-/rng_data_test*/
 /tmp
 /.bsp/
