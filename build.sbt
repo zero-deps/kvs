@@ -1,5 +1,5 @@
-lazy val kvs = project.in(file(".")).settings(
-  scalaVersion := "3.1.0-RC2"
+lazy val kvs = project.in(file("kvs")).settings(
+  scalaVersion := "3.1.0-RC3"
 , libraryDependencies ++= Seq(
     "com.typesafe.akka" % "akka-cluster-sharding_2.13" % "2.6.16"
   , "com.typesafe.akka" % "akka-slf4j_2.13" % "2.6.16"
@@ -14,19 +14,19 @@ lazy val kvs = project.in(file(".")).settings(
 ).dependsOn(proto, zio_nio)
 
 lazy val proto = project.in(file("deps/proto/proto")).settings(
-  scalaVersion := "3.1.0-RC2"
-, crossScalaVersions := "3.1.0-RC2" :: Nil
+  scalaVersion := "3.1.0-RC3"
+, crossScalaVersions := "3.1.0-RC3" :: Nil
 , libraryDependencies += "com.google.protobuf" % "protobuf-java" % "3.17.3"
 ).dependsOn(protoops)
 
 lazy val protoops = project.in(file("deps/proto/ops")).settings(
-  scalaVersion := "3.1.0-RC2"
-, crossScalaVersions := "3.1.0-RC2" :: Nil
+  scalaVersion := "3.1.0-RC3"
+, crossScalaVersions := "3.1.0-RC3" :: Nil
 ).dependsOn(protosyntax)
 
 lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
-  scalaVersion := "3.1.0-RC2"
-, crossScalaVersions := "3.1.0-RC2" :: Nil
+  scalaVersion := "3.1.0-RC3"
+, crossScalaVersions := "3.1.0-RC3" :: Nil
 )
 
 lazy val zio_nio = project.in(file("deps/zio-nio"))
