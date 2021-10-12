@@ -10,31 +10,34 @@ import zio.nio.core.file.*
 import zio.nio.file.*
 import zio.stream.*
 
-class FileFs(val path: JPath):
+class FileFs(val root: JPath):
 
-  private val ROOT = Path.fromJava(path)
+  private val ROOT = Path.fromJava(root)
 
-  def create(dir: List[String], name: String): ZIO[Blocking, Exception, Unit] =
+  def create(path: List[String]): ZIO[Blocking, Exception, Unit] =
     for
-      _ <- Files.createDirectories(ROOT / dir)
-      _ <- Files.createFile(ROOT / dir / name)
+      _ <- Files.createDirectories(ROOT / path.init)
+      _ <- Files.createFile(ROOT / path)
     yield unit
 
-  def append(dir: List[String], name: String, data: Chunk[Byte]): ZIO[Blocking, Exception, Unit] =
-   Files.writeBytes(ROOT / dir / name, data, StandardOpenOption.APPEND) 
+  def createDir(path: List[String]): ZIO[Blocking, Exception, Unit] =
+    Files.createDirectory(ROOT / path)
 
-  def size(dir: List[String], name: String): ZIO[Blocking, IOException, Long] =
-    Files.size(ROOT / dir / name)
+  def append(path: List[String], data: Chunk[Byte]): ZIO[Blocking, Exception, Unit] =
+   Files.writeBytes(ROOT / path, data, StandardOpenOption.APPEND) 
 
-  def stream(dir: List[String], name: String): ZStream[Blocking, Throwable, Byte] =
-    val p = path.resolve(dir.mkString("/")).nn.resolve(name).nn
+  def size(path: List[String]): ZIO[Blocking, IOException, Long] =
+    Files.size(ROOT / path)
+
+  def stream(path: List[String]): ZStream[Blocking, Throwable, Byte] =
+    val p = root.resolve(path.mkString("/")).nn
     ZStream.fromFile(p)
 
-  def bytes(dir: List[String], name: String): ZIO[Blocking, IOException, Chunk[Byte]] =
-    Files.readAllBytes(ROOT / dir / name)
+  def bytes(path: List[String]): ZIO[Blocking, IOException, Chunk[Byte]] =
+    Files.readAllBytes(ROOT / path)
 
-  def delete(dir: List[String], name: String): ZIO[Blocking, Exception, Unit] =
-    val p = path.resolve(dir.mkString("/")).nn.resolve(name).nn
+  def delete(path: List[String]): ZIO[Blocking, Exception, Unit] =
+    val p = root.resolve(path.mkString("/")).nn
     effectBlocking(JFiles.walkFileTree(p, new SimpleFileVisitor[JPath]() {
       override def visitFile(file: JPath, attrs: BasicFileAttributes): FileVisitResult = {
         JFiles.delete(file)
@@ -47,11 +50,8 @@ class FileFs(val path: JPath):
     })).unit
       .refineToOrDie[Exception]
 
-  def rename(dir: List[String], nameFrom: String, nameTo: String): ZIO[Blocking, Exception, Unit] =
-    Files.move(ROOT / dir / nameFrom, ROOT / dir / nameTo)
-
-  def move(fromDir: List[String], toDir: List[String], name: String): ZIO[Blocking, Exception, Unit] =
-    Files.move(ROOT / fromDir / name, ROOT / toDir / name)
+  def move(pathFrom: List[String], pathTo: List[String]): ZIO[Blocking, Exception, Unit] =
+    Files.move(ROOT / pathFrom, ROOT / pathTo)
 
   extension (p: Path)
     def / (xs: List[String]): Path = xs.foldLeft(p)((acc, x) => acc / x)
