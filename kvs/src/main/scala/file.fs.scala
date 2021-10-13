@@ -21,7 +21,7 @@ class FileFs(val root: JPath):
     yield unit
 
   def createDir(path: List[String]): ZIO[Blocking, Exception, Unit] =
-    Files.createDirectory(ROOT / path)
+    Files.createDirectories(ROOT / path)
 
   def append(path: List[String], data: Chunk[Byte]): ZIO[Blocking, Exception, Unit] =
    Files.writeBytes(ROOT / path, data, StandardOpenOption.APPEND) 
