@@ -2,6 +2,8 @@
 
 ![ci](https://github.com/zero-deps/kvs/workflows/ci/badge.svg)
 
+[PDF](kvs.pdf)
+
 Abstract Scala storage framework with high-level API for handling linked lists of polymorphic data (feeds).
 
 KVS is highly available distributed (AP) strong eventual consistent (SEC) and sequentially consistent (via cluster sharding) storage. It is used for data from sport and games events. In some configurations used as distributed network file system. Also can be a generic storage for application.
@@ -12,23 +14,12 @@ Currently main backend is RocksDB to support embedded setup alongside applicatio
 
 ## Usage
 
-Add project as a git module.
+Add project as a git submodule.
 
-## Example
+## Structure
 
-```bash
-sbt> project examples
-sbt> run
-```
-
-## Backend
-
-* Ring
-* RocksDB
-* Memory
-* FS
-* SQL
-* etc.
+* `./feed` -- Feed over Ring
+* `./ring` -- Ring
 
 ## Test
 

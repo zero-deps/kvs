@@ -1,4 +1,4 @@
 [submodule "proto"]
 	path = deps/proto
-	url = https://github.com/zero-deps/proto
+	url = git@github.com:zero-deps/proto.git
 	branch = main
