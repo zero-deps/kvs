@@ -1,5 +1,7 @@
+lazy val root = project.in(file(".") ).aggregate(kvs)
+
 lazy val kvs = project.in(file("kvs")).settings(
-  scalaVersion := "3.1.0-RC3"
+  scalaVersion := "3.1.1"
 , libraryDependencies ++= Seq(
     "com.typesafe.akka" % "akka-cluster-sharding_2.13" % "2.6.16"
   , "com.typesafe.akka" % "akka-slf4j_2.13" % "2.6.16"
@@ -8,25 +10,25 @@ lazy val kvs = project.in(file("kvs")).settings(
   , "org.apache.lucene" % "lucene-analyzers-common" % "8.9.0"
   , "dev.zio" %% "zio" % "1.0.10"
   , "org.rocksdb" % "rocksdbjni" % "6.22.1"
-  , "org.scalatest" %% "scalatest" % "3.2.9" % Test
+  , "org.scalatest" %% "scalatest" % "3.2.11" % Test
   )
 , scalacOptions ++= scalacOptions3
 ).dependsOn(proto, zio_nio)
 
 lazy val proto = project.in(file("deps/proto/proto")).settings(
-  scalaVersion := "3.1.0-RC3"
-, crossScalaVersions := "3.1.0-RC3" :: Nil
-, libraryDependencies += "com.google.protobuf" % "protobuf-java" % "3.17.3"
+  scalaVersion := "3.1.1"
+, crossScalaVersions := "3.1.1" :: Nil
+, libraryDependencies += "com.google.protobuf" % "protobuf-java" % "3.19.3"
 ).dependsOn(protoops)
 
 lazy val protoops = project.in(file("deps/proto/ops")).settings(
-  scalaVersion := "3.1.0-RC3"
-, crossScalaVersions := "3.1.0-RC3" :: Nil
+  scalaVersion := "3.1.1"
+, crossScalaVersions := "3.1.1" :: Nil
 ).dependsOn(protosyntax)
 
 lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
-  scalaVersion := "3.1.0-RC3"
-, crossScalaVersions := "3.1.0-RC3" :: Nil
+  scalaVersion := "3.1.1"
+, crossScalaVersions := "3.1.1" :: Nil
 )
 
 lazy val zio_nio = project.in(file("deps/zio-nio"))
