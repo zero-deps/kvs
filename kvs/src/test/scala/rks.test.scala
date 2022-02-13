@@ -1,12 +1,12 @@
 package zd.kvs
 
 import akka.actor.ActorSystem
+import akka.testkit.TestKit
 import org.scalatest.freespec.AnyFreeSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.*
 
-class RksTest extends AnyFreeSpecLike, Matchers, EitherValues, BeforeAndAfterAll {
-  val system = ActorSystem("test")
+class RksTest extends TestKit(ActorSystem("test")), AnyFreeSpecLike, Matchers, EitherValues, BeforeAndAfterAll {
   val kvs = Kvs.rks(system, "target/rkstest")
 
   "return error when element is absent" in {
@@ -27,5 +27,9 @@ class RksTest extends AnyFreeSpecLike, Matchers, EitherValues, BeforeAndAfterAll
   "clean up" in {
     kvs.el.get[String]("key").right.value shouldBe None
     kvs.close()
+  }
+
+  override def afterAll() = {
+    TestKit.shutdownActorSystem(system)
   }
 }

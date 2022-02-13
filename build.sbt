@@ -11,6 +11,7 @@ lazy val kvs = project.in(file("kvs")).settings(
   , "dev.zio" %% "zio" % "1.0.10"
   , "org.rocksdb" % "rocksdbjni" % "6.22.1"
   , "org.scalatest" %% "scalatest" % "3.2.11" % Test
+  , "com.typesafe.akka" % "akka-testkit_2.13" % "2.6.16" % Test
   )
 , scalacOptions ++= scalacOptions3
 ).dependsOn(proto, zio_nio)
