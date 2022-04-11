@@ -72,7 +72,10 @@ object Posts:
 
   case class Post(@N(1) body: String)
 
-  def all(user: String): ZStream[Feed, Err, (Eid, Post)] = kvs.feed.all(fid(user))
+  def all(user: String): ZStream[Feed, Err, (Eid, Post)] =
+    for
+      _ <- kvs.feed.all(fid(user))
+    yield ()
   
   def fid(user: String): String = s"posts.$user"
   

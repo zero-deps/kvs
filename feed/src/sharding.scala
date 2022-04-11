@@ -11,8 +11,8 @@ type ClusterSharding = Has[ClusterSharding.Service]
 
 object ClusterSharding:
   trait Service:
-    def start[A](name: String, props: Props, id: A => String): ZIO[Any, Nothing, ActorRef]
-    def send[A](shardRegion: ActorRef, msg: Any): ZIO[Any, Err, A]
+    def start[A](name: String, props: Props, id: A => String): IO[Nothing, ActorRef]
+    def send[A](shardRegion: ActorRef, msg: Any): IO[Err, A]
 
   val live: URLayer[ActorSystem, ClusterSharding] = ZLayer.fromEffect(
     for
@@ -20,7 +20,7 @@ object ClusterSharding:
       sharding <- IO.effectTotal(RootClusterSharding(system))
     yield
       new Service:
-        def start[A](name: String, props: Props, id: A => String): ZIO[Any, Nothing, ActorRef] =
+        def start[A](name: String, props: Props, id: A => String): IO[Nothing, ActorRef] =
           ZIO.effectTotal(
             sharding.start(
               typeName = name,
@@ -35,7 +35,7 @@ object ClusterSharding:
             )
           )
         
-        def send[A](shardRegion: ActorRef, msg: Any): ZIO[Any, Err, A] =
+        def send[A](shardRegion: ActorRef, msg: Any): IO[Err, A] =
           ZIO.effectAsyncM{ (callback: IO[Err, A] => Unit) =>
             for
               receiver <- IO.effectTotal(system.actorOf(Props(Receiver[A]{
