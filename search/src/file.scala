@@ -1,0 +1,122 @@
+package kvs.search
+
+import kvs.rng.AckReceiverErr
+import proto.*
+import scala.annotation.tailrec
+import scala.util.{Try, Success, Failure}
+
+case class File
+  ( @N(1) name: String // name – unique value inside directory
+  , @N(2) count: Int // count – number of chunks
+  , @N(3) size: Long // size - size of file in bytes
+  )
+
+object File:
+  case class FileAlreadyExists(dir: String, filename: String)
+  case class FileNotExists(dir: String, filename: String)
+  case object EmptyData
+  case object KeyNotFound
+  type Err = FileAlreadyExists | FileNotExists | Throwable | AckReceiverErr | EmptyData.type | KeyNotFound.type
+
+  private val chunkLength: Int = 10_000_000 // 10 MB
+
+  given MessageCodec[File] = caseCodecAuto
+
+  private inline def pickle(e: File): Array[Byte] = encode(e)
+  
+  private def unpickle(a: Array[Byte]): Either[Err, File] = Try(decode[File](a)) match
+    case Success(x) => Right(x)
+    case Failure(x) => Left(x)
+
+  private def get(dir: String, name: String)(using dba: DbaEff): Either[Err, File] =
+    dba.get(s"search://$dir/$name") match
+      case Right(Some(x)) => unpickle(x)
+      case Right(None) => Left(FileNotExists(dir, name))
+      case Left(e) => Left(e)
+
+  def create(dir: String, name: String)(using dba: DbaEff): Either[Err, File] =
+    dba.get(s"search://$dir/${name}") match
+      case Right(Some(_)) => Left(FileAlreadyExists(dir, name))
+      case Right(None) =>
+        val f = File(name, count=0, size=0L)
+        val x = pickle(f)
+        for
+          _ <- dba.put(s"search://$dir/${name}", x)
+        yield f
+      case Left(e) => Left(e)
+
+  def append(dir: String, name: String, data: Array[Byte])(using dba: DbaEff): Either[Err, File] =
+    append(dir, name, data, data.length)
+
+  def append(dir: String, name: String, data: Array[Byte], length: Int)(using dba: DbaEff): Either[Err, File] =
+    @tailrec 
+    def writeChunks(count: Int, rem: Array[Byte]): Either[Err, Int] =
+      rem.splitAt(chunkLength) match
+        case (xs, _) if xs.length == 0 => Right(count)
+        case (xs, ys) =>
+          dba.put(s"search://$dir/${name}_chunk_${count+1}", xs) match
+            case Right(_) => writeChunks(count+1, rem=ys)
+            case Left(e) => Left(e)
+    for
+      _ <- if length == 0 then Left(EmptyData) else Right(())
+      file <- get(dir, name)
+      count <- writeChunks(file.count, rem=data)
+      file1 = file.copy(count=count, size=file.size+length)
+      file2 = pickle(file1)
+      _ <- dba.put(s"search://$dir/${name}", file2)
+    yield file1
+
+  def size(dir: String, name: String)(using DbaEff): Either[Err, Long] =
+    get(dir, name).map(_.size)
+
+  def stream(dir: String, name: String)(using dba: DbaEff): Either[Err, LazyList[Either[Err, Array[Byte]]]] =
+    get(dir, name).map(_.count).flatMap{
+      case 0 => Right(LazyList.empty)
+      case n =>
+        def k(i: Int) = s"search://$dir/${name}_chunk_${i}"
+        Right(LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.fold(Left(KeyNotFound))(Right(_)))))
+    }
+
+  def delete(dir: String, name: String)(using dba: DbaEff): Either[Err, File] =
+    for
+      file <- get(dir, name)
+      _ <- LazyList.range(1, file.count+1).map(i => dba.delete(s"search://$dir/${name}_chunk_${i}")).sequence_
+      _ <- dba.delete(s"search://$dir/${name}")
+    yield file
+
+  def copy(dir: String, name: (String, String))(using dba: DbaEff): Either[Err, File] =
+    val (fromName, toName) = name
+    for
+      from <- get(dir, fromName)
+      _ <- (get(dir, toName).fold(
+        l => l match {
+          case _: FileNotExists => Right(())
+          case _ => Left(l)
+        },
+        _ => Left(FileAlreadyExists(dir, toName))
+      ): Either[Err, Unit])
+      _ <-
+        (LazyList.range(1, from.count+1).map(i =>
+          ((for
+            x <- ({
+              val k = s"search://$dir/${fromName}_chunk_${i}"
+              dba.get(k).flatMap(_.fold(Left(KeyNotFound))(Right(_)))
+            }: Either[Err, Array[Byte]])
+            _ <- dba.put(s"search://$dir/${toName}_chunk_${i}", x)
+          yield ()): Either[Err, Unit])
+        ).sequence_ : Either[Err, Unit])
+      to = File(toName, from.count, from.size)
+      x = pickle(to)
+      _ <- dba.put(s"search://$dir/${toName}", x)
+    yield to
+
+  extension [A, B](xs: Seq[Either[A, B]])
+    @tailrec
+    private def _sequence_(ys: Seq[Either[A, B]]): Either[A, Unit] =
+      ys.headOption match
+        case None => Right(())
+        case Some(Left(e)) => Left(e)
+        case Some(Right(z)) => _sequence_(ys.tail)
+    def sequence_ : Either[A, Unit] = _sequence_(xs)
+
+end File
