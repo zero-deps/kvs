@@ -29,19 +29,19 @@ object File:
     case Failure(x) => Left(x)
 
   private def get(dir: String, name: String)(using dba: DbaEff): Either[Err, File] =
-    dba.get(s"search://$dir/$name") match
+    dba.get(s"/search/file/$dir/$name") match
       case Right(Some(x)) => unpickle(x)
       case Right(None) => Left(FileNotExists(dir, name))
       case Left(e) => Left(e)
 
   def create(dir: String, name: String)(using dba: DbaEff): Either[Err, File] =
-    dba.get(s"search://$dir/${name}") match
+    dba.get(s"/search/file/$dir/${name}") match
       case Right(Some(_)) => Left(FileAlreadyExists(dir, name))
       case Right(None) =>
         val f = File(name, count=0, size=0L)
         val x = pickle(f)
         for
-          _ <- dba.put(s"search://$dir/${name}", x)
+          _ <- dba.put(s"/search/file/$dir/${name}", x)
         yield f
       case Left(e) => Left(e)
 
@@ -54,7 +54,7 @@ object File:
       rem.splitAt(chunkLength) match
         case (xs, _) if xs.length == 0 => Right(count)
         case (xs, ys) =>
-          dba.put(s"search://$dir/${name}_chunk_${count+1}", xs) match
+          dba.put(s"/search/file/$dir/${name}_chunk_${count+1}", xs) match
             case Right(_) => writeChunks(count+1, rem=ys)
             case Left(e) => Left(e)
     for
@@ -63,7 +63,7 @@ object File:
       count <- writeChunks(file.count, rem=data)
       file1 = file.copy(count=count, size=file.size+length)
       file2 = pickle(file1)
-      _ <- dba.put(s"search://$dir/${name}", file2)
+      _ <- dba.put(s"/search/file/$dir/${name}", file2)
     yield file1
 
   def size(dir: String, name: String)(using DbaEff): Either[Err, Long] =
@@ -73,15 +73,15 @@ object File:
     get(dir, name).map(_.count).flatMap{
       case 0 => Right(LazyList.empty)
       case n =>
-        def k(i: Int) = s"search://$dir/${name}_chunk_${i}"
+        def k(i: Int) = s"/search/file/$dir/${name}_chunk_${i}"
         Right(LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.fold(Left(KeyNotFound))(Right(_)))))
     }
 
   def delete(dir: String, name: String)(using dba: DbaEff): Either[Err, File] =
     for
       file <- get(dir, name)
-      _ <- LazyList.range(1, file.count+1).map(i => dba.delete(s"search://$dir/${name}_chunk_${i}")).sequence_
-      _ <- dba.delete(s"search://$dir/${name}")
+      _ <- LazyList.range(1, file.count+1).map(i => dba.delete(s"/search/file/$dir/${name}_chunk_${i}")).sequence_
+      _ <- dba.delete(s"/search/file/$dir/${name}")
     yield file
 
   def copy(dir: String, name: (String, String))(using dba: DbaEff): Either[Err, File] =
@@ -99,15 +99,15 @@ object File:
         (LazyList.range(1, from.count+1).map(i =>
           ((for
             x <- ({
-              val k = s"search://$dir/${fromName}_chunk_${i}"
+              val k = s"/search/file/$dir/${fromName}_chunk_${i}"
               dba.get(k).flatMap(_.fold(Left(KeyNotFound))(Right(_)))
             }: Either[Err, Array[Byte]])
-            _ <- dba.put(s"search://$dir/${toName}_chunk_${i}", x)
+            _ <- dba.put(s"/search/file/$dir/${toName}_chunk_${i}", x)
           yield ()): Either[Err, Unit])
         ).sequence_ : Either[Err, Unit])
       to = File(toName, from.count, from.size)
       x = pickle(to)
-      _ <- dba.put(s"search://$dir/${toName}", x)
+      _ <- dba.put(s"/search/file/$dir/${toName}", x)
     yield to
 
   extension [A, B](xs: Seq[Either[A, B]])
