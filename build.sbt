@@ -29,26 +29,33 @@ lazy val ring = project.in(file("ring")).settings(
 , scalacOptions ++= scalacOptionsCommon :+ "-nowarn"
 ).dependsOn(proto)
 
+lazy val sharding = project.in(file("sharding")).settings(
+  scalaVersion := scalav
+, Compile / scalaSource := baseDirectory.value / "src"
+, libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-cluster-sharding" % akka
+  )
+, scalacOptions ++= scalacOptionsCommon
+).dependsOn(ring)
+
 lazy val feed = project.in(file("feed")).settings(
   scalaVersion := scalav
 , Compile / scalaSource := baseDirectory.value / "src"
 , libraryDependencies ++= Seq(
     "dev.zio" %% "zio-streams" % zio
-  , "com.typesafe.akka" %% "akka-cluster-sharding" % akka
   )
 , scalacOptions ++= scalacOptionsCommon
-).dependsOn(ring)
+).dependsOn(sharding)
 
 lazy val search = project.in(file("search")).settings(
   scalaVersion := scalav
 , Compile / scalaSource := baseDirectory.value / "src"
 , libraryDependencies ++= Seq(
     "dev.zio" %% "zio-streams" % zio
-  , "com.typesafe.akka" %% "akka-cluster-sharding" % akka
   , "org.apache.lucene" % "lucene-analyzers-common" % lucene
   )
 , scalacOptions ++= scalacOptionsCommon
-).dependsOn(ring)
+).dependsOn(sharding)
 
 lazy val proto = project.in(file("deps/proto/proto")).settings(
   scalaVersion := scalav

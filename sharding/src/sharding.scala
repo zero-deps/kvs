@@ -1,5 +1,4 @@
-package kvs.feed
-package sharding
+package kvs
 
 import akka.actor.{Actor, ActorRef, Props}
 import akka.cluster.sharding.{ClusterSharding as RootClusterSharding, ClusterShardingSettings, ShardRegion}
@@ -12,7 +11,7 @@ type ClusterSharding = Has[ClusterSharding.Service]
 object ClusterSharding:
   trait Service:
     def start[A](name: String, props: Props, id: A => String): IO[Nothing, ActorRef]
-    def send[A](shardRegion: ActorRef, msg: Any): IO[Err, A]
+    def send[A, E](shardRegion: ActorRef, msg: Any): IO[E, A]
 
   val live: URLayer[ActorSystem, ClusterSharding] = ZLayer.fromEffect(
     for
@@ -35,10 +34,10 @@ object ClusterSharding:
             )
           )
         
-        def send[A](shardRegion: ActorRef, msg: Any): IO[Err, A] =
-          ZIO.effectAsyncM{ (callback: IO[Err, A] => Unit) =>
+        def send[A, E](shardRegion: ActorRef, msg: Any): IO[E, A] =
+          ZIO.effectAsyncM{ (callback: IO[E, A] => Unit) =>
             for
-              receiver <- IO.effectTotal(system.actorOf(Props(Receiver[A]{
+              receiver <- IO.effectTotal(system.actorOf(Props(Receiver[A, E]{
                 case Exit.Success(a) => callback(IO.succeed(a))
                 case Exit.Failure(e) => callback(IO.halt(e))
               })))
@@ -47,9 +46,9 @@ object ClusterSharding:
           }
   )
 
-  class Receiver[A](handler: Exit[Err, A] => Unit) extends Actor:
+  class Receiver[A, E](handler: Exit[E, A] => Unit) extends Actor:
     def receive: Receive =
-      case r: Exit[Err, A] =>
+      case r: Exit[E, A] =>
         handler(r)
         context.stop(self)
       case _ =>

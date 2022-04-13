@@ -1,6 +1,8 @@
+package kvs
+
 import akka.actor.{Actor, Props}
 import java.io.IOException
-import kvs.feed.*, sharding.*
+import kvs.feed.*
 import kvs.rng.{ActorSystem, Dba}
 import proto.*
 import zio.*, stream.*, clock.*, console.*
@@ -42,7 +44,7 @@ def app: Unit =
                       case false =>
                         for
                           post <- IO.succeed(Posts.Post(body))
-                          _ <- sharding.send[Unit](posts, Posts.Add(user, post))
+                          _ <- sharding.send[Unit, Err](posts, Posts.Add(user, post))
                         yield ()
                 yield ()
               case "all" =>
@@ -74,8 +76,8 @@ object Posts:
 
   def all(user: String): ZStream[Feed, Err, (Eid, Post)] =
     for
-      _ <- kvs.feed.all(fid(user))
-    yield ()
+      r <- kvs.feed.all(fid(user))
+    yield r
   
   def fid(user: String): String = s"posts.$user"
   
