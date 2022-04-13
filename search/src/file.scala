@@ -4,6 +4,8 @@ import kvs.rng.AckReceiverErr
 import proto.*
 import scala.annotation.tailrec
 import scala.util.{Try, Success, Failure}
+import java.nio.ByteBuffer
+import java.util.ArrayList
 
 case class File
   ( @N(1) name: String // name – unique value inside directory
@@ -12,11 +14,11 @@ case class File
   )
 
 object File:
-  case class FileAlreadyExists(dir: String, filename: String)
-  case class FileNotExists(dir: String, filename: String)
+  case object FileAlreadyExists
+  case object FileNotExists
   case object EmptyData
   case object KeyNotFound
-  type Err = FileAlreadyExists | FileNotExists | Throwable | AckReceiverErr | EmptyData.type | KeyNotFound.type
+  type Err = FileAlreadyExists.type | FileNotExists.type | Throwable | AckReceiverErr | EmptyData.type | KeyNotFound.type
 
   private val chunkLength: Int = 10_000_000 // 10 MB
 
@@ -29,14 +31,15 @@ object File:
     case Failure(x) => Left(x)
 
   private def get(dir: String, name: String)(using dba: DbaEff): Either[Err, File] =
-    dba.get(s"/search/file/$dir/$name") match
+    val path = s"/search/file/$dir/$name"
+    dba.get(path) match
       case Right(Some(x)) => unpickle(x)
-      case Right(None) => Left(FileNotExists(dir, name))
+      case Right(None) => Left(FileNotExists)
       case Left(e) => Left(e)
 
   def create(dir: String, name: String)(using dba: DbaEff): Either[Err, File] =
     dba.get(s"/search/file/$dir/${name}") match
-      case Right(Some(_)) => Left(FileAlreadyExists(dir, name))
+      case Right(Some(_)) => Left(FileAlreadyExists)
       case Right(None) =>
         val f = File(name, count=0, size=0L)
         val x = pickle(f)
@@ -69,13 +72,26 @@ object File:
   def size(dir: String, name: String)(using DbaEff): Either[Err, Long] =
     get(dir, name).map(_.size)
 
-  def stream(dir: String, name: String)(using dba: DbaEff): Either[Err, LazyList[Either[Err, Array[Byte]]]] =
-    get(dir, name).map(_.count).flatMap{
-      case 0 => Right(LazyList.empty)
-      case n =>
-        def k(i: Int) = s"/search/file/$dir/${name}_chunk_${i}"
-        Right(LazyList.range(1, n+1).map(i => dba.get(k(i)).flatMap(_.fold(Left(KeyNotFound))(Right(_)))))
-    }
+  def stream(dir: String, name: String)(using dba: DbaEff): Either[Err, ArrayList[ByteBuffer]] =
+    for
+      file <- get(dir, name)
+      xs <-
+        file.count match
+          case 0 => Right(ArrayList(0))
+          case n =>
+            inline def k(i: Int) = s"/search/file/$dir/${name}_chunk_${i}"
+            @tailrec
+            def loop(i: Int, acc: ArrayList[ByteBuffer]): Either[Err, ArrayList[ByteBuffer]] =
+              if i <= n then
+                (dba.get(k(i)).flatMap(_.fold(Left(KeyNotFound))(x => Right(ByteBuffer.wrap(x)))): Either[Err, ByteBuffer]) match
+                  case Right(x) =>
+                    acc.add(x)
+                    loop(i + 1, acc)
+                  case Left(e) => Left(e)
+              else
+                Right(acc)
+            loop(1, ArrayList[ByteBuffer](n))
+    yield xs
 
   def delete(dir: String, name: String)(using dba: DbaEff): Either[Err, File] =
     for
@@ -90,10 +106,10 @@ object File:
       from <- get(dir, fromName)
       _ <- (get(dir, toName).fold(
         l => l match {
-          case _: FileNotExists => Right(())
+          case FileNotExists => Right(())
           case _ => Left(l)
         },
-        _ => Left(FileAlreadyExists(dir, toName))
+        _ => Left(FileAlreadyExists)
       ): Either[Err, Unit])
       _ <-
         (LazyList.range(1, from.count+1).map(i =>
