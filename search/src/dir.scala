@@ -8,8 +8,17 @@ import org.apache.lucene.store.*
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
 import scala.collection.JavaConverters.*
+import zio.*
+import kvs.rng.Dba
 
-class KvsDirectory(dir: String)(using DbaEff) extends BaseDirectory(NoLockFactory.INSTANCE):
+object KvsDirectory:
+  type DirName = String
+
+  val live: ZLayer[Dba & Has[DirName], Nothing, Has[KvsDirectory]] = ZLayer.fromServices[Dba.Service, DirName, KvsDirectory]{ case (dba, dirname) =>
+    KvsDirectory(dirname)(using DbaEff(dba))
+  }
+
+class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFactory.INSTANCE):
   private val outs = TrieMap.empty[String, ByteArrayOutputStream]
   private val nextTempFileCounter = AtomicLong()
 

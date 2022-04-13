@@ -1,19 +1,20 @@
-package kvs
+package kvs.feed
+package app
 
 import akka.actor.{Actor, Props}
 import java.io.IOException
-import kvs.feed.*
 import kvs.rng.{ActorSystem, Dba}
+import kvs.sharding.*
 import proto.*
 import zio.*, stream.*, clock.*, console.*
 
 @main
-def app: Unit =
+def feedApp: Unit =
   val io: ZIO[Feed & ClusterSharding & Console, Any, Unit] =
     for
       feed <- ZIO.service[Feed.Service]
       sharding <- ZIO.service[ClusterSharding.Service]
-      posts <-
+      shards <-
         sharding.start("Posts", Props(Posts(feed)), {
           case Posts.Add(user, _) => user
         })
@@ -44,7 +45,8 @@ def app: Unit =
                       case false =>
                         for
                           post <- IO.succeed(Posts.Post(body))
-                          _ <- sharding.send[Unit, Err](posts, Posts.Add(user, post))
+                          answer <- sharding.send[Any, Err](shards, Posts.Add(user, post))
+                          _ <- putStrLn(answer.toString)
                         yield ()
                 yield ()
               case "all" =>
@@ -84,15 +86,18 @@ object Posts:
   given Codec[Posts.Post] = caseCodecAuto
 end Posts
 
-class Posts(feed: Feed.Service) extends WriteService(feed):
+class Posts(feed: Feed.Service) extends Actor:
   import Posts.{given, *}
 
-  val f: Any => IO[Err, Any] =
+  def receive: Receive =
     case Posts.Add(user, post) =>
-      for
-        _ <- feed.add(fid(user), post)
-      yield ()
+      sender() ! Runtime.default.unsafeRunSync{
+        for
+          _ <- feed.add(fid(user), post)
+        yield "added"
+      }
 
-    case _ => ZIO.dieMessage("unexpected message")
+    case _ => sender() ! "bad msg"
+
 end Posts
 

@@ -73,9 +73,6 @@ lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
 )
 
 val scalacOptionsCommon = Seq(
-  "release", "18"
-, "-source:future"
-, "-deprecation"
 // , "-Yexplicit-nulls"
 // , "-language:strictEquality"
 )

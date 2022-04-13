@@ -219,16 +219,13 @@ object ops:
 
 end ops
 
-trait WriteService(feed: Feed.Service) extends Actor:
-  val f: Any => IO[Err, Any]
-
-  def receive: Receive =
-    case x => sender() ! Runtime.default.unsafeRunSync(f(x))
-end WriteService
-
 private[feed] inline def stob(s: String): Array[Byte] =
   s.getBytes("utf8").nn
 
 extension (x: Boolean)
   private[feed] inline def fold[A](t: => A, f: => A): A =
     if x then t else f
+
+// given CanEqual[Nothing, kvs.rng.Value] = CanEqual.derived
+// given CanEqual[Nothing, (Eid, ops.En)] = CanEqual.derived
+// given CanEqual[Nothing, ops.Fd] = CanEqual.derived

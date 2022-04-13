@@ -1,4 +1,4 @@
-package kvs
+package kvs.sharding
 
 import akka.actor.{Actor, ActorRef, Props}
 import akka.cluster.sharding.{ClusterSharding as RootClusterSharding, ClusterShardingSettings, ShardRegion}
