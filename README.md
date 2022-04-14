@@ -2,7 +2,7 @@
 
 ![ci](https://github.com/zero-deps/kvs/workflows/ci/badge.svg)
 
-[Docs](kvs.pdf) [Paper](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf)
+[Document](kvs.pdf) | [Paper](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf)
 
 Abstract Scala storage framework with high-level API for handling linked lists of polymorphic data (feeds).
 
