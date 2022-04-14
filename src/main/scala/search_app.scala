@@ -26,20 +26,12 @@ def searchApp: Unit =
       sharding <- ZIO.service[ClusterSharding.Service]
       shards <-
         sharding.start("Search", Props(Indexer(posts, notes)), {
-          case _: IndexPosts => posts.dirname
-          case _: IndexNotes => notes.dirname
+          case IndexPosts => posts.dirname
+          case IndexNotes => notes.dirname
         })
       _ <- putStrLn("indexing...")
-      _ <-
-        sharding.send[String, Throwable](shards, IndexPosts(ZStream(
-          Post("What is Lorem Ipsum?", "Lorem Ipsum is simply dummy text of the printing and typesetting industry.")
-        , Post("Where does it come from?", "It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old.")
-        ))).flatMap(putStrLn(_))
-      _ <-
-        sharding.send[String, Throwable](shards, IndexNotes(ZStream(
-          Note("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
-        , Note("Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.")
-        ))).flatMap(putStrLn(_))
+      _ <- sharding.send[String, Throwable](shards, IndexPosts).flatMap(putStrLn(_))
+      _ <- sharding.send[String, Throwable](shards, IndexNotes).flatMap(putStrLn(_))
       _ <- putStrLn(s"welcome!")
       _ <- putStrLn(s"enter 'q' to quit")
       _ <-
@@ -107,34 +99,47 @@ object Note:
       text <- IO.effect(doc.get("text").nn)
     yield Note(text)
 
-case class IndexPosts(xs: ZStream[Any, Nothing, Post])
-case class IndexNotes(xs: ZStream[Any, Nothing, Note])
+case object IndexPosts
+case object IndexNotes
+
+given CanEqual[IndexPosts.type, Any] = CanEqual.derived
+given CanEqual[IndexNotes.type, Any] = CanEqual.derived
 
 class Indexer(posts: Search.Service, notes: Search.Service) extends Actor:
   def receive: Receive =
-    case IndexPosts(xs) =>
+    case IndexPosts =>
       sender() ! Runtime.default.unsafeRunSync[Throwable, String]{
         for
           _ <-
-            posts.index[Any, Nothing, Post](xs,(p: Post) => {
+            posts.index[Any, Nothing, Post](
+              ZStream(
+                Post("What is Lorem Ipsum?", "Lorem Ipsum is simply dummy text of the printing and typesetting industry.")
+              , Post("Where does it come from?", "It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old.")
+              )
+            , p => {
               val doc = Document()
               doc.add(TextField("title", p.title, Field.Store.YES))
               doc.add(TextField("content", p.content, Field.Store.YES))
               doc
             })
-        yield "indexed"
+        yield "posts are indexed"
       }
 
-    case IndexNotes(xs) =>
+    case IndexNotes =>
       sender() ! Runtime.default.unsafeRunSync[Throwable, String]{
         for
           _ <-
-            notes.index[Any, Nothing, Note](xs, (n: Note) => {
+            notes.index[Any, Nothing, Note](
+              ZStream(
+                Note("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
+              , Note("Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.")
+              )
+            , n => {
               val doc = Document()
               doc.add(TextField("text", n.text, Field.Store.YES))
               doc
             })
-        yield "indexed"
+        yield "notes are indexed"
       }
 
     case _ =>
