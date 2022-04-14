@@ -22,9 +22,10 @@ object File:
 
   private inline def pickle(e: File): Array[Byte] = encode(e)
   
-  private def unpickle(a: Array[Byte]): Either[Throwable, File] = Try(decode[File](a)) match
-    case Success(x) => Right(x)
-    case Failure(x) => Left(x)
+  private def unpickle(a: Array[Byte]): Either[Throwable, File] =
+    Try(decode[File](a)) match
+      case Success(x) => Right(x)
+      case Failure(x) => Left(x)
 
   private def get(dir: String, name: String)(using dba: DbaEff): Either[FileNotExists.type | dba.Err, File] =
     given CanEqual[None.type, Option[dba.V]] = CanEqual.derived
@@ -47,9 +48,7 @@ object File:
       case Left(e) => Left(e)
 
   def append(dir: String, name: String, data: Array[Byte])(using dba: DbaEff): Either[dba.Err | NoData.type | FileNotExists.type, File] =
-    append(dir, name, data, length=data.length)
-
-  private def append(dir: String, name: String, data: Array[Byte], length: Int)(using dba: DbaEff): Either[dba.Err | NoData.type | FileNotExists.type, File] =
+    val length = data.length
     @tailrec 
     def writeChunks(count: Int, rem: Array[Byte]): Either[dba.Err, Int] =
       rem.splitAt(chunkLength) match
