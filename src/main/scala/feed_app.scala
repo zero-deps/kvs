@@ -45,7 +45,7 @@ def feedApp: Unit =
                       case false =>
                         for
                           post <- IO.succeed(Posts.Post(body))
-                          answer <- sharding.send[Any, Err](shards, Posts.Add(user, post))
+                          answer <- sharding.send[String, Err](shards, Posts.Add(user, post))
                           _ <- putStrLn(answer.toString)
                         yield ()
                 yield ()
@@ -97,7 +97,8 @@ class Posts(feed: Feed.Service) extends Actor:
         yield "added"
       }
 
-    case _ => sender() ! "bad msg"
+    case _ =>
+      sender() ! "bad msg"
 
 end Posts
 

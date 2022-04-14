@@ -31,7 +31,7 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
   override
   def listAll(): Array[String | Null] | Null = {
     ensureOpen()
-    Files.all(dir).fold(l => throw new IOException(l.toString), identity)
+    Files.all(dir).fold(l => throw IOException(l.toString), identity)
   }
 
   /**
@@ -52,9 +52,9 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
     } yield ()
     r.fold(
       _ match
-        case File.FileNotExists => throw new NoSuchFileException(name)
-        case File.KeyNotFound => throw new NoSuchFileException(name)
-        case x => throw new IOException(x.toString)
+        case File.FileNotExists => throw NoSuchFileException(name)
+        case File.KeyNotFound => throw NoSuchFileException(name)
+        case x => throw IOException(x.toString)
     , identity
     )
   }
@@ -74,8 +74,8 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
     sync(Collections.singletonList(name.nn).nn)
     File.size(dir, name.nn).fold(
       l => l match {
-        case File.FileNotExists => throw new NoSuchFileException(s"/search/dir/${dir}/${name.nn}")
-        case _ => throw new IOException(l.toString)
+        case File.FileNotExists => throw NoSuchFileException(name)
+        case _ => throw IOException(l.toString)
       },
       r => r
     )
@@ -100,14 +100,14 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
     } yield ()
     r.fold(
       l => l match {
-        case Files.EntryExists => throw new FileAlreadyExistsException(name)
-        case File.FileAlreadyExists => throw new FileAlreadyExistsException(name)
-        case _ => throw new IOException(l.toString)
+        case Files.EntryExists => throw FileAlreadyExistsException(name)
+        case File.FileAlreadyExists => throw FileAlreadyExistsException(name)
+        case _ => throw IOException(l.toString)
       },
       _ => {
-        val out = new ByteArrayOutputStream;
+        val out = ByteArrayOutputStream()
         outs += ((name.nn, out))
-        new OutputStreamIndexOutput(s"/search/dir/${dir}/${name.nn}", name.nn, out, 8192)
+        OutputStreamIndexOutput(name, name.nn, out, 8192)
       }
     )
   }
@@ -137,11 +137,11 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
 
     val res = loop()
     res.fold(
-      l => throw new IOException(l.toString),
+      l => throw IOException(l.toString),
       r => {
-        val out = new ByteArrayOutputStream;
+        val out = ByteArrayOutputStream()
         outs += ((r.name, out))
-        new OutputStreamIndexOutput(s"/search/dir/${dir}/${r.name}", r.name, out, 8192)
+        OutputStreamIndexOutput(r.name, r.name, out, 8192)
       }
     )
   }
@@ -159,7 +159,7 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
     names.nn.asScala.foreach{ (name: String) =>
       outs.get(name).map(_.toByteArray.nn).foreach{ xs =>
         File.append(dir, name, xs).fold(
-          l => throw new IOException(l.toString),
+          l => throw IOException(l.toString),
           _ => ()
         )
         outs -= name
@@ -195,7 +195,7 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
       _ <- Files.remove(dir, source.nn)
     } yield ()
     res.fold(
-      l => throw new IOException(l.toString),
+      l => throw IOException(l.toString),
       _ => ()
     )
   }
@@ -214,11 +214,11 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
     sync(Collections.singletonList(name.nn).nn)
     val res = for {
       bs <- File.stream(dir, name.nn)
-    } yield new ByteBuffersIndexInput(ByteBuffersDataInput(bs), s"/search/dir/${dir}/${name.nn}")
+    } yield ByteBuffersIndexInput(ByteBuffersDataInput(bs), name)
     res.fold(
       l => l match {
-        case File.FileNotExists => throw new NoSuchFileException(name)
-        case _ => throw new IOException(l.toString)
+        case File.FileNotExists => throw NoSuchFileException(name)
+        case _ => throw IOException(l.toString)
       },
       r => r
     )

@@ -51,7 +51,8 @@ object ClusterSharding:
       case r: Exit[E, A] =>
         handler(r)
         context.stop(self)
-      case _ =>
+      case x =>
+        println(x.toString)
         context.stop(self)
 
 end ClusterSharding

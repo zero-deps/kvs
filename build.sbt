@@ -1,5 +1,5 @@
 val scalav = "3.1.2-RC3"
-val zio = "1.0.13"
+val zio = "1.0.14"
 val akka = "2.6.19"
 val rocks = "7.0.4"
 val protoj = "3.20.0"
