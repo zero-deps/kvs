@@ -26,7 +26,7 @@ lazy val ring = project.in(file("ring")).settings(
   , "org.rocksdb" % "rocksdbjni" % rocks
   , "dev.zio" %% "zio" % zio
   )
-, scalacOptions ++= scalacOptionsCommon :+ "-nowarn"
+, scalacOptions ++= scalacOptionsCommon diff Seq("-language:strictEquality") :+ "-nowarn"
 ).dependsOn(proto)
 
 lazy val sharding = project.in(file("sharding")).settings(
@@ -63,18 +63,18 @@ lazy val proto = project.in(file("deps/proto/proto")).settings(
 , libraryDependencies ++= Seq(
     "com.google.protobuf" % "protobuf-java" % protoj
   )
-, scalacOptions ++= scalacOptionsCommon :+ "-Xcheck-macros"
+, scalacOptions ++= scalacOptionsCommon diff Seq("-language:strictEquality") :+ "-Xcheck-macros"
 ).dependsOn(protosyntax)
 
 lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
   scalaVersion := scalav
 , crossScalaVersions := scalav :: Nil
-, scalacOptions ++= scalacOptionsCommon
+, scalacOptions ++= scalacOptionsCommon diff Seq("-language:strictEquality")
 )
 
 val scalacOptionsCommon = Seq(
-// , "-Yexplicit-nulls"
-// , "-language:strictEquality"
+  "-Yexplicit-nulls"
+, "-language:strictEquality"
 )
 
 Global / onChangedBuildSource := ReloadOnSourceChanges

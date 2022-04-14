@@ -55,16 +55,16 @@ def searchApp: Unit =
                     val b = BooleanQuery.Builder()
                     b.add(WildcardQuery(Term("title", s"*${word}*")), Occur.SHOULD)
                     b.add(WildcardQuery(Term("content", s"*${word}*")), Occur.SHOULD)
-                    b.build
-                  }, doc => Post(doc.get("title"), doc.get("content"))
+                    b.build.nn
+                  }, doc => Post.fromDoc(doc)
                   ).runCollect
-                _ <- putStrLn("> " + xs)
+                _ <- putStrLn("posts> " + xs)
                 ys <-
                   notes.run(
                     WildcardQuery(Term("text", s"*${word}*"))
-                  , doc => Note(doc.get("text"))
+                  , doc => Note.fromDoc(doc)
                   ).runCollect
-                _ <- putStrLn("> " + ys)
+                _ <- putStrLn("notes> " + ys)
               yield ()
         yield word).repeatUntilEquals("q")
     yield ()
@@ -93,6 +93,19 @@ def searchApp: Unit =
 
 case class Post(title: String, content: String)
 case class Note(text: String)
+
+object Post:
+  def fromDoc(doc: Document): Task[Post] =
+    for
+      title <- IO.effect(doc.get("title").nn)
+      content <- IO.effect(doc.get("content").nn)
+    yield Post(title, content)
+
+object Note:
+  def fromDoc(doc: Document): Task[Note] =
+    for
+      text <- IO.effect(doc.get("text").nn)
+    yield Note(text)
 
 case class IndexPosts(xs: ZStream[Any, Nothing, Post])
 case class IndexNotes(xs: ZStream[Any, Nothing, Note])

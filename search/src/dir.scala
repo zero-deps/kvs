@@ -3,7 +3,7 @@ package kvs.search
 import java.io.{IOException, ByteArrayOutputStream}
 import java.nio.file.{NoSuchFileException, FileAlreadyExistsException}
 import java.util.concurrent.atomic.AtomicLong
-import java.util.{Collection, Collections, Arrays}
+import java.util.{Collection, Collections, Arrays, Set}
 import org.apache.lucene.store.*
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
@@ -18,7 +18,7 @@ object KvsDirectory:
     KvsDirectory(dirname)(using DbaEff(dba))
   }
 
-class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFactory.INSTANCE):
+class KvsDirectory(val dir: String)(using dba: DbaEff) extends BaseDirectory(NoLockFactory.INSTANCE):
   private val outs = TrieMap.empty[String, ByteArrayOutputStream]
   private val nextTempFileCounter = AtomicLong()
 
@@ -46,14 +46,14 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
   override
   def deleteFile(name: String | Null): Unit = {
     sync(Collections.singletonList(name.nn).nn)
-    val r = for {
+    val r: Either[FileNotExists.type | dba.Err | BrokenListing.type, Unit] = for {
       _ <- File.delete(dir, name.nn)
       _ <- Files.remove(dir, name.nn)
     } yield ()
     r.fold(
       _ match
-        case File.FileNotExists => throw NoSuchFileException(name)
-        case File.KeyNotFound => throw NoSuchFileException(name)
+        case FileNotExists => throw NoSuchFileException(name)
+        case BrokenListing => throw NoSuchFileException(name)
         case x => throw IOException(x.toString)
     , identity
     )
@@ -74,7 +74,7 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
     sync(Collections.singletonList(name.nn).nn)
     File.size(dir, name.nn).fold(
       l => l match {
-        case File.FileNotExists => throw NoSuchFileException(name)
+        case FileNotExists => throw NoSuchFileException(name)
         case _ => throw IOException(l.toString)
       },
       r => r
@@ -85,7 +85,7 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
    * Creates a new, empty file in the directory and returns an {@link IndexOutput}
    * instance for appending data to this file.
    *
-   * This method must throw {@link java.nio.file.FileAlreadyExistsException} if the file
+   * This method must throw {@link FileAlreadyExistsException} if the file
    * already exists.
    *
    * @param name the name of the file to create.
@@ -94,17 +94,16 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
   override
   def createOutput(name: String | Null, context: IOContext | Null): IndexOutput | Null = {
     ensureOpen()
-    val r = for {
-      _ <- Files.add(dir, name.nn)
-      _ <- File.create(dir, name.nn)
-    } yield ()
+    val r: Either[dba.Err | FileExists.type, Unit] =
+      for
+        _ <- Files.add(dir, name.nn)
+        _ <- File.create(dir, name.nn)
+      yield ()
     r.fold(
-      l => l match {
-        case Files.EntryExists => throw FileAlreadyExistsException(name)
-        case File.FileAlreadyExists => throw FileAlreadyExistsException(name)
+      l => l match
+        case FileExists => throw FileAlreadyExistsException(name)
         case _ => throw IOException(l.toString)
-      },
-      _ => {
+    , _ => {
         val out = ByteArrayOutputStream()
         outs += ((name.nn, out))
         OutputStreamIndexOutput(name, name.nn, out, 8192)
@@ -125,14 +124,13 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
     @tailrec
     def loop(): Either[?, File] =
       val name = Directory.getTempFileName(prefix, suffix, nextTempFileCounter.getAndIncrement).nn
-      val res =
+      val res: Either[dba.Err | FileExists.type, File] =
         for
           _ <- Files.add(dir, name)
           r <- File.create(dir, name)
         yield r
       res match
-        case Left(Files.EntryExists) => loop()
-        case Left(File.FileAlreadyExists) => loop()
+        case Left(FileExists) => loop()
         case x => x
 
     val res = loop()
@@ -188,12 +186,13 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
   def rename(source: String | Null, dest: String | Null): Unit = {
     ensureOpen()
     sync(Arrays.asList(source, dest).nn)
-    val res = for {
-      _ <- File.copy(dir, source.nn -> dest.nn)
-      _ <- Files.add(dir, dest.nn)
-      _ <- File.delete(dir, source.nn)
-      _ <- Files.remove(dir, source.nn)
-    } yield ()
+    val res =
+      for
+        _ <- File.copy(dir, source.nn -> dest.nn)
+        _ <- Files.add(dir, dest.nn)
+        _ <- File.delete(dir, source.nn)
+        _ <- Files.remove(dir, source.nn)
+      yield ()
     res.fold(
       l => throw IOException(l.toString),
       _ => ()
@@ -212,15 +211,15 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
   override
   def openInput(name: String | Null, context: IOContext | Null): IndexInput | Null = {
     sync(Collections.singletonList(name.nn).nn)
-    val res = for {
-      bs <- File.stream(dir, name.nn)
-    } yield ByteBuffersIndexInput(ByteBuffersDataInput(bs), name)
+    val res =
+      for
+        bs <- File.stream(dir, name.nn)
+      yield ByteBuffersIndexInput(ByteBuffersDataInput(bs), name)
     res.fold(
-      l => l match {
-        case File.FileNotExists => throw NoSuchFileException(name)
+      l => l match
+        case BrokenFile => throw NoSuchFileException(name)
         case _ => throw IOException(l.toString)
-      },
-      r => r
+    , identity
     )
   }
 
@@ -230,5 +229,10 @@ class KvsDirectory(val dir: String)(using DbaEff) extends BaseDirectory(NoLockFa
     }
 
   override
-  def getPendingDeletions(): java.util.Set[String] =
+  def getPendingDeletions(): Set[String] =
     Collections.emptySet[String].nn
+
+  given [A]: CanEqual[BrokenListing.type, BrokenListing.type | A] = CanEqual.derived
+  given [A]: CanEqual[BrokenFile.type, BrokenFile.type | A] = CanEqual.derived
+  given [A]: CanEqual[FileNotExists.type, FileNotExists.type | A] = CanEqual.derived
+  given [A]: CanEqual[FileExists.type, FileExists.type | A] = CanEqual.derived
