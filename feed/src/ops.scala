@@ -1,25 +1,25 @@
 package kvs.feed
 
 import akka.actor.Actor
+import kvs.rng.{Dba, Key}
+import proto.*
 import zio.*, stream.*
 
-import proto.*
+type Eid = Long // entry id
+type Err = kvs.rng.AckQuorumFailed | kvs.rng.AckTimeoutFailed
 
-import kvs.rng.{Dba, Key}
+type Codec[A] = MessageCodec[A]
+
+private[feed] type Fid = String // feed id
+private[feed] type Data = Array[Byte]
+
+private[feed] def pickle[A](e: A)(using Codec[A]): UIO[Array[Byte]] = IO.effectTotal(encode[A](e))
+private[feed] def unpickle[A](a: Array[Byte])(using Codec[A]): UIO[A] = IO.effect(decode[A](a)).orDie // is defect
 
 /*
  * Feed:
- * [head] -->next--> [en] -->next--> [nothing]
+ * [head] -->next--> [en] -->next--> (nothing)
  */
-
-private[feed] type Fid = String // feed id
-type Eid = Long // entry id
-private[feed] type Data = Array[Byte]
-type Err = kvs.rng.AckQuorumFailed | kvs.rng.AckTimeoutFailed
-
-private[feed] def pickle[A](e: A)(using MessageCodec[A]): UIO[Array[Byte]] = IO.effectTotal(encode[A](e))
-private[feed] def unpickle[A](a: Array[Byte])(using MessageCodec[A]): UIO[A] = IO.effect(decode[A](a)).orDie // is defect
-
 object ops:
   private[feed] case class Fd
     ( @N(1) head: Option[Eid]
@@ -37,9 +37,9 @@ object ops:
     , @N(3) removed: Boolean = false
     )
 
-  private[feed] given MessageCodec[Fd] = caseCodecAuto
-  private[feed] given MessageCodec[En] = caseCodecAuto
-  private[feed] given MessageCodec[(Fid, Eid)] = caseCodecIdx
+  private[feed] given Codec[Fd] = caseCodecAuto
+  private[feed] given Codec[En] = caseCodecAuto
+  private[feed] given Codec[(Fid, Eid)] = caseCodecIdx
 
   private[feed] object meta:
     def len(id: Fid)(dba: Dba.Service): IO[Err, Long] =
@@ -217,15 +217,15 @@ object ops:
       _ <- meta.put(fid, fd.copy(length=l, removed=r, maxid=m))(dba)
     yield ()
 
+  private[feed] inline def stob(s: String): Array[Byte] =
+    s.getBytes("utf8").nn
+
+  extension (x: Boolean)
+    private[feed] inline def fold[A](t: => A, f: => A): A =
+      if x then t else f
+
+  given CanEqual[Nothing, kvs.rng.Value] = CanEqual.derived
+  given CanEqual[Nothing, (Eid, ops.En)] = CanEqual.derived
+  given CanEqual[Nothing, ops.Fd] = CanEqual.derived
+
 end ops
-
-private[feed] inline def stob(s: String): Array[Byte] =
-  s.getBytes("utf8").nn
-
-extension (x: Boolean)
-  private[feed] inline def fold[A](t: => A, f: => A): A =
-    if x then t else f
-
-given CanEqual[Nothing, kvs.rng.Value] = CanEqual.derived
-given CanEqual[Nothing, (Eid, ops.En)] = CanEqual.derived
-given CanEqual[Nothing, ops.Fd] = CanEqual.derived

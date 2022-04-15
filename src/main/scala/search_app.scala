@@ -13,8 +13,8 @@ import org.apache.lucene.search.{BooleanQuery, WildcardQuery}
 import org.apache.lucene.store.Directory
 import zio.*, stream.*, clock.*, console.*
 
-case class PostsSearch(s: Search.Service)
-case class NotesSearch(s: Search.Service)
+case class PostsSearch(s: kvs.search.Service)
+case class NotesSearch(s: kvs.search.Service)
 
 @main
 def searchApp: Unit =
@@ -23,7 +23,7 @@ def searchApp: Unit =
     for
       posts <- ZIO.service[PostsSearch].map(_.s)
       notes <- ZIO.service[NotesSearch].map(_.s)
-      sharding <- ZIO.service[ClusterSharding.Service]
+      sharding <- ZIO.service[kvs.sharding.Service]
       shards <-
         sharding.start("Search", Props(Indexer(posts, notes)), {
           case IndexPosts => posts.dirname
@@ -75,11 +75,11 @@ def searchApp: Unit =
   val notesDir: TaskLayer[Has[KvsDirectory]] =
     dba ++ ZLayer.succeed("notes") >>> KvsDirectory.live.fresh
   val postsSearch: TaskLayer[Has[PostsSearch]] =
-    postsDir >>> Search.live.fresh.project(PostsSearch(_))
+    postsDir >>> kvs.search.live.fresh.project(PostsSearch(_))
   val notesSearch: TaskLayer[Has[NotesSearch]] =
-    notesDir >>> Search.live.fresh.project(NotesSearch(_))
+    notesDir >>> kvs.search.live.fresh.project(NotesSearch(_))
   val shardingLayer: TaskLayer[ClusterSharding] =
-    actorSystem >>> ClusterSharding.live
+    actorSystem >>> kvs.sharding.live
   
   Runtime.default.unsafeRun(io.provideCustomLayer(postsSearch ++ notesSearch ++ shardingLayer))
 
@@ -105,7 +105,7 @@ case object IndexNotes
 given CanEqual[IndexPosts.type, Any] = CanEqual.derived
 given CanEqual[IndexNotes.type, Any] = CanEqual.derived
 
-class Indexer(posts: Search.Service, notes: Search.Service) extends Actor:
+class Indexer(posts: kvs.search.Service, notes: kvs.search.Service) extends Actor:
   def receive: Receive =
     case IndexPosts =>
       sender() ! Runtime.default.unsafeRunSync[Throwable, String]{

@@ -1,25 +1,24 @@
 package kvs.sharding
 
 import akka.actor.{Actor, ActorRef, Props}
-import akka.cluster.sharding.{ClusterSharding as RootClusterSharding, ClusterShardingSettings, ShardRegion}
+import akka.cluster.sharding.{ClusterSharding as AkkaClusterSharding, ClusterShardingSettings, ShardRegion}
+import kvs.rng.ActorSystem
 import zio.*
 
-import kvs.rng.ActorSystem
+type ClusterSharding = Has[Service]
 
-type ClusterSharding = Has[ClusterSharding.Service]
+trait Service:
+  def start[A](name: String, props: Props, id: A => String): UIO[ActorRef]
+  def send[A, E](shardRegion: ActorRef, msg: Any): IO[E, A]
 
-object ClusterSharding:
-  trait Service:
-    def start[A](name: String, props: Props, id: A => String): IO[Nothing, ActorRef]
-    def send[A, E](shardRegion: ActorRef, msg: Any): IO[E, A]
-
-  val live: URLayer[ActorSystem, ClusterSharding] = ZLayer.fromEffect(
+val live: URLayer[ActorSystem, ClusterSharding] =
+  ZLayer.fromEffect(
     for
       system <- ZIO.service[ActorSystem.Service]
-      sharding <- IO.effectTotal(RootClusterSharding(system))
+      sharding <- IO.effectTotal(AkkaClusterSharding(system))
     yield
       new Service:
-        def start[A](name: String, props: Props, id: A => String): IO[Nothing, ActorRef] =
+        def start[A](name: String, props: Props, id: A => String): UIO[ActorRef] =
           ZIO.effectTotal(
             sharding.start(
               typeName = name,
@@ -46,13 +45,11 @@ object ClusterSharding:
           }
   )
 
-  class Receiver[A, E](handler: Exit[E, A] => Unit) extends Actor:
-    def receive: Receive =
-      case r: Exit[E, A] =>
-        handler(r)
-        context.stop(self)
-      case x =>
-        println(x.toString)
-        context.stop(self)
-
-end ClusterSharding
+class Receiver[A, E](handler: Exit[E, A] => Unit) extends Actor:
+  def receive: Receive =
+    case r: Exit[E, A] =>
+      handler(r)
+      context.stop(self)
+    case x =>
+      println(x.toString)
+      context.stop(self)

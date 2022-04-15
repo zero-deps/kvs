@@ -10,19 +10,15 @@ import zio.*, stream.*, clock.*, console.*
 
 @main
 def feedApp: Unit =
-  val io: ZIO[Feed & ClusterSharding & Console, Any, Unit] =
+  val io: ZIO[Feed & SeqConsistency & Console, Any, Unit] =
     for
-      feed <- ZIO.service[Feed.Service]
-      sharding <- ZIO.service[ClusterSharding.Service]
-      shards <-
-        sharding.start("Posts", Props(Posts(feed)), {
-          case Posts.Add(user, _) => user
-        })
+      feed <- ZIO.service[kvs.feed.Service]
+      seqc <- ZIO.service[SeqConsistency.Service]
       user <- IO.succeed("guest")
       _ <- putStrLn(s"welcome, $user")
       _ <-
         (for
-          _ <- putStrLn("add/all/quit?")
+          _ <- putStrLn("add/all/q?")
           s <- getStrLn 
           _ <-
             s match
@@ -45,14 +41,14 @@ def feedApp: Unit =
                       case false =>
                         for
                           post <- IO.succeed(Posts.Post(body))
-                          answer <- sharding.send[String, Err](shards, Posts.Add(user, post))
+                          answer <- seqc.send(Posts.Add(user, post))
                           _ <- putStrLn(answer.toString)
                         yield ()
                 yield ()
               case "all" =>
                 Posts.all(user).take(5).tap(x => putStrLn(x._2.body + "\n" + "-" * 10)).runDrain
               case _ => IO.unit
-        yield s).repeatUntilEquals("quit")
+        yield s).repeatUntilEquals("q")
     yield ()
 
   val name = "app"
@@ -61,15 +57,31 @@ def feedApp: Unit =
   val actorSystem: TaskLayer[ActorSystem] =
     akkaConf >>> ActorSystem.live
   val dbaConf: ULayer[Has[kvs.rng.Conf]] =
-    ZLayer.fromEffect(ZIO.succeed(kvs.rng.Conf(dir = "target/data")))
+    ZLayer.succeed(kvs.rng.Conf(dir = "target/data"))
   val dba: TaskLayer[Dba] =
     actorSystem ++ dbaConf ++ Clock.live >>> Dba.live
   val feedLayer: TaskLayer[Feed] =
-    actorSystem ++ dba >>> Feed.live
+    actorSystem ++ dba >>> kvs.feed.live
   val shardingLayer: TaskLayer[ClusterSharding] =
-    actorSystem >>> ClusterSharding.live
+    actorSystem >>> kvs.sharding.live
+  val sqConf: TaskLayer[Has[SeqConsistency.Config]] =
+    import Posts.*
+    ZLayer.succeed(SeqConsistency.Config(
+      "Posts"
+    , {
+        case Posts.Add(user, post) =>
+          for
+            _ <- kvs.feed.add(fid(user), post)
+          yield "added"
+      }
+    , {
+        case Posts.Add(user, _) => user
+      }
+    ))
+  val seqcLayer: TaskLayer[SeqConsistency] =
+    feedLayer ++ shardingLayer ++ sqConf >>> SeqConsistency.live
   
-  Runtime.default.unsafeRun(io.provideCustomLayer(feedLayer ++ shardingLayer))
+  Runtime.default.unsafeRun(io.provideCustomLayer(feedLayer ++ seqcLayer))
 
 object Posts:
   case class Add(user: String, post: Post)
@@ -85,20 +97,3 @@ object Posts:
   
   given Codec[Posts.Post] = caseCodecAuto
 end Posts
-
-class Posts(feed: Feed.Service) extends Actor:
-  import Posts.{given, *}
-
-  def receive: Receive =
-    case Posts.Add(user, post) =>
-      sender() ! Runtime.default.unsafeRunSync{
-        for
-          _ <- feed.add(fid(user), post)
-        yield "added"
-      }
-
-    case _ =>
-      sender() ! "bad msg"
-
-end Posts
-
