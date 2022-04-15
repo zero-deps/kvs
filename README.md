@@ -1,8 +1,8 @@
 # Abstract scala type database
 
-![ci](https://github.com/zero-deps/kvs/workflows/ci/badge.svg)
-
-[Document](kvs.pdf) | [Paper](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf)
+![CI](https://github.com/zero-deps/kvs/workflows/ci/badge.svg) |
+[Documentation](kvs.pdf) |
+[Paper](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf)
 
 Abstract Scala storage framework with high-level API for handling linked lists of polymorphic data (feeds).
 
@@ -19,9 +19,9 @@ Add project as a git submodule.
 ## Structure
 
 * `./feed` -- Feed over Ring
-* `./ring` -- Ring
 * `./search` -- Seach over Ring
-* `./sharding` -- Cluster sharding for sequential consistency on write
+* `./ring` -- Ring on Akka Cluster
+* `./sharding` -- Cluster Sharding on ZIO
 * `./src` -- Example apps and tests
 
 ## Test & Demo
