@@ -11,6 +11,7 @@ import org.apache.lucene.index.Term
 import org.apache.lucene.search.BooleanClause.Occur
 import org.apache.lucene.search.{BooleanQuery, WildcardQuery}
 import org.apache.lucene.store.Directory
+import proto.*
 import zio.*, stream.*, clock.*, console.*
 
 case class PostsSearch(s: kvs.search.Service)
@@ -43,18 +44,16 @@ def searchApp: Unit =
             else
               for
                 xs <-
-                  posts.run({
+                  posts.run[Post]{
                     val b = BooleanQuery.Builder()
                     b.add(WildcardQuery(Term("title", s"*${word}*")), Occur.SHOULD)
                     b.add(WildcardQuery(Term("content", s"*${word}*")), Occur.SHOULD)
                     b.build.nn
-                  }, doc => Post.fromDoc(doc)
-                  ).runCollect
+                  }.runCollect
                 _ <- putStrLn("posts> " + xs)
                 ys <-
-                  notes.run(
+                  notes.run[Note](
                     WildcardQuery(Term("text", s"*${word}*"))
-                  , doc => Note.fromDoc(doc)
                   ).runCollect
                 _ <- putStrLn("notes> " + ys)
               yield ()
@@ -83,21 +82,12 @@ def searchApp: Unit =
   
   Runtime.default.unsafeRun(io.provideCustomLayer(postsSearch ++ notesSearch ++ shardingLayer))
 
-case class Post(title: String, content: String)
-case class Note(text: String)
+case class Post(@N(1) title: String, @N(2) content: String)
+case class Note(@N(1) text: String)
 
-object Post:
-  def fromDoc(doc: Document): Task[Post] =
-    for
-      title <- IO.effect(doc.get("title").nn)
-      content <- IO.effect(doc.get("content").nn)
-    yield Post(title, content)
-
-object Note:
-  def fromDoc(doc: Document): Task[Note] =
-    for
-      text <- IO.effect(doc.get("text").nn)
-    yield Note(text)
+type Codec[A] = MessageCodec[A]
+given Codec[Post] = caseCodecAuto
+given Codec[Note] = caseCodecAuto
 
 case object IndexPosts
 case object IndexNotes
@@ -118,8 +108,8 @@ class Indexer(posts: kvs.search.Service, notes: kvs.search.Service) extends Acto
               )
             , p => {
               val doc = Document()
-              doc.add(TextField("title", p.title, Field.Store.YES))
-              doc.add(TextField("content", p.content, Field.Store.YES))
+              doc.add(TextField("title", p.title, Field.Store.NO))
+              doc.add(TextField("content", p.content, Field.Store.NO))
               doc
             })
         yield "posts are indexed"
@@ -136,7 +126,7 @@ class Indexer(posts: kvs.search.Service, notes: kvs.search.Service) extends Acto
               )
             , n => {
               val doc = Document()
-              doc.add(TextField("text", n.text, Field.Store.YES))
+              doc.add(TextField("text", n.text, Field.Store.NO))
               doc
             })
         yield "notes are indexed"
