@@ -23,7 +23,7 @@ Add project as a git submodule.
 * `./feed` -- Feed over Ring
 * `./search` -- Seach over Ring
 * `./ring` -- Ring on Akka Cluster
-* `./sharding` -- Cluster Sharding on ZIO
+* `./sharding` -- Sequential Consistency & Cluster Sharding
 * `./src` -- Example apps and tests
 
 ## Test & Demo
