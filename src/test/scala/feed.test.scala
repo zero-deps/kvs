@@ -23,7 +23,7 @@ object FeedSpec extends DefaultRunnableSpec:
   val dba: TaskLayer[Dba] =
     actorSystem ++ dbaConf ++ Clock.live >>> Dba.live
   val feedLayer: TaskLayer[Feed] =
-    actorSystem ++ dba >>> Feed.live
+    actorSystem ++ dba >>> kvs.feed.live
 
   def spec = suite("FeedSpec")(
     testM("FILO") {
