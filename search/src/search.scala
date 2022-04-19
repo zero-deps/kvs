@@ -15,8 +15,8 @@ import zio.*, stream.*
 
 trait Service:
   val dirname: String
-  def run[A](q: Query, limit: Int=10)(using ClassTag[A], Codec[A]): ZStream[Any, Throwable, A]
-  def index[R, E, A](xs: ZStream[R, E, A], `a->doc`: A => Document)(using Codec[A]): ZIO[R, E | Throwable, Unit]
+  def run[A : Codec : ClassTag](q: Query, limit: Int=10): ZStream[Any, Throwable, A]
+  def index[R, E, A : Codec](xs: ZStream[R, E, A], `a->doc`: A => Document): ZIO[R, E | Throwable, Unit]
 end Service
 
 type Codec[A] = MessageCodec[A]
@@ -26,7 +26,7 @@ val live: ZLayer[Has[KvsDirectory], Throwable, Has[Service]] =
     new Service:
       val dirname = dir.dir
 
-      def run[A](q: Query, limit: Int)(using ClassTag[A], Codec[A]): ZStream[Any, Throwable, A] =
+      def run[A : Codec : ClassTag](q: Query, limit: Int): ZStream[Any, Throwable, A] =
         for
           reader <- ZStream.managed(ZManaged.fromAutoCloseable(ZIO.effect(DirectoryReader.open(dir).nn)))
           searcher <- ZStream.fromEffect(ZIO.effect(IndexSearcher(reader)))
@@ -41,7 +41,7 @@ val live: ZLayer[Has[KvsDirectory], Throwable, Has[Service]] =
             }
         yield a
 
-      def index[R, E, A](xs: ZStream[R, E, A], `a->doc`: A => Document)(using Codec[A]): ZIO[R, E | Throwable, Unit] =
+      def index[R, E, A : Codec](xs: ZStream[R, E, A], `a->doc`: A => Document): ZIO[R, E | Throwable, Unit] =
         for
           a <- IO.effect(StandardAnalyzer()) //todo: managed
           c <- IO.effect(IndexWriterConfig(a))

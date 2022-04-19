@@ -17,7 +17,7 @@ trait Service:
   def cleanup(fid: Fid): IO[Err, Unit]
 end Service
 
-val live: RLayer[ActorSystem & Dba, Feed] = ZLayer.fromEffect{
+val live: URLayer[ActorSystem & Dba, Feed] = ZLayer.fromEffect{
   for
     dba <- ZIO.service[Dba.Service]
     as <- ZIO.service[ActorSystem.Service]
@@ -67,30 +67,3 @@ def remove(fid: Fid, eid: Eid): ZIO[Feed, Err, Boolean] =
 
 def cleanup(fid: Fid): ZIO[Feed, Err, Unit] =
   ZIO.accessM(_.get.cleanup(fid))
-
-type SeqConsistency = Has[SeqConsistency.Service]
-
-object SeqConsistency:
-  trait Service:
-    def send(msg: Any): IO[Err, Any]
-
-  case class Config(name: String, f: Any => ZIO[Feed, Err, Any], id: Any => String)
-
-  val live: ZLayer[Feed & sharding.ClusterSharding & Has[Config], Nothing, SeqConsistency] =
-    ZLayer.fromServicesM[kvs.feed.Service, sharding.Service, Config, Any, Nothing, Service]{ case (feed, sharding, cfg) =>
-      for
-        shards <-
-          sharding.start(
-            cfg.name
-          , Props(new Actor:
-              def receive: Receive =
-                a => sender() ! Runtime.default.unsafeRunSync(cfg.f(a).provide(Has(feed)))
-            )
-          , cfg.id)
-      yield
-        new Service:
-          def send(msg: Any): IO[Err, Any] =
-            sharding.send(shards, msg)
-    }
-
-end SeqConsistency

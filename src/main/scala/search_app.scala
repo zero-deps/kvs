@@ -20,19 +20,14 @@ case class NotesSearch(s: kvs.search.Service)
 @main
 def searchApp: Unit =
   println("starting...")
-  val io: ZIO[Has[PostsSearch] & Has[NotesSearch] & ClusterSharding & Console, Any, Unit] =
+  val io: ZIO[Has[PostsSearch] & Has[NotesSearch] & SeqConsistency & Console, Any, Unit] =
     for
       posts <- ZIO.service[PostsSearch].map(_.s)
       notes <- ZIO.service[NotesSearch].map(_.s)
-      sharding <- ZIO.service[kvs.sharding.Service]
-      shards <-
-        sharding.start("Search", Props(Indexer(posts, notes)), {
-          case IndexPosts => posts.dirname
-          case IndexNotes => notes.dirname
-        })
+      seqc <- ZIO.service[SeqConsistency.Service]
       _ <- putStrLn("indexing...")
-      _ <- sharding.send[String, Throwable](shards, IndexPosts).flatMap(putStrLn(_))
-      _ <- sharding.send[String, Throwable](shards, IndexNotes).flatMap(putStrLn(_))
+      _ <- seqc.send(IndexPosts).flatMap(x => putStrLn(x.toString))
+      _ <- seqc.send(IndexNotes).flatMap(x => putStrLn(x.toString))
       _ <- putStrLn(s"welcome!")
       _ <- putStrLn(s"enter 'q' to quit")
       _ <-
@@ -79,13 +74,56 @@ def searchApp: Unit =
     notesDir >>> kvs.search.live.fresh.project(NotesSearch(_))
   val shardingLayer: TaskLayer[ClusterSharding] =
     actorSystem >>> kvs.sharding.live
+  val sqConf: URLayer[Has[PostsSearch] & Has[NotesSearch], Has[SeqConsistency.Config]] =
+    ZLayer.fromServices[PostsSearch, NotesSearch, SeqConsistency.Config]{ case (posts, notes) =>
+      SeqConsistency.Config(
+        "Search"
+      , {
+          case IndexPosts =>
+            (for
+              _ <-
+                posts.s.index[Any, Nothing, Post](
+                  ZStream(
+                    Post("What is Lorem Ipsum?", "Lorem Ipsum is simply dummy text of the printing and typesetting industry.")
+                  , Post("Where does it come from?", "It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old.")
+                  )
+                , p => {
+                  val doc = Document()
+                  doc.add(TextField("title", p.title, Field.Store.NO))
+                  doc.add(TextField("content", p.content, Field.Store.NO))
+                  doc
+                })
+            yield "posts are indexed")
+
+          case IndexNotes =>
+            (for
+              _ <-
+                notes.s.index[Any, Nothing, Note](
+                  ZStream(
+                    Note("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
+                  , Note("Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.")
+                  )
+                , n => {
+                  val doc = Document()
+                  doc.add(TextField("text", n.text, Field.Store.NO))
+                  doc
+                })
+            yield "notes are indexed")
+        }
+      , {
+          case IndexPosts => posts.s.dirname
+          case IndexNotes => notes.s.dirname
+        }
+      )
+    }
+  val seqcLayer: TaskLayer[SeqConsistency] =
+    shardingLayer ++ (postsSearch ++ notesSearch >>> sqConf) >>> SeqConsistency.live
   
-  Runtime.default.unsafeRun(io.provideCustomLayer(postsSearch ++ notesSearch ++ shardingLayer))
+  Runtime.default.unsafeRun(io.provideCustomLayer(postsSearch ++ notesSearch ++ seqcLayer))
 
 case class Post(@N(1) title: String, @N(2) content: String)
 case class Note(@N(1) text: String)
 
-type Codec[A] = MessageCodec[A]
 given Codec[Post] = caseCodecAuto
 given Codec[Note] = caseCodecAuto
 
@@ -95,43 +133,3 @@ case object IndexNotes
 given CanEqual[IndexPosts.type, Any] = CanEqual.derived
 given CanEqual[IndexNotes.type, Any] = CanEqual.derived
 
-class Indexer(posts: kvs.search.Service, notes: kvs.search.Service) extends Actor:
-  def receive: Receive =
-    case IndexPosts =>
-      sender() ! Runtime.default.unsafeRunSync[Throwable, String]{
-        for
-          _ <-
-            posts.index[Any, Nothing, Post](
-              ZStream(
-                Post("What is Lorem Ipsum?", "Lorem Ipsum is simply dummy text of the printing and typesetting industry.")
-              , Post("Where does it come from?", "It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old.")
-              )
-            , p => {
-              val doc = Document()
-              doc.add(TextField("title", p.title, Field.Store.NO))
-              doc.add(TextField("content", p.content, Field.Store.NO))
-              doc
-            })
-        yield "posts are indexed"
-      }
-
-    case IndexNotes =>
-      sender() ! Runtime.default.unsafeRunSync[Throwable, String]{
-        for
-          _ <-
-            notes.index[Any, Nothing, Note](
-              ZStream(
-                Note("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
-              , Note("Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.")
-              )
-            , n => {
-              val doc = Document()
-              doc.add(TextField("text", n.text, Field.Store.NO))
-              doc
-            })
-        yield "notes are indexed"
-      }
-
-    case _ =>
-      sender() ! "bad msg"
-end Indexer

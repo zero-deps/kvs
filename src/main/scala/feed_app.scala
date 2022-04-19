@@ -40,13 +40,13 @@ def feedApp: Unit =
                       case true => IO.unit
                       case false =>
                         for
-                          post <- IO.succeed(Posts.Post(body))
-                          answer <- seqc.send(Posts.Add(user, post))
+                          post <- IO.succeed(Post(body))
+                          answer <- seqc.send(Add(user, post))
                           _ <- putStrLn(answer.toString)
                         yield ()
                 yield ()
               case "all" =>
-                Posts.all(user).take(5).tap(x => putStrLn(x._2.body + "\n" + "-" * 10)).runDrain
+                all(user).take(5).tap(x => putStrLn(x._2.body + "\n" + "-" * 10)).runDrain
               case _ => IO.unit
         yield s).repeatUntilEquals("q")
     yield ()
@@ -64,36 +64,36 @@ def feedApp: Unit =
     actorSystem ++ dba >>> kvs.feed.live
   val shardingLayer: TaskLayer[ClusterSharding] =
     actorSystem >>> kvs.sharding.live
-  val sqConf: TaskLayer[Has[SeqConsistency.Config]] =
-    import Posts.*
-    ZLayer.succeed(SeqConsistency.Config(
-      "Posts"
-    , {
-        case Posts.Add(user, post) =>
-          for
-            _ <- kvs.feed.add(fid(user), post)
-          yield "added"
-      }
-    , {
-        case Posts.Add(user, _) => user
-      }
-    ))
+  val sqConf: URLayer[Feed, Has[SeqConsistency.Config]] =
+    ZLayer.fromFunction(feed =>
+      SeqConsistency.Config(
+        "Posts"
+      , {
+          case Add(user, post) =>
+            (for
+              _ <- kvs.feed.add(fid(user), post)
+            yield "added").provide(feed)
+        }
+      , {
+          case Add(user, _) => user
+        }
+      )
+    )
   val seqcLayer: TaskLayer[SeqConsistency] =
-    feedLayer ++ shardingLayer ++ sqConf >>> SeqConsistency.live
+    feedLayer ++ shardingLayer ++ (feedLayer >>> sqConf) >>> SeqConsistency.live
   
   Runtime.default.unsafeRun(io.provideCustomLayer(feedLayer ++ seqcLayer))
 
-object Posts:
-  case class Add(user: String, post: Post)
+case class Post(@N(1) body: String)
 
-  case class Post(@N(1) body: String)
+given Codec[Post] = caseCodecAuto
 
-  def all(user: String): ZStream[Feed, Err, (Eid, Post)] =
-    for
-      r <- kvs.feed.all(fid(user))
-    yield r
-  
-  def fid(user: String): String = s"posts.$user"
-  
-  given Codec[Posts.Post] = caseCodecAuto
-end Posts
+case class Add(user: String, post: Post)
+
+def all(user: String): ZStream[Feed, Err, (Eid, Post)] =
+  for
+    r <- kvs.feed.all(fid(user))
+  yield r
+
+def fid(user: String): String = s"posts.$user"
+

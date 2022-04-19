@@ -14,11 +14,11 @@ object ActorSystem:
   def staticConf(name: String, cfg: String): ULayer[Has[Conf]] =
     ZLayer.fromEffect(ZIO.succeed(ConfigFactory.parseString(cfg).nn).map(Conf(name, _)))
 
-  val live: RLayer[Has[Conf], ActorSystem] = ZLayer.fromManaged(
-    (for
-      conf <- ZIO.service[Conf]
-      system <- ZIO.effect(RootActorSystem(conf.name, conf.config))
-    yield system)
-      .toManaged(system => ZIO.fromFuture(_ => system.terminate()).either)
-  )
-end ActorSystem
+  val live: RLayer[Has[Conf], ActorSystem] =
+    ZLayer.fromManaged(
+      (for
+        conf <- ZIO.service[Conf]
+        system <- ZIO.effect(RootActorSystem(conf.name, conf.config))
+      yield system)
+        .toManaged(system => ZIO.fromFuture(_ => system.terminate()).either)
+    )

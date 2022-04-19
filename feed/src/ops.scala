@@ -1,20 +1,20 @@
 package kvs.feed
 
 import akka.actor.Actor
-import kvs.rng.{Dba, Key}
+import kvs.rng.{Dba, Key, AckQuorumFailed, AckTimeoutFailed}
 import proto.*
 import zio.*, stream.*
 
 type Eid = Long // entry id
-type Err = kvs.rng.AckQuorumFailed | kvs.rng.AckTimeoutFailed
+type Err = AckQuorumFailed | AckTimeoutFailed
 
 type Codec[A] = MessageCodec[A]
 
 private[feed] type Fid = String // feed id
 private[feed] type Data = Array[Byte]
 
-private[feed] def pickle[A](e: A)(using Codec[A]): UIO[Array[Byte]] = IO.effectTotal(encode[A](e))
-private[feed] def unpickle[A](a: Array[Byte])(using Codec[A]): UIO[A] = IO.effect(decode[A](a)).orDie // is defect
+private[feed] def pickle[A : Codec](e: A): UIO[Array[Byte]] = IO.effectTotal(encode[A](e))
+private[feed] def unpickle[A : Codec](a: Array[Byte]): UIO[A] = IO.effect(decode[A](a)).orDie // is defect
 
 /*
  * Feed:
