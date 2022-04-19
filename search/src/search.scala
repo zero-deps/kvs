@@ -42,18 +42,18 @@ val live: ZLayer[Has[KvsDirectory], Throwable, Has[Service]] =
         yield a
 
       def index[R, E, A : Codec](xs: ZStream[R, E, A], `a->doc`: A => Document): ZIO[R, E | Throwable, Unit] =
-        for
-          a <- IO.effect(StandardAnalyzer()) //todo: managed
-          c <- IO.effect(IndexWriterConfig(a))
-          _ <- IO.effect(c.setOpenMode(OpenMode.CREATE))
-          w <- IO.effect(IndexWriter(dir, c)) //todo: managed
-          _ <-
-            xs.mapM(a => ZIO.effect(w.addDocument{
-              val doc = `a->doc`(a)
-              doc.add(StoredField("obj", encode[A](a)))
-              doc
-            }): ZIO[R, E | Throwable, Unit]).runDrain
-          _ <- IO.effect(w.close())
-          _ <- IO.effect(a.close())
-        yield ()
+        Managed.fromAutoCloseable(IO.effect(StandardAnalyzer())).use{ a =>
+          for
+            c <- IO.effect(IndexWriterConfig(a))
+            _ <- IO.effect(c.setOpenMode(OpenMode.CREATE))
+            _ <-
+              Managed.fromAutoCloseable(IO.effect(IndexWriter(dir, c))).use{ w =>
+                xs.mapM(a => ZIO.effect(w.addDocument{
+                  val doc = `a->doc`(a)
+                  doc.add(StoredField("obj", encode[A](a)))
+                  doc
+                }): ZIO[R, E | Throwable, Unit]).runDrain
+              }
+          yield ()
+        }
   )
