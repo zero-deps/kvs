@@ -14,9 +14,14 @@ import kvs.rng.Dba
 object KvsDirectory:
   type DirName = String
 
-  val live: ZLayer[Dba & Has[DirName], Nothing, Has[KvsDirectory]] = ZLayer.fromServices[Dba.Service, DirName, KvsDirectory]{ case (dba, dirname) =>
-    KvsDirectory(dirname)(using DbaEff(dba))
-  }
+  val live: ZLayer[Dba & DirName, Nothing, KvsDirectory] =
+    ZLayer(
+      for
+        dba <- ZIO.service[Dba]
+        dirname <- ZIO.service[DirName]
+      yield
+        KvsDirectory(dirname)(using DbaEff(dba))
+    )
 
 class KvsDirectory(val dir: String)(using dba: DbaEff) extends BaseDirectory(NoLockFactory.INSTANCE):
   private val outs = TrieMap.empty[String, ByteArrayOutputStream]

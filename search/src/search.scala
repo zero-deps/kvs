@@ -13,47 +13,50 @@ import proto.*
 import scala.reflect.ClassTag
 import zio.*, stream.*
 
-trait Service:
+trait Search:
   val dirname: String
   def run[A : Codec : ClassTag](q: Query, limit: Int=10): ZStream[Any, Throwable, A]
   def index[R, E, A : Codec](xs: ZStream[R, E, A], `a->doc`: A => Document): ZIO[R, E | Throwable, Unit]
-end Service
+end Search
 
 type Codec[A] = MessageCodec[A]
 
-val live: ZLayer[Has[KvsDirectory], Throwable, Has[Service]] =
-  ZLayer.fromService(dir =>
-    new Service:
-      val dirname = dir.dir
+val live: ZLayer[KvsDirectory, Nothing, Search] =
+  ZLayer(
+    for
+      dir <- ZIO.service[KvsDirectory]
+    yield
+      new Search:
+        val dirname = dir.dir
 
-      def run[A : Codec : ClassTag](q: Query, limit: Int): ZStream[Any, Throwable, A] =
-        for
-          reader <- ZStream.managed(ZManaged.fromAutoCloseable(ZIO.effect(DirectoryReader.open(dir).nn)))
-          searcher <- ZStream.fromEffect(ZIO.effect(IndexSearcher(reader)))
-          x <- ZStream.fromIterableM(ZIO.effect(searcher.search(q, limit).nn.scoreDocs.nn))
-          doc <- ZStream.fromEffect(ZIO.effect(searcher.doc(x.nn.doc).nn))
-          a <-
-            ZStream.fromEffect{
-              for
-                bs <- IO.effect(doc.getBinaryValue("obj").nn)
-                obj <- IO.effect(decode[A](bs.bytes.nn))
-              yield obj
-            }
-        yield a
-
-      def index[R, E, A : Codec](xs: ZStream[R, E, A], `a->doc`: A => Document): ZIO[R, E | Throwable, Unit] =
-        Managed.fromAutoCloseable(IO.effect(StandardAnalyzer())).use{ a =>
+        def run[A : Codec : ClassTag](q: Query, limit: Int): ZStream[Any, Throwable, A] =
           for
-            c <- IO.effect(IndexWriterConfig(a))
-            _ <- IO.effect(c.setOpenMode(OpenMode.CREATE))
-            _ <-
-              Managed.fromAutoCloseable(IO.effect(IndexWriter(dir, c))).use{ w =>
-                xs.mapM(a => ZIO.effect(w.addDocument{
+            reader <- ZStream.scoped(ZIO.fromAutoCloseable(ZIO.attempt(DirectoryReader.open(dir).nn)))
+            searcher <- ZStream.fromZIO(ZIO.attempt(IndexSearcher(reader)))
+            x <- ZStream.fromIterableZIO(ZIO.attempt(searcher.search(q, limit).nn.scoreDocs.nn))
+            doc <- ZStream.fromZIO(ZIO.attempt(searcher.doc(x.nn.doc).nn))
+            a <-
+              ZStream.fromZIO{
+                for
+                  bs <- IO.attempt(doc.getBinaryValue("obj").nn)
+                  obj <- IO.attempt(decode[A](bs.bytes.nn))
+                yield obj
+              }
+          yield a
+
+        def index[R, E, A : Codec](xs: ZStream[R, E, A], `a->doc`: A => Document): ZIO[R, E | Throwable, Unit] =
+          ZIO.scoped(
+            for
+              a <- ZIO.fromAutoCloseable(IO.attempt(StandardAnalyzer()))
+              c <- IO.attempt(IndexWriterConfig(a))
+              _ <- IO.attempt(c.setOpenMode(OpenMode.CREATE))
+              w <- ZIO.fromAutoCloseable(IO.attempt(IndexWriter(dir, c)))
+              _ <-
+                xs.mapZIO(a => ZIO.attempt(w.addDocument{
                   val doc = `a->doc`(a)
                   doc.add(StoredField("obj", encode[A](a)))
                   doc
                 }): ZIO[R, E | Throwable, Unit]).runDrain
-              }
-          yield ()
-        }
+            yield ()
+          )
   )

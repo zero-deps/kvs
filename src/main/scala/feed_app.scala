@@ -6,29 +6,30 @@ import java.io.IOException
 import kvs.rng.{ActorSystem, Dba}
 import kvs.sharding.*
 import proto.*
-import zio.*, stream.*, clock.*, console.*
+import zio.*, stream.*
+import zio.Console.{printLine, readLine}
 
 @main
 def feedApp: Unit =
   val io: ZIO[Feed & SeqConsistency & Console, Any, Unit] =
     for
-      feed <- ZIO.service[kvs.feed.Service]
-      seqc <- ZIO.service[SeqConsistency.Service]
+      feed <- ZIO.service[Feed]
+      seqc <- ZIO.service[SeqConsistency]
       user <- IO.succeed("guest")
-      _ <- putStrLn(s"welcome, $user")
+      _ <- printLine(s"welcome, $user")
       _ <-
         (for
-          _ <- putStrLn("add/all/q?")
-          s <- getStrLn 
+          _ <- printLine("add/all/q?")
+          s <- readLine 
           _ <-
             s match
               case "add" =>
                 for
                   bodyRef <- Ref.make("")
-                  _ <- putStrLn("enter post")
+                  _ <- printLine("enter post")
                   _ <-
                     (for
-                      s <- getStrLn
+                      s <- readLine
                       _ <-
                         s match
                           case "" => IO.unit
@@ -42,29 +43,21 @@ def feedApp: Unit =
                         for
                           post <- IO.succeed(Post(body))
                           answer <- seqc.send(Add(user, post))
-                          _ <- putStrLn(answer.toString)
+                          _ <- printLine(answer.toString)
                         yield ()
                 yield ()
               case "all" =>
-                all(user).take(5).tap(x => putStrLn(x._2.body + "\n" + "-" * 10)).runDrain
+                all(user).take(5).tap(x => printLine(x._2.body + "\n" + "-" * 10)).runDrain
               case _ => IO.unit
         yield s).repeatUntilEquals("q")
     yield ()
 
-  val name = "app"
-  val akkaConf: ULayer[Has[ActorSystem.Conf]] =
+  val akkaConfig: ULayer[ActorSystem.Conf] =
+    val name = "app"
     ActorSystem.staticConf(name, kvs.rng.akkaConf(name, "127.0.0.1", 4343) ++ "akka.loglevel=off")
-  val actorSystem: TaskLayer[ActorSystem] =
-    akkaConf >>> ActorSystem.live
-  val dbaConf: ULayer[Has[kvs.rng.Conf]] =
+  val dbaConfig: ULayer[kvs.rng.Conf] =
     ZLayer.succeed(kvs.rng.Conf(dir = "target/data"))
-  val dba: TaskLayer[Dba] =
-    actorSystem ++ dbaConf ++ Clock.live >>> Dba.live
-  val feedLayer: TaskLayer[Feed] =
-    dba >>> kvs.feed.live
-  val shardingLayer: TaskLayer[ClusterSharding] =
-    actorSystem >>> kvs.sharding.live
-  val sqConf: URLayer[Feed, Has[SeqConsistency.Config]] =
+  val seqConsistencyConfig: URLayer[Feed, SeqConsistency.Config] =
     ZLayer.fromFunction(feed =>
       SeqConsistency.Config(
         "Posts"
@@ -72,17 +65,26 @@ def feedApp: Unit =
           case Add(user, post) =>
             (for
               _ <- kvs.feed.add(fid(user), post)
-            yield "added").provide(feed)
+            yield "added").provideService(feed)
         }
       , {
           case Add(user, _) => user
         }
       )
     )
-  val seqcLayer: TaskLayer[SeqConsistency] =
-    feedLayer ++ shardingLayer ++ (feedLayer >>> sqConf) >>> SeqConsistency.live
   
-  Runtime.default.unsafeRun(io.provideCustomLayer(feedLayer ++ seqcLayer))
+  Runtime.default.unsafeRun(io.provide(
+    SeqConsistency.live
+  , seqConsistencyConfig
+  , kvs.sharding.live
+  , kvs.feed.live
+  , Dba.live
+  , dbaConfig
+  , ActorSystem.live
+  , akkaConfig
+  , Console.live
+  , Clock.live
+  ))
 
 case class Post(@N(1) body: String)
 

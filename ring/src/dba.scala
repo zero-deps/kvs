@@ -3,81 +3,71 @@ package kvs.rng
 import akka.actor.{Actor, ActorLogging, Props, Deploy}
 import akka.event.Logging
 import akka.routing.FromConfig
+import kvs.rng.store.{ReadonlyStore, WriteStore}
 import org.rocksdb.{util as _, *}
+import proto.*
 import scala.language.postfixOps
 import zio.*
-import zio.clock.Clock
-
-import proto.*
-
-import kvs.rng.store.{ReadonlyStore, WriteStore}
 
 /* Database API */
-
-type Dba = Has[Dba.Service]
+trait Dba:
+  def put(key: Key, value: Value): IO[AckReceiverErr, Unit]
+  def get(key: Key): IO[AckReceiverErr, Option[Value]]
+  def delete(key: Key): IO[AckReceiverErr, Unit]
+end Dba
 
 object Dba:
-  trait Service extends AutoCloseable:
-    def put(key: Key, value: Value): IO[AckReceiverErr, Unit]
-    def get(key: Key): IO[AckReceiverErr, Option[Value]]
-    def delete(key: Key): IO[AckReceiverErr, Unit]
-  end Service
-
-  val live: ZLayer[ActorSystem & Has[Conf] & Clock, Throwable, Dba] =
-    ZLayer.fromManaged(
-      ZManaged.fromAutoCloseable(
-        for
-          as <- ZIO.service[ActorSystem.Service]
-          conf <- ZIO.service[Conf]
-          clock <- ZIO.service[Clock.Service]
-          dba <-
-            ZIO.effect(
-              new Service {
-                lazy val log = Logging(as, "hash-ring")
-
-                val env = Has(clock)
-
-                as.eventStream
-
-                RocksDB.loadLibrary()
-                val dbopts = new Options().nn
-                  .setCreateIfMissing(true).nn
-                  .setCompressionType(CompressionType.LZ4_COMPRESSION).nn
-                val db = RocksDB.open(dbopts, conf.dir).nn
-
-                val hashing = Hashing(conf)
-                as.actorOf(WriteStore.props(db, hashing).withDeploy(Deploy.local), name="ring_write_store")
-                as.actorOf(FromConfig.props(ReadonlyStore.props(db, hashing)).withDeploy(Deploy.local), name="ring_readonly_store")
-
-                val hash = as.actorOf(Hash.props(conf, hashing).withDeploy(Deploy.local), name="ring_hash")
-
-                def put(key: Key, value: Value): IO[AckReceiverErr, Unit] =
-                  withRetryOnce(Put(key, value)).unit.provide(env)
-
-                def get(key: Key): IO[AckReceiverErr, Option[Value]] =
-                  withRetryOnce(Get(key)).provide(env)
-
-                def delete(key: Key): IO[AckReceiverErr, Unit] =
-                  withRetryOnce(Delete(key)).unit.provide(env)
-
-                private def withRetryOnce[A](v: => A): ZIO[Clock, AckReceiverErr, Option[Array[Byte]]] =
-                  import zio.duration.*
-                  ZIO.effectAsync{
-                    (callback: IO[AckReceiverErr, Option[Array[Byte]]] => Unit) =>
-                      val receiver = as.actorOf(AckReceiver.props{
-                        case Right(a) => callback(IO.succeed(a))
-                        case Left(e) => callback(IO.fail(e))
-                      })
-                      hash.tell(v, receiver)
-                  }.retry(Schedule.fromDuration(100 milliseconds)).provide(env)
-
-                def close(): Unit =
-                  try { db.close() } catch { case _: Throwable => }
-                  try { dbopts.close() } catch { case _: Throwable => }
-              }
+  val live: ZLayer[ActorSystem & Conf & Clock, Throwable, Dba] =
+    ZLayer.scoped(
+      for
+        as <- ZIO.service[ActorSystem]
+        conf <- ZIO.service[Conf]
+        clock <- ZIO.service[Clock]
+        _ <- IO.attempt(RocksDB.loadLibrary())
+        opts <-
+          ZIO.fromAutoCloseable(
+            ZIO.attempt{
+              Options().nn
+                .setCreateIfMissing(true).nn
+                .setCompressionType(CompressionType.LZ4_COMPRESSION).nn
+            }
+          )
+        db <-
+          ZIO.fromAutoCloseable(
+            ZIO.attempt(
+              RocksDB.open(opts, conf.dir).nn
             )
-        yield dba
-      )
+          )
+        _ <- ZIO.attempt(as.eventStream)
+        dba <-
+          ZIO.attempt(
+            new Dba:
+              val hashing = Hashing(conf)
+              as.actorOf(WriteStore.props(db, hashing).withDeploy(Deploy.local), name="ring_write_store")
+              as.actorOf(FromConfig.props(ReadonlyStore.props(db, hashing)).withDeploy(Deploy.local), name="ring_readonly_store")
+
+              val hash = as.actorOf(Hash.props(conf, hashing).withDeploy(Deploy.local), name="ring_hash")
+
+              def put(key: Key, value: Value): IO[AckReceiverErr, Unit] =
+                withRetryOnce(Put(key, value)).unit.provideEnvironment(ZEnvironment(clock))
+
+              def get(key: Key): IO[AckReceiverErr, Option[Value]] =
+                withRetryOnce(Get(key)).provideEnvironment(ZEnvironment(clock))
+
+              def delete(key: Key): IO[AckReceiverErr, Unit] =
+                withRetryOnce(Delete(key)).unit.provideEnvironment(ZEnvironment(clock))
+
+              private def withRetryOnce[A](v: => A): ZIO[Clock, AckReceiverErr, Option[Array[Byte]]] =
+                ZIO.async{
+                  (callback: IO[AckReceiverErr, Option[Array[Byte]]] => Unit) =>
+                    val receiver = as.actorOf(AckReceiver.props{
+                      case Right(a) => callback(IO.succeed(a))
+                      case Left(e) => callback(IO.fail(e))
+                    })
+                    hash.tell(v, receiver)
+                }.retry(Schedule.fromDuration(100 milliseconds)).provideEnvironment(ZEnvironment(clock))
+          )
+      yield dba
     )
 end Dba
 

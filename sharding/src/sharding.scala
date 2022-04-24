@@ -5,21 +5,19 @@ import akka.cluster.sharding.{ClusterSharding as AkkaClusterSharding, ClusterSha
 import kvs.rng.ActorSystem
 import zio.*
 
-type ClusterSharding = Has[Service]
-
-trait Service:
+trait ClusterSharding:
   def start[A](name: String, props: Props, id: A => String): UIO[ActorRef]
   def send[A, E](shardRegion: ActorRef, msg: Any): IO[E, A]
 
 val live: URLayer[ActorSystem, ClusterSharding] =
-  ZLayer.fromEffect(
+  ZLayer(
     for
-      system <- ZIO.service[ActorSystem.Service]
-      sharding <- IO.effectTotal(AkkaClusterSharding(system))
+      system <- ZIO.service[ActorSystem]
+      sharding <- IO.succeed(AkkaClusterSharding(system))
     yield
-      new Service:
+      new ClusterSharding:
         def start[A](name: String, props: Props, id: A => String): UIO[ActorRef] =
-          ZIO.effectTotal(
+          ZIO.succeed(
             sharding.start(
               typeName = name,
               entityProps = props,
@@ -34,13 +32,13 @@ val live: URLayer[ActorSystem, ClusterSharding] =
           )
         
         def send[A, E](shardRegion: ActorRef, msg: Any): IO[E, A] =
-          ZIO.effectAsyncM{ (callback: IO[E, A] => Unit) =>
+          ZIO.asyncZIO{ (callback: IO[E, A] => Unit) =>
             for
-              receiver <- IO.effectTotal(system.actorOf(Props(Receiver[A, E]{
+              receiver <- IO.succeed(system.actorOf(Props(Receiver[A, E]{
                 case Exit.Success(a) => callback(IO.succeed(a))
-                case Exit.Failure(e) => callback(IO.halt(e))
+                case Exit.Failure(e) => callback(IO.failCause(e))
               })))
-              _ <- IO.effectTotal(shardRegion.tell(msg, receiver))
+              _ <- IO.succeed(shardRegion.tell(msg, receiver))
             yield ()
           }
   )

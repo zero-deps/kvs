@@ -4,7 +4,7 @@ import kvs.rng.{Dba, AckReceiverErr}
 import scala.util.Try
 import zio.*
 
-class DbaEff(dba: Dba.Service):
+class DbaEff(dba: Dba):
   type K = String
   type V = Array[Byte]
   type Err = AckReceiverErr | Throwable
