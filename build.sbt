@@ -1,8 +1,8 @@
-val scalav = "3.1.2-RC3"
+val scalav = "3.1.3-RC2"
 val zio = "1.0.14"
 val akka = "2.6.19"
-val rocks = "7.0.4"
-val protoj = "3.20.0"
+val rocks = "7.1.2"
+val protoj = "3.20.1"
 val lucene = "8.11.1"
 
 lazy val kvsroot = project.in(file(".")).settings(
