@@ -1,8 +1,6 @@
 package kvs.feed
 
-import akka.actor.{Actor, ActorLogging, Props}
-import kvs.rng.{ActorSystem, Dba}
-import kvs.sharding
+import kvs.rng.Dba
 import proto.*
 import zio.*, stream.*
 
@@ -17,11 +15,9 @@ trait Service:
   def cleanup(fid: Fid): IO[Err, Unit]
 end Service
 
-val live: URLayer[ActorSystem & Dba, Feed] = ZLayer.fromEffect{
-  for
-    dba <- ZIO.service[Dba.Service]
-    as <- ZIO.service[ActorSystem.Service]
-  yield
+val live: URLayer[Dba, Feed] =
+  ZLayer.fromFunction{ dba1 =>
+    val dba = dba1.get
     new Service:
       def all[A: Codec](fid: Fid, eid: Option[Eid]=None): Stream[Err, (Eid, A)] =
         eid.fold(ops.all(fid))(ops.all(fid, _))(dba).mapM{ case (k, a) =>
@@ -51,7 +47,7 @@ val live: URLayer[ActorSystem & Dba, Feed] = ZLayer.fromEffect{
 
       def cleanup(fid: Fid): IO[Err, Unit] =
         ops.cleanup(fid)(dba)
-}
+  }
 
 def all[A: Codec](fid: Fid, eid: Option[Eid]=None): ZStream[Feed, Err, (Eid, A)] =
   ZStream.accessStream(_.get.all(fid, eid))

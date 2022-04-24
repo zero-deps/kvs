@@ -61,7 +61,7 @@ def feedApp: Unit =
   val dba: TaskLayer[Dba] =
     actorSystem ++ dbaConf ++ Clock.live >>> Dba.live
   val feedLayer: TaskLayer[Feed] =
-    actorSystem ++ dba >>> kvs.feed.live
+    dba >>> kvs.feed.live
   val shardingLayer: TaskLayer[ClusterSharding] =
     actorSystem >>> kvs.sharding.live
   val sqConf: URLayer[Feed, Has[SeqConsistency.Config]] =
