@@ -1,13 +1,11 @@
 package kvs.sharding
 
 import akka.actor.{Actor, Props}
-import kvs.rng.{AckQuorumFailed, AckTimeoutFailed}
+import kvs.rng.DbaErr
 import zio.*
 
 trait SeqConsistency:
-  def send(msg: Any): IO[Err, Any]
-
-type Err = AckQuorumFailed | AckTimeoutFailed
+  def send(msg: Any): IO[DbaErr, Any]
 
 object SeqConsistency:
   case class Config(name: String, f: Any => IO[Any, Any], id: Any => String)
@@ -27,6 +25,6 @@ object SeqConsistency:
           , cfg.id)
       yield
         new SeqConsistency:
-          def send(msg: Any): IO[Err, Any] =
+          def send(msg: Any): IO[DbaErr, Any] =
             sharding.send(shards, msg)
     )

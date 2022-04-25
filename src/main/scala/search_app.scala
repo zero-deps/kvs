@@ -29,8 +29,8 @@ def searchApp: Unit =
       _ <- printLine("indexing...")
       _ <- seqc.send(IndexPosts).flatMap(x => printLine(x.toString))
       _ <- seqc.send(IndexNotes).flatMap(x => printLine(x.toString))
-      _ <- printLine(s"welcome!")
-      _ <- printLine(s"enter 'q' to quit")
+      _ <- printLine("welcome!")
+      _ <- printLine("enter 'q' to quit")
       _ <-
         (for
           _ <- printLine("search?")
@@ -62,9 +62,9 @@ def searchApp: Unit =
   val dbaConfig: ULayer[kvs.rng.Conf] =
     ZLayer.succeed(kvs.rng.Conf(dir = "target/data"))
   val postsDir: URLayer[Dba, KvsDirectory] =
-    ZLayer.succeed("posts") >>> KvsDirectory.live.fresh
+    ZLayer.succeed("posts_index") >>> KvsDirectory.live.fresh
   val notesDir: URLayer[Dba, KvsDirectory] =
-    ZLayer.succeed("notes") >>> KvsDirectory.live.fresh
+    ZLayer.succeed("notes_index") >>> KvsDirectory.live.fresh
   val postsSearch: URLayer[Dba, PostsSearch] =
     postsDir >>> kvs.search.live.fresh.project(PostsSearch(_))
   val notesSearch: URLayer[Dba, NotesSearch] =
@@ -110,8 +110,8 @@ def searchApp: Unit =
               yield "notes are indexed")
           }
         , {
-            case IndexPosts => posts.s.dirname
-            case IndexNotes => notes.s.dirname
+            case IndexPosts => "posts"
+            case IndexNotes => "notes"
           }
         )
     )

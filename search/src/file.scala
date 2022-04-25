@@ -1,6 +1,5 @@
 package kvs.search
 
-import kvs.rng.AckReceiverErr
 import proto.*
 import scala.annotation.tailrec
 import scala.util.{Try, Success, Failure}

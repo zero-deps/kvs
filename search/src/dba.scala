@@ -1,13 +1,13 @@
 package kvs.search
 
-import kvs.rng.{Dba, AckReceiverErr}
+import kvs.rng.{Dba, DbaErr}
 import scala.util.Try
 import zio.*
 
 class DbaEff(dba: Dba):
   type K = String
   type V = Array[Byte]
-  type Err = AckReceiverErr | Throwable
+  type Err = DbaErr | Throwable
   type R[A] = Either[Err, A]
 
   def put(key: K, value: V): R[Unit] = run(dba.put(stob(key), value))

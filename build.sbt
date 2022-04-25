@@ -16,7 +16,7 @@ lazy val kvsroot = project.in(file(".")).settings(
 , Test / fork := true
 , run / fork := true
 , run / connectInput := true
-).dependsOn(feed, search).aggregate(ring, feed, search)
+).dependsOn(feed, search, sort).aggregate(ring, feed, search, sort)
 
 lazy val ring = project.in(file("ring")).settings(
   scalaVersion := scalav
@@ -53,6 +53,15 @@ lazy val search = project.in(file("search")).settings(
 , libraryDependencies ++= Seq(
     "dev.zio" %% "zio-streams" % zio
   , "org.apache.lucene" % "lucene-analyzers-common" % lucene
+  )
+, scalacOptions ++= scalacOptionsCommon
+).dependsOn(sharding)
+
+lazy val sort = project.in(file("sort")).settings(
+  scalaVersion := scalav
+, Compile / scalaSource := baseDirectory.value / "src"
+, libraryDependencies ++= Seq(
+    "dev.zio" %% "zio-streams" % zio
   )
 , scalacOptions ++= scalacOptionsCommon
 ).dependsOn(sharding)

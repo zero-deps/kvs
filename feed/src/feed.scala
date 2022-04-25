@@ -13,6 +13,21 @@ trait Feed:
   def cleanup(fid: Fid): IO[Err, Unit]
 end Feed
 
+def all[A: Codec](fid: Fid, eid: Option[Eid]=None): ZStream[Feed, Err, (Eid, A)] =
+  ZStream.serviceWithStream(_.all(fid, eid))
+
+def get[A: Codec](fid: Fid, eid: Eid): ZIO[Feed, Err, Option[A]] =
+  ZIO.serviceWithZIO(_.get(fid, eid))
+
+def add[A: Codec](fid: Fid, a: A): ZIO[Feed, Err, Eid] =
+  ZIO.serviceWithZIO(_.add(fid, a))
+
+def remove(fid: Fid, eid: Eid): ZIO[Feed, Err, Boolean] =
+  ZIO.serviceWithZIO(_.remove(fid, eid))
+
+def cleanup(fid: Fid): ZIO[Feed, Err, Unit] =
+  ZIO.serviceWithZIO(_.cleanup(fid))
+
 val live: URLayer[Dba, Feed] =
   ZLayer(
     for
@@ -48,18 +63,3 @@ val live: URLayer[Dba, Feed] =
         def cleanup(fid: Fid): IO[Err, Unit] =
           ops.cleanup(fid)(dba)
   )
-
-def all[A: Codec](fid: Fid, eid: Option[Eid]=None): ZStream[Feed, Err, (Eid, A)] =
-  ZStream.environmentWithStream(_.get.all(fid, eid))
-
-def get[A: Codec](fid: Fid, eid: Eid): ZIO[Feed, Err, Option[A]] =
-  ZIO.environmentWithZIO(_.get.get(fid, eid))
-
-def add[A: Codec](fid: Fid, a: A): ZIO[Feed, Err, Eid] =
-  ZIO.environmentWithZIO(_.get.add(fid, a))
-
-def remove(fid: Fid, eid: Eid): ZIO[Feed, Err, Boolean] =
-  ZIO.environmentWithZIO(_.get.remove(fid, eid))
-
-def cleanup(fid: Fid): ZIO[Feed, Err, Unit] =
-  ZIO.environmentWithZIO(_.get.cleanup(fid))

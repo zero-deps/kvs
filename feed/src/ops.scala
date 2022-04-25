@@ -8,8 +8,6 @@ import zio.*, stream.*
 type Eid = Long // entry id
 type Err = AckQuorumFailed | AckTimeoutFailed
 
-type Codec[A] = MessageCodec[A]
-
 private[feed] type Fid = String // feed id
 private[feed] type Data = Array[Byte]
 

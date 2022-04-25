@@ -11,10 +11,12 @@ import zio.*
 
 /* Database API */
 trait Dba:
-  def put(key: Key, value: Value): IO[AckReceiverErr, Unit]
-  def get(key: Key): IO[AckReceiverErr, Option[Value]]
-  def delete(key: Key): IO[AckReceiverErr, Unit]
+  def put(key: Key, value: Value): IO[DbaErr, Unit]
+  def get(key: Key): IO[DbaErr, Option[Value]]
+  def delete(key: Key): IO[DbaErr, Unit]
 end Dba
+
+type DbaErr = AckQuorumFailed | AckTimeoutFailed
 
 object Dba:
   val live: ZLayer[ActorSystem & Conf & Clock, Throwable, Dba] =
@@ -48,18 +50,18 @@ object Dba:
 
               val hash = as.actorOf(Hash.props(conf, hashing).withDeploy(Deploy.local), name="ring_hash")
 
-              def put(key: Key, value: Value): IO[AckReceiverErr, Unit] =
+              def put(key: Key, value: Value): IO[DbaErr, Unit] =
                 withRetryOnce(Put(key, value)).unit.provideEnvironment(ZEnvironment(clock))
 
-              def get(key: Key): IO[AckReceiverErr, Option[Value]] =
+              def get(key: Key): IO[DbaErr, Option[Value]] =
                 withRetryOnce(Get(key)).provideEnvironment(ZEnvironment(clock))
 
-              def delete(key: Key): IO[AckReceiverErr, Unit] =
+              def delete(key: Key): IO[DbaErr, Unit] =
                 withRetryOnce(Delete(key)).unit.provideEnvironment(ZEnvironment(clock))
 
-              private def withRetryOnce[A](v: => A): ZIO[Clock, AckReceiverErr, Option[Array[Byte]]] =
+              private def withRetryOnce[A](v: => A): ZIO[Clock, DbaErr, Option[Array[Byte]]] =
                 ZIO.async{
-                  (callback: IO[AckReceiverErr, Option[Array[Byte]]] => Unit) =>
+                  (callback: IO[DbaErr, Option[Array[Byte]]] => Unit) =>
                     val receiver = as.actorOf(AckReceiver.props{
                       case Right(a) => callback(IO.succeed(a))
                       case Left(e) => callback(IO.fail(e))
@@ -71,8 +73,7 @@ object Dba:
     )
 end Dba
 
-type AckReceiverErr = AckQuorumFailed | AckTimeoutFailed
-type AckReceiverCallback = Either[AckReceiverErr, Option[Value]] => Unit
+type AckReceiverCallback = Either[DbaErr, Option[Value]] => Unit
 
 object AckReceiver:
   def props(cb: AckReceiverCallback): Props = Props(AckReceiver(cb))
