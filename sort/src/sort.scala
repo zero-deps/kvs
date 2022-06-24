@@ -41,7 +41,7 @@ class SortLive(dba: Dba) extends Sort:
       case Node(_, y, _, false) if x == y =>
         dba_put(ns, nodeKey, node.copy(active=true))
 
-      case Node(_, y, _, true) if x == y => IO.unit
+      case Node(_, y, _, true) if x == y => ZIO.unit
 
       case Node(None, y, _, _) if x < y =>
         for
@@ -89,37 +89,37 @@ class SortLive(dba: Dba) extends Sort:
       node <- dba_get(ns, h)
       _ <-
         node match
-          case None => IO.unit
+          case None => ZIO.unit
           case Some(node) => remove(ns, x, node, h)
     yield ()
 
   private def remove[A: Codec: Ordering](ns: String, x: A, node: Node[A], nodeKey: Key)(using CanEqual[A, A]): IO[Err, Unit] =
     node match
-      case Node(_, y, _, false) if x == y => IO.unit
+      case Node(_, y, _, false) if x == y => ZIO.unit
 
       case Node(_, y, _, true) if x == y =>
         dba_put(ns, nodeKey, node.copy(active=false))
 
-      case Node(None, y, _, _) if x < y => IO.unit
+      case Node(None, y, _, _) if x < y => ZIO.unit
 
       case Node(Some(t), y, _, _) if x < y =>
         for
           node1 <- dba_get(ns, t)
           _ <-
             node1 match
-              case None => IO.unit
+              case None => ZIO.unit
               case Some(node1) =>
                 remove(ns, x, node1, t)
         yield ()
 
-      case Node(_, _, None, _) => IO.unit
+      case Node(_, _, None, _) => ZIO.unit
 
       case Node(_, _, Some(s), _) =>
         for
           node1 <- dba_get(ns, s)
           _ <-
             node1 match
-              case None => IO.unit
+              case None => ZIO.unit
               case Some(node1) =>
                 remove(ns, x, node1, s)
         yield ()
@@ -157,8 +157,8 @@ class SortLive(dba: Dba) extends Sort:
       id <-
         ide match
           case Some(ide) => decodeKeyAsValue(ide)
-          case None => IO.succeed(0L)
-      id1 <- IO.succeed(id + 1L)
+          case None => ZIO.succeed(0L)
+      id1 <- ZIO.succeed(id + 1L)
       id1e <- encodeKeyAsValue(id1)
       _ <- dba.put(nse, id1e)
       _ <- dba_put(ns, id1, v)
@@ -177,11 +177,11 @@ class SortLive(dba: Dba) extends Sort:
       ve <- dba.get(ke)
       v <-
         ve match
-          case None => IO.none
+          case None => ZIO.none
           case Some(ve) => decodeNode(ve).asSome
     yield v
 
-  def dba_head: UIO[Key] = IO.succeed(1L)
+  def dba_head: UIO[Key] = ZIO.succeed(1L)
 
   def encodeNode[A: Codec](x: Node[A]): UIO[Array[Byte]] =
     ZIO.succeed(encode(x))

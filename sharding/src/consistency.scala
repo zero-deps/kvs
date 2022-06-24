@@ -20,7 +20,7 @@ object SeqConsistency:
             cfg.name
           , Props(new Actor:
               def receive: Receive =
-                a => sender() ! Runtime.default.unsafeRunSync(cfg.f(a))
+                a => sender() ! Unsafe.unsafe(Runtime.default.unsafe.run(cfg.f(a)))
             )
           , cfg.id)
       yield

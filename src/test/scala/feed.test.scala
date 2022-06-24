@@ -21,7 +21,7 @@ object FeedSpec extends ZIOSpecDefault:
   val dbaConf: ULayer[kvs.rng.Conf] =
     ZLayer.succeed(kvs.rng.Conf(dir = s"target/data-${java.util.UUID.randomUUID}"))
   val dba: TaskLayer[Dba] =
-    actorSystem ++ dbaConf ++ Clock.live >>> Dba.live
+    actorSystem ++ dbaConf >>> Dba.live
   val feedLayer: TaskLayer[Feed] =
     actorSystem ++ dba >>> kvs.feed.live
 
@@ -32,6 +32,6 @@ object FeedSpec extends ZIOSpecDefault:
         _ <- add(fid, Entry(1))
         _ <- add(fid, Entry(2))
         xs <- all(fid).map(_._2.i).runCollect
-      yield assert(xs)(equalTo(Seq(2, 1)))).provideLayer(Clock.live ++ feedLayer)
+      yield assert(xs)(equalTo(Seq(2, 1)))).provideLayer(feedLayer)
     }
   )

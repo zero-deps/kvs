@@ -11,8 +11,8 @@ type Err = AckQuorumFailed | AckTimeoutFailed
 private[feed] type Fid = String // feed id
 private[feed] type Data = Array[Byte]
 
-private[feed] def pickle[A : Codec](e: A): UIO[Array[Byte]] = IO.succeed(encode[A](e))
-private[feed] def unpickle[A : Codec](a: Array[Byte]): UIO[A] = IO.attempt(decode[A](a)).orDie // is defect
+private[feed] def pickle[A : Codec](e: A): UIO[Array[Byte]] = ZIO.succeed(encode[A](e))
+private[feed] def unpickle[A : Codec](a: Array[Byte]): UIO[A] = ZIO.attempt(decode[A](a)).orDie // is defect
 
 /*
  * Feed:
@@ -55,7 +55,7 @@ object ops:
     def get(id: Fid)(dba: Dba): IO[Err, Option[Fd]] = 
       dba.get(stob(id)).flatMap{
         case Some(x) => unpickle[Fd](x).map(Some(_))
-        case None => IO.succeed(None)
+        case None => ZIO.succeed(None)
       }
   end meta
 
@@ -66,7 +66,7 @@ object ops:
           case en if en.removed => None
           case en => Some(en)
         }
-      case None => IO.succeed(None)
+      case None => ZIO.succeed(None)
     )
 
   private[feed] def get(fid: Fid, eid: Eid)(dba: Dba): IO[Err, Option[Data]] =
@@ -84,9 +84,9 @@ object ops:
       key <- pickle((fid, eid))
       en1 <- _get(key)(dba)
       res <-
-        en1.fold(IO.succeed(false))(en =>
+        en1.fold(ZIO.succeed(false))(en =>
           for
-            fd <- meta.get(fid)(dba).flatMap(_.fold(IO.dieMessage("feed is not exists"))(IO.succeed))
+            fd <- meta.get(fid)(dba).flatMap(_.fold(ZIO.dieMessage("feed is not exists"))(ZIO.succeed))
             _  <- meta.put(fid, fd.copy(length=fd.length-1, removed=fd.removed+1))(dba)
             p  <- pickle(en.copy(removed=true))
             _  <- dba.put(key, p)
@@ -101,7 +101,7 @@ object ops:
   private[feed] def add(fid: Fid, data: Data)(dba: Dba): IO[Err, Eid] =
     for {
       fd1 <- meta.get(fid)(dba)
-      fd <- fd1.fold(meta.put(fid, Fd.empty)(dba).map(_ => Fd.empty))(IO.succeed)
+      fd <- fd1.fold(meta.put(fid, Fd.empty)(dba).map(_ => Fd.empty))(ZIO.succeed)
       id = fd.maxid + 1
       en = En(next=fd.head, data=data)
       _ <- meta.put(fid, fd.copy(maxid=id))(dba) // in case kvs will fail after adding the en
@@ -113,16 +113,16 @@ object ops:
 
   /* all items with removed starting from specified key */
   private def entries(fid: Fid, start: Eid)(dba: Dba): Stream[Err, (Eid, En)] =
-    Stream.
+    ZStream.
       unfoldZIO(Some(start): Option[Eid]){
-        case None => IO.succeed(None)
+        case None => ZIO.succeed(None)
         case Some(id) =>
           for
             k <- pickle((fid, id))
             bs <-
               dba.get(k).flatMap{
-                case None => IO.dieMessage("feed is corrupted")
-                case Some(bs) => IO.succeed(bs)
+                case None => ZIO.dieMessage("feed is corrupted")
+                case Some(bs) => ZIO.succeed(bs)
               }
             en <- unpickle[En](bs)
           yield Some((id -> en) -> en.next)
@@ -130,9 +130,9 @@ object ops:
 
   /* all items with removed starting from beggining */
   private def entries(fid: Fid)(dba: Dba): Stream[Err, (Eid, En)] =
-    Stream.fromZIO(meta.get(fid)(dba)).flatMap{
-      case None => Stream.empty
-      case Some(a) => a.head.fold(Stream.empty)(entries(fid, _)(dba))
+    ZStream.fromZIO(meta.get(fid)(dba)).flatMap{
+      case None => ZStream.empty
+      case Some(a) => a.head.fold(ZStream.empty)(entries(fid, _)(dba))
     }
 
   /* all items without removed starting from specified key */
@@ -156,7 +156,7 @@ object ops:
   /* delete all entries marked for removal, O(n) complexity */
   private[feed] def cleanup(fid: Fid)(dba: Dba): IO[Err, Unit] =
     meta.get(fid)(dba).flatMap{
-      case None => IO.unit
+      case None => ZIO.unit
       case Some(fd) =>
         for
           /* remove from head */
@@ -171,7 +171,7 @@ object ops:
               }.
               runLast
           /* fix head */
-          _ <- x.fold(IO.unit)(id => meta.put(fid, fd.copy(head=id))(dba))
+          _ <- x.fold(ZIO.unit)(id => meta.put(fid, fd.copy(head=id))(dba))
           /* remove in the middle */
           _ <-
             entries(fid)(dba).

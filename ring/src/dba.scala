@@ -19,13 +19,12 @@ end Dba
 type DbaErr = AckQuorumFailed | AckTimeoutFailed
 
 object Dba:
-  val live: ZLayer[ActorSystem & Conf & Clock, Throwable, Dba] =
+  val live: ZLayer[ActorSystem & Conf, Throwable, Dba] =
     ZLayer.scoped(
       for
         as <- ZIO.service[ActorSystem]
         conf <- ZIO.service[Conf]
-        clock <- ZIO.service[Clock]
-        _ <- IO.attempt(RocksDB.loadLibrary())
+        _ <- ZIO.attempt(RocksDB.loadLibrary())
         opts <-
           ZIO.fromAutoCloseable(
             ZIO.attempt{
@@ -51,23 +50,23 @@ object Dba:
               val hash = as.actorOf(Hash.props(conf, hashing).withDeploy(Deploy.local), name="ring_hash")
 
               def put(key: Key, value: Value): IO[DbaErr, Unit] =
-                withRetryOnce(Put(key, value)).unit.provideEnvironment(ZEnvironment(clock))
+                withRetryOnce(Put(key, value)).unit
 
               def get(key: Key): IO[DbaErr, Option[Value]] =
-                withRetryOnce(Get(key)).provideEnvironment(ZEnvironment(clock))
+                withRetryOnce(Get(key))
 
               def delete(key: Key): IO[DbaErr, Unit] =
-                withRetryOnce(Delete(key)).unit.provideEnvironment(ZEnvironment(clock))
+                withRetryOnce(Delete(key)).unit
 
-              private def withRetryOnce[A](v: => A): ZIO[Clock, DbaErr, Option[Array[Byte]]] =
+              private def withRetryOnce[A](v: => A): IO[DbaErr, Option[Array[Byte]]] =
                 ZIO.async{
                   (callback: IO[DbaErr, Option[Array[Byte]]] => Unit) =>
                     val receiver = as.actorOf(AckReceiver.props{
-                      case Right(a) => callback(IO.succeed(a))
-                      case Left(e) => callback(IO.fail(e))
+                      case Right(a) => callback(ZIO.succeed(a))
+                      case Left(e) => callback(ZIO.fail(e))
                     })
                     hash.tell(v, receiver)
-                }.retry(Schedule.fromDuration(100 milliseconds)).provideEnvironment(ZEnvironment(clock))
+                }.retry(Schedule.fromDuration(100 milliseconds))
           )
       yield dba
     )

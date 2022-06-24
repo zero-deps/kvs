@@ -1,9 +1,9 @@
-val scalav = "3.1.3-RC2"
-val zio = "2.0.0-RC5"
+val scalav = "3.2.0-RC1"
+val zio = "2.0.0"
 val akka = "2.6.19"
-val rocks = "7.1.2"
-val protoj = "3.20.1"
-val lucene = "8.11.1"
+val rocks = "7.3.1"
+val protoj = "3.21.1"
+val lucene = "8.11.2"
 
 lazy val kvsroot = project.in(file(".")).settings(
   scalaVersion := scalav

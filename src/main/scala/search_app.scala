@@ -21,7 +21,7 @@ case class NotesSearch(s: Search)
 @main
 def searchApp: Unit =
   println("starting...")
-  val io: ZIO[PostsSearch & NotesSearch & SeqConsistency & Console, Any, Unit] =
+  val io: ZIO[PostsSearch & NotesSearch & SeqConsistency, Any, Unit] =
     for
       posts <- ZIO.service[PostsSearch].map(_.s)
       notes <- ZIO.service[NotesSearch].map(_.s)
@@ -36,7 +36,7 @@ def searchApp: Unit =
           _ <- printLine("search?")
           word <- readLine
           _ <-
-            if word == "q" then IO.unit
+            if word == "q" then ZIO.unit
             else
               for
                 xs <-
@@ -66,9 +66,9 @@ def searchApp: Unit =
   val notesDir: URLayer[Dba, KvsDirectory] =
     ZLayer.succeed("notes_index") >>> KvsDirectory.live.fresh
   val postsSearch: URLayer[Dba, PostsSearch] =
-    postsDir >>> kvs.search.live.fresh.project(PostsSearch(_))
+    postsDir >>> kvs.search.layer.fresh.project(PostsSearch(_))
   val notesSearch: URLayer[Dba, NotesSearch] =
-    notesDir >>> kvs.search.live.fresh.project(NotesSearch(_))
+    notesDir >>> kvs.search.layer.fresh.project(NotesSearch(_))
   val seqConsistencyConfig: URLayer[PostsSearch & NotesSearch, SeqConsistency.Config] =
     ZLayer(
       for
@@ -116,7 +116,7 @@ def searchApp: Unit =
         )
     )
   
-  Runtime.default.unsafeRun(io.provide(
+  Unsafe.unsafe(Runtime.default.unsafe.run(io.provide(
     SeqConsistency.live
   , seqConsistencyConfig
   , postsSearch
@@ -126,9 +126,7 @@ def searchApp: Unit =
   , dbaConfig
   , ActorSystem.live
   , akkaConfig
-  , Console.live
-  , Clock.live
-  ))
+  )))
 
 case class Post(@N(1) title: String, @N(2) content: String)
 case class Note(@N(1) text: String)

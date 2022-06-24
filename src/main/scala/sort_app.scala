@@ -11,7 +11,7 @@ import zio.Console.{printLine, readLine}
 
 @main
 def sortApp: Unit =
-  val io: ZIO[Sort & SeqConsistency & Console, Any, Unit] =
+  val io: ZIO[Sort & SeqConsistency, Any, Unit] =
     for
       sort <- ZIO.service[Sort]
       seqc <- ZIO.service[SeqConsistency]
@@ -31,23 +31,23 @@ def sortApp: Unit =
                       s <- readLine
                       _ <-
                         s match
-                          case "" => IO.unit
+                          case "" => ZIO.unit
                           case s => bodyRef.update(_ + "\n" + s)
                     yield s).repeatUntilEquals("")
                   body <- bodyRef.get
                   _ <-
                     body.isEmpty match
-                      case true => IO.unit
+                      case true => ZIO.unit
                       case false =>
                         for
-                          post <- IO.succeed(Post(body))
+                          post <- ZIO.succeed(Post(body))
                           answer <- seqc.send(Add(post))
                           _ <- printLine(answer.toString)
                         yield ()
                 yield ()
               case "all" =>
                 all().take(5).tap(x => printLine(x.body + "\n" + "-" * 10)).runDrain
-              case _ => IO.unit
+              case _ => ZIO.unit
         yield s).repeatUntilEquals("q")
     yield ()
 
@@ -57,20 +57,20 @@ def sortApp: Unit =
   val dbaConfig: ULayer[kvs.rng.Conf] =
     ZLayer.succeed(kvs.rng.Conf(dir = "target/data"))
   val seqConsistencyConfig: URLayer[Sort, SeqConsistency.Config] =
-    ZLayer.fromFunction(sort =>
+    ZLayer.fromFunction((sort: Sort) =>
       SeqConsistency.Config(
         "Posts"
       , {
           case Add(post) =>
             (for
               _ <- kvs.sort.insert(ns, post)
-            yield "added").provideService(sort)
+            yield "added").provideLayer(ZLayer.succeed(sort))
         }
       , _ => "shard"
       )
     )
   
-  Runtime.default.unsafeRun(io.provide(
+  Unsafe.unsafe(Runtime.default.unsafe.run(io.provide(
     SeqConsistency.live
   , seqConsistencyConfig
   , kvs.sharding.live
@@ -79,9 +79,7 @@ def sortApp: Unit =
   , dbaConfig
   , ActorSystem.live
   , akkaConfig
-  , Console.live
-  , Clock.live
-  ))
+  )))
 
 case class Post(@N(1) body: String)
 

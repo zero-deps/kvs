@@ -15,7 +15,7 @@ class DbaEff(dba: Dba):
   def delete(key: K): R[Unit] = run(dba.delete(stob(key)))
 
   private def run[A](eff: IO[Err, A]): R[A] =
-    Try(Runtime.default.unsafeRun(eff.either)).toEither.flatten
+    Unsafe.unsafeCompat(implicit u => Runtime.default.unsafe.run(eff.either).toEither).flatten
 
   private inline def stob(s: String): Array[Byte] =
     s.getBytes("utf8").nn

@@ -13,7 +13,7 @@ val live: URLayer[ActorSystem, ClusterSharding] =
   ZLayer(
     for
       system <- ZIO.service[ActorSystem]
-      sharding <- IO.succeed(AkkaClusterSharding(system))
+      sharding <- ZIO.succeed(AkkaClusterSharding(system))
     yield
       new ClusterSharding:
         def start[A](name: String, props: Props, id: A => String): UIO[ActorRef] =
@@ -34,11 +34,11 @@ val live: URLayer[ActorSystem, ClusterSharding] =
         def send[A, E](shardRegion: ActorRef, msg: Any): IO[E, A] =
           ZIO.asyncZIO{ (callback: IO[E, A] => Unit) =>
             for
-              receiver <- IO.succeed(system.actorOf(Props(Receiver[A, E]{
-                case Exit.Success(a) => callback(IO.succeed(a))
-                case Exit.Failure(e) => callback(IO.failCause(e))
+              receiver <- ZIO.succeed(system.actorOf(Props(Receiver[A, E]{
+                case Exit.Success(a) => callback(ZIO.succeed(a))
+                case Exit.Failure(e) => callback(ZIO.failCause(e))
               })))
-              _ <- IO.succeed(shardRegion.tell(msg, receiver))
+              _ <- ZIO.succeed(shardRegion.tell(msg, receiver))
             yield ()
           }
   )
