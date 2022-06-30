@@ -7,7 +7,7 @@ import akka.util.{Timeout}
 import akka.event.LoggingAdapter
 import proto.*
 import org.rocksdb.*
-import zio.*, clock.*, duration.*
+import zio.*
 import scala.concurrent.*
 import scala.concurrent.duration.*
 import scala.util.{Try, Success, Failure}
@@ -34,10 +34,14 @@ class Rks(system: ActorSystem, dir: String) extends Dba, AutoCloseable:
 
   private def withRetryOnce[A](op: Array[Byte] => A, key: K): R[A] =
     val eff = for {
-      k <- IO.effectTotal(zd.rng.stob(key))
-      x <- IO.effect(op(k)).retry(Schedule.fromDuration(100 milliseconds))
+      k <- ZIO.succeed(zd.rng.stob(key))
+      x <- ZIO.attempt(op(k)).retry(Schedule.fromDuration(100 milliseconds))
     } yield x
-    Try(Runtime.default.unsafeRun(eff.either)).toEither.flatten.leftMap(Failed)
+    Try(
+      Unsafe.unsafe { 
+        Runtime.default.unsafe.run(eff.either).getOrThrowFiberFailure()
+      }
+    ).toEither.flatten.leftMap(Failed)
 
   override def get(key: K): R[Option[V]] =
     for {
@@ -54,7 +58,7 @@ class Rks(system: ActorSystem, dir: String) extends Dba, AutoCloseable:
 
   def save(path: String): R[String] =
     val d = FiniteDuration(1, HOURS)
-    val dump = system.actorOf(DumpProcessor.props(db), s"dump_wrkr-${System.currentTimeMillis}")
+    val dump = system.actorOf(DumpProcessor.props(db), s"dump_wrkr-${java.lang.System.currentTimeMillis}")
     val x = dump.ask(DumpProcessor.Save(path))(Timeout(d))
     Try(Await.result(x, d)) match
       case Success(v: String) => Right(v)
@@ -63,7 +67,7 @@ class Rks(system: ActorSystem, dir: String) extends Dba, AutoCloseable:
 
   def load(path: String): R[String] =
     val d = concurrent.duration.Duration.fromNanos(cfg.getDuration("dump-timeout").nn.toNanos)
-    val dump = system.actorOf(DumpProcessor.props(db), s"dump_wrkr-${System.currentTimeMillis}")
+    val dump = system.actorOf(DumpProcessor.props(db), s"dump_wrkr-${java.lang.System.currentTimeMillis}")
     val x = dump.ask(DumpProcessor.Load(path))(Timeout(d))
     Try(Await.result(x, d)) match
       case Success(v: String) => Right(v)

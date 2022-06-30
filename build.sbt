@@ -8,13 +8,14 @@ lazy val kvs = project.in(file("kvs")).settings(
   , "ch.qos.logback" % "logback-classic" % "1.3.0-alpha5"
   , "com.github.jnr" % "jnr-ffi" % "2.2.2"
   , "org.apache.lucene" % "lucene-analyzers-common" % "8.9.0"
-  , "dev.zio" %% "zio" % "1.0.10"
+  , "dev.zio" %% "zio" % "2.0.0"
+  , "dev.zio" %% "zio-nio" % "2.0.0"
   , "org.rocksdb" % "rocksdbjni" % "6.22.1"
   , "org.scalatest" %% "scalatest" % "3.2.11" % Test
   , "com.typesafe.akka" % "akka-testkit_2.13" % "2.6.16" % Test
   )
 , scalacOptions ++= scalacOptions3
-).dependsOn(proto, zio_nio)
+).dependsOn(proto)
 
 lazy val proto = project.in(file("deps/proto/proto")).settings(
   scalaVersion := "3.1.1"
@@ -31,8 +32,6 @@ lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
   scalaVersion := "3.1.1"
 , crossScalaVersions := "3.1.1" :: Nil
 )
-
-lazy val zio_nio = project.in(file("deps/zio-nio"))
 
 val scalacOptions3 = Seq(
   "-source:future", "-nowarn"
