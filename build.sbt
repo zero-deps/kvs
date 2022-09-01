@@ -1,4 +1,4 @@
-val scalav = "3.2.0-RC1"
+val scalav = "3.2.0"
 val zio = "2.0.0"
 val akka = "2.6.19"
 val rocks = "7.3.1"

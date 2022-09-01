@@ -4,3 +4,7 @@
 /data/example-*/
 /data/test-*/
 target/
+.bloop
+.metals
+.vscode
+**/metals.sbt
