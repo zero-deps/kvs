@@ -1,8 +1,8 @@
-val scalav = "3.2.0"
-val zio = "2.0.0"
-val akka = "2.6.19"
-val rocks = "7.3.1"
-val protoj = "3.21.1"
+val scalav = "3.2.1"
+val zio = "2.0.5"
+val akka = "2.6.20"
+val rocks = "7.8.3"
+val protoj = "3.21.12"
 val lucene = "8.11.2"
 
 lazy val root = project.in(file(".") ).aggregate(kvs)
@@ -12,13 +12,13 @@ lazy val kvs = project.in(file("kvs")).settings(
 , libraryDependencies ++= Seq(
     "com.typesafe.akka" % "akka-cluster-sharding_2.13" % akka
   , "com.typesafe.akka" % "akka-slf4j_2.13" % akka
-  , "ch.qos.logback" % "logback-classic" % "1.3.0-alpha5"
+  , "ch.qos.logback" % "logback-classic" % "1.4.5"
   , "com.github.jnr" % "jnr-ffi" % "2.2.2"
   , "org.apache.lucene" % "lucene-analyzers-common" % lucene
   , "dev.zio" %% "zio" % zio
-  , "dev.zio" %% "zio-nio" % zio
+  , "dev.zio" %% "zio-nio" % "2.0.0"
   , "org.rocksdb" % "rocksdbjni" % rocks
-  , "org.scalatest" %% "scalatest" % "3.2.11" % Test
+  , "org.scalatest" %% "scalatest" % "3.2.14" % Test
   , "com.typesafe.akka" % "akka-testkit_2.13" % akka % Test
   )
 , scalacOptions ++= scalacOptions3

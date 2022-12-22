@@ -38,7 +38,7 @@ class Rks(system: ActorSystem, dir: String) extends Dba, AutoCloseable:
       x <- ZIO.attempt(op(k)).retry(Schedule.fromDuration(100 milliseconds))
     } yield x
     Try(
-      Unsafe.unsafe { 
+      Unsafe.unsafe { implicit unsafe =>
         Runtime.default.unsafe.run(eff.either).getOrThrowFiberFailure()
       }
     ).toEither.flatten.leftMap(Failed)
