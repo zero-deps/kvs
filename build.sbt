@@ -1,8 +1,8 @@
-val scalav = "3.2.1"
-val zio = "2.0.5"
+val scalav = "3.2.2"
+val zio = "2.0.10"
 val akka = "2.6.20"
-val rocks = "7.8.3"
-val protoj = "3.21.12"
+val rocks = "7.10.2"
+val protoj = "3.22.2"
 val lucene = "8.11.2"
 
 lazy val root = project.in(file(".") ).aggregate(kvs)
