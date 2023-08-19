@@ -3,7 +3,7 @@ package data
 
 import proto.*
 
-import akka.cluster.given
+import org.apache.pekko.cluster.given
 
 sealed trait StoreKey
 

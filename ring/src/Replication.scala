@@ -1,8 +1,8 @@
 package kvs.rng
 
 import scala.collection.immutable.SortedMap
-import akka.actor.{ActorLogging, Props, FSM}
-import akka.cluster.Cluster
+import org.apache.pekko.actor.{ActorLogging, Props, FSM}
+import org.apache.pekko.cluster.Cluster
 
 import model.{ReplBucketPut, ReplBucketsVc, ReplGetBucketIfNew, ReplBucketUpToDate, ReplNewerBucketData, KeyBucketData}
 import ReplicationSupervisor.{State, ReplGetBucketsVc}

@@ -1,8 +1,8 @@
 package kvs.rng
 
-import akka.actor.{Actor, ActorLogging, Props, Deploy}
-import akka.event.Logging
-import akka.routing.FromConfig
+import org.apache.pekko.actor.{Actor, ActorLogging, Props, Deploy}
+import org.apache.pekko.event.Logging
+import org.apache.pekko.routing.FromConfig
 import kvs.rng.store.{ReadonlyStore, WriteStore}
 import org.rocksdb.{util as _, *}
 import proto.*

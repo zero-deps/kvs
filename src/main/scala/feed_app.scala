@@ -1,7 +1,7 @@
 package kvs.feed
 package app
 
-import akka.actor.{Actor, Props}
+import org.apache.pekko.actor.{Actor, Props}
 import java.io.IOException
 import kvs.rng.{ActorSystem, Dba}
 import kvs.sharding.*
@@ -52,9 +52,9 @@ object FeedApp extends ZIOAppDefault:
           yield s).repeatUntilEquals("q")
       yield ()
 
-    val akkaConfig: ULayer[ActorSystem.Conf] =
+    val pekkoConfig: ULayer[ActorSystem.Conf] =
       val name = "app"
-      ActorSystem.staticConf(name, kvs.rng.akkaConf(name, "127.0.0.1", 4343) ++ "akka.loglevel=off")
+      ActorSystem.staticConf(name, kvs.rng.pekkoConf(name, "127.0.0.1", 4343) ++ "pekko.loglevel=off")
     val dbaConfig: ULayer[kvs.rng.Conf] =
       ZLayer.succeed(kvs.rng.Conf(dir = "target/data"))
     val seqConsistencyConfig: URLayer[Feed, SeqConsistency.Config] =
@@ -81,7 +81,7 @@ object FeedApp extends ZIOAppDefault:
     , Dba.live
     , dbaConfig
     , ActorSystem.live
-    , akkaConfig
+    , pekkoConfig
     )
 end FeedApp
 

@@ -3,7 +3,7 @@ package kvs.rng
 import com.typesafe.config.{ConfigFactory, Config}
 import zio.*
 
-type ActorSystem = akka.actor.ActorSystem
+type ActorSystem = org.apache.pekko.actor.ActorSystem
 
 object ActorSystem:
   case class Conf(name: String, config: Config)
@@ -16,7 +16,7 @@ object ActorSystem:
       ZIO.acquireRelease(
         for
           conf <- ZIO.service[Conf]
-          system <- ZIO.attempt(akka.actor.ActorSystem(conf.name, conf.config))
+          system <- ZIO.attempt(org.apache.pekko.actor.ActorSystem(conf.name, conf.config))
         yield system
       )(
         system => ZIO.fromFuture(_ => system.terminate()).either

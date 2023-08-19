@@ -1,31 +1,27 @@
-# Abstract scala type database
+# Scala Abstract Type Database
 
-[![CI](https://img.shields.io/github/workflow/status/zero-deps/kvs/ci)](https://github.com/zero-deps/kvs/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/license-DHARMA-green)](LICENSE)
 [![Documentation](https://img.shields.io/badge/documentation-pdf-yellow)](kvs.pdf)
 [![Paper](https://img.shields.io/badge/paper-pdf-lightgrey)](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf)
-[![LoC](https://img.shields.io/tokei/lines/github/zero-deps/kvs)](#)
 
-Abstract Scala storage framework with high-level API for handling linked lists of polymorphic data (feeds).
+This open-source project presents an abstract storage framework in Scala, offering a high-level API tailored for managing linked lists of polymorphic data, referred to as 'feeds.' The system, known as KVS (Key-Value Storage), boasts attributes such as high availability, distributed architecture (AP), strong eventual consistency (SEC), and sequential consistency achieved through cluster sharding. Its primary application involves handling data from sports and gaming events, but it can also serve as a distributed network file system or a versatile general-purpose storage solution for various applications.
 
-KVS is highly available distributed (AP) strong eventual consistent (SEC) and sequentially consistent (via cluster sharding) storage. It is used for data from sport and games events. In some configurations used as distributed network file system. Also can be a generic storage for application.
+The design philosophy behind KVS encompasses versatility, with support for multiple backend implementations and compatibility within a pure JVM environment. The implementation is grounded in the KAI framework (an Erlang-based Amazon DynamoDB implementation), adapted to utilize the pekko-cluster infrastructure.
 
-Designed with various backends in mind and to work in pure JVM environment. Implementation based on top of KAI (implementation of Amazon DynamoDB in Erlang) port with modification to use akka-cluster infrastructure.
-
-Currently main backend is RocksDB to support embedded setup alongside application. Feed API (add/entries/remove) is built on top of Key-Value API (put/get/delete).
+At its core, KVS relies on RocksDB as the primary backend, enabling seamless integration in embedded setups alongside applications. The central Feed API, facilitating operations like addition, entry retrieval, and removal, is constructed upon the foundation of the Key-Value API, which includes functions for putting, getting, and deleting data.
 
 ## Usage
 
 Add project as a git submodule.
 
-## Structure
+## Project Structure
 
-* `./feed` -- Feed over Ring
-* `./search` -- Seach over Ring
-* `./sort` -- Sorted Set on Ring
-* `./ring` -- Ring on Akka Cluster
-* `./sharding` -- Sequential Consistency & Cluster Sharding
-* `./src` -- Example apps and tests
+* `./feed`: Introduces the Feed over Ring concept
+* `./search`: Offers Search over Ring functionality
+* `./sort`: Implements a Sorted Set on Ring
+* `./ring`: Establishes a Ring structure using Pekko Cluster
+* `./sharding`: Addresses Sequential Consistency & Cluster Sharding aspects
+* `./src`: Contains illustrative sample applications and comprehensive tests
 
 ## Test & Demo
 

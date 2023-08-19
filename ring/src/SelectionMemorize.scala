@@ -1,6 +1,6 @@
 package kvs.rng
 
-import akka.actor.*
+import org.apache.pekko.actor.*
 
 case class Watch(a: ActorRef)
 case class Select(node: Node, path: String)

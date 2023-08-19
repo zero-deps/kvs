@@ -1,7 +1,7 @@
 package kvs.sharding
 
-import akka.actor.{Actor, ActorRef, Props}
-import akka.cluster.sharding.{ClusterSharding as AkkaClusterSharding, ClusterShardingSettings, ShardRegion}
+import org.apache.pekko.actor.{Actor, ActorRef, Props}
+import org.apache.pekko.cluster.sharding.{ClusterSharding as PekkoClusterSharding, ClusterShardingSettings, ShardRegion}
 import kvs.rng.ActorSystem
 import zio.*
 
@@ -13,7 +13,7 @@ val live: URLayer[ActorSystem, ClusterSharding] =
   ZLayer(
     for
       system <- ZIO.service[ActorSystem]
-      sharding <- ZIO.succeed(AkkaClusterSharding(system))
+      sharding <- ZIO.succeed(PekkoClusterSharding(system))
     yield
       new ClusterSharding:
         def start[A](name: String, props: Props, id: A => String): UIO[ActorRef] =
@@ -26,7 +26,7 @@ val live: URLayer[ActorSystem, ClusterSharding] =
                 case msg: A => (id(msg), msg)
               }: ShardRegion.ExtractEntityId,
               extractShardId = {
-                case msg: A => (math.abs(id(msg).hashCode) % 100).toString
+                case msg => (math.abs(id(msg.asInstanceOf[A]).hashCode) % 100).toString
               }: ShardRegion.ExtractShardId,
             )
           )

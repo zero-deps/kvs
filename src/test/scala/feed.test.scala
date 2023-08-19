@@ -14,10 +14,10 @@ given MessageCodec[Entry] = caseCodecAuto
 
 object FeedSpec extends ZIOSpecDefault:
   val name = "test"
-  val akkaConf: ULayer[ActorSystem.Conf] =
-    ActorSystem.staticConf(name, kvs.rng.akkaConf(name, "127.0.0.1", 4344) ++ "akka.loglevel=off")
+  val pekkoConf: ULayer[ActorSystem.Conf] =
+    ActorSystem.staticConf(name, kvs.rng.pekkoConf(name, "127.0.0.1", 4344) ++ "pekko.loglevel=off")
   val actorSystem: TaskLayer[ActorSystem] =
-    akkaConf >>> ActorSystem.live
+    pekkoConf >>> ActorSystem.live
   val dbaConf: ULayer[kvs.rng.Conf] =
     ZLayer.succeed(kvs.rng.Conf(dir = s"target/data-${java.util.UUID.randomUUID}"))
   val dba: TaskLayer[Dba] =

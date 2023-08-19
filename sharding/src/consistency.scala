@@ -1,6 +1,6 @@
 package kvs.sharding
 
-import akka.actor.{Actor, Props}
+import org.apache.pekko.actor.{Actor, Props}
 import kvs.rng.DbaErr
 import zio.*
 
@@ -20,7 +20,7 @@ object SeqConsistency:
             cfg.name
           , Props(new Actor:
               def receive: Receive =
-                a => sender() ! Unsafe.unsafe(Runtime.default.unsafe.run(cfg.f(a)))
+                a => sender() ! Unsafe.unsafely(Runtime.default.unsafe.run(cfg.f(a)))
             )
           , cfg.id)
       yield

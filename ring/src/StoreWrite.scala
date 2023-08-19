@@ -1,8 +1,8 @@
 package kvs.rng
 package store
 
-import akka.actor.{Actor, ActorLogging, Props}
-import akka.cluster.{Cluster, VectorClock}
+import org.apache.pekko.actor.{Actor, ActorLogging, Props}
+import org.apache.pekko.cluster.{Cluster, VectorClock}
 import org.rocksdb.*
 import proto.{encode, decode}
 

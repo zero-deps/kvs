@@ -1,6 +1,6 @@
 package kvs.rng
 
-import akka.actor.*
+import org.apache.pekko.actor.*
 import java.security.MessageDigest
 import scala.annotation.tailrec
 import scala.collection.SortedMap

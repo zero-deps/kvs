@@ -1,7 +1,7 @@
 package kvs.search
 package app
 
-import akka.actor.{Actor, Props}
+import org.apache.pekko.actor.{Actor, Props}
 import java.io.IOException
 import kvs.feed.*
 import kvs.rng.{ActorSystem, Dba}
@@ -56,9 +56,9 @@ object SearchApp extends ZIOAppDefault:
           yield word).repeatUntilEquals("q")
       yield ()
 
-    val akkaConfig: ULayer[ActorSystem.Conf] =
+    val pekkoConfig: ULayer[ActorSystem.Conf] =
       val name = "app"
-      ActorSystem.staticConf(name, kvs.rng.akkaConf(name, "127.0.0.1", 4343) ++ "akka.loglevel=off")
+      ActorSystem.staticConf(name, kvs.rng.pekkoConf(name, "127.0.0.1", 4343) ++ "pekko.loglevel=off")
     val dbaConfig: ULayer[kvs.rng.Conf] =
       ZLayer.succeed(kvs.rng.Conf(dir = "target/data"))
     val postsDir: URLayer[Dba, KvsDirectory] =
@@ -125,7 +125,7 @@ object SearchApp extends ZIOAppDefault:
     , Dba.live
     , dbaConfig
     , ActorSystem.live
-    , akkaConfig
+    , pekkoConfig
     )
 end SearchApp
 

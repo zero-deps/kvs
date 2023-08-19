@@ -12,5 +12,5 @@ jobs:
         submodules: 'recursive'
     - uses: actions/setup-java@v1.4.3
       with:
-        java-version: 18
+        java-version: 20
     - run: sbt test

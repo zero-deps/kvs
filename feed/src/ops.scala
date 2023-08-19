@@ -1,6 +1,6 @@
 package kvs.feed
 
-import akka.actor.Actor
+import org.apache.pekko.actor.Actor
 import kvs.rng.{Dba, Key, AckQuorumFailed, AckTimeoutFailed}
 import proto.*
 import zio.*, stream.*

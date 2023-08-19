@@ -21,8 +21,8 @@ case class Conf(
 , dir: String = "data_rng"
 )
 
-def akkaConf(name: String, host: String, port: Int): String = s"""
-  akka {
+def pekkoConf(name: String, host: String, port: Int): String = s"""
+  pekko {
     actor {
       provider = cluster
       deployment {
@@ -59,6 +59,6 @@ def akkaConf(name: String, host: String, port: Int): String = s"""
       hostname = $host
       port = $port
     }
-    cluster.seed-nodes = [ "akka://$name@$host:$port" ]
+    cluster.seed-nodes = [ "pekko://$name@$host:$port" ]
   }
   """

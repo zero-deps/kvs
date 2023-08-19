@@ -1,7 +1,7 @@
 package kvs.rng
 
-import akka.actor.*
-import akka.cluster.Cluster
+import org.apache.pekko.actor.*
+import org.apache.pekko.cluster.Cluster
 import scala.concurrent.duration.*
 
 class GatherDel(client: ActorRef, t: FiniteDuration, prefList: Set[Node], k: Array[Byte], conf: Conf) extends FSM[FsmState, Set[Node]] with ActorLogging {

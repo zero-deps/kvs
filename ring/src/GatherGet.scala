@@ -1,7 +1,7 @@
 package kvs.rng
 
 import annotation.unused
-import akka.actor.*
+import org.apache.pekko.actor.*
 import scala.concurrent.duration.*
 import scala.collection.immutable.{HashSet}
 

@@ -1,15 +1,15 @@
-val scalav = "3.2.0"
-val zio = "2.0.0"
-val akka = "2.6.19"
-val rocks = "7.3.1"
-val protoj = "3.21.1"
+val scalav = "3.3.0"
+val zio = "2.0.15" // 16
+val pekko = "1.0.1"
+val rocks = "8.3.2"
+val protoj = "3.24.0"
 val lucene = "8.11.2"
 
 lazy val kvsroot = project.in(file(".")).settings(
   scalaVersion := scalav
 , libraryDependencies ++= Seq(
     "dev.zio" %% "zio-test-sbt" % zio % Test
-  , "com.typesafe.akka" %% "akka-cluster-sharding" % akka
+  , "org.apache.pekko" %% "pekko-cluster-sharding" % pekko
   )
 , testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
 , scalacOptions ++= scalacOptionsCommon
@@ -22,7 +22,7 @@ lazy val ring = project.in(file("ring")).settings(
   scalaVersion := scalav
 , Compile / scalaSource := baseDirectory.value / "src"
 , libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-cluster" % akka
+    "org.apache.pekko" %% "pekko-cluster" % pekko
   , "org.rocksdb" % "rocksdbjni" % rocks
   , "dev.zio" %% "zio" % zio
   )
@@ -33,7 +33,7 @@ lazy val sharding = project.in(file("sharding")).settings(
   scalaVersion := scalav
 , Compile / scalaSource := baseDirectory.value / "src"
 , libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-cluster-sharding" % akka
+    "org.apache.pekko" %% "pekko-cluster-sharding" % pekko
   )
 , scalacOptions ++= scalacOptionsCommon
 ).dependsOn(ring)

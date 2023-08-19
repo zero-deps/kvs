@@ -29,7 +29,8 @@ object MergeOps {
     @tailrec def loop(xs: Vector[KeyBucketData], acc: HashMap[Bytes, KeyBucketData]): Vector[KeyBucketData] = {
       xs match
         case Vector() => acc.values.toVector
-        case received +: t =>
+        case Vector(received, s*) =>
+          val t = s.toVector
           val k = Bytes.unsafeWrap(received.key)
           acc.get(k) match
             case None =>
@@ -49,7 +50,8 @@ object MergeOps {
     def loop(xs: Vector[KeyBucketData], acc: HashMap[Bytes, KeyBucketData]): Vector[KeyBucketData] =
       xs match
         case Vector() => acc.values.toVector
-        case received +: t =>
+        case Vector(received, s*) =>
+          val t = s.toVector
           val k = Bytes.unsafeWrap(received.key)
           acc.get(k) match
             case None =>
@@ -68,20 +70,23 @@ object MergeOps {
     def loop(xs: Vector[Option[Data]], newest: Option[Data]): Option[Data] =
       xs match
         case Vector() => newest
-        case None +: t => loop(t, newest)
-        case (r@Some(received)) +: t =>
-          newest match
-            case None => loop(t, r)
-            case s@Some(saved) =>
-              saved < received match
-                case OkLess(true) => loop(t, r)
-                case OkLess(false) => loop(t, s)
-                case ConflictLess(true, _) => loop(t, r)
-                case ConflictLess(false, _) => loop(t, s)
+        case Vector(x, s*) =>
+          x match
+            case None => loop(s.toVector, newest)
+            case r@Some(received) =>
+              val t = s.toVector
+              newest match
+                case None => loop(t, r)
+                case s@Some(saved) =>
+                  saved < received match
+                    case OkLess(true) => loop(t, r)
+                    case OkLess(false) => loop(t, s)
+                    case ConflictLess(true, _) => loop(t, r)
+                    case ConflictLess(false, _) => loop(t, s)
     xs match
       case Vector() => None -> HashSet.empty
-      case h +: t =>
-        val correct = loop(t.map(_._1), h._1)
+      case Vector(h, t*) =>
+        val correct = loop(t.view.map(_._1).toVector, h._1)
         def makevc1(x: Option[Data]): VectorClock = x.map(_.vc).getOrElse(emptyVC)
         val correct_vc = makevc1(correct)
         correct -> xs.view.filterNot(x => makevc1(x._1) == correct_vc).map(_._2).to(HashSet)

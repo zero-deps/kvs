@@ -1,8 +1,8 @@
 package kvs.rng
 
-import akka.actor.*
-import akka.cluster.ClusterEvent.*
-import akka.cluster.{Member, Cluster}
+import org.apache.pekko.actor.*
+import org.apache.pekko.cluster.ClusterEvent.*
+import org.apache.pekko.cluster.{Member, Cluster}
 import scala.collection.immutable.{SortedMap, SortedSet}
 import proto.*
 

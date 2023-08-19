@@ -1,11 +1,11 @@
 package kvs.rng
 
-import akka.actor.{ExtendedActorSystem}
-import akka.serialization.{BaseSerializer}
+import org.apache.pekko.actor.{ExtendedActorSystem}
+import org.apache.pekko.serialization.{BaseSerializer}
 import proto.*
 
 import kvs.rng.model.*, kvs.rng.data.codec.*
-import akka.cluster.given
+import org.apache.pekko.cluster.given
 
 class Serializer(val system: ExtendedActorSystem) extends BaseSerializer {
   implicit val msgCodec: MessageCodec[Msg] = {

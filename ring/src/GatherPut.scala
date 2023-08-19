@@ -1,6 +1,6 @@
 package kvs.rng
 
-import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
+import org.apache.pekko.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import scala.concurrent.duration.*
 
 import data.Data, model.{StoreGetAck, StorePut}
