@@ -1,10 +1,5 @@
-*.swp
 .DS_Store
 /.bsp/
 /data/example-*/
 /data/test-*/
 target/
-.bloop
-.metals
-.vscode
-**/metals.sbt

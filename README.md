@@ -1,6 +1,5 @@
 # Scala Abstract Type Database
 
-[![License](https://img.shields.io/badge/license-DHARMA-green)](LICENSE)
 [![Documentation](https://img.shields.io/badge/documentation-pdf-yellow)](kvs.pdf)
 [![Paper](https://img.shields.io/badge/paper-pdf-lightgrey)](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf)
 

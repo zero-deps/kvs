@@ -1,9 +1,9 @@
-val scalav = "3.3.0"
-val zio = "2.0.15" // 16
-val pekko = "1.0.1"
-val rocks = "8.3.2"
-val protoj = "3.24.0"
-val lucene = "8.11.2"
+val scalav = "3.3.3"
+val zio = "2.0.21"
+val pekko = "1.0.2"
+val rocks = "8.11.3"
+val protoj = "3.25.3"
+val lucene = "9.10.0"
 
 lazy val kvsroot = project.in(file(".")).settings(
   scalaVersion := scalav
@@ -52,7 +52,7 @@ lazy val search = project.in(file("search")).settings(
 , Compile / scalaSource := baseDirectory.value / "src"
 , libraryDependencies ++= Seq(
     "dev.zio" %% "zio-streams" % zio
-  , "org.apache.lucene" % "lucene-analyzers-common" % lucene
+  , "org.apache.lucene" % "lucene-analysis-common" % lucene
   )
 , scalacOptions ++= scalacOptionsCommon
 ).dependsOn(sharding)
