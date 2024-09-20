@@ -1,53 +1,53 @@
-val scalav = "3.2.2"
-val zio = "2.0.10"
-val akka = "2.6.20"
-val rocks = "7.10.2"
-val protoj = "3.22.2"
-val lucene = "8.11.2"
+val scalav = "3.3.3"
+val zio = "2.1.9"
+val pekko = "1.1.1"
+val rocks = "9.6.1"
+val protoj = "4.28.2"
+val lucene = "9.11.1"
 
-lazy val root = project.in(file(".") ).aggregate(kvs)
+lazy val `kvs-root` = project.in(file(".")).settings(
+  scalaVersion := scalav
+, libraryDependencies ++= Seq(
+    "dev.zio" %% "zio-test-sbt" % zio % Test
+  , "org.apache.pekko" %% "pekko-cluster-sharding" % pekko
+  )
+, scalacOptions ++= Seq(
+    "-language:strictEquality"
+  , "-Wunused:imports"
+  , "-Xfatal-warnings"
+  , "-Yexplicit-nulls"
+  )
+, run / fork := true
+, run / javaOptions += "--add-modules=jdk.incubator.vector"
+, run / connectInput := true
+).dependsOn(kvs).aggregate(kvs)
 
 lazy val kvs = project.in(file("kvs")).settings(
   scalaVersion := scalav
 , libraryDependencies ++= Seq(
-    "com.typesafe.akka" % "akka-cluster-sharding_2.13" % akka
-  , "com.typesafe.akka" % "akka-slf4j_2.13" % akka
-  , "ch.qos.logback" % "logback-classic" % "1.4.5"
-  , "com.github.jnr" % "jnr-ffi" % "2.2.2"
-  , "org.apache.lucene" % "lucene-analyzers-common" % lucene
-  , "dev.zio" %% "zio" % zio
-  , "dev.zio" %% "zio-nio" % "2.0.0"
+    "dev.zio" %% "zio-streams" % zio
+  , "dev.zio" %% "zio-test-sbt" % zio % Test
+  , "org.apache.lucene" % "lucene-analysis-common" % lucene
+  , "org.apache.pekko" %% "pekko-cluster-sharding" % pekko
   , "org.rocksdb" % "rocksdbjni" % rocks
-  , "org.scalatest" %% "scalatest" % "3.2.14" % Test
-  , "com.typesafe.akka" % "akka-testkit_2.13" % akka % Test
   )
-, scalacOptions ++= scalacOptions3
+, testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+, Test / fork := true
+, scalacOptions ++= Seq(
+    "-language:strictEquality"
+  , "-Wunused:imports"
+  , "-Xfatal-warnings"
+  , "-Yexplicit-nulls"
+  )
 ).dependsOn(proto)
 
 lazy val proto = project.in(file("deps/proto/proto")).settings(
   scalaVersion := scalav
-, crossScalaVersions := scalav :: Nil
 , libraryDependencies += "com.google.protobuf" % "protobuf-java" % protoj
-).dependsOn(protoops)
+).dependsOn(`proto-syntax`)
 
-lazy val protoops = project.in(file("deps/proto/ops")).settings(
+lazy val `proto-syntax` = project.in(file("deps/proto/syntax")).settings(
   scalaVersion := scalav
-, crossScalaVersions := scalav :: Nil
-).dependsOn(protosyntax)
-
-lazy val protosyntax = project.in(file("deps/proto/syntax")).settings(
-  scalaVersion := scalav
-, crossScalaVersions := scalav :: Nil
 )
 
-val scalacOptions3 = Seq(
-  "-source:future", "-nowarn"
-, "-language:strictEquality"
-, "-language:postfixOps"
-, "-Yexplicit-nulls"
-, "-encoding", "UTF-8"
-)
-
-turbo := true
-useCoursier := true
 Global / onChangedBuildSource := ReloadOnSourceChanges

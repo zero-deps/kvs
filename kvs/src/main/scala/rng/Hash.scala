@@ -1,103 +1,19 @@
 package zd.rng
 
-import akka.actor.*
-import akka.cluster.ClusterEvent.*
-import akka.cluster.{Member, Cluster}
-import com.typesafe.config.Config
-import zd.rng.model.{StoreDelete, StoreGet, QuorumState, ChangeState}
-import zd.rng.model.QuorumState.{QuorumStateUnsatisfied, QuorumStateReadonly, QuorumStateEffective}
+import org.apache.pekko.actor.*
+import org.apache.pekko.cluster.ClusterEvent.*
+import org.apache.pekko.cluster.{Member, Cluster}
 import scala.collection.immutable.{SortedMap, SortedSet}
-import scala.concurrent.duration.*
-import java.util.Arrays
-import leveldbjnr.*
+import proto.*
+import zd.rng.model.*, QuorumState.*
 
-class Put(val k: Key, val v: Value) {
-  override def equals(other: Any): Boolean = other match {
-    case that: Put =>
-      Arrays.equals(k, that.k) &&
-      Arrays.equals(v, that.v)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k, v)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"Put(k=$k, v=$v)"
-}
-
-object Put {
-  def apply(k: Key, v: Value): Put = {
-    new Put(k=k, v=v)
-  }
-}
-
-class Get(val k: Key) {
-  override def equals(other: Any): Boolean = other match {
-    case that: Get =>
-      Arrays.equals(k, that.k)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"Get(k=$k)"
-}
-
-object Get {
-  def apply(k: Key): Get = {
-    new Get(k=k)
-  }
-}
-
-class Delete(val k: Key) {
-  override def equals(other: Any): Boolean = other match {
-    case that: Delete =>
-      Arrays.equals(k, that.k)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"Delete(k=$k)"
-}
-
-object Delete {
-  def apply(k: Key): Delete = {
-    new Delete(k=k)
-  }
-}
-
-case class Save(path: String)
-case class Iterate(f: (Key, Value) => Unit)
-case class Load(path: String)
-case class Iter(keyPrefix: Array[Byte])
-case class IterRes(keys: List[String])
+case class Put(k: Array[Byte], v: Array[Byte])
+case class Get(k: Array[Byte])
+case class Delete(k: Array[Byte])
 
 case object RestoreState
 
-case object Ready
-
-class InternalPut(val k: Key, val v: Value) {
-  override def equals(other: Any): Boolean = other match {
-    case that: InternalPut =>
-      Arrays.equals(k, that.k) &&
-      Arrays.equals(v, that.v)
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq(k, v)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"InternalPut(k=$k, v=$v)"
-}
-
-object InternalPut {
-  def apply(k: Key, v: Value): InternalPut = {
-    new InternalPut(k=k, v=v)
-  }
-}
+case class InternalPut(k: Array[Byte], v: Array[Byte])
 
 case class HashRngData(
   nodes: Set[Node],
@@ -106,33 +22,47 @@ case class HashRngData(
   replication: Option[ActorRef],
 )
 
+case class PortVNode(
+  @N(1) port: String
+, @N(2) vnode: Int
+)
+
 object Hash {
-  def props(leveldb: LevelDb): Props = Props(new Hash(leveldb))
+  def props(
+    conf: Conf,
+    hashing: Hashing,
+  )(using
+    CanEqual[Node, Node],
+    CanEqual[QuorumStateUnsatisfied.type, QuorumState],
+    CanEqual[ReplBucketUpToDate.type, Any],
+    CanEqual[RestoreState.type, Any],
+    CanEqual[String, Any],
+  ): Props =
+    Props(new Hash(conf, hashing))
 }
 
-// TODO available/not avaiable nodes
-class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLogging {
+class Hash(
+  conf: Conf,
+  hashing: Hashing,
+)(using
+  CanEqual[Node, Node],
+  CanEqual[QuorumStateUnsatisfied.type, QuorumState],
+  CanEqual[ReplBucketUpToDate.type, Any],
+  CanEqual[RestoreState.type, Any],
+  CanEqual[String, Any],
+) extends FSM[QuorumState, HashRngData] with ActorLogging {
   import context.system
 
-  val config: Config = system.settings.config.getConfig("ring").nn
-
-  val quorum = config.getIntList("quorum").nn
-  val N: Int = quorum.get(0).nn
-  val W: Int = quorum.get(1).nn
-  val R: Int = quorum.get(2).nn
-  val gatherTimeout = Duration.fromNanos(config.getDuration("gather-timeout").nn.toNanos)
-  val vNodesNum = config.getInt("virtual-nodes")
-  val bucketsNum = config.getInt("buckets")
+  val quorum = conf.quorum
+  val N = quorum.N
+  val W = quorum.W
+  val R = quorum.R
+  val gatherTimeout = conf.gatherTimeout
+  val vNodesNum = conf.virtualNodes
+  val bucketsNum = conf.buckets
   val cluster = Cluster(system)
   val local: Node = cluster.selfAddress
-  val hashing = HashingExtension(system)
   val actorsMem = SelectionMemorize(system)
-
-  log.info(s"Ring configuration:".blue)
-  log.info(s"ring.quorum.N = ${N}".blue)
-  log.info(s"ring.quorum.W = ${W}".blue)
-  log.info(s"ring.quorum.R = ${R}".blue)
-  log.info(s"ring.leveldb.dir = ${config.getString("leveldb.dir")}".blue)
 
   startWith(QuorumStateUnsatisfied, HashRngData(Set.empty[Node], SortedMap.empty[Bucket, PreferenceList], SortedMap.empty[Bucket, Node], replication=None))
 
@@ -144,37 +74,28 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
 
   when(QuorumStateUnsatisfied){
     case Event(_: Get, _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+      sender() ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
     case Event(_: Put, _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+      sender() ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
     case Event(_: Delete, _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
-      stay()
-    case Event(Save(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
-      stay()
-    case Event(Iterate(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
-      stay()
-    case Event(Load(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
-      stay()
-    case Event(Iter(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateUnsatisfied")
+      sender() ! AckQuorumFailed("QuorumStateUnsatisfied")
       stay()
     case Event(RestoreState, _) =>
       log.warning("Don't know how to restore state when quorum is unsatisfied")
-      stay()
-    case Event(Ready, _) =>
-      sender ! false
       stay()
   }
 
   when(QuorumStateReadonly){
     case Event(x: Get, data) =>
-      doGet(x.k, sender, data)
+      doGet(x.k, sender(), data)
+      stay()
+    case Event(_: Put, _) =>
+      sender() ! AckQuorumFailed("QuorumStateReadonly")
+      stay()
+    case Event(_: Delete, _) =>
+      sender() ! AckQuorumFailed("QuorumStateReadonly")
       stay()
     case Event(RestoreState, data) =>
       val s = state(data.nodes.size)
@@ -183,91 +104,24 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
         _ ! ChangeState(s),
       ))
       goto(s)
-    case Event(Ready, _) =>
-      sender ! false
-      stay()
-
-    case Event(_: Put, _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
-    case Event(_: Delete, _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
-    case Event(Save(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
-    case Event(Iterate(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
-    case Event(Load(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
-    case Event(Iter(_), _) =>
-      sender ! AckQuorumFailed("QuorumStateReadonly")
-      stay()
   }
 
   when(QuorumStateEffective){
-    case Event(Ready, _) =>
-      sender ! true
-      stay()
-
     case Event(x: Get, data) =>
-      doGet(x.k, sender, data)
+      doGet(x.k, sender(), data)
       stay()
     case Event(x: Put, data) =>
-      doPut(x.k, x.v, sender, data)
+      doPut(x.k, x.v, sender(), data)
       stay()
     case Event(x: Delete, data) =>
-      doDelete(x.k, sender, data)
-      stay()
-
-    case Event(Save(path), data) =>
-      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(QuorumStateReadonly),
-        _ ! ChangeState(QuorumStateReadonly),
-      ))
-      val x = system.actorOf(DumpProcessor.props(), s"dump_wrkr-${now_ms()}")
-      x.forward(DumpProcessor.Save(data.buckets, path))
-      goto(QuorumStateReadonly)
-    case Event(Iterate(f), data) =>
-      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(QuorumStateReadonly),
-        _ ! ChangeState(QuorumStateReadonly),
-      ))
-      val x = system.actorOf(DumpProcessor.props(), s"dump_wrkr-${now_ms()}")
-      x.forward(DumpProcessor.Iterate(data.buckets, f))
-      goto(QuorumStateReadonly)
-    case Event(Load(path), data) =>
-      data.nodes.foreach(n => actorsMem.get(n, "ring_hash").fold(
-        _ ! ChangeState(QuorumStateReadonly),
-        _ ! ChangeState(QuorumStateReadonly),
-      ))
-      val x = system.actorOf(DumpProcessor.props(), s"load_wrkr-${now_ms()}")
-      x.forward(DumpProcessor.Load(path))
-      goto(QuorumStateReadonly)
-    case Event(Iter(keyPrefix), data) =>
-      val it = leveldb.iter()
-      it.seek_to_first()
-      var keys = collection.mutable.ListBuffer.empty[String]
-      while (it.valid()) {
-        val key = it.key()
-        val idx = key.indexOfSlice(keyPrefix)
-        if (idx >= 0) {
-          val slice = key.slice(idx, key.length)
-          keys += new String(slice, "utf8")
-        }
-        it.next()
-      }
-      it.close()
-      sender ! IterRes(keys.toList)
+      doDelete(x.k, sender(), data)
       stay()
     case Event(RestoreState, _) =>
       log.info("State is already OK")
       stay()
   }
 
-  /* COMMON FOR ALL STATES*/
+  /* common for all states */
   whenUnhandled {
     case Event(MemberUp(member), data) =>
       val next = joinNodeToRing(member, data)
@@ -275,22 +129,19 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
     case Event(MemberRemoved(member, prevState), data) =>
       val next = removeNodeFromRing(member, data)
       goto(next._1) using next._2
-    case Event(Ready, data) =>
-      sender ! false
-      stay()
     case Event(ChangeState(s), data) =>
       state(data.nodes.size) match {
         case QuorumStateUnsatisfied => stay()
         case _ => goto(s)
       }
     case Event(x: InternalPut, data) =>
-      doPut(x.k, x.v, sender, data)
+      doPut(x.k, x.v, sender(), data)
       stay()
   }
 
-  def doDelete(k: Key, client: ActorRef, data: HashRngData): Unit = {
+  def doDelete(k: Array[Byte], client: ActorRef, data: HashRngData): Unit = {
     val nodes = nodesForKey(k, data)
-    val gather = system.actorOf(GatherDel.props(client, gatherTimeout, nodes, k))
+    val gather = system.actorOf(GatherDel.props(client, gatherTimeout, nodes, k, conf))
     val stores = nodes.map{actorsMem.get(_, "ring_write_store")}
     stores.foreach(_.fold(
       _.tell(StoreDelete(k), gather), 
@@ -298,11 +149,11 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
     ))
   }
 
-  def doPut(k: Key, v: Value, client: ActorRef, data: HashRngData): Unit = {
+  def doPut(k: Array[Byte], v: Array[Byte], client: ActorRef, data: HashRngData): Unit = {
     val nodes = availableNodesFrom(nodesForKey(k, data))
     val M = nodes.size
     if (M >= W) {
-      val bucket = hashing `findBucket` k
+      val bucket = hashing.findBucket(k)
       val info = PutInfo(k, v, N, W, bucket, local, data.nodes)
       val gather = system.actorOf(GatherPut.props(client, gatherTimeout, info))
       val node = if (nodes contains local) local else nodes.head
@@ -315,7 +166,7 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
     }
   }
 
-  def doGet(k: Key, client: ActorRef, data: HashRngData): Unit = {
+  def doGet(k: Array[Byte], client: ActorRef, data: HashRngData): Unit = {
     val nodes = availableNodesFrom(nodesForKey(k, data))
     val M = nodes.size
     if (M >= R) {
@@ -336,9 +187,9 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
   }
 
   def joinNodeToRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
-    val newvNodes: Map[VNode, Node] = (1 to vNodesNum).view.map(vnode => {
-      hashing.hash(stob(member.address.hostPort).++(itob(vnode))) -> member.address
-    }).to(Map)
+    val newvNodes: Map[VNode, Node] = (1 to vNodesNum).view.map(vnode =>
+      hashing.hash(encode(PortVNode(port=member.address.hostPort, vnode=vnode))) -> member.address
+    ).to(Map)
     val updvNodes = data.vNodes ++ newvNodes
     val nodes = data.nodes + member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
@@ -351,7 +202,9 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
 
   def removeNodeFromRing(member: Member, data: HashRngData): (QuorumState, HashRngData) = {
     log.info(s"Removing ${member} from ring")
-    val unusedvNodes: Set[VNode] = (1 to vNodesNum).view.map(vnode => hashing.hash(stob(member.address.hostPort).++(itob(vnode)))).to(Set)
+    val unusedvNodes: Set[VNode] = (1 to vNodesNum).view.map(vnode =>
+      hashing.hash(encode(PortVNode(port=member.address.hostPort, vnode=vnode)))
+    ).to(Set)
     val updvNodes = data.vNodes.filterNot(vn => unusedvNodes.contains(vn._1))
     val nodes = data.nodes - member.address
     val moved = bucketsToUpdate(bucketsNum - 1, Math.min(nodes.size,N), updvNodes, data.buckets)
@@ -361,6 +214,8 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
     val updData = HashRngData(nodes, data.buckets++moved, updvNodes, Some(repl))
     state(updData.nodes.size) -> updData
   }
+
+  def itob(v: Int): Array[Byte] = Array[Byte]((v >> 24).toByte, (v >> 16).toByte, (v >> 8).toByte, v.toByte)
 
   def syncNodes(_buckets: SortedMap[Bucket,PreferenceList]): ActorRef = {
     val empty = SortedMap.empty[Bucket,PreferenceList]
@@ -372,7 +227,7 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
         }
       } else acc
     }
-    val replication = context.actorOf(ReplicationSupervisor.props(buckets), s"repl-${now_ms()}")
+    val replication = context.actorOf(ReplicationSupervisor.props(buckets, conf), s"repl-${now_ms()}")
     replication ! "go-repl"
     replication
   }
@@ -383,25 +238,19 @@ class Hash(leveldb: LevelDb) extends FSM[QuorumState, HashRngData] with ActorLog
     case _ => QuorumStateReadonly
   }
 
-  def bucketsToUpdate(
-    maxBucket: Bucket
-  , nodesNumber: Int
-  , vNodes: SortedMap[Bucket, Node]
-  , buckets: SortedMap[Bucket, PreferenceList]
-  ): SortedMap[Bucket, PreferenceList] =
-    (0 to maxBucket).foldLeft(SortedMap.empty[Bucket, PreferenceList])(
-      (acc, b) => {
-        val prefList = hashing.findNodes(b * hashing.bucketRange, vNodes, nodesNumber)
-        buckets.get(b) match {
-          case None => acc + (b -> prefList)
-          case Some(`prefList`) => acc
-          case _ => acc + (b -> prefList)
-        }
-      }
-    )
+  def bucketsToUpdate(maxBucket: Bucket, nodesNumber: Int, vNodes: SortedMap[Bucket, Node], buckets: SortedMap[Bucket, PreferenceList]): SortedMap[Bucket, PreferenceList] = {
+    (0 to maxBucket).foldLeft(SortedMap.empty[Bucket, PreferenceList])((acc, b) => {
+      val prefList = hashing.findNodes(b * hashing.bucketRange, vNodes, nodesNumber)
+      buckets.get(b) match
+        case None => acc + (b -> prefList)
+        case Some(`prefList`) => acc
+        case _ => acc + (b -> prefList)
+    })
+  }
 
   implicit val ord: Ordering[Node] = Ordering.by[Node, String](n => n.hostPort)
-  def nodesForKey(k: Key, data: HashRngData): PreferenceList = data.buckets.get(hashing.findBucket(k)) match {
+  
+  def nodesForKey(k: Array[Byte], data: HashRngData): PreferenceList = data.buckets.get(hashing.findBucket(k)) match {
     case None => SortedSet.empty[Node]
     case Some(nods) => nods
   }

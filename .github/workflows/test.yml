@@ -1,19 +1,16 @@
 name: test
 
-on: [ push ]
+on: push
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2.3.4
+    - uses: actions/checkout@v4.1.1
       with:
-        clean: false
-        fetch-depth: 0 # with tags
-        submodules: 'recursive'
-    - uses: actions/setup-java@v1.4.3
+        submodules: recursive
+    - uses: actions/setup-java@v4.1.0
       with:
-        java-version: 11
-    - env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: sbt +compile +test
+        java-version: 22
+        distribution: temurin
+    - run: sbt test

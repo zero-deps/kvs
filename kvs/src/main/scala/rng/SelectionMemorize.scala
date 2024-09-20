@@ -1,6 +1,6 @@
 package zd.rng
 
-import akka.actor.*
+import org.apache.pekko.actor.*
 
 case class Watch(a: ActorRef)
 case class Select(node: Node, path: String)
@@ -10,22 +10,22 @@ object SelectionMemorize extends ExtensionId[SelectionMemorize] with ExtensionId
   override def createExtension(system: ExtendedActorSystem): SelectionMemorize =
     new SelectionMemorize(system)
 
-  override def lookup(): SelectionMemorize.type = SelectionMemorize
+  override def lookup: SelectionMemorize.type = SelectionMemorize
 }
 
 trait ActorRefStorage {
-  def get(node: Node, path: String): Either[ActorRef, ActorSelection]
+  def get(node: Node, path: String)(using CanEqual[None.type, Option[ActorRef]]): Either[ActorRef, ActorSelection]
   def put(n: (Node, String), actor: ActorRef): Unit
   def remove(node: (Node, String)): Unit
 }
 
-class SelectionMemorize(val s: ActorSystem)  extends  Extension with ActorRefStorage {
+class SelectionMemorize(val s: ActorSystem) extends Extension with ActorRefStorage {
 
   @volatile
   private var map = Map.empty[(Node, String), ActorRef]
   private val monitor = s.actorOf(Props(classOf[Monitor], this))
 
-  override def get(n: Node, path: String): Either[ActorRef, ActorSelection] = {
+  override def get(n: Node, path: String)(using CanEqual[None.type, Option[ActorRef]]): Either[ActorRef, ActorSelection] = {
     map.get((n, path)) match {
       case Some(actor) => Left(actor)
       case None => monitor ! Select(n, path)
@@ -34,7 +34,7 @@ class SelectionMemorize(val s: ActorSystem)  extends  Extension with ActorRefSto
     }
   }
 
-  override def put(n: (Node, String), a : ActorRef) = map = map + (n ->a )
+  override def put(n: (Node, String), a: ActorRef) = map = map + (n ->a )
   override def remove(n: (Node, String)) = map = map - n
 }
 

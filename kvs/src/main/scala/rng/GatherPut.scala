@@ -1,55 +1,44 @@
 package zd.rng
 
-import akka.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
-import zd.rng.data.Data
-import zd.rng.model.{StoreGetAck, StorePut}
+import org.apache.pekko.actor.{ActorLogging, ActorRef, FSM, Props, RootActorPath}
 import scala.concurrent.duration.*
-import java.util.Arrays
 
-final class PutInfo(
-    val key: Key
-  , val v: Value
-  , val N: Int
-  , val W: Int
-  , val bucket: Bucket
-  , val localAdr: Node
-  , val nodes: Set[Node]
-  ) {
-  override def equals(other: Any): Boolean = other match {
-    case that: PutInfo =>
-      Arrays.equals(key, that.key) &&
-      Arrays.equals(v, that.v) &&
-      N == that.N &&
-      W == that.W &&
-      bucket == that.bucket &&
-      localAdr == that.localAdr &&
-      nodes == that.nodes
-    case _ => false
-  }
-  override def hashCode(): Int = {
-    val state = Seq[Any](key, v, N, W, bucket, localAdr, nodes)
-    state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)
-  }
-  override def toString = s"PutInfo(key=$key, v=$v, N=$N, W=$W, bucket=$bucket, localAdr=$localAdr, nodes=$nodes)"
-}
+import data.Data, model.{StoreGetAck, StorePut}
 
-object PutInfo {
-  def apply(key: Key, v: Value, N: Int, W: Int, bucket: Bucket, localAdr: Node, nodes: Set[Node]): PutInfo = {
-    new PutInfo(key=key, v=v, N=N, W=W, bucket=bucket, localAdr=localAdr, nodes=nodes)
-  }
-}
+case class PutInfo(
+  key: Array[Byte]
+, v: Array[Byte]
+, N: Int
+, W: Int
+, bucket: Bucket
+, localAdr: Node
+, nodes: Set[Node]
+)
 
-object GatherPut {
-  def props(client: ActorRef, t: FiniteDuration, putInfo: PutInfo): Props = Props(new GatherPut(client, t, putInfo))
-}
+object GatherPut:
+  def props(
+    client: ActorRef,
+    t: FiniteDuration,
+    putInfo: PutInfo,
+  )(using
+    CanEqual[String, Any],
+  ): Props =
+    Props(new GatherPut(client, t, putInfo))
+end GatherPut
 
-class GatherPut(client: ActorRef, t: FiniteDuration, putInfo: PutInfo) extends FSM[FsmState, Int] with ActorLogging {
+class GatherPut(
+  client: ActorRef,
+  t: FiniteDuration,
+  putInfo: PutInfo,
+)(using
+  CanEqual[String, Any],
+) extends FSM[FsmState, Int] with ActorLogging:
 
   startWith(Collecting, 0)
-  setTimer("send_by_timeout", "timeout", t)
+  startSingleTimer("send_by_timeout", "timeout", t)
 
   when(Collecting){
-    case Event(StoreGetAck(data), _) =>
+    case Event(StoreGetAck(key, bucket, data), _) =>
       val vc = if (data.size == 1) {
         data.head.vc
       } else if (data.size > 1) {
@@ -57,8 +46,8 @@ class GatherPut(client: ActorRef, t: FiniteDuration, putInfo: PutInfo) extends F
       } else {
         emptyVC
       }
-      val updatedData = Data(putInfo.key, putInfo.bucket, now_ms(), vc.:+(putInfo.localAdr.toString), putInfo.v)
-      mapInPut(putInfo.nodes, updatedData)
+      val updatedData = Data(now_ms(), vc.:+(putInfo.localAdr.toString), putInfo.v)
+      mapInPut(putInfo.nodes, key=key, bucket=bucket, updatedData)
       stay()
     
     case Event("ok", n) =>
@@ -70,11 +59,11 @@ class GatherPut(client: ActorRef, t: FiniteDuration, putInfo: PutInfo) extends F
         client ! AckSuccess(None)
         goto (Sent) using n1
       } else {
-        stay using n1
+        stay() using n1
       }
 
     case Event("timeout", _) =>
-      client ! AckTimeoutFailed("put", new String(putInfo.key, "UTF-8"))
+      client ! AckTimeoutFailed("put", putInfo.key)
       stop()
   }
   
@@ -83,15 +72,15 @@ class GatherPut(client: ActorRef, t: FiniteDuration, putInfo: PutInfo) extends F
     case Event("ok", n) =>
       val n1 = n + 1
       if (n1 == putInfo.N) stop()
-      else stay using n1
+      else stay() using n1
     case Event("timeout", _) =>
       stop()
   }
 
-  def mapInPut(nodes: Set[Node], d: Data) = {
+  def mapInPut(nodes: Set[Node], key: Array[Byte], bucket: Int, d: Data) = {
     val storeList = nodes.map(n => RootActorPath(n) / "user" / "ring_write_store")
-      storeList.foreach(ref => context.system.actorSelection(ref).tell(StorePut(d), self))
+      storeList.foreach(ref => context.system.actorSelection(ref).tell(StorePut(key=key, bucket=bucket, d), self))
   }
   
   initialize()
-}
+end GatherPut

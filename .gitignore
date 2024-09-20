@@ -1,9 +1,5 @@
 .DS_Store
-target/
-/tmp
 /.bsp/
-.bloop
-.metals
-.vscode
-project/project
-project/metals.sbt
+/data/example-*/
+/data/test-*/
+target/
