@@ -16,7 +16,7 @@ lazy val kvs = project.in(file("kvs")).settings(
     ("com.typesafe.akka" %% "akka-cluster-sharding" % akka).cross(CrossVersion.for3Use2_13)
   , ("com.typesafe.akka" %% "akka-slf4j" % akka).cross(CrossVersion.for3Use2_13)
   , "ch.qos.logback" % "logback-classic" % "1.4.5"
-  , "com.github.jnr" % "jnr-ffi" % "2.2.2"
+  , "com.github.jnr" % "jnr-ffi" % "2.2.18"
   , "org.apache.lucene" % "lucene-analyzers-common" % lucene
   , "dev.zio" %% "zio" % zio
   , "dev.zio" %% "zio-nio" % "2.0.2"

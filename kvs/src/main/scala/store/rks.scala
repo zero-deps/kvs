@@ -35,7 +35,7 @@ class Rks(system: ActorSystem, dir: String) extends Dba, AutoCloseable:
   private def withRetryOnce[A](op: Array[Byte] => A, key: K): R[A] =
     val eff = for {
       k <- ZIO.succeed(zd.rng.stob(key))
-      x <- ZIO.attempt(op(k)).retry(Schedule.fromDuration(100 milliseconds))
+      x <- ZIO.attempt(op(k)).retry(Schedule.fromDuration(zio.Duration.fromMillis(100)))
     } yield x
     Try(
       Unsafe.unsafe { implicit unsafe =>
