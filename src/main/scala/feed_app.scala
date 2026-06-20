@@ -3,12 +3,15 @@ package feed
 import akka.actor.ActorSystem
 import akka.cluster.Cluster
 import com.typesafe.config.ConfigFactory
+import proto.*
 import zd.kvs.*
 import zd.kvs.idx.IdxHandler
+import zd.kvs.idx.IdxHandler.given
 import zio.*
 import zio.Console.{printLine, readLine}
 
-final case class Add(feed: String, entryId: String)
+final case class Add(@N(1) feed: String, @N(2) entryId: String)
+given MessageCodec[Add] = caseCodecAuto
 
 /** Example of serializing updates independently for each index feed. */
 object FeedApp extends ZIOAppDefault:
@@ -24,21 +27,13 @@ object FeedApp extends ZIOAppDefault:
         )(system => ZIO.fromFuture(_ => system.terminate()).orDie)
         _ <- ZIO.succeed(Cluster(system).join(Cluster(system).selfAddress))
         kvs <- ZIO.acquireRelease(ZIO.succeed(Kvs.mem()))(kvs => ZIO.succeed(kvs.close()))
-        consistencyConfig = SeqConsistency.Config(
+        consistencyConfig = SeqConsistency.Config[Add, IdxHandler.Idx](
           name = "index-feeds"
-        , handler = {
-            case Add(feed, entryId) =>
-              ZIO
-                .fromEither:
-                  val fid = IdxHandler.Fid(feed)
-                  kvs.index.add(IdxHandler.Idx(fid, entryId))
-                .map(identity[Any])
-            case msg => ZIO.fail(InvalidArgument(s"Unsupported feed operation: $msg"))
-          }
-        , entityId = {
-            case Add(feed, _) => feed
-            case msg => throw IllegalArgumentException(s"Unsupported feed operation: $msg")
-          }
+        , handler = add =>
+            ZIO.fromEither:
+              val fid = IdxHandler.Fid(add.feed)
+              kvs.index.add(IdxHandler.Idx(fid, add.entryId))
+        , entityId = _.feed
         )
         program =
           for
