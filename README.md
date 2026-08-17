@@ -1,7 +1,5 @@
 # Abstract scala type database
 
-![ci](https://github.com/zero-deps/kvs/workflows/ci/badge.svg)
-
 Abstract Scala storage framework with high-level API for handling linked lists of polymorphic data (feeds).
 
 KVS is highly available distributed (AP) strong eventual consistent (SEC) and sequentially consistent (via cluster sharding) storage. It is used for data from sport and games events. In some configurations used as distributed network file system. Also can be a generic storage for application.

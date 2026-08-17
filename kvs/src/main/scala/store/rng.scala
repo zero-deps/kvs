@@ -47,7 +47,7 @@ class Rng(system: ActorSystem) extends Dba, AutoCloseable:
     val p = Promise[Unit]()
     def loop(): Unit =
       import system.dispatcher
-      system.scheduler.scheduleOnce(1 second){
+      system.scheduler.scheduleOnce(1.second){
         isReady() onComplete {
           case Success(true) =>
             log.info("KVS is ready")
@@ -81,7 +81,7 @@ class Rng(system: ActorSystem) extends Dba, AutoCloseable:
       case Failure(t) => Left(Failed(t))
 
   override def save(path: String): R[String] =
-    val d = 1 hour
+    val d = 1.hour
     val x = hash.ask(rng.Save(path))(Timeout(d))
     Try(Await.result(x, d)) match
       case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
@@ -90,7 +90,7 @@ class Rng(system: ActorSystem) extends Dba, AutoCloseable:
       case Failure(t) => Left(Failed(t))
 
   def iterate(f: (K, V) => Unit): R[String] =
-    val d = 1 hour
+    val d = 1.hour
     val x = hash.ask(rng.Iterate((key, value) => f(new String(key, "UTF-8"), value)))(Timeout(d))
     Try(Await.result(x, d)) match
       case Success(rng.AckQuorumFailed(why)) => Left(RngAskQuorumFailed(why))
